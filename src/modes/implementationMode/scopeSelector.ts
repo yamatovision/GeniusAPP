@@ -252,9 +252,10 @@ ${JSON.stringify(selectedItems, null, 2)}`;
     
     // 既存のスコープから日付情報を取得
     try {
-      const config = await vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', '');
+      const config = await vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', {});
       if (config) {
-        const parsedConfig = JSON.parse(config as string);
+        // 文字列の場合はJSONとしてパース、オブジェクトの場合はそのまま使用
+        const parsedConfig = typeof config === 'string' ? JSON.parse(config) : config;
         if (parsedConfig.startDate) {
           startDate = parsedConfig.startDate;
         }

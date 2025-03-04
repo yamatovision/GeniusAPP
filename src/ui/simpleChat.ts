@@ -568,7 +568,7 @@ Phase#5：実装用要件定義書`
       
       // モックアップストレージサービスをロード
       // 動的インポートを使用して循環参照を避ける
-      const { MockupStorageService } = require('../../services/mockupStorageService');
+      const { MockupStorageService } = require('../services/mockupStorageService');
       const storageService = MockupStorageService.getInstance();
       
       // モックアップを保存

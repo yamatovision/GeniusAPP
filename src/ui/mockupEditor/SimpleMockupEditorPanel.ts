@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
-import { MockupStorageService, Mockup } from '../../services/mockupStorageService';
+import { MockupStorageService, Mockup } from '../../../src/services/mockupStorageService';
 
 /**
  * シンプルモックアップエディターパネル

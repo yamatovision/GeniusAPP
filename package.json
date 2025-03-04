@@ -66,6 +66,18 @@
       {
         "command": "appgenius-ai.openDevelopmentAssistant",
         "title": "AppGenius AI: 開発アシスタントを開く"
+      },
+      {
+        "command": "appgenius-ai.launchCli",
+        "title": "AppGenius AI: CLIを起動"
+      },
+      {
+        "command": "appgenius-ai.stopCli",
+        "title": "AppGenius AI: CLIを停止"
+      },
+      {
+        "command": "appgenius-ai.showCliProgress",
+        "title": "AppGenius AI: CLI進捗状況を表示"
       }
     ],
     "keybindings": [
@@ -142,6 +154,11 @@
           "command": "appgenius-ai.openDevelopmentAssistant",
           "group": "AppGenius",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.launchCli",
+          "group": "AppGenius",
+          "when": "editorTextFocus && config.appgeniusAI.enableCli"
         }
       ]
     },
@@ -208,6 +225,21 @@
           "type": "object",
           "default": {},
           "description": "実装スコープの情報（モジュール間で共有される）"
+        },
+        "appgeniusAI.enableCli": {
+          "type": "boolean",
+          "default": true,
+          "description": "CLI機能を有効にする"
+        },
+        "appgeniusAI.cliPath": {
+          "type": "string",
+          "default": "",
+          "description": "AppGenius CLIの実行パス（空の場合はグローバルインストールを使用）"
+        },
+        "appgeniusAI.currentProjectId": {
+          "type": "string",
+          "default": "",
+          "description": "現在選択中のプロジェクトID"
         }
       }
     }

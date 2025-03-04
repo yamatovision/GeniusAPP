@@ -3,6 +3,8 @@ import * as path from 'path';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
 import { ProjectManagementService, Project } from '../../services/ProjectManagementService';
+import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
+import { AppGeniusStateManager } from '../../services/AppGeniusStateManager';
 
 /**
  * ダッシュボードパネル
@@ -16,11 +18,16 @@ export class DashboardPanel {
   private readonly _extensionUri: vscode.Uri;
   private readonly _aiService: AIService;
   private readonly _projectService: ProjectManagementService;
+  private readonly _stateManager: AppGeniusStateManager;
+  private readonly _eventBus: AppGeniusEventBus;
   private _disposables: vscode.Disposable[] = [];
 
   // 現在の作業状態
   private _currentProjects: Project[] = [];
   private _activeProject: Project | undefined;
+  private _projectRequirements: any = {};
+  private _projectMockups: any = {};
+  private _projectScopes: any = {};
 
   /**
    * パネルを作成または表示
@@ -65,6 +72,8 @@ export class DashboardPanel {
     
     // サービスの初期化
     this._projectService = ProjectManagementService.getInstance();
+    this._stateManager = AppGeniusStateManager.getInstance();
+    this._eventBus = AppGeniusEventBus.getInstance();
     
     // データの初期化
     this._currentProjects = this._projectService.getAllProjects();
@@ -127,8 +136,122 @@ export class DashboardPanel {
       this._disposables
     );
 
+    // イベントリスナーの登録
+    this._registerEventListeners();
+
     // 初期データをロード
     this._refreshProjects();
+  }
+  
+  /**
+   * イベントリスナーの登録
+   */
+  private _registerEventListeners(): void {
+    // 要件定義更新イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.REQUIREMENTS_UPDATED, async (event) => {
+        if (event.projectId) {
+          Logger.debug(`Requirements updated for project: ${event.projectId}`);
+          this._projectRequirements[event.projectId] = event.data;
+          
+          // アクティブなプロジェクトの場合、UIを更新
+          if (this._activeProject && this._activeProject.id === event.projectId) {
+            await this._updateWebview();
+          }
+        }
+      })
+    );
+    
+    // モックアップ作成イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.MOCKUP_CREATED, async (event) => {
+        if (event.projectId) {
+          Logger.debug(`Mockup created for project: ${event.projectId}`);
+          if (!this._projectMockups[event.projectId]) {
+            this._projectMockups[event.projectId] = [];
+          }
+          
+          // 重複を避けるために既存のものを削除
+          const mockupId = event.data.id;
+          const existingIndex = this._projectMockups[event.projectId]
+            .findIndex((m: any) => m.id === mockupId);
+          
+          if (existingIndex >= 0) {
+            this._projectMockups[event.projectId][existingIndex] = event.data;
+          } else {
+            this._projectMockups[event.projectId].push(event.data);
+          }
+          
+          // アクティブなプロジェクトの場合、UIを更新
+          if (this._activeProject && this._activeProject.id === event.projectId) {
+            await this._updateWebview();
+          }
+        }
+      })
+    );
+    
+    // スコープ更新イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.SCOPE_UPDATED, async (event) => {
+        if (event.projectId) {
+          Logger.debug(`Scope updated for project: ${event.projectId}`);
+          this._projectScopes[event.projectId] = event.data;
+          
+          // アクティブなプロジェクトの場合、UIを更新
+          if (this._activeProject && this._activeProject.id === event.projectId) {
+            await this._updateWebview();
+          }
+        }
+      })
+    );
+    
+    // 実装進捗イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.IMPLEMENTATION_PROGRESS, async (event) => {
+        if (event.projectId && this._projectScopes[event.projectId]) {
+          Logger.debug(`Implementation progress updated for project: ${event.projectId}`);
+          
+          // スコープの進捗を更新
+          const scope = this._projectScopes[event.projectId];
+          scope.items = event.data.items;
+          scope.totalProgress = event.data.totalProgress;
+          
+          // アクティブなプロジェクトの場合、UIを更新
+          if (this._activeProject && this._activeProject.id === event.projectId) {
+            await this._updateWebview();
+          }
+        }
+      })
+    );
+    
+    // プロジェクト作成イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.PROJECT_CREATED, async () => {
+        await this._refreshProjects();
+      })
+    );
+    
+    // プロジェクト削除イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.PROJECT_DELETED, async (event) => {
+        const projectId = event.data?.id;
+        if (projectId) {
+          // 削除されたプロジェクトのデータをクリーンアップ
+          delete this._projectRequirements[projectId];
+          delete this._projectMockups[projectId];
+          delete this._projectScopes[projectId];
+          
+          await this._refreshProjects();
+        }
+      })
+    );
+    
+    // フェーズ完了イベント
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.PHASE_COMPLETED, async () => {
+        await this._refreshProjects();
+      })
+    );
   }
 
   /**
@@ -138,6 +261,48 @@ export class DashboardPanel {
     try {
       this._currentProjects = this._projectService.getAllProjects();
       this._activeProject = this._projectService.getActiveProject();
+      
+      // アクティブなプロジェクトのデータをロード
+      if (this._activeProject) {
+        const projectId = this._activeProject.id;
+        
+        // 要件定義データのロード
+        if (!this._projectRequirements[projectId]) {
+          try {
+            const requirements = await this._stateManager.getRequirements(projectId);
+            if (requirements) {
+              this._projectRequirements[projectId] = requirements;
+            }
+          } catch (e) {
+            Logger.debug(`No requirements found for project: ${projectId}`);
+          }
+        }
+        
+        // モックアップデータのロード
+        if (!this._projectMockups[projectId]) {
+          try {
+            const mockups = await this._stateManager.getMockups(projectId);
+            if (mockups && mockups.length > 0) {
+              this._projectMockups[projectId] = mockups;
+            }
+          } catch (e) {
+            Logger.debug(`No mockups found for project: ${projectId}`);
+          }
+        }
+        
+        // スコープデータのロード
+        if (!this._projectScopes[projectId]) {
+          try {
+            const scope = await this._stateManager.getImplementationScope(projectId);
+            if (scope) {
+              this._projectScopes[projectId] = scope;
+            }
+          } catch (e) {
+            Logger.debug(`No implementation scope found for project: ${projectId}`);
+          }
+        }
+      }
+      
       await this._updateWebview();
     } catch (error) {
       Logger.error(`プロジェクト一覧更新エラー`, error as Error);
@@ -399,10 +564,40 @@ export class DashboardPanel {
    * WebViewの状態を更新
    */
   private async _updateWebview(): Promise<void> {
+    // プロジェクト詳細情報を追加
+    let activeProjectDetails = undefined;
+    
+    if (this._activeProject) {
+      const projectId = this._activeProject.id;
+      activeProjectDetails = {
+        requirements: this._projectRequirements[projectId],
+        mockups: this._projectMockups[projectId] || [],
+        scope: this._projectScopes[projectId],
+        
+        // モックアップ数
+        mockupCount: this._projectMockups[projectId]?.length || 0,
+        
+        // 実装項目数
+        scopeItemCount: this._projectScopes[projectId]?.items?.length || 0,
+        
+        // 実装完了率
+        implementationProgress: this._projectScopes[projectId]?.totalProgress || 0,
+        
+        // 実装中の項目数
+        inProgressItems: this._projectScopes[projectId]?.items?.filter((item: any) => 
+          item.status === 'in-progress').length || 0,
+          
+        // 完了した項目数
+        completedItems: this._projectScopes[projectId]?.items?.filter((item: any) => 
+          item.status === 'completed').length || 0
+      };
+    }
+    
     await this._panel.webview.postMessage({
       command: 'updateState',
       projects: this._currentProjects,
-      activeProject: this._activeProject
+      activeProject: this._activeProject,
+      activeProjectDetails: activeProjectDetails
     });
   }
 

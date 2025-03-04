@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
 import { ImplementationPhaseManager, ImplementationPhase } from '../../modes/implementationMode/implementationPhases';
@@ -398,13 +399,7 @@ export class ImplementationSelectorPanel {
       const success = this._phaseManager.advanceToNextPhase();
       
       if (success) {
-        vscode.window.showInformationMessage('スコープが選択されました。実装計画フェーズに移行します。');
-
-        // 実装計画フェーズに移動するため、開発アシスタントパネルを開く
-        vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
-        
-        // 選択情報を開発アシスタントに共有するためのグローバル状態を設定
-        // （本来はサービスを介して共有すべきだが、簡易実装として）
+        vscode.window.showInformationMessage('スコープが選択されました。実装フェーズに移行します。');
         
         // 現在のワークスペースを確認
         const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -453,46 +448,132 @@ export class ImplementationSelectorPanel {
         // スコープ情報を取得
         const currentScope = await this._scopeSelector.getCurrentScope();
         
-        // スコープ情報を保存する前に設定をクリア（既存の値が読み込まれない問題を回避）
-        await vscode.workspace.getConfiguration('appgeniusAI').update(
-          'implementationScope', 
-          null, 
-          true
-        );
-        
-        // 新しい設定値を保存
-        const scopeDataObj = {
-            selectedItems,
-            estimatedTime: currentScope.estimatedTime,
-            totalProgress: currentScope.totalProgress,
-            startDate: currentScope.startDate,
-            targetDate: currentScope.targetDate,
-            projectPath
+        // インプリメンテーションスコープを作成
+        const implementationScope = {
+          items: selectedItems,
+          selectedIds: selectedItems.map(item => item.id),
+          estimatedTime: currentScope.estimatedTime,
+          totalProgress: 0, // 初期進捗は0
+          startDate: new Date().toISOString(),
+          targetDate: currentScope.targetDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // デフォルトは1週間後
+          projectPath
         };
         
-        // オブジェクトを直接保存する（JSON文字列ではなく）
-        Logger.debug(`保存するスコープデータ: ${JSON.stringify(scopeDataObj).substring(0, 100)}...`);
-        
+        // スコープ情報をAppGeniusStateManagerに保存
         try {
-          // スコープ情報を保存
-          await vscode.workspace.getConfiguration('appgeniusAI').update(
-            'implementationScope', 
-            scopeDataObj, 
-            true
-          );
+          // AppGeniusStateManagerのインポート
+          const { AppGeniusStateManager } = await import('../../services/AppGeniusStateManager');
+          const stateManager = AppGeniusStateManager.getInstance();
           
-          Logger.info('実装スコープデータを設定に保存しました');
+          // 現在のプロジェクトIDを取得
+          const projectId = vscode.workspace.getConfiguration('appgeniusAI').get<string>('currentProjectId');
+          
+          if (projectId) {
+            // プロジェクトに実装スコープを保存
+            await stateManager.saveImplementationScope(projectId, implementationScope);
+            Logger.info(`プロジェクト ${projectId} に実装スコープを保存しました`);
+            
+            // 直接CLIを起動する
+            try {
+              vscode.window.showInformationMessage('AppGenius CLIを起動しています...');
+              
+              // CLILauncherServiceのインポート
+              const { CLILauncherService } = await import('../../services/cli/CLILauncherService');
+              const cliLauncher = CLILauncherService.getInstance();
+              
+              // CLIを起動
+              const launchSuccess = await cliLauncher.launchCLI(implementationScope);
+              
+              if (launchSuccess) {
+                vscode.window.showInformationMessage('AppGenius CLIを起動しました。実装が開始されます。');
+                
+                // スコープファイルとプロジェクトパスの使用方法を表示
+                vscode.window.showInformationMessage(
+                  'CLIが起動したら、以下のコマンドでヘルプを表示できます: /help',
+                  { detail: 'スコープとプロジェクトの設定方法も表示されます' }
+                );
+              } else {
+                // CLIの起動に失敗した場合は開発アシスタントを代わりに開く
+                vscode.window.showWarningMessage('CLIの起動に失敗しました。代わりに開発アシスタントを開きます。');
+                vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+              }
+            } catch (error) {
+              // エラーが発生した場合のフォールバック
+              Logger.error('CLI起動中にエラーが発生:', error as Error);
+              vscode.window.showErrorMessage(`CLI起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
+              vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+            }
+          } else {
+            // プロジェクトIDがない場合は従来の方法でVSCode設定に保存
+            await this.saveToVSCodeSettings(implementationScope);
+            
+            // 直接CLIを起動する
+            try {
+              vscode.window.showInformationMessage('AppGenius CLIを起動しています...');
+              
+              // CLILauncherServiceのインポート
+              const { CLILauncherService } = await import('../../services/cli/CLILauncherService');
+              const cliLauncher = CLILauncherService.getInstance();
+              
+              // CLIを起動
+              const launchSuccess = await cliLauncher.launchCLI(implementationScope);
+              
+              if (launchSuccess) {
+                vscode.window.showInformationMessage('AppGenius CLIを起動しました。実装が開始されます。');
+                
+                // スコープファイルとプロジェクトパスの使用方法を表示
+                vscode.window.showInformationMessage(
+                  'CLIが起動したら、以下のコマンドでヘルプを表示できます: /help',
+                  { detail: 'スコープとプロジェクトの設定方法も表示されます' }
+                );
+              } else {
+                // CLIの起動に失敗した場合は開発アシスタントを代わりに開く
+                vscode.window.showWarningMessage('CLIの起動に失敗しました。代わりに開発アシスタントを開きます。');
+                vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+              }
+            } catch (error) {
+              // エラーが発生した場合のフォールバック
+              Logger.error('CLI起動中にエラーが発生:', error as Error);
+              vscode.window.showErrorMessage(`CLI起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
+              vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+            }
+          }
         } catch (error) {
-          Logger.error('実装スコープデータの保存中にエラーが発生しました:', error as Error);
-          vscode.window.showErrorMessage(`実装スコープ情報の保存に失敗しました: ${(error as Error).message}`);
-        }
-        
-        // 保存確認
-        const verifyData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope');
-        Logger.debug(`保存後の検証: ${verifyData ? '保存成功' : '保存失敗'}`);
-        
-        if (!verifyData) {
-          vscode.window.showWarningMessage('スコープ情報の保存に問題が発生しました。開発アシスタントに情報が引き継がれない可能性があります。');
+          Logger.error('StateManager経由の保存に失敗しました。VSCode設定に保存します:', error as Error);
+          
+          // 従来の方法でVSCode設定に保存
+          await this.saveToVSCodeSettings(implementationScope);
+          
+          // 直接CLIを起動する
+          try {
+            vscode.window.showInformationMessage('AppGenius CLIを起動しています...');
+            
+            // CLILauncherServiceのインポート
+            const { CLILauncherService } = await import('../../services/cli/CLILauncherService');
+            const cliLauncher = CLILauncherService.getInstance();
+            
+            // CLIを起動
+            const launchSuccess = await cliLauncher.launchCLI(implementationScope);
+            
+            if (launchSuccess) {
+              vscode.window.showInformationMessage('AppGenius CLIを起動しました。実装が開始されます。');
+              
+              // スコープファイルとプロジェクトパスの使用方法を表示
+              vscode.window.showInformationMessage(
+                'CLIが起動したら、以下のコマンドでヘルプを表示できます: /help',
+                { detail: 'スコープとプロジェクトの設定方法も表示されます' }
+              );
+            } else {
+              // CLIの起動に失敗した場合は開発アシスタントを代わりに開く
+              vscode.window.showWarningMessage('CLIの起動に失敗しました。代わりに開発アシスタントを開きます。');
+              vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+            }
+          } catch (error) {
+            // エラーが発生した場合のフォールバック
+            Logger.error('CLI起動中にエラーが発生:', error as Error);
+            vscode.window.showErrorMessage(`CLI起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
+            vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+          }
         }
 
         // このパネルを閉じる
@@ -503,6 +584,81 @@ export class ImplementationSelectorPanel {
     } catch (error) {
       Logger.error('スコープ選択の完了中にエラーが発生しました', error as Error);
       await this._showError(`スコープ選択の完了に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * VSCode設定にスコープ情報を保存（従来のバックアップ方法）
+   */
+  private async saveToVSCodeSettings(scope: any): Promise<void> {
+    try {
+      // スコープにIDが含まれていない場合は追加
+      if (!scope.id) {
+        scope.id = `scope-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      }
+      
+      // スコープ情報を保存する前に設定をクリア（既存の値が読み込まれない問題を回避）
+      await vscode.workspace.getConfiguration('appgeniusAI').update(
+        'implementationScope', 
+        null, 
+        true
+      );
+      
+      // オブジェクトを直接保存
+      Logger.debug(`VSCode設定に保存するスコープデータ: ${JSON.stringify(scope).substring(0, 100)}...`);
+      
+      // スコープ情報を保存
+      await vscode.workspace.getConfiguration('appgeniusAI').update(
+        'implementationScope', 
+        scope, 
+        true
+      );
+      
+      Logger.info('実装スコープデータをVSCode設定に保存しました');
+      
+      // 保存確認
+      const verifyData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope');
+      Logger.debug(`保存後の検証: ${verifyData ? '保存成功' : '保存失敗'}`);
+      
+      if (!verifyData) {
+        vscode.window.showWarningMessage('スコープ情報の保存に問題が発生しました。開発アシスタントに情報が引き継がれない可能性があります。');
+      }
+      
+      // CLI連携のために一時ファイルも作成
+      try {
+        // ホームディレクトリに.appgenius/tempディレクトリを作成
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+        const tempDir = path.join(homeDir, '.appgenius', 'temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        // スコープファイルを作成（CLIから直接アクセスできるように）
+        const scopeFilePath = path.join(tempDir, `${scope.id}.json`);
+        
+        // スコープデータをCLI用に変換
+        const scopeData = {
+          id: scope.id,
+          name: `Implementation Scope ${scope.id.substring(0, 8)}`,
+          description: `Scope with ${scope.items?.length || 0} items`,
+          projectPath: scope.projectPath,
+          requirements: scope.items?.map((item: any) => item.description) || [],
+          selectedItems: scope.items?.filter((item: any) => scope.selectedIds?.includes(item.id)) || [],
+          estimatedTime: scope.estimatedTime,
+          startDate: scope.startDate,
+          targetDate: scope.targetDate
+        };
+        
+        // ファイルに書き込み
+        fs.writeFileSync(scopeFilePath, JSON.stringify(scopeData, null, 2), 'utf8');
+        Logger.info(`CLIアクセス用のスコープファイルを作成しました: ${scopeFilePath}`);
+      } catch (error) {
+        // CLI連携用のファイル作成に失敗しても主要なVSCode設定は保存されているためエラーを無視
+        Logger.warn(`CLI連携用のスコープファイル作成に失敗しました: ${(error as Error).message}`);
+      }
+    } catch (error) {
+      Logger.error('実装スコープデータの保存中にエラーが発生しました:', error as Error);
+      vscode.window.showErrorMessage(`実装スコープ情報の保存に失敗しました: ${(error as Error).message}`);
     }
   }
 

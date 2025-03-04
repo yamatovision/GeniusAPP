@@ -546,16 +546,17 @@ export class DevelopmentAssistantPanel {
       });
       
       // 実装スコープデータを特に確認
-      const scopeData = allConfig.get('implementationScope', '');
+      const scopeData = allConfig.get('implementationScope', {});
       Logger.debug(`実装スコープデータの有無: ${scopeData ? '設定あり' : '設定なし'}`);
       
       if (scopeData) {
         try {
-          const parsed = JSON.parse(scopeData as string);
           // 安全に文字列化
           let logData = 'データなし';
           try {
-            const jsonStr = JSON.stringify(parsed);
+            // 文字列か確認
+            const dataToLog = typeof scopeData === 'string' ? JSON.parse(scopeData) : scopeData;
+            const jsonStr = JSON.stringify(dataToLog);
             logData = jsonStr.length > 100 ? jsonStr.slice(0, 100) : jsonStr;
           } catch (err) {
             Logger.error('JSONシリアライズエラー:', err as Error);
@@ -583,46 +584,48 @@ export class DevelopmentAssistantPanel {
       }
       
       // 既存の設定を取得
-      const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', '');
-      let config = {};
+      const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', {});
+      let config = scopeData || {};
       
-      if (scopeData) {
+      if (typeof config === 'string') {
         try {
-          config = JSON.parse(scopeData as string);
-          // 安全に文字列化
-          let configLog = 'データなし';
-          try {
-            const configJson = JSON.stringify(config);
-            configLog = configJson.length > 100 ? configJson.slice(0, 100) : configJson;
-          } catch (err) {
-            Logger.error('JSONシリアライズエラー:', err as Error);
-          }
-          Logger.debug(`既存スコープ設定: ${configLog}...`);
+          // 文字列の場合はJSONとしてパース（互換性のため）
+          config = JSON.parse(config);
         } catch (error) {
           Logger.error('既存スコープデータの解析エラー:', error as Error);
+          config = {};
         }
       }
       
-      // 更新データを作成
-      const updatedData = JSON.stringify({
+      // 安全に文字列化してログに出力
+      let configLog = 'データなし';
+      try {
+        const configJson = JSON.stringify(config);
+        configLog = configJson.length > 100 ? configJson.slice(0, 100) : configJson;
+      } catch (err) {
+        Logger.error('JSONシリアライズエラー:', err as Error);
+      }
+      Logger.debug(`既存スコープ設定: ${configLog}...`);
+      
+      // 更新データを作成（オブジェクトとして）
+      const updatedData = {
         ...config,
         selectedItems: this._selectedItems,
         totalProgress,
         lastUpdated: new Date().toISOString()
-      });
+      };
       
       // 安全に文字列のプレビューを生成
       let dataPreview = 'データなし';
       try {
-        if (updatedData) {
-          dataPreview = updatedData.length > 100 ? updatedData.slice(0, 100) : updatedData;
-        }
+        const jsonStr = JSON.stringify(updatedData);
+        dataPreview = jsonStr.length > 100 ? jsonStr.slice(0, 100) : jsonStr;
       } catch (err) {
         Logger.error('データプレビュー生成エラー:', err as Error);
       }
       Logger.debug(`更新データ: ${dataPreview}...`);
       
-      // 更新した情報で設定を上書き
+      // 更新した情報で設定を上書き（オブジェクトをそのまま保存）
       await vscode.workspace.getConfiguration('appgeniusAI').update(
         'implementationScope',
         updatedData,
@@ -630,7 +633,7 @@ export class DevelopmentAssistantPanel {
       );
       
       // 更新後の確認
-      const verifyData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', '');
+      const verifyData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', {});
       Logger.debug(`更新後のデータ確認: ${verifyData ? '設定あり' : '設定なし'}`);
       
       Logger.debug('実装スコープ情報を設定に保存しました');
@@ -701,7 +704,7 @@ export class DevelopmentAssistantPanel {
   private async _loadImplementationScopeData(): Promise<void> {
     try {
       // 設定から実装スコープデータを取得
-      const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', '');
+      const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', {});
       Logger.debug(`読み込まれた実装スコープデータ: ${scopeData ? 'データあり' : 'データなし'}`);
       
       if (scopeData) {
@@ -710,7 +713,7 @@ export class DevelopmentAssistantPanel {
           let logContent = 'データなし';
           try {
             if (scopeData) {
-              const scopeStr = String(scopeData);
+              const scopeStr = JSON.stringify(scopeData);
               logContent = scopeStr.length > 100 ? scopeStr.slice(0, 100) : scopeStr;
             }
           } catch (err) {
@@ -718,7 +721,10 @@ export class DevelopmentAssistantPanel {
             Logger.error('データログ生成エラー:', err as Error);
           }
           Logger.debug(`実装スコープデータ内容: ${logContent}...`);
-          const parsedData = JSON.parse(scopeData as string);
+          
+          // 文字列の場合はJSONとしてパース
+          const parsedData = typeof scopeData === 'string' ? JSON.parse(scopeData) : scopeData;
+          
           // 安全に文字列化
           let parsedLog = 'データなし';
           try {
@@ -788,10 +794,11 @@ export class DevelopmentAssistantPanel {
       let customPath = '';
       
       // 設定から実装スコープデータを取得
-      const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', '');
+      const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', {});
       if (scopeData) {
         try {
-          const parsedData = JSON.parse(scopeData as string);
+          // 文字列の場合はJSONとしてパース
+          const parsedData = typeof scopeData === 'string' ? JSON.parse(scopeData) : scopeData;
           if (parsedData.projectPath) {
             customPath = parsedData.projectPath;
           }
@@ -1000,9 +1007,10 @@ export class DevelopmentAssistantPanel {
       let projectItems = [];
       
       try {
-        const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', '');
+        const scopeData = vscode.workspace.getConfiguration('appgeniusAI').get('implementationScope', {});
         if (scopeData) {
-          const parsedData = JSON.parse(scopeData as string);
+          // 文字列の場合はJSONとしてパース、オブジェクトの場合はそのまま使用
+          const parsedData = typeof scopeData === 'string' ? JSON.parse(scopeData) : scopeData;
           totalProgress = parsedData.totalProgress || 0;
           startDate = parsedData.startDate || '';
           targetDate = parsedData.targetDate || '';

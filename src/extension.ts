@@ -14,6 +14,8 @@ import { SimpleMockupEditorPanel } from './ui/mockupEditor/SimpleMockupEditorPan
 import { DevelopmentAssistantPanel } from './ui/developmentAssistant/DevelopmentAssistantPanel';
 import { SimpleChatPanel } from './ui/simpleChat';
 import { ImplementationSelectorPanel } from './ui/implementationSelector/ImplementationSelectorPanel';
+import { DashboardPanel } from './ui/dashboard/DashboardPanel';
+import { ProjectManagementService } from './services/ProjectManagementService';
 
 export function activate(context: vscode.ExtensionContext) {
 	// ロガーの初期化
@@ -60,6 +62,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const selection = await vscode.window.showQuickPick(
 					[
 						'APIキーを設定',
+						'AppGenius ダッシュボードを開く',
 						'要件定義ビジュアライザーを開く',
 						'モックアップエディターを開く',
 						'実装スコープ選択を開く',
@@ -72,6 +75,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 				if (selection === 'APIキーを設定') {
 					vscode.commands.executeCommand('appgenius-ai.setApiKey');
+				} else if (selection === 'AppGenius ダッシュボードを開く') {
+					vscode.commands.executeCommand('appgenius-ai.openDashboard');
 				} else if (selection === '要件定義ビジュアライザーを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
 				} else if (selection === 'モックアップエディターを開く') {
@@ -172,6 +177,19 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		vscode.commands.registerCommand('appgenius-ai.showWelcomeMessage', () => {
 			vscode.window.showInformationMessage('AppGenius AI へようこそ！Ctrl+Shift+P を押して "AppGenius AI: コマンドを実行" を選択してください。');
 			Logger.info('ウェルカムメッセージを表示しました');
+		})
+	);
+	
+	// ダッシュボードを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openDashboard', () => {
+			try {
+				Logger.info('ダッシュボードを開きます');
+				DashboardPanel.createOrShow(context.extensionUri, aiService);
+			} catch (error) {
+				Logger.error(`ダッシュボード起動エラー: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`ダッシュボードの起動に失敗しました: ${(error as Error).message}`);
+			}
 		})
 	);
 
@@ -335,13 +353,16 @@ ${Object.entries(analysis.stats.languageBreakdown)
 	// 拡張機能起動時にウェルカムメッセージを表示
 	vscode.window.showInformationMessage(
 		'AppGenius AI が起動しました。Ctrl+Shift+P を押して "AppGenius AI: コマンドを実行" を選択して開始してください。',
+		'AppGenius ダッシュボードを開く',
 		'APIキーを設定',
 		'要件定義ビジュアライザーを開く',
 		'モックアップエディターを開く',
 		'実装スコープ選択を開く',
 		'開発アシスタントを開く'
 	).then(selection => {
-		if (selection === 'APIキーを設定') {
+		if (selection === 'AppGenius ダッシュボードを開く') {
+			vscode.commands.executeCommand('appgenius-ai.openDashboard');
+		} else if (selection === 'APIキーを設定') {
 			vscode.commands.executeCommand('appgenius-ai.setApiKey');
 		} else if (selection === "要件定義ビジュアライザーを開く") {
 			vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
@@ -353,6 +374,115 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
 		}
 	});
+	
+	// AppGeniusEventBusとStateManagerを初期化
+	try {
+		// AppGeniusEventBusを初期化
+		import('./services/AppGeniusEventBus').then(({ AppGeniusEventBus }) => {
+			AppGeniusEventBus.getInstance();
+			Logger.info('AppGeniusEventBus initialized successfully');
+		});
+		
+		// AppGeniusStateManagerを初期化
+		import('./services/AppGeniusStateManager').then(({ AppGeniusStateManager }) => {
+			AppGeniusStateManager.getInstance();
+			Logger.info('AppGeniusStateManager initialized successfully');
+		});
+		
+		// CLI関連サービスの初期化
+		const isCliEnabled = vscode.workspace.getConfiguration('appgeniusAI').get<boolean>('enableCli', true);
+		if (isCliEnabled) {
+			// CLILauncherServiceを初期化
+			import('./services/cli/CLILauncherService').then(({ CLILauncherService }) => {
+				CLILauncherService.getInstance();
+				Logger.info('CLILauncherService initialized successfully');
+			});
+			
+			// CLIProgressServiceを初期化
+			import('./services/cli/CLIProgressService').then(({ CLIProgressService }) => {
+				CLIProgressService.getInstance();
+				Logger.info('CLIProgressService initialized successfully');
+			});
+			
+			// CLI起動コマンドを登録
+			context.subscriptions.push(
+				vscode.commands.registerCommand('appgenius-ai.launchCli', async () => {
+					try {
+						// 現在のプロジェクトIDを取得
+						const projectId = vscode.workspace.getConfiguration('appgeniusAI').get<string>('currentProjectId');
+						
+						if (!projectId) {
+							vscode.window.showWarningMessage('プロジェクトが選択されていません。先にダッシュボードからプロジェクトを選択してください。');
+							return;
+						}
+						
+						// ステートマネージャーとCLIランチャーを動的にロード
+						const { AppGeniusStateManager } = await import('./services/AppGeniusStateManager');
+						const { CLILauncherService } = await import('./services/cli/CLILauncherService');
+						
+						const stateManager = AppGeniusStateManager.getInstance();
+						const cliLauncher = CLILauncherService.getInstance();
+						
+						// 実装スコープを取得
+						const scope = await stateManager.getImplementationScope(projectId);
+						
+						if (!scope) {
+							vscode.window.showWarningMessage('実装スコープが設定されていません。先に実装スコープを選択してください。');
+							return;
+						}
+						
+						// CLIを起動
+						const success = await cliLauncher.launchCLI(scope);
+						
+						if (success) {
+							vscode.window.showInformationMessage('AppGenius CLIを起動しました');
+						}
+					} catch (error) {
+						Logger.error('CLIの起動に失敗しました', error as Error);
+						vscode.window.showErrorMessage(`CLIの起動に失敗しました: ${(error as Error).message}`);
+					}
+				})
+			);
+			
+			// CLI停止コマンドを登録
+			context.subscriptions.push(
+				vscode.commands.registerCommand('appgenius-ai.stopCli', async () => {
+					try {
+						const { CLILauncherService } = await import('./services/cli/CLILauncherService');
+						const cliLauncher = CLILauncherService.getInstance();
+						
+						const success = await cliLauncher.stopCLI();
+						
+						if (success) {
+							vscode.window.showInformationMessage('AppGenius CLIを停止しました');
+						} else {
+							vscode.window.showInformationMessage('実行中のCLIプロセスがありません');
+						}
+					} catch (error) {
+						Logger.error('CLIの停止に失敗しました', error as Error);
+						vscode.window.showErrorMessage(`CLIの停止に失敗しました: ${(error as Error).message}`);
+					}
+				})
+			);
+			
+			// CLI進捗表示コマンドを登録
+			context.subscriptions.push(
+				vscode.commands.registerCommand('appgenius-ai.showCliProgress', async () => {
+					try {
+						const { CLIProgressService } = await import('./services/cli/CLIProgressService');
+						const cliProgressService = CLIProgressService.getInstance();
+						
+						await cliProgressService.showProgressDialog();
+					} catch (error) {
+						Logger.error('CLI進捗表示に失敗しました', error as Error);
+						vscode.window.showErrorMessage(`CLI進捗表示に失敗しました: ${(error as Error).message}`);
+					}
+				})
+			);
+		}
+	} catch (error) {
+		Logger.error(`Failed to initialize AppGenius services: ${(error as Error).message}`);
+	}
 	
 	// 起動時に自動的にターミナルを表示（遅延させて他の初期化が完了してから実行）
 	const shouldAutoStart = vscode.workspace.getConfiguration('appgeniusAI').get('autoStartTerminal', true);
@@ -368,9 +498,51 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			}
 		}, 1500);
 	}
+	
+	// 拡張機能起動時、ダッシュボードを自動的に開くオプション
+	const shouldAutoOpenDashboard = vscode.workspace.getConfiguration('appgeniusAI').get('autoOpenDashboard', true);
+	if (shouldAutoOpenDashboard) {
+		Logger.debug('ダッシュボード自動起動設定が有効です。ダッシュボードを表示します。');
+		setTimeout(() => {
+			try {
+				vscode.commands.executeCommand('appgenius-ai.openDashboard');
+				Logger.info('ダッシュボードを自動的に表示しました');
+			} catch (error) {
+				Logger.error(`ダッシュボード自動表示中にエラーが発生: ${(error as Error).message}`);
+			}
+		}, 2000); // ターミナル表示の後に遅延して実行
+	}
 }
 
 export function deactivate() {
 	Logger.info('AppGenius AI が停止しました');
+	
+	// CLI関連サービスの停止
+	try {
+		import('./services/cli/CLILauncherService').then(({ CLILauncherService }) => {
+			try {
+				CLILauncherService.getInstance().dispose();
+				Logger.info('CLILauncherService disposed successfully');
+			} catch (e) {
+				// 既に破棄されている可能性があるため、エラーは無視
+			}
+		}).catch(() => {
+			// モジュールロードエラーは無視
+		});
+		
+		import('./services/cli/CLIProgressService').then(({ CLIProgressService }) => {
+			try {
+				CLIProgressService.getInstance().dispose();
+				Logger.info('CLIProgressService disposed successfully');
+			} catch (e) {
+				// 既に破棄されている可能性があるため、エラーは無視
+			}
+		}).catch(() => {
+			// モジュールロードエラーは無視
+		});
+	} catch (error) {
+		// 終了処理のエラーは無視
+	}
+	
 	Logger.dispose();
 }

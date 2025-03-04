@@ -115,6 +115,21 @@ export class ProjectManagementService {
       
       Logger.info(`Project created: ${id}`);
       
+      // イベントバスが利用可能ならイベントを発火
+      try {
+        // 動的インポートを使用してAppGeniusEventBusをロード
+        const { AppGeniusEventBus, AppGeniusEventType } = await import('./AppGeniusEventBus');
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_CREATED, 
+          project, 
+          'ProjectManagementService'
+        );
+      } catch (e) {
+        // イベントバスが利用できなくても処理は続行
+        Logger.debug('AppGeniusEventBus not available, skipping event emission');
+      }
+      
       return id;
     } catch (error) {
       Logger.error(`Failed to create project: ${(error as Error).message}`);
@@ -140,6 +155,9 @@ export class ProjectManagementService {
         return undefined;
       }
       
+      // 更新前の状態をコピー
+      const previousState = { ...project };
+      
       // 更新を適用
       Object.assign(project, updates);
       
@@ -150,6 +168,26 @@ export class ProjectManagementService {
       await this.saveMetadata();
       
       Logger.info(`Project updated: ${id}`);
+      
+      // イベントバスが利用可能ならイベントを発火
+      try {
+        const { AppGeniusEventBus, AppGeniusEventType } = await import('./AppGeniusEventBus');
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_UPDATED, 
+          { 
+            id, 
+            project, 
+            updates,
+            previousState 
+          }, 
+          'ProjectManagementService',
+          id
+        );
+      } catch (e) {
+        // イベントバスが利用できなくても処理は続行
+        Logger.debug('AppGeniusEventBus not available, skipping event emission');
+      }
       
       return project;
     } catch (error) {
@@ -178,6 +216,9 @@ export class ProjectManagementService {
         return undefined;
       }
       
+      // 以前の状態を記録
+      const previousState = project.phases[phase];
+      
       // フェーズの状態を更新
       project.phases[phase] = completed;
       
@@ -188,6 +229,27 @@ export class ProjectManagementService {
       await this.saveMetadata();
       
       Logger.info(`Project phase updated: ${id}, ${phase}=${completed}`);
+      
+      // 状態が変わった場合だけイベント発火
+      if (previousState !== completed) {
+        try {
+          const { AppGeniusEventBus, AppGeniusEventType } = await import('./AppGeniusEventBus');
+          const eventBus = AppGeniusEventBus.getInstance();
+          eventBus.emit(
+            AppGeniusEventType.PHASE_COMPLETED, 
+            { 
+              projectId: id, 
+              phase, 
+              isCompleted: completed 
+            }, 
+            'ProjectManagementService',
+            id
+          );
+        } catch (e) {
+          // イベントバスが利用できなくても処理は続行
+          Logger.debug('AppGeniusEventBus not available, skipping event emission');
+        }
+      }
       
       return project;
     } catch (error) {
@@ -208,6 +270,9 @@ export class ProjectManagementService {
         return false;
       }
       
+      // プロジェクト情報を保持
+      const deletedProject = this.projects.get(id);
+      
       // メモリから削除
       this.projects.delete(id);
       
@@ -223,6 +288,20 @@ export class ProjectManagementService {
       await this.saveMetadata();
       
       Logger.info(`Project deleted: ${id}`);
+      
+      // イベントバスが利用可能ならイベントを発火
+      try {
+        const { AppGeniusEventBus, AppGeniusEventType } = await import('./AppGeniusEventBus');
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_DELETED, 
+          { id, project: deletedProject }, 
+          'ProjectManagementService'
+        );
+      } catch (e) {
+        // イベントバスが利用できなくても処理は続行
+        Logger.debug('AppGeniusEventBus not available, skipping event emission');
+      }
       
       return true;
     } catch (error) {
@@ -325,10 +404,27 @@ export class ProjectManagementService {
         return false;
       }
       
+      // アクティブなプロジェクトを取得
+      const project = this.projects.get(id);
+      
       // configに保存
       await ConfigManager.update('activeProjectId', id, true);
       
       Logger.info(`Active project set: ${id}`);
+      
+      // イベントバスが利用可能ならイベントを発火
+      try {
+        const { AppGeniusEventBus, AppGeniusEventType } = await import('./AppGeniusEventBus');
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_SELECTED, 
+          project, 
+          'ProjectManagementService'
+        );
+      } catch (e) {
+        // イベントバスが利用できなくても処理は続行
+        Logger.debug('AppGeniusEventBus not available, skipping event emission');
+      }
       
       return true;
     } catch (error) {
