@@ -1,0 +1,7 @@
+project/
+  src/
+    index.js
+    utils.js
+  dist/
+    bundle.js
+  README.md

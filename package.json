@@ -1,0 +1,248 @@
+{
+  "name": "appgenius-ai",
+  "displayName": "AppGenius AI",
+  "description": "AI駆動の完全自動開発環境をVSCodeで提供",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "*"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "appgenius-ai.executeCommand",
+        "title": "AppGenius AI: コマンドを実行"
+      },
+      {
+        "command": "appgenius-ai.showTerminal",
+        "title": "AppGenius AI: ターミナルを表示"
+      },
+      {
+        "command": "appgenius-ai.showHelp",
+        "title": "AppGenius AI: ヘルプを表示"
+      },
+      {
+        "command": "appgenius-ai.analyzeProject",
+        "title": "AppGenius AI: プロジェクトを分析"
+      },
+      {
+        "command": "appgenius-ai.setApiKey",
+        "title": "AppGenius AI: Claude API キーを設定"
+      },
+      {
+        "command": "appgenius-ai.showWelcomeMessage",
+        "title": "AppGenius AI: ウェルカムメッセージを表示"
+      },
+      {
+        "command": "appgenius-ai.createFile",
+        "title": "AppGenius AI: ファイルを作成"
+      },
+      {
+        "command": "appgenius-ai.updateFile",
+        "title": "AppGenius AI: ファイルを更新"
+      },
+      {
+        "command": "appgenius-ai.deleteFile",
+        "title": "AppGenius AI: ファイルを削除"
+      },
+      {
+        "command": "appgenius-ai.openSimpleChat",
+        "title": "AppGenius AI: 要件定義ビジュアライザーを開く"
+      },
+      {
+        "command": "appgenius-ai.openMockupDesigner",
+        "title": "AppGenius AI: モックアップデザイナーを開く"
+      },
+      {
+        "command": "appgenius-ai.openImplementationSelector",
+        "title": "AppGenius AI: 実装スコープ選択を開く"
+      },
+      {
+        "command": "appgenius-ai.openDevelopmentAssistant",
+        "title": "AppGenius AI: 開発アシスタントを開く"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "appgenius-ai.executeCommand",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "appgenius-ai.showTerminal",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "appgenius-ai.openSimpleChat",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "appgenius-ai.openMockupDesigner",
+        "key": "ctrl+shift+m",
+        "mac": "cmd+shift+m",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "appgenius-ai.openImplementationSelector",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "appgenius-ai.openDevelopmentAssistant",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "appgenius-ai.executeCommand",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.showTerminal",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.analyzeProject",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.openSimpleChat",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.openMockupDesigner",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.openImplementationSelector",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "appgenius-ai.openDevelopmentAssistant",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AppGenius AI",
+      "properties": {
+        "appgeniusAI.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Claude API キー"
+        },
+        "appgeniusAI.apiKeyExists": {
+          "type": "boolean",
+          "default": false,
+          "description": "API キーが設定されているかどうかのフラグ"
+        },
+        "appgeniusAI.useRealApi": {
+          "type": "boolean",
+          "default": true,
+          "description": "実際のClaude APIを使用する（falseの場合は開発用モックレスポンスを使用）"
+        },
+        "appgeniusAI.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "description": "デバッグモードを有効にする"
+        },
+        "appgeniusAI.model": {
+          "type": "string",
+          "enum": [
+            "claude-3-opus-20240229",
+            "claude-3-sonnet-20240229",
+            "claude-3-haiku-20240307",
+            "claude-3-7-sonnet-20250219"
+          ],
+          "default": "claude-3-7-sonnet-20250219",
+          "description": "使用するClaudeモデル"
+        },
+        "appgeniusAI.maxTokens": {
+          "type": "number",
+          "default": 32000,
+          "description": "生成するトークンの最大数（通常モードでは最大32,000、拡張出力モードでは最大128,000）"
+        },
+        "appgeniusAI.useExtendedOutput": {
+          "type": "boolean",
+          "default": true,
+          "description": "拡張出力モードを有効にする（最大128,000トークンの出力が可能）"
+        },
+        "appgeniusAI.useThinking": {
+          "type": "boolean",
+          "default": false,
+          "description": "思考モードを有効にする（より詳細な分析や複雑なコード生成に有効）"
+        },
+        "appgeniusAI.thinkingBudget": {
+          "type": "number",
+          "default": 8000,
+          "description": "思考モードで使用するトークン予算（最大32,000）"
+        },
+        "appgeniusAI.autoStartTerminal": {
+          "type": "boolean",
+          "default": true,
+          "description": "VSCode起動時にAppGenius AIターミナルを自動的に表示"
+        },
+        "appgeniusAI.implementationScope": {
+          "type": "object",
+          "default": {},
+          "description": "実装スコープの情報（モジュール間で共有される）"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "webpack",
+    "watch": "webpack --watch",
+    "package": "webpack --mode production --devtool hidden-source-map",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "test-watch": "tsc -p . -w --outDir out",
+    "check-workspace": "node check-workspace.js"
+  },
+  "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.1",
+    "@typescript-eslint/parser": "^5.59.1",
+    "@vscode/codicons": "^0.0.36",
+    "@vscode/test-electron": "^2.3.0",
+    "eslint": "^8.39.0",
+    "glob": "^8.1.0",
+    "mocha": "^10.2.0",
+    "ts-loader": "^9.4.2",
+    "typescript": "^5.0.4",
+    "webpack": "^5.81.0",
+    "webpack-cli": "^5.0.2"
+  },
+  "dependencies": {
+    "axios": "^1.4.0"
+  }
+}

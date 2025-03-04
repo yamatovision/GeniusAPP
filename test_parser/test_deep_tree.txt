@@ -1,0 +1,10 @@
+deepnest/
+├── level1/
+│   ├── level2/
+│   │   ├── level3/
+│   │   │   ├── level4/
+│   │   │   │   └── file.txt
+│   │   │   └── file3.txt
+│   │   └── file2.txt
+│   └── file1.txt
+└── root.txt

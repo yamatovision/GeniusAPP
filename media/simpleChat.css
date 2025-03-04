@@ -1,0 +1,385 @@
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--vscode-font-family);
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.chat-header {
+  padding: 10px 15px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chat-header h2 {
+  margin: 0;
+  font-size: 1.2em;
+  color: var(--vscode-editor-foreground);
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.clear-chat-btn {
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 4px 10px;
+  font-size: 0.85em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.clear-chat-btn:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.message {
+  margin-bottom: 15px;
+  padding: 12px 15px;
+  border-radius: 8px;
+  max-width: 85%;
+  word-break: break-word;
+}
+
+.message p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.message.user {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  align-self: flex-end;
+}
+
+.message.ai {
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  color: var(--vscode-editor-foreground);
+  align-self: flex-start;
+}
+
+.message.error {
+  background-color: var(--vscode-errorForeground);
+  color: white;
+  align-self: flex-start;
+}
+
+.message.thinking {
+  background-color: var(--vscode-editor-inactiveSelectionBackground);
+  opacity: 0.8;
+}
+
+.streaming-message p {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding-bottom: 20px; /* 下部に余白を追加してスクロール時に見やすくする */
+}
+
+/* シンプルなアニメーションに置き換え */
+.dot-animation {
+  display: inline-block;
+}
+
+.thinking p {
+  opacity: 0.8;
+}
+
+.chat-input {
+  display: flex;
+  padding: 15px;
+  background-color: var(--vscode-editor-background);
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+.chat-input textarea {
+  flex: 1;
+  resize: none;
+  padding: 10px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 150px;
+  border-radius: 4px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  font-family: inherit;
+  font-size: 0.9em;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+.chat-input button {
+  margin-left: 10px;
+  padding: 0 16px;
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+}
+
+.chat-input button:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.chat-input button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* コードブロックスタイル */
+.code-block {
+  background-color: var(--vscode-textCodeBlock-background);
+  border-radius: 6px;
+  margin: 10px 0;
+  overflow: hidden;
+  width: 100%;
+}
+
+.code-header {
+  background-color: var(--vscode-tab-inactiveBackground);
+  padding: 5px 10px;
+  font-size: 0.85em;
+  color: var(--vscode-tab-inactiveForeground);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.code-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.code-block code {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: var(--vscode-textPreformat-foreground);
+}
+
+/* インラインコード */
+code {
+  background-color: var(--vscode-textCodeBlock-background);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  color: var(--vscode-textPreformat-foreground);
+}
+
+/* リンクスタイル */
+a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+  color: var(--vscode-textLink-activeForeground);
+}
+
+/* 保存ボタン */
+.save-code-btn, .copy-code-btn {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.save-code-btn:hover, .copy-code-btn:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+/* 保存通知 */
+.save-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: var(--vscode-notificationToast-background);
+  color: var(--vscode-notificationToast-foreground);
+  padding: 10px 15px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  z-index: 9999;
+  animation: fadeIn 0.3s ease-in-out;
+  max-width: 300px;
+}
+
+.save-notification.fadeout {
+  animation: fadeOut 0.5s ease-in-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(10px); }
+}
+
+/* HTMLプレビュー関連 */
+.html-preview {
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  margin-top: 10px;
+  background-color: white;
+  overflow: hidden;
+}
+
+.preview-header {
+  background-color: var(--vscode-tab-inactiveBackground);
+  padding: 5px 10px;
+  font-size: 0.85em;
+  color: var(--vscode-tab-inactiveForeground);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.preview-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 300px;
+  border: none;
+  background-color: white;
+}
+
+.close-preview-btn, .browser-preview-btn {
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.close-preview-btn:hover, .browser-preview-btn:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.browser-preview-btn {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.browser-preview-btn:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.preview-code-btn {
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.preview-code-btn:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* プロジェクト作成ボタン */
+.create-project-btn {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 0.9em;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: background-color 0.2s;
+  display: inline-block;
+}
+
+.create-project-btn:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+.create-project-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* プロジェクト構造表示 */
+.directory-tree {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  margin: 10px 0;
+  line-height: 1.5;
+}
+
+.directory-tree .tree-item {
+  padding-left: 20px;
+  position: relative;
+}
+
+.directory-tree .tree-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 20px;
+  background-position: 0 2px;
+  background-repeat: no-repeat;
+  background-size: 16px;
+}
+
+.directory-tree .tree-directory::before {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23C5C5C5' d='M14 4H8L6 2H2L1 3v10l1 1h12l1-1V5l-1-1zm0 9H2V3h3.586L7 4.414V5h7v8z'/%3E%3C/svg%3E");
+}
+
+.directory-tree .tree-file::before {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath fill='%23C5C5C5' d='M13.71 4.29l-3-3L10 1H4L3 2v12l1 1h9l1-1V5l-.29-.71zM13 14H4V2h5v3h4v9z'/%3E%3C/svg%3E");
+}

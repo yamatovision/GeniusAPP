@@ -1,0 +1,105 @@
+/* VSCodeÆüÞhnq */
+:root {
+  --container-padding: 20px;
+  --input-padding-vertical: 6px;
+  --input-padding-horizontal: 10px;
+}
+
+body {
+  padding: 0;
+  margin: 0;
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-weight: var(--vscode-font-weight);
+  font-size: var(--vscode-font-size);
+  background-color: var(--vscode-editor-background);
+}
+
+ol, ul {
+  padding-left: 20px;
+}
+
+a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--vscode-textLink-activeForeground);
+  text-decoration: underline;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 1.4em;
+}
+
+h2 {
+  font-size: 1.2em;
+}
+
+h3 {
+  font-size: 1.1em;
+}
+
+button {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+button:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+input, textarea {
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  padding: var(--input-padding-vertical) var(--input-padding-horizontal);
+  border-radius: 2px;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+
+input:focus, textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+pre, code {
+  font-family: var(--vscode-editor-font-family, "Menlo", "Monaco", "Courier New", monospace);
+  font-size: var(--vscode-editor-font-size, 12px);
+}
+
+code {
+  background-color: var(--vscode-textCodeBlock-background);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+}
+
+pre > code {
+  padding: 0;
+  background: none;
+}
+
+pre {
+  background-color: var(--vscode-textCodeBlock-background);
+  padding: 1em;
+  overflow: auto;
+  border-radius: 3px;
+}
