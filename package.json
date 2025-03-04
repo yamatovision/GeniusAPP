@@ -78,6 +78,14 @@
       {
         "command": "appgenius-ai.showCliProgress",
         "title": "AppGenius AI: CLI進捗状況を表示"
+      },
+      {
+        "command": "appgenius-ai.openClaudeMdEditor",
+        "title": "AppGenius AI: CLAUDE.mdエディタを開く"
+      },
+      {
+        "command": "appgenius-ai.editClaudeMd",
+        "title": "AppGenius AI: CLAUDE.mdを編集"
       }
     ],
     "keybindings": [
@@ -159,6 +167,18 @@
           "command": "appgenius-ai.launchCli",
           "group": "AppGenius",
           "when": "editorTextFocus && config.appgeniusAI.enableCli"
+        },
+        {
+          "command": "appgenius-ai.openClaudeMdEditor",
+          "group": "AppGenius",
+          "when": "editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "appgenius-ai.editClaudeMd",
+          "group": "AppGenius",
+          "when": "resourceFilename == CLAUDE.md"
         }
       ]
     },
@@ -240,6 +260,11 @@
           "type": "string",
           "default": "",
           "description": "現在選択中のプロジェクトID"
+        },
+        "appgeniusAI.activeProjectId": {
+          "type": "string",
+          "default": "",
+          "description": "現在アクティブなプロジェクトID"
         }
       }
     }
@@ -261,6 +286,7 @@
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
+    "@types/uuid": "^10.0.0",
     "@types/vscode": "^1.80.0",
     "@typescript-eslint/eslint-plugin": "^5.59.1",
     "@typescript-eslint/parser": "^5.59.1",
@@ -275,6 +301,10 @@
     "webpack-cli": "^5.0.2"
   },
   "dependencies": {
-    "axios": "^1.4.0"
+    "axios": "^1.4.0",
+    "marked": "^15.0.7",
+    "marked-terminal": "^7.3.0",
+    "terminal-link": "^3.0.0",
+    "uuid": "^11.1.0"
   }
 }

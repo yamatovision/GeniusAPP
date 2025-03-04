@@ -81,31 +81,30 @@ export class ClaudeService {
    * デフォルトのシステムプロンプトを取得
    */
   private getDefaultSystemPrompt(): string {
-    return `あなたはAppGeniusです。ソフトウェア開発に特化したAIアシスタントです。
-コーディング、ソフトウェアアーキテクチャ、デバッグ、機能実装などのタスクでユーザーを支援します。
-ユーザーがタスクを依頼したら：
+    return `You are AppGenius, an AI assistant specialized in software development.
+You help users with coding tasks, software architecture, debugging, and implementing features.
+When a user asks for help with a task:
 
-1. 問題を分解する
-2. 明確な説明を提供する
-3. 整った構造の慣用的なコードを生成する
-4. テストとベストプラクティスのガイダンスを提供する
+1. Break down the problem
+2. Provide clear explanations
+3. Generate well-structured, idiomatic code
+4. Offer guidance on testing and best practices
 
-ファイル操作のためのツールにアクセスでき、ファイルの検索、読み取り、編集ができます。
-これらのツールを使用する際は、特にファイルパスに対して正確かつ慎重に扱ってください。
+You have access to tools for file operations, which allow you to search, read, and edit files.
+When using these tools, be precise and careful, especially with file paths.
 
-あなたは「拡張思考」が可能です - 複雑な問題に直面したとき、それをステップに分解し、
-システマティックに取り組み、その推論を示します。これは以下のようなタスクに役立ちます：
-- 複雑なコードベースの理解
-- ソフトウェアアーキテクチャの設計
-- 難しい問題のデバッグ
-- パフォーマンス問題の最適化
+You are capable of "extended thinking" - when faced with complex problems, you'll break them down into steps
+and work through them systematically, showing your reasoning. This helps with tasks like:
+- Understanding complex codebases
+- Designing software architecture
+- Debugging difficult issues
+- Optimizing performance problems
 
-TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していますが、ほとんどのプログラミング言語をサポートできます。
-常にクリーンで保守性が高く、効率的なコードの作成を優先してください。
+You specialize in TypeScript, JavaScript, Node.js, and web development, but can assist with most programming languages.
+Always prioritize writing clean, maintainable, and efficient code.
 
-重要: 支援において積極的かつ徹底的であること。ユーザーが明示的に尋ねたこと以上の潜在的な問題や改善点に気づいた場合は、丁寧に言及してください。
-
-すべての回答は必ず日本語で行ってください。英語での回答は避けてください。`;
+IMPORTANT: Be proactive and thorough in your assistance. If you notice potential issues or improvements beyond what
+the user explicitly asked for, politely mention them.`;
   }
 
   /**
@@ -280,7 +279,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
                   }
                 }
               } catch (err) {
-                logger.error('ストリームチャンクの処理中にエラーが発生しました', err as Error);
+                logger.error('ストリームチャンクの処理中にエラーが発生しました', err);
               }
             });
             
@@ -299,7 +298,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
           
           return fullResponse;
         } catch (error) {
-          logger.error('ストリーミング中にエラーが発生しました', error as Error);
+          logger.error('ストリーミング中にエラーが発生しました', error);
           throw error;
         }
       } else {
@@ -311,38 +310,37 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
         // レスポンスを処理
         const claudeResponse = response.data;
 
-        // テキスト部分の抽出
-        const textContent = claudeResponse.content
-          .filter(item => item.type === 'text')
-          .map(item => item.text || '')
-          .join('');
-        
-        // ツール使用部分も文字列に含める
-        const toolUseContent = claudeResponse.content
-          .filter(item => item.tool_use || item.tool_result)
-          .map(item => {
-            if (item.tool_use) {
-              return `[ツール使用: ${item.tool_use.name}]`;
-            } else if (item.tool_result) {
-              return `[ツール結果: ${item.tool_result.content.substring(0, 30)}...]`;
-            }
-            return '';
-          })
-          .join('\n');
-        
-        // 最終的なアシスタントメッセージを構築
-        const assistantMessage = [textContent, toolUseContent].filter(Boolean).join('\n');
-        
-        // アシスタントの応答を会話履歴に追加
-        this.conversation.push({ role: 'assistant', content: assistantMessage });
-        
-        logger.debug('Claude APIからの応答を受信', {
-          inputTokens: claudeResponse.usage.inputTokens,
-          outputTokens: claudeResponse.usage.outputTokens
-        });
-        
-        return assistantMessage;
-      }
+      // テキスト部分の抽出
+      const textContent = claudeResponse.content
+        .filter(item => item.type === 'text')
+        .map(item => item.text || '')
+        .join('');
+      
+      // ツール使用部分も文字列に含める
+      const toolUseContent = claudeResponse.content
+        .filter(item => item.tool_use || item.tool_result)
+        .map(item => {
+          if (item.tool_use) {
+            return `[ツール使用: ${item.tool_use.name}]`;
+          } else if (item.tool_result) {
+            return `[ツール結果: ${item.tool_result.content.substring(0, 30)}...]`;
+          }
+          return '';
+        })
+        .join('\n');
+      
+      // 最終的なアシスタントメッセージを構築
+      const assistantMessage = [textContent, toolUseContent].filter(Boolean).join('\n');
+      
+      // アシスタントの応答を会話履歴に追加
+      this.conversation.push({ role: 'assistant', content: assistantMessage });
+      
+      logger.debug('Claude APIからの応答を受信', {
+        inputTokens: claudeResponse.usage.inputTokens,
+        outputTokens: claudeResponse.usage.outputTokens
+      });
+      
+      return assistantMessage;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         logger.error('Claude API呼び出しエラー', error);
@@ -357,7 +355,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
   /**
    * ツール使用リクエストを検出・実行（ネイティブツールサポート対応）
    */
-  public async detectAndExecuteTools(message: string, streamCallback?: StreamCallback): Promise<{ 
+  public async detectAndExecuteTools(message: string): Promise<{ 
     responseText: string; 
     toolResults: ToolUseResult[];
   }> {
@@ -377,180 +375,13 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
       }));
       
       // 特別なシステムプロンプトを構築
-      const toolPrompt = `あなたは以下のツールを使用できます:
+      const toolPrompt = `You have access to the following tools:
 ${JSON.stringify(toolDefinitions, null, 2)}
 
-ツールを使用するには、以下の形式で応答してください:
+To use a tool, respond with:
 <function_calls>
 <invoke name="ToolName">
 <parameter name="paramName">paramValue</parameter>
 </invoke>
-</function_calls>
-
-必ず日本語でユーザーとコミュニケーションを取ってください。
-ツールの実行結果は常に日本語で説明してください。
-英語での回答は避け、すべての出力を日本語に統一してください。`;
+</function_calls>`;
       
-      // システムメッセージを取得（最初のメッセージが必ずシステムメッセージ）
-      const baseSystemPrompt = this.conversation[0].content;
-      
-      // 元のシステムプロンプトにツールサポートを追加
-      const combinedSystemPrompt = `${baseSystemPrompt}\n\n${toolPrompt}`;
-      
-      // ツール実行のためのカスタム会話履歴を作成
-      const conversationHistory = [
-        { role: 'system', content: combinedSystemPrompt },
-        ...this.conversation.slice(1) // システムメッセージ以外をコピー
-      ];
-      
-      // ツール実行結果を格納する配列
-      const toolResults: ToolUseResult[] = [];
-      
-      // まずユーザーからのメッセージを送信してアシスタントの応答を取得
-      const response = await this.sendMessage(message, streamCallback);
-      
-      // 応答をそのまま返す（将来的にはツール検出・実行の実装が必要）
-      return {
-        responseText: response,
-        toolResults: []
-      };
-    } catch (error) {
-      logger.error('ツール検出・実行中にエラーが発生しました', error as Error);
-      
-      if (axios.isAxiosError(error)) {
-        throw new Error(`Claude API呼び出しエラー: ${error.message}`);
-      }
-      
-      throw error;
-    }
-  }
-  
-  /**
-   * ツールパラメータを取得
-   */
-  private getToolParameters(toolName: string): Record<string, any> {
-    // ツール名に基づいてパラメータ定義を返す
-    // 本来はリフレクションやスキーマ定義から取得すべきだが、簡易実装として
-    // 主要ツールのパラメータを手動で定義
-    switch (toolName) {
-      case 'View':
-        return {
-          file_path: { type: 'string', description: 'Path to the file to read' },
-          offset: { type: 'number', description: 'Line offset to start reading from' },
-          limit: { type: 'number', description: 'Maximum number of lines to read' }
-        };
-      case 'Edit':
-        return {
-          file_path: { type: 'string', description: 'Path to the file to edit' },
-          old_string: { type: 'string', description: 'Text to replace' },
-          new_string: { type: 'string', description: 'Replacement text' }
-        };
-      case 'Replace':
-        return {
-          file_path: { type: 'string', description: 'Path to the file to write' },
-          content: { type: 'string', description: 'Content to write to the file' }
-        };
-      case 'GlobTool':
-        return {
-          pattern: { type: 'string', description: 'Glob pattern to match files' },
-          path: { type: 'string', description: 'Directory to search in' }
-        };
-      case 'GrepTool':
-        return {
-          pattern: { type: 'string', description: 'Pattern to search for in files' },
-          path: { type: 'string', description: 'Directory to search in' },
-          include: { type: 'string', description: 'File pattern to include' }
-        };
-      case 'LS':
-        return {
-          path: { type: 'string', description: 'Directory to list' },
-          ignore: { type: 'array', items: { type: 'string' }, description: 'Patterns to ignore' }
-        };
-      case 'Bash':
-        return {
-          command: { type: 'string', description: 'Command to execute' },
-          timeout: { type: 'number', description: 'Timeout in milliseconds' }
-        };
-      case 'BatchEdit':
-        return {
-          files: { 
-            type: 'array', 
-            items: {
-              type: 'object',
-              properties: {
-                file_path: { type: 'string' },
-                operations: { 
-                  type: 'array', 
-                  items: {
-                    type: 'object',
-                    properties: {
-                      old_string: { type: 'string' },
-                      new_string: { type: 'string' }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        };
-      case 'BatchReplace':
-        return {
-          files: { 
-            type: 'array', 
-            items: {
-              type: 'object',
-              properties: {
-                file_path: { type: 'string' },
-                content: { type: 'string' }
-              }
-            }
-          }
-        };
-      case 'Refactor':
-        return {
-          pattern: { type: 'string' },
-          replacement: { type: 'string' },
-          include: { type: 'string' },
-          path: { type: 'string' },
-          regex: { type: 'boolean' },
-          dryRun: { type: 'boolean' },
-          caseSensitive: { type: 'boolean' },
-          wholeWord: { type: 'boolean' },
-          maxFiles: { type: 'number' }
-        };
-      default:
-        return {}; // 未知のツールの場合は空オブジェクトを返す
-    }
-  }
-  
-  /**
-   * 必須パラメータを取得
-   */
-  private getRequiredParameters(toolName: string): string[] {
-    // ツール名に基づいて必須パラメータを返す
-    switch (toolName) {
-      case 'View':
-        return ['file_path'];
-      case 'Edit':
-        return ['file_path', 'old_string', 'new_string'];
-      case 'Replace':
-        return ['file_path', 'content'];
-      case 'GlobTool':
-        return ['pattern'];
-      case 'GrepTool':
-        return ['pattern'];
-      case 'LS':
-        return ['path'];
-      case 'Bash':
-        return ['command'];
-      case 'BatchEdit':
-        return ['files'];
-      case 'BatchReplace':
-        return ['files'];
-      case 'Refactor':
-        return ['pattern', 'replacement', 'include'];
-      default:
-        return [];
-    }
-  }
-}

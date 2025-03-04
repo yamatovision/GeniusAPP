@@ -1023,9 +1023,42 @@ Phase#2： 要件を満たす効果的なフロントエンドのページ数と
 
 Phase#3：Phase#2で満たしたページを1つずつHTMLの1枚モックアップを作る。
 
+【ライブラリ使用ポリシー】
+モックアップ作成時は以下の事前定義されたライブラリセットからのみ選択して使用してください：
+
+1. 基本セット（常に含める）
+   - HTML5標準機能
+   - 基本的なCSS
+
+2. 選択可能なUIフレームワーク（一つのみ選択）
+   - Bootstrap 5 (CDN: https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css)
+   - Material Design Lite (CDN: https://code.getmdl.io/1.3.0/material.indigo-pink.min.css)
+
+3. React使用時のライブラリセット（すべて含める）
+   \`\`\`html
+   <!-- React の読み込み -->
+   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+   
+   <!-- Material UI の読み込み -->
+   <script src="https://unpkg.com/@mui/material@5.14.0/umd/material-ui.development.js" crossorigin></script>
+   
+   <!-- Framer Motion の読み込み (アニメーションに使用) -->
+   <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.umd.js" crossorigin></script>
+   
+   <!-- Babel for JSX -->
+   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+   \`\`\`
+
+4. 選択可能な追加JSライブラリ（必要なものだけ選択）
+   - jQuery (単純な操作の場合のみ)
+   - Chart.js (グラフ表示が必要な場合のみ)
+
+重要: 使用するライブラリはすべて、HTML生成を開始する前に決定し、head要素内に適切なCDNリンクとして追加してください。後からライブラリを追加することはできません。
+
 【生成規則】
 ・必ず以下の要素を含む完全なHTMLファイルを一括生成すること:
-  1. 必要なすべてのCDNライブラリ（最新の安定バージョンを使用）
+  1. 必要なすべてのCDNライブラリを冒頭のhead要素内に含める
   2. スタイリングとレイアウト用のCSS
   3. モックデータとロジック
   4. エラーハンドリング
@@ -1045,6 +1078,12 @@ Phase#3：Phase#2で満たしたページを1つずつHTMLの1枚モックアッ
 ・すべてのライブラリが正しい順序で読み込まれること
 ・視覚的要素が即座に表示されること
 ・コンソールエラーが発生しないこと
+
+【ライブラリの参照方法】
+- Reactは「React」オブジェクトとして参照
+- ReactDOMは「ReactDOM」オブジェクトとして参照
+- Material UIは「MaterialUI」オブジェクトとして参照
+- Framer Motionは「framerMotion」オブジェクトとして参照（window.framerMotion.motion としてグローバルに利用可能）
 
 Phase#4：ディレクトリ構造の作成
 フロントエンド：ページ別構造

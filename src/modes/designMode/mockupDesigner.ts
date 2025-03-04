@@ -147,12 +147,52 @@ export class MockupDesigner {
 - コンポーネント: ${page.components.join(', ')}
 - API エンドポイント: ${page.apiEndpoints.join(', ')}
 
+【ライブラリ使用ポリシー】
+モックアップ作成時は以下の事前定義されたライブラリセットからのみ選択して使用してください：
+
+1. 基本セット（常に含める）
+   - HTML5標準機能
+   - 基本的なCSS
+
+2. 選択可能なUIフレームワーク（一つのみ選択）
+   - Bootstrap 5 (CDN: https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css)
+   - Material Design Lite (CDN: https://code.getmdl.io/1.3.0/material.indigo-pink.min.css)
+
+3. 選択可能なJSライブラリ（必要なものだけ選択）
+   - jQuery (単純な操作の場合のみ)
+   - Chart.js (グラフ表示が必要な場合のみ)
+
+重要: 使用するライブラリはすべて、HTML生成を開始する前に決定し、head要素内に適切なCDNリンクとして追加してください。後からライブラリを追加することはできません。
 `;
 
     if (framework.toLowerCase() === 'react') {
       prompt += `
+【React固有のライブラリ設定】
+React使用時には以下のCDNをhead内に必ず含めてください:
+
+\`\`\`html
+<!-- React の読み込み -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+
+<!-- Material UI の読み込み -->
+<script src="https://unpkg.com/@mui/material@5.14.0/umd/material-ui.development.js" crossorigin></script>
+
+<!-- Framer Motion の読み込み (アニメーションに使用) -->
+<script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js" crossorigin></script>
+
+<!-- Babel for JSX -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+\`\`\`
+
+ライブラリの参照方法:
+- Reactは「React」オブジェクトとして参照
+- ReactDOMは「ReactDOM」オブジェクトとして参照
+- Material UIは「MaterialUI」オブジェクトとして参照
+- Framer Motionは「motion」オブジェクトとして参照（window.motionとしてグローバルに利用可能）
+
 以下の要素を含むReactベースのモックアップを生成してください:
-1. 必要なすべてのCDNライブラリ（React、React DOM、Material UI）
+1. 上記の必須CDNライブラリ（すべて含める）
 2. スタイリングとレイアウト用のCSS
 3. モックデータとロジック
 4. エラーハンドリング
@@ -181,8 +221,28 @@ export class MockupDesigner {
 `;
     } else {
       prompt += `
+【HTML/JS固有のライブラリ設定】
+通常のHTML/JS使用時には使用するライブラリをhead内に明示的に含めてください。
+例えば以下のようなCDNを選択して使用できます:
+
+\`\`\`html
+<!-- Bootstrap CSS (UIフレームワークとして使用する場合) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- もしくは Material Design Lite (UIフレームワークとして使用する場合) -->
+<link rel="stylesheet" href="https://code.getmdl.io/1.3.0/material.indigo-pink.min.css">
+<script defer src="https://code.getmdl.io/1.3.0/material.min.js"></script>
+
+<!-- jQuery (必要な場合のみ) -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+<!-- Chart.js (グラフが必要な場合のみ) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+\`\`\`
+
 以下の要素を含む完全なHTMLモックアップを生成してください:
-1. 必要なすべてのライブラリ（最新の安定バージョンを使用）
+1. 必要なすべてのライブラリを冒頭のhead要素内に含める
 2. スタイリングとレイアウト用のCSS
 3. モックデータとロジック（JavaScript）
 4. エラーハンドリング

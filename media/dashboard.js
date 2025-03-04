@@ -336,12 +336,11 @@
   
   // プロジェクトを削除
   function deleteProject(id) {
-    if (confirm('このプロジェクトを削除してもよろしいですか？この操作は元に戻せません。')) {
-      vscode.postMessage({
-        command: 'deleteProject',
-        id
-      });
-    }
+    // VSCodeのネイティブUIを使用
+    vscode.postMessage({
+      command: 'deleteProject',
+      id
+    });
   }
   
   // エラーメッセージ表示

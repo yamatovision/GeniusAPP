@@ -10,6 +10,15 @@ export interface AppConfig {
   projectRoot: string;
   logLevel: LogLevel;
   tempDir?: string;
+  userPreferences?: {
+    theme?: 'light' | 'dark';
+    codeStyle?: 'standard' | 'prettier' | 'eslint';
+    tabSize?: number;
+    language?: string;
+    streamingEnabled?: boolean;
+    markdownEnabled?: boolean;
+    parallelToolExecution?: boolean;
+  };
 }
 
 /**
@@ -35,6 +44,7 @@ export interface ScopeData {
     id?: string;
     title?: string;
   }>;
+  updated?: number;
 }
 
 /**
@@ -45,6 +55,15 @@ export interface SearchResult {
   relativePath: string;
   content?: string;
   matchType?: 'filename' | 'content';
+  error?: string;
+  errorType?: string;
+  suggestions?: string[];
+  retryOptions?: RetryOptions;
+}
+
+export interface RetryOptions {
+  canRetry: boolean;
+  correctArgs?: any;
 }
 
 /**
@@ -54,6 +73,34 @@ export interface FileOperationResult {
   success: boolean;
   filePath: string;
   error?: string;
+  errorType?: string;
+  suggestions?: string[];
+}
+
+/**
+ * バッチファイル操作
+ */
+export interface BatchFileOperation {
+  file_path: string;
+  operations: {
+    old_string: string;
+    new_string: string;
+  }[];
+}
+
+/**
+ * バッチファイル操作結果
+ */
+export interface BatchOperationResult {
+  overall_success: boolean;
+  results: {
+    file_path: string;
+    success: boolean;
+    operations_completed: number;
+    operations_total: number;
+    error?: string;
+  }[];
+  summary: string;
 }
 
 /**
@@ -78,6 +125,15 @@ export interface ClaudeResponse {
   content: Array<{
     type: string;
     text?: string;
+    tool_use?: {
+      id: string;
+      name: string;
+      input: any;
+    };
+    tool_result?: {
+      tool_use_id: string;
+      content: string;
+    };
   }>;
   model: string;
   stopReason: string;
@@ -106,6 +162,11 @@ export interface AIMessage {
 }
 
 /**
+ * ストリーミングコールバック関数
+ */
+export type StreamCallback = (chunk: string) => void;
+
+/**
  * ツール使用結果
  */
 export interface ToolUseResult {
@@ -113,4 +174,8 @@ export interface ToolUseResult {
   args: any;
   result: any;
   error?: string;
+  errorType?: 'validation' | 'execution' | 'timeout' | 'permission' | 'notFound' | 'unknown' | 'syntax' | 'network' | 'conflict' | 'limit' | 'unsupported' | 'format' | 'security' | 'api' | 'compatibility';
+  suggestions?: string[];
+  retryOptions?: RetryOptions;
+  duration?: number;
 }

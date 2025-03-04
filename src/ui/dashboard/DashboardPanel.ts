@@ -54,7 +54,10 @@ export class DashboardPanel {
         localResourceRoots: [
           vscode.Uri.joinPath(extensionUri, 'media'),
           vscode.Uri.joinPath(extensionUri, 'dist')
-        ]
+        ],
+        enableFindWidget: true,
+        enableCommandUris: true
+        // WebViewオプションでsandboxを指定していましたが、現在のVSCode APIではサポートされていないため削除しました
       }
     );
 
@@ -627,6 +630,7 @@ export class DashboardPanel {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
   <title>AppGenius ダッシュボード</title>
   <link href="${resetCssUri}" rel="stylesheet">
   <link href="${vscodeCssUri}" rel="stylesheet">

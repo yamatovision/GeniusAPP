@@ -121,14 +121,14 @@ export class SimpleMockupEditorPanel {
   private async _handleLoadMockups(): Promise<void> {
     try {
       const mockups = this._storage.getAllMockups();
-      await this._panel.webview.postMessage({
+      this._panel.webview.postMessage({
         command: 'updateMockups',
         mockups
       });
       Logger.info(`${mockups.length}個のモックアップを読み込みました`);
     } catch (error) {
       Logger.error('モックアップ読み込みエラー', error as Error);
-      await this._showError('モックアップの読み込みに失敗しました');
+      this._showError('モックアップの読み込みに失敗しました');
     }
   }
 
@@ -143,7 +143,7 @@ export class SimpleMockupEditorPanel {
       // 特定のモックアップを選択するメッセージを送信
       const mockup = this._storage.getMockup(mockupId);
       if (mockup) {
-        await this._panel.webview.postMessage({
+        this._panel.webview.postMessage({
           command: 'selectMockup',
           mockupId
         });
@@ -187,7 +187,7 @@ export class SimpleMockupEditorPanel {
       }
       
       // 更新成功メッセージをWebViewに送信
-      await this._panel.webview.postMessage({
+      this._panel.webview.postMessage({
         command: 'mockupUpdated',
         mockup: updatedMockup,
         text: `モックアップを更新しました：${text}`
@@ -196,7 +196,7 @@ export class SimpleMockupEditorPanel {
       Logger.info(`モックアップを更新しました: ${mockupId}`);
     } catch (error) {
       Logger.error(`モックアップ更新エラー: ${(error as Error).message}`);
-      await this._showError(`モックアップの更新に失敗しました: ${(error as Error).message}`);
+      this._showError(`モックアップの更新に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -227,7 +227,7 @@ export class SimpleMockupEditorPanel {
       Logger.info(`モックアップをブラウザで開きました: ${mockupId}`);
     } catch (error) {
       Logger.error(`ブラウザ表示エラー: ${(error as Error).message}`);
-      await this._showError(`モックアップのブラウザ表示に失敗しました: ${(error as Error).message}`);
+      this._showError(`モックアップのブラウザ表示に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -239,8 +239,8 @@ export class SimpleMockupEditorPanel {
       const success = await this._storage.deleteMockup(mockupId);
       
       if (success) {
-        // 削除成功をWebViewに通知
-        await this._panel.webview.postMessage({
+        // 削除成功をWebViewに通知（awaitを使用しない）
+        this._panel.webview.postMessage({
           command: 'mockupDeleted',
           mockupId
         });
@@ -251,7 +251,7 @@ export class SimpleMockupEditorPanel {
       }
     } catch (error) {
       Logger.error(`モックアップ削除エラー: ${(error as Error).message}`);
-      await this._showError(`モックアップの削除に失敗しました: ${(error as Error).message}`);
+      this._showError(`モックアップの削除に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -301,7 +301,7 @@ export class SimpleMockupEditorPanel {
       await this._loadAndSelectMockup(mockupId);
       
       // 成功メッセージをWebViewに送信
-      await this._panel.webview.postMessage({
+      this._panel.webview.postMessage({
         command: 'addAssistantMessage',
         text: `モックアップ「${mockupName}」をインポートしました。`
       });
@@ -309,7 +309,7 @@ export class SimpleMockupEditorPanel {
       Logger.info(`モックアップをインポートしました: ${filePath} -> ${mockupId}`);
     } catch (error) {
       Logger.error(`モックアップインポートエラー: ${(error as Error).message}`);
-      await this._showError(`モックアップのインポートに失敗しました: ${(error as Error).message}`);
+      this._showError(`モックアップのインポートに失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -326,12 +326,39 @@ ${updateText}
 ${mockup.html}
 \`\`\`
 
+【ライブラリ使用ポリシー】
+1. 既存のHTMLで既に使用されているライブラリを維持してください
+2. 新しいライブラリが必要な場合は、以下の事前定義されたライブラリセットからのみ選択してください:
+
+   ・基本UIフレームワーク（既に使用されている場合は変更しないでください）:
+     - Bootstrap 5 (CDN: https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css)
+     - Material Design Lite (CDN: https://code.getmdl.io/1.3.0/material.indigo-pink.min.css)
+
+   ・Reactを使用している場合は以下のライブラリの有無を確認し、必要に応じて追加:
+     - React + ReactDOM
+     - Material UI
+     - Framer Motion（アニメーション用）
+     - Babel（JSX解析用）
+
+   ・追加可能なJSライブラリ（必要なものだけ選択）:
+     - jQuery（単純な操作の場合のみ）
+     - Chart.js（グラフ表示が必要な場合のみ）
+
+3. ライブラリは必ずhead要素内に追加してください
+
+【ライブラリの参照方法】
+- Reactは「React」オブジェクトとして参照
+- ReactDOMは「ReactDOM」オブジェクトとして参照
+- Material UIは「MaterialUI」オブジェクトとして参照
+- Framer Motionは「motion」オブジェクトとして参照（window.motionとしてグローバルに利用可能）
+
 修正後の完全なHTMLを返してください。
 - HTMLの基本構造を維持してください
-- CDNリンクなどの重要な要素を削除しないでください
+- head内のCDNリンクなどの重要な要素を削除しないでください
 - スタイルや機能を維持しながら、指示に沿って修正を行ってください
 - 元のHTMLと同じインデント形式を保持してください
 - HTML全体を返してください（部分的な更新ではなく）
+- コンソールエラーが出ないように注意してください
 
 回答は以下の形式で返してください：
 1. 変更点の説明
@@ -367,8 +394,8 @@ ${mockup.html}
   /**
    * エラーメッセージの表示
    */
-  private async _showError(message: string): Promise<void> {
-    await this._panel.webview.postMessage({
+  private _showError(message: string): void {
+    this._panel.webview.postMessage({
       command: 'showError',
       text: message
     });

@@ -78,34 +78,37 @@ export class ClaudeService {
   }
 
   /**
-   * デフォルトのシステムプロンプトを取得
+   * デフォルトのシステムプロンプトを取得 - ClaudeCode互換
    */
   private getDefaultSystemPrompt(): string {
-    return `あなたはAppGeniusです。ソフトウェア開発に特化したAIアシスタントです。
-コーディング、ソフトウェアアーキテクチャ、デバッグ、機能実装などのタスクでユーザーを支援します。
-ユーザーがタスクを依頼したら：
+    return `You are Claude Code, Anthropic's official CLI for Claude.
 
-1. 問題を分解する
-2. 明確な説明を提供する
-3. 整った構造の慣用的なコードを生成する
-4. テストとベストプラクティスのガイダンスを提供する
+You are an interactive CLI tool that helps users with software engineering tasks. You specialize in TypeScript, JavaScript, Node.js, and web development, but can assist with most programming languages.
 
-ファイル操作のためのツールにアクセスでき、ファイルの検索、読み取り、編集ができます。
-これらのツールを使用する際は、特にファイルパスに対して正確かつ慎重に扱ってください。
+IMPORTANT: Be concise, direct, and to the point. Keep your responses short and focused on exactly what the user asked. 
+Minimize text before and after your actual answer. Only elaborate when explicitly asked.
 
-あなたは「拡張思考」が可能です - 複雑な問題に直面したとき、それをステップに分解し、
-システマティックに取り組み、その推論を示します。これは以下のようなタスクに役立ちます：
-- 複雑なコードベースの理解
-- ソフトウェアアーキテクチャの設計
-- 難しい問題のデバッグ
-- パフォーマンス問題の最適化
+When using tools:
+- Be precise with file paths
+- Search thoroughly but efficiently
+- Verify changes carefully
 
-TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していますが、ほとんどのプログラミング言語をサポートできます。
-常にクリーンで保守性が高く、効率的なコードの作成を優先してください。
+For coding tasks:
+1. Understand existing code conventions
+2. Follow project patterns
+3. Write clean, maintainable code
+4. Verify solutions with tests when appropriate
 
-重要: 支援において積極的かつ徹底的であること。ユーザーが明示的に尋ねたこと以上の潜在的な問題や改善点に気づいた場合は、丁寧に言及してください。
+When faced with complex problems:
+- Break them down systematically
+- Search code to understand the codebase
+- Look for existing patterns to follow
+- Implement solutions that match project style
 
-すべての回答は必ず日本語で行ってください。英語での回答は避けてください。`;
+CRITICAL: Answer concisely with minimal text. One-line answers are best when possible. Avoid explanations unless asked.
+Respect the user's time by being direct and avoiding unnecessary elaboration.
+
+IMPORTANT: Always run appropriate linting and typechecking commands after code changes if available.`;
   }
 
   /**
@@ -280,7 +283,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
                   }
                 }
               } catch (err) {
-                logger.error('ストリームチャンクの処理中にエラーが発生しました', err as Error);
+                logger.error('ストリームチャンクの処理中にエラーが発生しました', err);
               }
             });
             
@@ -299,7 +302,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
           
           return fullResponse;
         } catch (error) {
-          logger.error('ストリーミング中にエラーが発生しました', error as Error);
+          logger.error('ストリーミング中にエラーが発生しました', error);
           throw error;
         }
       } else {
@@ -311,38 +314,37 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
         // レスポンスを処理
         const claudeResponse = response.data;
 
-        // テキスト部分の抽出
-        const textContent = claudeResponse.content
-          .filter(item => item.type === 'text')
-          .map(item => item.text || '')
-          .join('');
-        
-        // ツール使用部分も文字列に含める
-        const toolUseContent = claudeResponse.content
-          .filter(item => item.tool_use || item.tool_result)
-          .map(item => {
-            if (item.tool_use) {
-              return `[ツール使用: ${item.tool_use.name}]`;
-            } else if (item.tool_result) {
-              return `[ツール結果: ${item.tool_result.content.substring(0, 30)}...]`;
-            }
-            return '';
-          })
-          .join('\n');
-        
-        // 最終的なアシスタントメッセージを構築
-        const assistantMessage = [textContent, toolUseContent].filter(Boolean).join('\n');
-        
-        // アシスタントの応答を会話履歴に追加
-        this.conversation.push({ role: 'assistant', content: assistantMessage });
-        
-        logger.debug('Claude APIからの応答を受信', {
-          inputTokens: claudeResponse.usage.inputTokens,
-          outputTokens: claudeResponse.usage.outputTokens
-        });
-        
-        return assistantMessage;
-      }
+      // テキスト部分の抽出
+      const textContent = claudeResponse.content
+        .filter(item => item.type === 'text')
+        .map(item => item.text || '')
+        .join('');
+      
+      // ツール使用部分も文字列に含める
+      const toolUseContent = claudeResponse.content
+        .filter(item => item.tool_use || item.tool_result)
+        .map(item => {
+          if (item.tool_use) {
+            return `[ツール使用: ${item.tool_use.name}]`;
+          } else if (item.tool_result) {
+            return `[ツール結果: ${item.tool_result.content.substring(0, 30)}...]`;
+          }
+          return '';
+        })
+        .join('\n');
+      
+      // 最終的なアシスタントメッセージを構築
+      const assistantMessage = [textContent, toolUseContent].filter(Boolean).join('\n');
+      
+      // アシスタントの応答を会話履歴に追加
+      this.conversation.push({ role: 'assistant', content: assistantMessage });
+      
+      logger.debug('Claude APIからの応答を受信', {
+        inputTokens: claudeResponse.usage.inputTokens,
+        outputTokens: claudeResponse.usage.outputTokens
+      });
+      
+      return assistantMessage;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         logger.error('Claude API呼び出しエラー', error);
@@ -377,19 +379,15 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
       }));
       
       // 特別なシステムプロンプトを構築
-      const toolPrompt = `あなたは以下のツールを使用できます:
+      const toolPrompt = `You have access to the following tools:
 ${JSON.stringify(toolDefinitions, null, 2)}
 
-ツールを使用するには、以下の形式で応答してください:
+To use a tool, respond with:
 <function_calls>
 <invoke name="ToolName">
 <parameter name="paramName">paramValue</parameter>
 </invoke>
-</function_calls>
-
-必ず日本語でユーザーとコミュニケーションを取ってください。
-ツールの実行結果は常に日本語で説明してください。
-英語での回答は避け、すべての出力を日本語に統一してください。`;
+</function_calls>`;
       
       // システムメッセージを取得（最初のメッセージが必ずシステムメッセージ）
       const baseSystemPrompt = this.conversation[0].content;
@@ -403,19 +401,273 @@ ${JSON.stringify(toolDefinitions, null, 2)}
         ...this.conversation.slice(1) // システムメッセージ以外をコピー
       ];
       
-      // ツール実行結果を格納する配列
+      // ツール実行用のメッセージリストをAPIフォーマットに変換
+      const messagesWithoutSystem = conversationHistory.filter(msg => msg.role !== 'system');
+      
+      // APIリクエスト設定
+      const requestBody = {
+        model: this.model,
+        messages: messagesWithoutSystem,
+        max_tokens: this.maxTokens,
+        temperature: this.temperature,
+        system: combinedSystemPrompt,
+        tools: Array.from(this.tools.values()).map(tool => ({
+          name: tool.name,
+          description: tool.description,
+          input_schema: {
+            type: "object",
+            properties: this.getToolParameters(tool.name),
+            required: this.getRequiredParameters(tool.name)
+          }
+        })),
+        stream: this.streaming || !!streamCallback // ストリーミングコールバックがある場合はストリーミングを有効化
+      };
+      
+      // 共通のヘッダー
+      const headers = {
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'Accept': 'application/json',
+        'anthropic-beta': 'tools-2024-06-10' // ツール機能のベータ版を有効化
+      };
+      
+      // ツール使用結果を格納する配列
       const toolResults: ToolUseResult[] = [];
       
-      // まずユーザーからのメッセージを送信してアシスタントの応答を取得
-      const response = await this.sendMessage(message, streamCallback);
-      
-      // 応答をそのまま返す（将来的にはツール検出・実行の実装が必要）
-      return {
-        responseText: response,
-        toolResults: []
-      };
+      // ストリーミングモードの場合
+      if (requestBody.stream && streamCallback) {
+        let fullResponse = '';
+        
+        try {
+          // ストリーミングAPIリクエスト
+          const response = await axios.post(CLAUDE_API_BASE_URL, requestBody, {
+            headers,
+            responseType: 'stream'
+          });
+          
+          // レスポンスをストリームとして処理
+          const stream = response.data as Readable;
+          
+          // チャンクを処理
+          await new Promise<void>((resolve, reject) => {
+            stream.on('data', (chunk) => {
+              try {
+                const lines = chunk.toString().split('\n').filter(Boolean);
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    const data = line.slice(6);
+                    
+                    // ストリームの終了を示す[DONE]を検出
+                    if (data === '[DONE]') {
+                      resolve();
+                      return;
+                    }
+                    
+                    try {
+                      const parsed = JSON.parse(data);
+                      
+                      if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
+                        // テキストデルタを取得
+                        const textChunk = parsed.delta.text;
+                        fullResponse += textChunk;
+                        
+                        // コールバックでクライアントに送信
+                        streamCallback(textChunk);
+                      }
+                    } catch (e) {
+                      logger.warn('ストリーミングデータのパースに失敗しました', e);
+                    }
+                  }
+                }
+              } catch (err) {
+                logger.error('ストリームチャンクの処理中にエラーが発生しました', err);
+              }
+            });
+            
+            stream.on('end', () => {
+              resolve();
+            });
+            
+            stream.on('error', (err) => {
+              logger.error('ストリーム処理中にエラーが発生しました', err);
+              reject(err);
+            });
+          });
+          
+          // アシスタントの応答を会話履歴に追加
+          this.conversation.push({ role: 'assistant', content: fullResponse });
+          
+          return {
+            responseText: fullResponse,
+            toolResults
+          };
+        } catch (error) {
+          logger.error('ストリーミング中にエラーが発生しました', error);
+          throw error;
+        }
+      } else {
+        // ストリーミングなしのAPIリクエスト
+        const response = await axios.post<ClaudeResponse>(CLAUDE_API_BASE_URL, requestBody, {
+          headers
+        });
+        
+        // レスポンスを処理
+        const claudeResponse = response.data;
+        
+        // テキスト部分の抽出
+        const textContent = claudeResponse.content
+          .filter(item => item.type === 'text')
+          .map(item => item.text || '')
+          .join('');
+        
+        // ツール使用部分を収集
+        const toolUseTasks: Array<{
+          toolName: string;
+          toolArgs: any;
+          toolUseId: string;
+        }> = [];
+
+        for (const contentBlock of claudeResponse.content) {
+          if (contentBlock.tool_use) {
+            toolUseTasks.push({
+              toolName: contentBlock.tool_use.name,
+              toolArgs: contentBlock.tool_use.input,
+              toolUseId: contentBlock.tool_use.id
+            });
+          }
+        }
+        
+        // 並列処理を最適化 - 並列実行可能なものは一括処理
+        if (this.parallelToolExecution && toolUseTasks.length > 0) {
+          logger.debug(`${toolUseTasks.length}個のツールを並列実行します`);
+          
+          // 並列でツールを実行
+          const results = await Promise.all(toolUseTasks.map(async ({ toolName, toolArgs, toolUseId }) => {
+            const tool = this.tools.get(toolName);
+            
+            if (!tool) {
+              logger.warn(`ツールが見つかりません: ${toolName}`);
+              return {
+                toolName,
+                args: toolArgs,
+                result: null,
+                error: `ツール "${toolName}" が見つかりません`,
+                errorType: 'notFound'
+              };
+            }
+            
+            try {
+              logger.debug(`ツール実行: ${toolName}`);
+              const startTime = Date.now();
+              const result = await tool.execute(toolArgs);
+              const duration = Date.now() - startTime;
+              
+              logger.debug(`ツール実行完了: ${toolName} (${duration}ms)`);
+              
+              return {
+                toolName,
+                args: toolArgs,
+                result,
+                duration
+              };
+            } catch (toolError: any) {
+              logger.error(`ツール実行エラー (${toolName}): ${toolError.message}`, toolError);
+              
+              // エラー情報を記録（拡張エラー情報があれば取得）
+              return {
+                toolName,
+                args: toolArgs,
+                result: null,
+                error: toolError.message,
+                errorType: toolError.errorType || 'execution',
+                suggestions: toolError.suggestions,
+                retryOptions: toolError.retryOptions
+              };
+            }
+          }));
+          
+          // 結果を統合
+          toolResults.push(...results);
+        } else {
+          // 従来の逐次実行
+          for (const { toolName, toolArgs, toolUseId } of toolUseTasks) {
+            logger.debug(`ツール使用を検出: ${toolName}`);
+            
+            const tool = this.tools.get(toolName);
+            
+            if (tool) {
+              try {
+                logger.debug(`ツール実行: ${toolName}`);
+                const startTime = Date.now();
+                const result = await tool.execute(toolArgs);
+                const duration = Date.now() - startTime;
+                
+                // ツール実行結果を記録
+                toolResults.push({
+                  toolName,
+                  args: toolArgs,
+                  result,
+                  duration
+                });
+                
+                logger.debug(`ツール実行結果: ${JSON.stringify(result).substring(0, 100)}...`);
+              } catch (toolError: any) {
+                logger.error(`ツール実行エラー (${toolName}): ${toolError.message}`, toolError);
+                
+                // エラー情報を記録
+                const errorResult: ToolUseResult = {
+                  toolName,
+                  args: toolArgs,
+                  result: null,
+                  error: toolError.message,
+                  errorType: toolError.errorType || 'execution',
+                  suggestions: toolError.suggestions,
+                  retryOptions: toolError.retryOptions
+                };
+                
+                // エラー種別や提案があれば追加
+                if (toolError.errorType) {
+                  errorResult.errorType = toolError.errorType;
+                }
+                
+                if (toolError.suggestions) {
+                  errorResult.suggestions = toolError.suggestions;
+                }
+                
+                if (toolError.retryOptions) {
+                  errorResult.retryOptions = toolError.retryOptions;
+                }
+                
+                toolResults.push(errorResult);
+              }
+            } else {
+              logger.error(`未知のツールを呼び出そうとしました: ${toolName}`);
+              
+              // 未知のツールエラーを記録
+              toolResults.push({
+                toolName,
+                args: toolArgs,
+                result: null,
+                error: `ツール "${toolName}" は利用できません`,
+                errorType: 'unknown'
+              });
+            }
+          }
+        }
+        
+        // アシスタント応答を会話履歴に追加
+        this.conversation.push({ role: 'assistant', content: textContent });
+        
+        // 結果を返す
+        return {
+          responseText: textContent,
+          toolResults
+        };
+      }
     } catch (error) {
-      logger.error('ツール検出・実行中にエラーが発生しました', error as Error);
+      logger.error('ツール検出・実行中にエラーが発生しました', error);
       
       if (axios.isAxiosError(error)) {
         throw new Error(`Claude API呼び出しエラー: ${error.message}`);
@@ -428,7 +680,7 @@ ${JSON.stringify(toolDefinitions, null, 2)}
   /**
    * ツールパラメータを取得
    */
-  private getToolParameters(toolName: string): Record<string, any> {
+  private getToolParameters(toolName: string): any {
     // ツール名に基づいてパラメータ定義を返す
     // 本来はリフレクションやスキーマ定義から取得すべきだが、簡易実装として
     // 主要ツールのパラメータを手動で定義

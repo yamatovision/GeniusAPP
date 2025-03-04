@@ -93,6 +93,7 @@ export interface PageDefinition {
  * 実装スコープ
  */
 export interface ImplementationScope {
+  id?: string;  // IDを追加（省略可能）
   items: ImplementationItem[];
   selectedIds: string[];
   estimatedTime: string;
@@ -144,8 +145,31 @@ export class AppGeniusStateManager {
   
   private constructor() {
     const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    this.storageDir = path.join(homeDir, '.appgenius-ai', 'state');
-    this.ensureDirectoryExists(this.storageDir);
+    if (!homeDir) {
+      throw new Error('ホームディレクトリが見つかりません。AppGeniusStateManagerの初期化に失敗しました。');
+    }
+    
+    // メインディレクトリ構造を作成
+    const appGeniusDir = path.join(homeDir, '.appgenius-ai');
+    this.storageDir = path.join(appGeniusDir, 'state');
+    
+    try {
+      // 親ディレクトリの存在を確認
+      this.ensureDirectoryExists(appGeniusDir);
+      
+      // 状態保存ディレクトリの存在を確認
+      this.ensureDirectoryExists(this.storageDir);
+      
+      // CLIとの連携用ディレクトリも作成
+      this.ensureDirectoryExists(path.join(appGeniusDir, 'scopes'));
+      this.ensureDirectoryExists(path.join(appGeniusDir, 'temp'));
+      this.ensureDirectoryExists(path.join(appGeniusDir, 'logs'));
+      
+      Logger.info(`ストレージディレクトリを確認しました: ${this.storageDir}`);
+    } catch (error) {
+      Logger.error(`ストレージディレクトリの作成に失敗しました: ${(error as Error).message}`);
+      throw new Error(`AppGeniusStateManagerの初期化に失敗しました: ${(error as Error).message}`);
+    }
     
     this.eventBus = AppGeniusEventBus.getInstance();
     this.projectService = ProjectManagementService.getInstance();
@@ -173,7 +197,28 @@ export class AppGeniusStateManager {
   public async saveToConfig<T>(key: string, data: T, isGlobal: boolean = false): Promise<void> {
     try {
       Logger.debug(`Saving to config: ${key}`);
+      
+      // 既存の設定をクリア
+      await vscode.workspace.getConfiguration('appgeniusAI').update(key, null, isGlobal);
+      
+      // 新しい設定を保存
       await vscode.workspace.getConfiguration('appgeniusAI').update(key, data, isGlobal);
+      
+      // 保存の検証
+      const saved = vscode.workspace.getConfiguration('appgeniusAI').get(key);
+      if (!saved && data !== null) {
+        Logger.warn(`保存の検証に失敗: ${key}`);
+        // 再試行
+        await vscode.workspace.getConfiguration('appgeniusAI').update(key, data, isGlobal);
+        
+        // 再検証
+        const recheck = vscode.workspace.getConfiguration('appgeniusAI').get(key);
+        if (!recheck && data !== null) {
+          throw new Error(`設定の保存に失敗しました: ${key}`);
+        }
+      }
+      
+      Logger.debug(`Successfully saved to config: ${key}`);
     } catch (error) {
       Logger.error(`Failed to save to config: ${key}`, error as Error);
       throw error;
@@ -206,7 +251,38 @@ export class AppGeniusStateManager {
       this.ensureDirectoryExists(projectDir);
       
       const filePath = path.join(projectDir, `${key}.json`);
-      await fs.promises.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
+      
+      // 一時ファイルに書き込んで、成功したら名前を変更（より安全な書き込み）
+      const tempFilePath = `${filePath}.tmp`;
+      await fs.promises.writeFile(tempFilePath, JSON.stringify(data, null, 2), 'utf8');
+      
+      // 既存のファイルがあれば念のためバックアップ
+      if (fs.existsSync(filePath)) {
+        const backupPath = `${filePath}.bak`;
+        try {
+          await fs.promises.copyFile(filePath, backupPath);
+        } catch (backupErr) {
+          Logger.warn(`バックアップの作成に失敗: ${filePath}`, backupErr as Error);
+        }
+      }
+      
+      // 一時ファイルを本番ファイルに移動（原子的操作）
+      try {
+        await fs.promises.rename(tempFilePath, filePath);
+      } catch (renameErr) {
+        // 名前変更に失敗した場合は直接コピー
+        Logger.warn(`ファイル名変更に失敗、コピーを試みます: ${filePath}`, renameErr as Error);
+        await fs.promises.copyFile(tempFilePath, filePath);
+        await fs.promises.unlink(tempFilePath).catch(() => {});
+      }
+      
+      // ファイルの存在を確認
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`ファイルが作成されませんでした: ${filePath}`);
+      }
+      
+      // VSCode設定にもバックアップ（冗長性のため）
+      await this.saveToConfig(`projectData.${projectId}.${key}`, data, true);
       
       // プロジェクトの更新日時を更新
       const project = this.projectService.getProject(projectId);
@@ -230,17 +306,76 @@ export class AppGeniusStateManager {
    * @param defaultValue デフォルト値
    */
   public async getProjectData<T>(projectId: string, key: string, defaultValue: T): Promise<T> {
+    const startTime = Date.now();
     try {
       const filePath = path.join(this.storageDir, projectId, `${key}.json`);
+      Logger.debug(`データ読み込み開始: ${filePath}`);
       
-      if (!fs.existsSync(filePath)) {
-        return defaultValue;
+      // 1. メインファイルからの読み込み試行
+      if (fs.existsSync(filePath)) {
+        try {
+          const data = await fs.promises.readFile(filePath, 'utf8');
+          const result = JSON.parse(data) as T;
+          Logger.debug(`ファイルからデータを読み込みました: ${filePath}`);
+          return result;
+        } catch (fileError) {
+          Logger.warn(`ファイルからの読み込みに失敗: ${filePath}`, fileError as Error);
+          // 読み込み失敗、バックアップを試す
+        }
+      } else {
+        Logger.debug(`ファイルが存在しません: ${filePath}`);
       }
       
-      const data = await fs.promises.readFile(filePath, 'utf8');
-      return JSON.parse(data) as T;
+      // 2. バックアップファイルからの読み込み試行
+      const backupPath = `${filePath}.bak`;
+      if (fs.existsSync(backupPath)) {
+        try {
+          const backupData = await fs.promises.readFile(backupPath, 'utf8');
+          const backupResult = JSON.parse(backupData) as T;
+          Logger.info(`バックアップからデータを復元: ${backupPath}`);
+          
+          // 復元したデータを正規のファイルに保存（自己修復）
+          await this.saveProjectData(projectId, key, backupResult);
+          
+          return backupResult;
+        } catch (backupError) {
+          Logger.warn(`バックアップからの読み込みに失敗: ${backupPath}`, backupError as Error);
+        }
+      }
+      
+      // 3. VSCode設定からの読み込み試行
+      try {
+        const configKey = `projectData.${projectId}.${key}`;
+        const configData = vscode.workspace.getConfiguration('appgeniusAI').get<T>(configKey);
+        
+        if (configData) {
+          Logger.info(`VSCode設定からデータを復元: ${configKey}`);
+          
+          // 復元したデータをファイルに保存（自己修復）
+          await this.saveProjectData(projectId, key, configData);
+          
+          return configData;
+        }
+      } catch (configError) {
+        Logger.warn(`VSCode設定からの読み込みに失敗: ${projectId}.${key}`, configError as Error);
+      }
+      
+      // すべての方法で失敗した場合はデフォルト値を返す
+      Logger.warn(`すべての読み込み方法が失敗、デフォルト値を使用: ${projectId}.${key}`);
+      return defaultValue;
     } catch (error) {
-      Logger.error(`Failed to get project data: ${projectId}.${key}`, error as Error);
+      const endTime = Date.now();
+      Logger.error(`データ読み込み失敗: ${projectId}.${key} (${endTime - startTime}ms)`, error as Error);
+      
+      // 問題診断のための追加情報
+      try {
+        const filePath = path.join(this.storageDir, projectId, `${key}.json`);
+        if (fs.existsSync(filePath)) {
+          const stats = fs.statSync(filePath);
+          Logger.debug(`問題のファイル情報: サイズ=${stats.size}バイト, 更新=${stats.mtime}`);
+        }
+      } catch (diagError) {}
+      
       return defaultValue;
     }
   }
@@ -327,23 +462,67 @@ export class AppGeniusStateManager {
    * @param scope 実装スコープデータ
    */
   public async saveImplementationScope(projectId: string, scope: ImplementationScope): Promise<void> {
-    await this.saveProjectData(projectId, 'implementationScope', scope);
-    
-    // スコープが設定されたら実装フェーズが開始されたとみなす
-    const project = this.projectService.getProject(projectId);
-    if (project) {
-      // 進捗状況に基づいて実装フェーズの完了状態を更新
-      const isCompleted = scope.totalProgress >= 100;
-      await this.projectService.updateProjectPhase(projectId, 'implementation', isCompleted);
+    try {
+      Logger.info(`実装スコープを保存します: プロジェクト ${projectId}`);
+      
+      // CLIとの連携用にスコープIDが設定されていることを確認
+      if (!scope.id) {
+        scope.id = `scope-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+        Logger.debug(`スコープIDを生成しました: ${scope.id}`);
+      }
+      
+      // ProjectDataに保存
+      await this.saveProjectData(projectId, 'implementationScope', scope);
+      
+      // VSCode設定にも直接保存（CLIとの連携用）
+      await this.saveToConfig('implementationScope', scope, true);
+      
+      // CLI連携用の一時ファイルも作成
+      try {
+        // ホームディレクトリに.appgenius/scopesディレクトリを作成
+        const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+        const scopesDir = path.join(homeDir, '.appgenius', 'scopes');
+        this.ensureDirectoryExists(scopesDir);
+        
+        // スコープファイルを作成（CLIから直接アクセスできるように）
+        const scopeFilePath = path.join(scopesDir, `${scope.id}.json`);
+        
+        // 一時ファイルに書き込んでから名前変更
+        const tempFilePath = `${scopeFilePath}.tmp`;
+        await fs.promises.writeFile(tempFilePath, JSON.stringify(scope, null, 2), 'utf8');
+        
+        if (fs.existsSync(scopeFilePath)) {
+          await fs.promises.unlink(scopeFilePath).catch(() => {});
+        }
+        
+        await fs.promises.rename(tempFilePath, scopeFilePath);
+        Logger.info(`CLIアクセス用のスコープファイルを作成しました: ${scopeFilePath}`);
+      } catch (cliError) {
+        Logger.warn(`CLI連携用のスコープファイル作成に失敗しました: ${(cliError as Error).message}`);
+        // CLIファイル作成のエラーは無視（メイン処理は続行）
+      }
+      
+      // スコープが設定されたら実装フェーズが開始されたとみなす
+      const project = this.projectService.getProject(projectId);
+      if (project) {
+        // 進捗状況に基づいて実装フェーズの完了状態を更新
+        const isCompleted = scope.totalProgress >= 100;
+        await this.projectService.updateProjectPhase(projectId, 'implementation', isCompleted);
+      }
+      
+      // イベント発火
+      this.eventBus.emit(
+        AppGeniusEventType.SCOPE_UPDATED,
+        scope,
+        'AppGeniusStateManager',
+        projectId
+      );
+      
+      Logger.info(`実装スコープの保存が完了しました: プロジェクト ${projectId}`);
+    } catch (error) {
+      Logger.error(`実装スコープの保存に失敗しました: プロジェクト ${projectId}`, error as Error);
+      throw error;
     }
-    
-    // イベント発火
-    this.eventBus.emit(
-      AppGeniusEventType.SCOPE_UPDATED,
-      scope,
-      'AppGeniusStateManager',
-      projectId
-    );
   }
   
   /**
@@ -439,8 +618,30 @@ export class AppGeniusStateManager {
    * @param dir ディレクトリパス
    */
   private ensureDirectoryExists(dir: string): void {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+    try {
+      if (!fs.existsSync(dir)) {
+        Logger.debug(`ディレクトリを作成します: ${dir}`);
+        fs.mkdirSync(dir, { recursive: true });
+        
+        // 作成されたことを確認
+        if (!fs.existsSync(dir)) {
+          throw new Error(`ディレクトリが作成されませんでした: ${dir}`);
+        }
+      }
+      
+      // 書き込み権限をチェック
+      try {
+        const testFile = path.join(dir, '.test-write-permission');
+        // テストファイルに書き込み
+        fs.writeFileSync(testFile, 'test', 'utf8');
+        // 書き込みが成功したらファイルを削除
+        fs.unlinkSync(testFile);
+      } catch (writeError) {
+        throw new Error(`ディレクトリ ${dir} への書き込み権限がありません: ${(writeError as Error).message}`);
+      }
+    } catch (error) {
+      Logger.error(`ディレクトリの作成または権限チェックに失敗しました: ${dir}`, error as Error);
+      throw error;
     }
   }
   

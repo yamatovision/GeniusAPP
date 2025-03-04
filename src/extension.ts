@@ -15,12 +15,25 @@ import { DevelopmentAssistantPanel } from './ui/developmentAssistant/Development
 import { SimpleChatPanel } from './ui/simpleChat';
 import { ImplementationSelectorPanel } from './ui/implementationSelector/ImplementationSelectorPanel';
 import { DashboardPanel } from './ui/dashboard/DashboardPanel';
+import { ClaudeMdEditorPanel } from './ui/claudeMd/ClaudeMdEditorPanel';
 import { ProjectManagementService } from './services/ProjectManagementService';
+import { PlatformManager } from './utils/PlatformManager';
+import { ScopeExporter } from './utils/ScopeExporter';
+import { MessageBroker } from './utils/MessageBroker';
 
 export function activate(context: vscode.ExtensionContext) {
 	// ロガーの初期化
 	Logger.initialize('AppGenius AI', LogLevel.DEBUG);
 	Logger.info('AppGenius AI が起動しました');
+	
+	// PlatformManagerの初期化
+	const platformManager = PlatformManager.getInstance();
+	platformManager.setExtensionContext(context);
+	Logger.info('PlatformManager initialized successfully');
+	
+	// ScopeExporterの初期化
+	ScopeExporter.getInstance();
+	Logger.info('ScopeExporter initialized successfully');
 	
 	// デバッグモードを無効化して実際のAPIを使用する
 	vscode.workspace.getConfiguration('appgeniusAI').update('debugMode', false, true);

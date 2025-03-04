@@ -10,6 +10,7 @@ import { configManager } from '../utils/configManager';
 import { InteractiveSession } from '../services/interactiveSession';
 import { progressService } from '../services/progressService';
 import { ClaudeService, ClaudeModel } from '../services/claudeService';
+import { ScopeExporter } from '../utils/scopeExporter';
 
 /**
  * コマンドの登録とコマンドライン引数の処理を行う
@@ -21,7 +22,8 @@ export function registerCommands(program: Command): void {
     .description('AppGenius CLI - AIによる開発支援ツール')
     .option('-d, --debug', 'デバッグモードを有効化', false)
     .option('-p, --project <path>', 'プロジェクトルートパスを指定')
-    .option('-k, --api-key <key>', 'Claude APIキーを設定');
+    .option('-k, --api-key <key>', 'Claude APIキーを設定')
+    .option('-l, --language <lang>', '言語設定 (ja:日本語, en:英語)', 'ja');
   
   // configコマンド - 設定の管理
   program
@@ -31,10 +33,11 @@ export function registerCommands(program: Command): void {
     .option('--set-api-key <key>', 'Claude APIキーを設定')
     .option('--set-project <path>', 'デフォルトのプロジェクトパスを設定')
     .option('--set-log-level <level>', 'ログレベルを設定 (debug, info, warn, error)')
+    .option('--set-language <lang>', '言語設定を変更 (ja:日本語, en:英語)')
     .action(async (options) => {
       try {
         // オプションがない場合はインタラクティブモード
-        if (!options.show && !options.setApiKey && !options.setProject && !options.setLogLevel) {
+        if (!options.show && !options.setApiKey && !options.setProject && !options.setLogLevel && !options.setLanguage) {
           await configInteractive();
           return;
         }
@@ -75,6 +78,27 @@ export function registerCommands(program: Command): void {
           logger.setLogLevel(level as LogLevel);
           console.log(chalk.green(`ログレベルを設定しました: ${level}`));
         }
+        
+        // 言語設定
+        if (options.setLanguage) {
+          const lang = options.setLanguage.toLowerCase();
+          
+          if (!['ja', 'en'].includes(lang)) {
+            console.error(chalk.red('無効な言語設定です。"ja"(日本語)または"en"(英語)を指定してください'));
+            return;
+          }
+          
+          // 設定の初期化
+          const config = configManager.getConfig();
+          if (!config.userPreferences) {
+            configManager.updateConfig({ userPreferences: { language: lang } });
+          } else {
+            config.userPreferences.language = lang;
+            configManager.saveConfig();
+          }
+          
+          console.log(chalk.green(`言語設定を変更しました: ${lang === 'ja' ? '日本語' : '英語'}`));
+        }
       } catch (error) {
         logger.error('設定コマンドの実行中にエラーが発生しました', error as Error);
         console.error(chalk.red('エラーが発生しました:'), (error as Error).message);
@@ -88,6 +112,7 @@ export function registerCommands(program: Command): void {
     .option('-m, --model <model>', 'Claude AIモデルを指定 (opus, sonnet, haiku)', 'sonnet')
     .option('-s, --scope <file>', 'スコープファイルを指定')
     .option('-p, --project <path>', 'プロジェクトパスを指定')
+    .option('--auto-init', '環境変数からスコープとプロジェクトを自動設定', false)
     .allowUnknownOption(true) // VSCodeからの余分な引数を許可
     .action(async (options) => {
       try {
@@ -96,6 +121,32 @@ export function registerCommands(program: Command): void {
         
         // コマンドライン引数をログに記録
         logger.debug(`chatコマンド実行: 引数=${JSON.stringify(options)}, argv=${JSON.stringify(process.argv)}`);
+        
+        // 自動初期化モードかチェック
+        if (options.autoInit) {
+          logger.info('自動初期化モードが有効です');
+          
+          // 環境変数から値を取得
+          const autoProjectPath = process.env.APPGENIUS_PROJECT_PATH;
+          const autoScopeFile = process.env.APPGENIUS_SCOPE_FILE;
+          const autoCommandsFile = process.env.APPGENIUS_AUTO_COMMANDS;
+          
+          if (autoProjectPath) {
+            logger.info(`環境変数からプロジェクトパスを設定: ${autoProjectPath}`);
+            options.project = autoProjectPath;
+          }
+          
+          if (autoScopeFile) {
+            logger.info(`環境変数からスコープファイルを設定: ${autoScopeFile}`);
+            options.scope = autoScopeFile;
+          }
+          
+          // 自動コマンドファイルが存在する場合、その中身を処理
+          if (autoCommandsFile && fs.existsSync(autoCommandsFile)) {
+            logger.info(`自動コマンドファイルが見つかりました: ${autoCommandsFile}`);
+            // ここではファイルを読み込むだけで、後でInteractiveSessionで処理する
+          }
+        }
         
         // スコープファイルの読み込み
         let scopeData: ScopeData | undefined;
@@ -146,7 +197,8 @@ export function registerCommands(program: Command): void {
         // インタラクティブセッションを開始
         const session = new InteractiveSession({
           scopeData,
-          systemPrompt: getSessionSystemPrompt(model)
+          systemPrompt: getSessionSystemPrompt(model),
+          autoCommandsFile: options.autoInit ? process.env.APPGENIUS_AUTO_COMMANDS : undefined
         });
         
         await session.start();
@@ -163,7 +215,14 @@ export function registerCommands(program: Command): void {
     .option('--create', '新しいスコープを作成')
     .option('--list', '保存されたスコープを一覧表示')
     .option('--show <id>', '特定のスコープを表示')
+    .option('--show-items <id>', 'スコープの選択された実装項目を表示')
     .option('--delete <id>', 'スコープを削除')
+    .option('--import <file>', '外部ファイルからスコープをインポート')
+    .option('--export <id>', 'スコープをファイルにエクスポート')
+    .option('--set-project <path>', 'スコープのプロジェクトパスを設定')
+    .option('--to-memory <id>', 'スコープをCLAUDE.mdに保存')
+    .option('--from-memory', 'CLAUDE.mdからスコープを読み込み')
+    .option('--init-memory', 'CLAUDE.mdテンプレートを作成')
     .action(async (options) => {
       try {
         // グローバルオプションの処理
@@ -176,7 +235,9 @@ export function registerCommands(program: Command): void {
         }
         
         // オプションがない場合は一覧表示
-        if (!options.create && !options.list && !options.show && !options.delete) {
+        if (!options.create && !options.list && !options.show && !options.showItems && !options.delete 
+            && !options.import && !options.export && !options.setProject && !options.toMemory 
+            && !options.fromMemory && !options.initMemory) {
           options.list = true;
         }
         
@@ -195,9 +256,44 @@ export function registerCommands(program: Command): void {
           showScope(scopeDir, options.show);
         }
         
+        // スコープの選択された実装項目を表示
+        if (options.showItems) {
+          showSelectedItems(scopeDir, options.showItems);
+        }
+        
         // スコープ削除
         if (options.delete) {
           deleteScope(scopeDir, options.delete);
+        }
+        
+        // スコープインポート
+        if (options.import) {
+          await importScope(scopeDir, options.import);
+        }
+        
+        // スコープエクスポート
+        if (options.export) {
+          exportScope(scopeDir, options.export);
+        }
+        
+        // プロジェクトパス設定
+        if (options.setProject) {
+          await setProjectForScope(scopeDir, options.show, options.setProject);
+        }
+        
+        // スコープをCLAUDE.mdに保存
+        if (options.toMemory) {
+          await exportScopeToMemory(scopeDir, options.toMemory);
+        }
+        
+        // CLAUDE.mdからスコープを読み込み
+        if (options.fromMemory) {
+          await importScopeFromMemory();
+        }
+        
+        // CLAUDE.mdテンプレート作成
+        if (options.initMemory) {
+          await initMemoryTemplate();
         }
       } catch (error) {
         logger.error('スコープコマンドの実行中にエラーが発生しました', error as Error);
@@ -275,6 +371,22 @@ function handleGlobalOptions(opts: any): void {
     configManager.setApiKey(opts.apiKey);
     logger.debug('APIキーが設定されました');
   }
+  
+  // 言語設定
+  if (opts.language) {
+    const lang = opts.language.toLowerCase();
+    if (lang === 'ja' || lang === 'en') {
+      if (!configManager.getConfig().userPreferences) {
+        configManager.updateConfig({ userPreferences: { language: lang } });
+      } else {
+        configManager.getConfig().userPreferences.language = lang;
+        configManager.saveConfig();
+      }
+      logger.debug(`言語設定を "${lang}" に設定しました`);
+    } else {
+      console.error(chalk.yellow(`無効な言語設定です。"ja"または"en"を指定してください。デフォルトの"ja"を使用します。`));
+    }
+  }
 }
 
 /**
@@ -288,7 +400,42 @@ function showConfig(): void {
   console.log(chalk.bold('プロジェクトルート:'), config.projectRoot || '未設定');
   console.log(chalk.bold('ログレベル:'), config.logLevel);
   console.log(chalk.bold('一時ディレクトリ:'), config.tempDir);
+  console.log(chalk.bold('言語設定:'), config.userPreferences?.language === 'en' ? '英語 (en)' : '日本語 (ja)');
   console.log('');
+}
+
+/**
+ * スコープの選択された実装項目を表示
+ */
+function showSelectedItems(scopeDir: string, scopeId: string): void {
+  const filePath = path.join(scopeDir, `${scopeId}.json`);
+  
+  if (!fs.existsSync(filePath)) {
+    console.error(chalk.red(`ID ${scopeId} のスコープが見つかりません`));
+    return;
+  }
+  
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const scopeData = JSON.parse(content) as ScopeData;
+    
+    console.log(chalk.cyan(`\nスコープ「${scopeData.name}」の選択された実装項目:`));
+    
+    if (!scopeData.selectedItems || scopeData.selectedItems.length === 0) {
+      console.log(chalk.yellow('このスコープには選択された実装項目がありません。'));
+      return;
+    }
+    
+    scopeData.selectedItems.forEach((item, index) => {
+      console.log(chalk.bold(`\n項目 ${index + 1}:`));
+      console.log(chalk.bold('ID:'), item.id || '未設定');
+      console.log(chalk.bold('タイトル:'), item.title || '未設定');
+    });
+    
+    console.log(''); // 空行
+  } catch (error) {
+    console.error(chalk.red('スコープファイルの読み込みに失敗しました'), (error as Error).message);
+  }
 }
 
 /**
@@ -307,6 +454,7 @@ async function configInteractive(): Promise<void> {
         { name: 'APIキーを設定', value: 'apiKey' },
         { name: 'プロジェクトルートを設定', value: 'project' },
         { name: 'ログレベルを設定', value: 'logLevel' },
+        { name: '言語設定を変更', value: 'language' },
         { name: '終了', value: 'exit' }
       ]
     }
@@ -382,6 +530,32 @@ async function configInteractive(): Promise<void> {
       console.log(chalk.green(`ログレベルを設定しました: ${logLevel}`));
       break;
       
+    case 'language':
+      const languageAnswers = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'language',
+          message: '言語を選択してください：',
+          choices: [
+            { name: '日本語', value: 'ja' },
+            { name: '英語', value: 'en' }
+          ],
+          default: config.userPreferences?.language || 'ja'
+        }
+      ]);
+      
+      const language = languageAnswers.language as string;
+      
+      // ユーザー設定の初期化
+      if (!config.userPreferences) {
+        config.userPreferences = {};
+      }
+      
+      config.userPreferences.language = language;
+      configManager.saveConfig();
+      console.log(chalk.green(`言語設定を変更しました: ${language === 'ja' ? '日本語' : '英語'}`));
+      break;
+      
     case 'exit':
       // 何もしない
       break;
@@ -399,23 +573,28 @@ function getSessionSystemPrompt(model: ClaudeModel): string {
       ? '高速なClaude 3 Haikuモデル'
       : 'バランスの取れたClaude 3 Sonnetモデル';
   
-  return `You are AppGenius, an AI assistant specialized in software development.
-You help users with coding tasks, software architecture, debugging, and implementing features.
-You are running on ${modelInfo}.
+  // ユーザー設定から言語を取得
+  const config = configManager.getConfig();
+  const language = config.userPreferences?.language || 'ja'; // デフォルトを日本語に設定
+  
+  return `あなたはAppGeniusです。ソフトウェア開発に特化したAIアシスタントです。
+あなたは${modelInfo}上で実行されています。
 
-When a user asks for help with a task:
-1. Break down the problem
-2. Provide clear explanations
-3. Generate well-structured, idiomatic code
-4. Offer guidance on testing and best practices
+ユーザーがタスクを依頼したら：
+1. 問題を分解する
+2. 明確な説明を提供する
+3. 整った構造の慣用的なコードを生成する
+4. テストとベストプラクティスのガイダンスを提供する
 
-You have access to tools for file operations, which allow you to search, read, and edit files.
-When using these tools, be precise and careful, especially with file paths.
+ファイル操作のためのツールにアクセスでき、ファイルの検索、読み取り、編集ができます。
+これらのツールを使用する際は、特にファイルパスに対して正確かつ慎重に扱ってください。
 
-You specialize in TypeScript, JavaScript, Node.js, and web development, but can assist with most programming languages.
-Always prioritize writing clean, maintainable, and efficient code.
+TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していますが、ほとんどのプログラミング言語をサポートできます。
+常にクリーンで保守性が高く、効率的なコードの作成を優先してください。
 
-Current working directory: ${configManager.getConfig().projectRoot}`;
+現在の作業ディレクトリ: ${configManager.getConfig().projectRoot}
+
+すべての回答は必ず日本語で行ってください。英語での回答は避けてください。`;
 }
 
 /**
@@ -625,6 +804,192 @@ function deleteScope(scopeDir: string, scopeId: string): void {
 }
 
 /**
+ * 外部ファイルからスコープをインポート
+ */
+async function importScope(scopeDir: string, filePath: string): Promise<void> {
+  try {
+    // ファイルの存在確認
+    if (!fs.existsSync(filePath)) {
+      console.error(chalk.red(`指定されたファイルが見つかりません: ${filePath}`));
+      return;
+    }
+    
+    // ファイル内容を読み込み
+    const content = fs.readFileSync(filePath, 'utf8');
+    let scopeData: ScopeData;
+    
+    try {
+      scopeData = JSON.parse(content);
+    } catch (error) {
+      console.error(chalk.red('スコープファイルの解析に失敗しました'), (error as Error).message);
+      return;
+    }
+    
+    // 必須フィールドの確認
+    if (!scopeData.id || !scopeData.name) {
+      console.error(chalk.red('無効なスコープデータです。IDと名前は必須です。'));
+      return;
+    }
+    
+    // スコープIDが既に存在するか確認
+    const existingFilePath = path.join(scopeDir, `${scopeData.id}.json`);
+    if (fs.existsSync(existingFilePath)) {
+      const answers = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'overwrite',
+          message: `ID ${scopeData.id} のスコープは既に存在します。上書きしますか？`,
+          default: false
+        }
+      ]);
+      
+      if (!answers.overwrite) {
+        console.log(chalk.yellow('インポートをキャンセルしました'));
+        return;
+      }
+    }
+    
+    // プロジェクトパスの確認
+    if (scopeData.projectPath && !fs.existsSync(scopeData.projectPath)) {
+      console.log(chalk.yellow(`プロジェクトパス ${scopeData.projectPath} が存在しません`));
+      
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'projectPath',
+          message: '新しいプロジェクトパスを入力してください（空白の場合は現在の値を保持）:',
+          default: scopeData.projectPath
+        }
+      ]);
+      
+      if (answers.projectPath && answers.projectPath !== scopeData.projectPath) {
+        scopeData.projectPath = answers.projectPath;
+      }
+    }
+    
+    // スコープファイルを保存
+    fs.writeFileSync(existingFilePath, JSON.stringify(scopeData, null, 2));
+    
+    console.log(chalk.green(`スコープ「${scopeData.name}」をインポートしました`));
+    console.log(chalk.bold('ID:'), scopeData.id);
+    console.log(chalk.bold('説明:'), scopeData.description || '説明なし');
+    console.log(chalk.bold('プロジェクトパス:'), scopeData.projectPath || '未設定');
+  } catch (error) {
+    console.error(chalk.red('スコープのインポートに失敗しました'), (error as Error).message);
+  }
+}
+
+/**
+ * スコープをファイルにエクスポート
+ */
+function exportScope(scopeDir: string, scopeId: string): void {
+  try {
+    const filePath = path.join(scopeDir, `${scopeId}.json`);
+    
+    if (!fs.existsSync(filePath)) {
+      console.error(chalk.red(`ID ${scopeId} のスコープが見つかりません`));
+      return;
+    }
+    
+    // ファイル内容を読み込み
+    const content = fs.readFileSync(filePath, 'utf8');
+    let scopeData: ScopeData;
+    
+    try {
+      scopeData = JSON.parse(content);
+    } catch (error) {
+      console.error(chalk.red('スコープファイルの解析に失敗しました'), (error as Error).message);
+      return;
+    }
+    
+    // エクスポート先のファイル名を生成
+    const exportFileName = `scope-${scopeData.name.replace(/\s+/g, '-').toLowerCase()}-${scopeId.substring(0, 8)}.json`;
+    const exportFilePath = path.join(process.cwd(), exportFileName);
+    
+    // ファイルをエクスポート
+    fs.writeFileSync(exportFilePath, JSON.stringify(scopeData, null, 2));
+    
+    console.log(chalk.green(`スコープ「${scopeData.name}」をエクスポートしました`));
+    console.log(chalk.bold('エクスポート先:'), exportFilePath);
+  } catch (error) {
+    console.error(chalk.red('スコープのエクスポートに失敗しました'), (error as Error).message);
+  }
+}
+
+/**
+ * スコープのプロジェクトパスを設定
+ */
+async function setProjectForScope(scopeDir: string, scopeId: string, projectPath: string): Promise<void> {
+  try {
+    // scopeIdが指定されていない場合は入力を求める
+    if (!scopeId) {
+      const files = fs.readdirSync(scopeDir).filter(file => file.endsWith('.json'));
+      
+      if (files.length === 0) {
+        console.error(chalk.red('スコープが見つかりません'));
+        return;
+      }
+      
+      const scopeChoices = await Promise.all(files.map(async file => {
+        const filePath = path.join(scopeDir, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        const scopeData = JSON.parse(content) as ScopeData;
+        
+        return {
+          name: `${scopeData.name} (${scopeData.id})`,
+          value: scopeData.id
+        };
+      }));
+      
+      const answers = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'scopeId',
+          message: 'プロジェクトパスを設定するスコープを選択してください:',
+          choices: scopeChoices
+        }
+      ]);
+      
+      scopeId = answers.scopeId;
+    }
+    
+    const filePath = path.join(scopeDir, `${scopeId}.json`);
+    
+    if (!fs.existsSync(filePath)) {
+      console.error(chalk.red(`ID ${scopeId} のスコープが見つかりません`));
+      return;
+    }
+    
+    // ディレクトリの存在確認
+    if (!fs.existsSync(projectPath)) {
+      console.error(chalk.red(`指定されたプロジェクトパスが存在しません: ${projectPath}`));
+      return;
+    }
+    
+    // ディレクトリかどうかチェック
+    if (!fs.statSync(projectPath).isDirectory()) {
+      console.error(chalk.red(`指定されたパスはディレクトリではありません: ${projectPath}`));
+      return;
+    }
+    
+    // スコープファイルを読み込み
+    const content = fs.readFileSync(filePath, 'utf8');
+    const scopeData = JSON.parse(content) as ScopeData;
+    
+    // プロジェクトパスを更新
+    scopeData.projectPath = projectPath;
+    
+    // ファイルを保存
+    fs.writeFileSync(filePath, JSON.stringify(scopeData, null, 2));
+    
+    console.log(chalk.green(`スコープ「${scopeData.name}」のプロジェクトパスを更新しました`));
+    console.log(chalk.bold('新しいプロジェクトパス:'), projectPath);
+  } catch (error) {
+    console.error(chalk.red('プロジェクトパスの設定に失敗しました'), (error as Error).message);
+  }
+}
+
+/**
  * プロジェクト情報を表示
  */
 function showProjectInfo(projectRoot: string): void {
@@ -666,14 +1031,15 @@ function showProjectInfo(projectRoot: string): void {
 async function analyzeProject(projectRoot: string): Promise<void> {
   // Claude AIサービスを初期化
   const claude = new ClaudeService({
-    systemPrompt: `You are a project analyzer. Your task is to analyze the structure and characteristics of a software project.
-Focus on:
-1. Project type and architecture
-2. Main technologies and frameworks
-3. Code organization
-4. Key components and their relationships
+    systemPrompt: `あなたはプロジェクト分析者です。ソフトウェアプロジェクトの構造と特性を分析するのがあなたの任務です。
+以下の点に焦点を当ててください：
+1. プロジェクトの種類とアーキテクチャ
+2. 主要な技術とフレームワーク
+3. コードの構成
+4. 主要なコンポーネントとそれらの関係性
 
-Keep your analysis concise and actionable. Highlight patterns, best practices, and potential areas for improvement.`
+分析は簡潔で実用的なものにしてください。パターン、ベストプラクティス、そして改善の可能性がある領域を強調してください。
+必ず日本語で応答してください。`
   });
   
   try {
@@ -751,4 +1117,202 @@ function walkSync(
   });
   
   return results;
+}
+
+/**
+ * スコープをCLAUDE.mdにエクスポート
+ */
+async function exportScopeToMemory(scopeDir: string, scopeId: string): Promise<void> {
+  try {
+    const filePath = path.join(scopeDir, `${scopeId}.json`);
+    
+    if (!fs.existsSync(filePath)) {
+      console.error(chalk.red(`ID ${scopeId} のスコープが見つかりません`));
+      return;
+    }
+    
+    // スコープを読み込み
+    const content = fs.readFileSync(filePath, 'utf8');
+    const scopeData = JSON.parse(content) as ScopeData;
+    
+    // ScopeExporterインスタンスを取得
+    const scopeExporter = ScopeExporter.getInstance();
+    
+    // メモリファイルのパスを決定
+    const config = configManager.getConfig();
+    const memoryPath = path.join(config.projectRoot, 'CLAUDE.md');
+    
+    // エクスポート実行
+    const success = scopeExporter.exportScopeToMemory(scopeData, memoryPath);
+    
+    if (success) {
+      console.log(chalk.green(`スコープ「${scopeData.name}」をCLAUDE.mdにエクスポートしました`));
+      console.log(chalk.bold('CLAUDE.mdパス:'), memoryPath);
+      
+      // 各セクションが存在するか確認し、存在しない場合はテンプレートから作成
+      const memoryContent = fs.readFileSync(memoryPath, 'utf8');
+      
+      if (!memoryContent.includes('## Requirements') && scopeData.requirements) {
+        const requirementsContent = scopeData.requirements.map((req, i) => `${i+1}. ${req}`).join('\n');
+        scopeExporter.updateMemorySection('Requirements', requirementsContent, memoryPath);
+      }
+      
+      if (!memoryContent.includes('## Directory Structure')) {
+        scopeExporter.updateMemorySection('Directory Structure', '現在のプロジェクト構造を解析中...', memoryPath);
+      }
+      
+      if (!memoryContent.includes('## Mockups')) {
+        scopeExporter.updateMemorySection('Mockups', 'プロジェクトモックアップを設定してください。', memoryPath);
+      }
+      
+      if (!memoryContent.includes('## Coding Conventions')) {
+        scopeExporter.updateMemorySection('Coding Conventions', '- クラス名: PascalCase\n- メソッド名: camelCase\n- 変数名: camelCase\n- 定数: UPPER_SNAKE_CASE', memoryPath);
+      }
+      
+      console.log(chalk.green('CLAUDE.mdの基本セクションを初期化しました'));
+    } else {
+      console.error(chalk.red('CLAUDE.mdへのエクスポートに失敗しました'));
+    }
+  } catch (error) {
+    console.error(chalk.red('スコープのCLAUDE.mdへのエクスポートに失敗しました'), (error as Error).message);
+  }
+}
+
+/**
+ * CLAUDE.mdからスコープを読み込み
+ */
+async function importScopeFromMemory(): Promise<void> {
+  try {
+    // ScopeExporterインスタンスを取得
+    const scopeExporter = ScopeExporter.getInstance();
+    
+    // メモリファイルのパスを決定
+    const config = configManager.getConfig();
+    const memoryPath = path.join(config.projectRoot, 'CLAUDE.md');
+    
+    if (!fs.existsSync(memoryPath)) {
+      console.error(chalk.red(`CLAUDE.mdファイルが見つかりません: ${memoryPath}`));
+      
+      // テンプレート作成を提案
+      const answers = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'createTemplate',
+          message: 'CLAUDE.mdテンプレートを作成しますか？',
+          default: true
+        }
+      ]);
+      
+      if (answers.createTemplate) {
+        await initMemoryTemplate();
+      }
+      
+      return;
+    }
+    
+    // CLAUDE.mdからスコープをインポート
+    const scopeData = scopeExporter.importScopeFromMemory(memoryPath);
+    
+    if (!scopeData) {
+      console.error(chalk.red('CLAUDE.mdからスコープ情報を抽出できませんでした'));
+      return;
+    }
+    
+    // スコープディレクトリを確保
+    const scopeDir = path.join(config.tempDir, 'scopes');
+    if (!fs.existsSync(scopeDir)) {
+      fs.mkdirSync(scopeDir, { recursive: true });
+    }
+    
+    // スコープをファイルに保存
+    const filePath = path.join(scopeDir, `${scopeData.id}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(scopeData, null, 2));
+    
+    console.log(chalk.green('CLAUDE.mdからスコープを読み込みました:'));
+    console.log(chalk.bold('ID:'), scopeData.id);
+    console.log(chalk.bold('名前:'), scopeData.name);
+    console.log(chalk.bold('説明:'), scopeData.description);
+    console.log(chalk.bold('プロジェクトパス:'), scopeData.projectPath);
+    console.log(chalk.bold('スコープファイル:'), filePath);
+    
+    // チャットを開始するか確認
+    const answers = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'startChat',
+        message: 'このスコープでチャットを開始しますか？',
+        default: true
+      }
+    ]);
+    
+    if (answers.startChat) {
+      // インタラクティブセッションを開始
+      const session = new InteractiveSession({
+        scopeData,
+        systemPrompt: getSessionSystemPrompt(ClaudeModel.CLAUDE_3_SONNET_20250219)
+      });
+      
+      await session.start();
+    }
+  } catch (error) {
+    console.error(chalk.red('CLAUDE.mdからのスコープ読み込みに失敗しました'), (error as Error).message);
+  }
+}
+
+/**
+ * CLAUDE.mdテンプレートを作成
+ */
+async function initMemoryTemplate(): Promise<void> {
+  try {
+    // プロジェクト名を入力
+    const answers = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'projectName',
+        message: 'プロジェクト名を入力してください:',
+        default: path.basename(configManager.getConfig().projectRoot)
+      }
+    ]);
+    
+    const projectName = answers.projectName;
+    
+    // ScopeExporterインスタンスを取得
+    const scopeExporter = ScopeExporter.getInstance();
+    
+    // テンプレートを生成
+    const template = scopeExporter.generateMemoryTemplate(
+      projectName, 
+      configManager.getConfig().projectRoot
+    );
+    
+    // メモリファイルのパスを決定
+    const config = configManager.getConfig();
+    const memoryPath = path.join(config.projectRoot, 'CLAUDE.md');
+    
+    // 既存ファイルの確認
+    if (fs.existsSync(memoryPath)) {
+      const confirmAnswers = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'overwrite',
+          message: 'CLAUDE.mdファイルは既に存在します。上書きしますか？',
+          default: false
+        }
+      ]);
+      
+      if (!confirmAnswers.overwrite) {
+        console.log(chalk.yellow('テンプレート作成をキャンセルしました'));
+        return;
+      }
+    }
+    
+    // テンプレートをファイルに書き込み
+    fs.writeFileSync(memoryPath, template);
+    
+    console.log(chalk.green('CLAUDE.mdテンプレートを作成しました:'));
+    console.log(chalk.bold('パス:'), memoryPath);
+    console.log(chalk.gray('このファイルを編集してプロジェクト情報を設定してください'));
+  } catch (error) {
+    console.error(chalk.red('CLAUDE.mdテンプレートの作成に失敗しました'), (error as Error).message);
+  }
 }

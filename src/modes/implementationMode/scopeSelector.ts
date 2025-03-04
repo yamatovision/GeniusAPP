@@ -22,6 +22,7 @@ export interface ImplementationItem {
  * スコープの型定義
  */
 export interface ImplementationScope {
+  id?: string; // スコープID（CLI連携用）
   items: ImplementationItem[];
   selectedIds: string[];
   estimatedTime: string;

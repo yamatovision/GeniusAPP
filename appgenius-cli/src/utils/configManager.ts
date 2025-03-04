@@ -29,7 +29,10 @@ export class ConfigManager {
       apiKey: process.env.CLAUDE_API_KEY || '',
       projectRoot: process.env.DEFAULT_PROJECT_ROOT || process.cwd(),
       logLevel: this.parseLogLevel(process.env.LOG_LEVEL),
-      tempDir: process.env.TEMP_DIR || path.join(os.tmpdir(), 'appgenius')
+      tempDir: process.env.TEMP_DIR || path.join(os.tmpdir(), 'appgenius'),
+      userPreferences: {
+        language: process.env.LANGUAGE || 'ja' // デフォルトを日本語に設定
+      }
     };
 
     // 保存された設定の読み込み

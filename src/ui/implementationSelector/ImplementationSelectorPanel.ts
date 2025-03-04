@@ -450,6 +450,7 @@ export class ImplementationSelectorPanel {
         
         // インプリメンテーションスコープを作成
         const implementationScope = {
+          id: `scope-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, // CLI連携用のIDを追加
           items: selectedItems,
           selectedIds: selectedItems.map(item => item.id),
           estimatedTime: currentScope.estimatedTime,

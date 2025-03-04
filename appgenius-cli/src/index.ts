@@ -10,6 +10,11 @@ import os from 'os';
 import path from 'path';
 import readline from 'readline';
 
+// 新しいモジュールをインポート
+import { PlatformManager } from './utils/platformManager';
+import { MessageBroker } from './utils/messageBroker';
+import { ScopeExporter } from './utils/scopeExporter';
+
 // バージョン情報
 const VERSION = '0.1.0';
 
@@ -55,6 +60,30 @@ async function main(): Promise<void> {
     // スタートアップメッセージ
     logger.info(`AppGenius CLI v${VERSION} を起動しています...`);
     
+    // 新しいプラットフォーム関連機能の初期化
+    try {
+      // PlatformManagerを初期化
+      PlatformManager.getInstance();
+      logger.info('PlatformManager initialized successfully');
+      
+      // ScopeExporterを初期化
+      ScopeExporter.getInstance();
+      logger.info('ScopeExporter initialized successfully');
+      
+      // MessageBrokerを初期化
+      MessageBroker.getInstance();
+      logger.info('MessageBroker initialized successfully');
+    } catch (error) {
+      logger.warn('プラットフォーム機能の初期化に一部失敗しました', error as Error);
+    }
+    
+    // VSCode連携の確認
+    const platformManager = PlatformManager.getInstance();
+    const vscodeEnv = platformManager.getVSCodeEnvironment();
+    if (vscodeEnv.projectId) {
+      logger.info(`VSCode連携を検出: プロジェクトID=${vscodeEnv.projectId}`);
+    }
+    
     // カスタム入力ハンドラを設定
     createCustomInputHandler();
     
@@ -64,8 +93,16 @@ async function main(): Promise<void> {
     // チャットコマンドが単独で与えられた場合、対話モードを優先
     if (process.argv.length === 3 && process.argv[2] === 'chat') {
       logger.debug('チャットコマンドが検出されました。対話モードを開始します。');
+      
+      // プロジェクトルートに CLAUDE.md があるか確認
+      const config = configManager.getConfig();
+      const memoryFilePath = path.join(config.projectRoot, 'CLAUDE.md');
+      
       const { InteractiveSession } = require('./services/interactiveSession');
-      const session = new InteractiveSession();
+      const session = new InteractiveSession({
+        memoryFilePath: memoryFilePath
+      });
+      
       await session.start();
       return;
     }

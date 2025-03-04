@@ -5,6 +5,9 @@ import * as childProcess from 'child_process';
 import { Logger } from '../../utils/logger';
 import { AppGeniusEventBus, AppGeniusEventType } from '../AppGeniusEventBus';
 import { ImplementationScope, ImplementationItem } from '../AppGeniusStateManager';
+import { PlatformManager } from '../../utils/PlatformManager';
+import { ScopeExporter } from '../../utils/ScopeExporter';
+import { MessageBroker, MessageType } from '../../utils/MessageBroker';
 
 /**
  * CLI実行状態
@@ -36,6 +39,10 @@ export class CLILauncherService {
   
   private constructor() {
     this.eventBus = AppGeniusEventBus.getInstance();
+    
+    // 拡張機能が起動するたびに状態をリセット（前回のセッションでRUNNINGのままだった場合の対策）
+    this.status = CLIExecutionStatus.IDLE;
+    
     Logger.info('CLILauncherService initialized');
   }
   
@@ -54,10 +61,23 @@ export class CLILauncherService {
    */
   public async launchCLI(scope: ImplementationScope): Promise<boolean> {
     try {
+      // 前回の状態がRUNNINGのまま残っている可能性があるため、再確認を提案
       if (this.status === CLIExecutionStatus.RUNNING) {
-        Logger.warn('CLIは既に実行中です');
-        vscode.window.showWarningMessage('CLIは既に実行中です');
-        return false;
+        const choice = await vscode.window.showWarningMessage(
+          'CLIは既に実行中のようです。前回の実行が正常に終了していない可能性があります。',
+          '状態をリセットして続行',
+          'キャンセル'
+        );
+        
+        if (choice === '状態をリセットして続行') {
+          // 状態をリセットして続行
+          this.resetStatus();
+          Logger.info('CLI状態をリセットして続行します');
+        } else {
+          // キャンセルされた場合は処理を中断
+          Logger.warn('CLIの起動がキャンセルされました');
+          return false;
+        }
       }
       
       // プロジェクトパスの確認
@@ -66,122 +86,98 @@ export class CLILauncherService {
         throw new Error(`プロジェクトパスが存在しません: ${this.projectPath}`);
       }
       
-      // スコープIDを生成
-      const scopeId = `scope-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      // PlatformManagerとScopeExporterを使用してスコープを標準化して保存
+      const scopeExporter = ScopeExporter.getInstance();
+      this.scopeFilePath = scopeExporter.exportScope(scope);
       
-      // 一時ディレクトリのパスを取得（ユーザーホームの.appgeniusディレクトリ）
-      const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-      const appGeniusDir = path.join(homeDir, '.appgenius');
-      
-      // ディレクトリ構造を作成
-      const tempDir = path.join(appGeniusDir, 'temp');
-      const progressDir = path.join(appGeniusDir, 'progress');
-      
-      for (const dir of [appGeniusDir, tempDir, progressDir]) {
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
+      // スコープIDを取得
+      const scopeData = scopeExporter.importScope(this.scopeFilePath);
+      if (!scopeData) {
+        throw new Error('スコープ情報の保存に失敗しました');
       }
       
-      // スコープデータ作成
-      const scopeData = {
-        id: scopeId,
-        name: `Implementation Scope ${scopeId.substring(0, 8)}`,
-        description: `Scope with ${scope.items.length} items`,
-        projectPath: this.projectPath,
-        requirements: scope.items.map(item => item.description),
-        selectedItems: scope.items.filter(item => scope.selectedIds.includes(item.id)),
-        estimatedTime: scope.estimatedTime,
-        startDate: scope.startDate,
-        targetDate: scope.targetDate
-      };
-      
-      // スコープ情報の保存
-      this.scopeFilePath = path.join(tempDir, `${scopeId}.json`);
-      fs.writeFileSync(this.scopeFilePath, JSON.stringify(scopeData, null, 2), 'utf8');
+      const scopeId = scopeData.id;
       
       // 進捗ファイルパスの設定
-      this.progressFilePath = path.join(progressDir, `${scopeId}.json`);
+      const platformManager = PlatformManager.getInstance();
+      this.progressFilePath = path.join(platformManager.getTempDirectory('progress'), `${scopeId}.json`);
+      
+      Logger.info(`スコープ情報を保存しました: ${this.scopeFilePath}`);
       
       // APIキーの取得
       const config = vscode.workspace.getConfiguration('appgeniusAI');
       const apiKey = config.get<string>('apiKey') || '';
       
-      // 拡張機能のパスを取得
-      const extensionPath = vscode.extensions.getExtension('appgenius-ai.appgenius-ai')?.extensionPath || '';
+      // デバッグモードの取得
+      const debugMode = config.get<boolean>('debug') || false;
       
-      // シェルスクリプトのパス
-      const scriptPath = path.join(extensionPath, 'appgenius-cli', 'launch-appgenius.sh');
+      // モデルの取得
+      const model = config.get<string>('model') || 'claude-3-7-sonnet-20250219';
       
-      // シェルスクリプトが存在するか確認
-      if (!fs.existsSync(scriptPath)) {
-        // シェルスクリプトが存在しない場合は、別の場所を探す
-        Logger.warn(`シェルスクリプトが見つかりません: ${scriptPath}`);
-        
-        // プロジェクトルートを基準に探す
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        let altScriptPath = '';
-        
-        if (workspaceFolders && workspaceFolders.length > 0) {
-          const workspacePath = workspaceFolders[0].uri.fsPath;
-          altScriptPath = path.join(workspacePath, 'appgenius-cli', 'launch-appgenius.sh');
-          Logger.debug(`ワークスペースのスクリプトパスを試行: ${altScriptPath}`);
-          
-          if (fs.existsSync(altScriptPath)) {
-            Logger.info(`ワークスペースのシェルスクリプトを使用します: ${altScriptPath}`);
-            
-            // 見つかったスクリプトを使用
-            const terminal = vscode.window.createTerminal({
-              name: 'AppGenius CLI',
-              cwd: this.projectPath,
-              iconPath: vscode.Uri.file(path.join(extensionPath, 'media', 'icon.svg'))
-            });
-            
-            terminal.show();
-            // 引数を減らしてシンプルな形式で実行
-            terminal.sendText(`API_KEY="${apiKey}" bash "${altScriptPath}" --scope="${this.scopeFilePath}" --project="${this.projectPath}"`);
-            
-            // 状態更新
-            this.status = CLIExecutionStatus.RUNNING;
-            
-            // イベント発火
-            this.eventBus.emit(
-              AppGeniusEventType.CLI_STARTED,
-              { 
-                scopeId,
-                projectPath: this.projectPath,
-                scopeFilePath: this.scopeFilePath,
-                progressFilePath: this.progressFilePath
-              },
-              'CLILauncherService'
-            );
-            
-            // 進捗監視の開始
-            this.startProgressMonitoring();
-            
-            return true;
-          }
+      // 起動方法を決定（新しい方法を優先）
+      try {
+        // まず新しい起動方法を試みる
+        const success = await this.launchCliWithNode(scopeData, apiKey, debugMode);
+        if (success) {
+          return true;
         }
-        
-        // 代わりにCLIコマンドを直接実行
-        return this.launchCliDirect(scopeData, apiKey);
+      } catch (error) {
+        Logger.warn('新しい起動方法に失敗しました。従来の方法を試みます', error as Error);
       }
       
-      // 拡張機能のアイコンを取得
-      const iconPath = vscode.Uri.file(path.join(extensionPath, 'media', 'icon.svg'));
+      // 拡張機能のパスを取得（PlatformManagerから）
+      const extensionPath = platformManager.getExtensionPath() || '';
+      
+      // シェルスクリプトのパス（優先度順に探す）
+      const possibleScriptPaths = [
+        // 拡張機能内のパス
+        path.join(extensionPath, 'appgenius-cli', 'launch-appgenius.sh'),
+        
+        // ワークスペース内のパス
+        ...((vscode.workspace.workspaceFolders || []).map(folder => 
+          path.join(folder.uri.fsPath, 'appgenius-cli', 'launch-appgenius.sh')
+        ))
+      ];
+      
+      // 実際に存在するスクリプトパスを探す
+      let scriptPath = '';
+      for (const possiblePath of possibleScriptPaths) {
+        if (fs.existsSync(possiblePath)) {
+          scriptPath = possiblePath;
+          Logger.info(`起動スクリプトを見つけました: ${scriptPath}`);
+          break;
+        }
+      }
+      
+      if (!scriptPath) {
+        Logger.warn('起動スクリプトが見つかりませんでした。CLIを直接実行します。');
+        return await this.launchCliDirect(scopeData, apiKey);
+      }
+      
+      // アイコンURIを取得（PlatformManagerから）
+      const iconPath = platformManager.getResourceUri('media/icon.svg');
       
       // ターミナルの作成
       const terminal = vscode.window.createTerminal({
         name: 'AppGenius CLI',
         cwd: this.projectPath,
-        iconPath
+        iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
       });
       
       // ターミナルの表示
       terminal.show();
       
-      // launch-appgenius.shを実行
-      terminal.sendText(`API_KEY="${apiKey}" bash "${scriptPath}" --scope="${this.scopeFilePath}" --project="${this.projectPath}"`);
+      // 起動コマンドの構築
+      let launchCommand = `CLAUDE_API_KEY="${apiKey}" APPGENIUS_PROJECT_ID="${scopeId}" bash "${scriptPath}" --scope="${this.scopeFilePath}" --project="${this.projectPath}" --model="${model}"`;
+      
+      // デバッグモードが有効の場合はフラグを追加
+      if (debugMode) {
+        launchCommand += ' --debug';
+      }
+      
+      // コマンド実行
+      Logger.debug(`起動コマンド: ${launchCommand}`);
+      terminal.sendText(launchCommand);
       
       // 状態更新
       this.status = CLIExecutionStatus.RUNNING;
@@ -201,11 +197,98 @@ export class CLILauncherService {
       // 進捗監視の開始
       this.startProgressMonitoring();
       
+      // メッセージブローカーを通じて通知
+      try {
+        const messageBroker = MessageBroker.getInstance(scopeId);
+        messageBroker.sendMessage(MessageType.SCOPE_UPDATE, {
+          scopeId,
+          action: 'cli_launched',
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        Logger.warn('メッセージブローカーへの通知に失敗しました', error as Error);
+      }
+      
       return true;
     } catch (error) {
       Logger.error('CLIの起動に失敗しました', error as Error);
       vscode.window.showErrorMessage(`CLIの起動に失敗しました: ${(error as Error).message}`);
       this.status = CLIExecutionStatus.FAILED;
+      return false;
+    }
+  }
+  
+  /**
+   * Node.jsを使用して直接CLIを起動する新しい方法
+   */
+  private async launchCliWithNode(
+    scopeData: any, 
+    apiKey: string, 
+    debugMode: boolean
+  ): Promise<boolean> {
+    try {
+      // CLI実行パスを取得
+      const cliPath = await this.getCliPath();
+      
+      // CLIがインストールされていない場合はfalseを返す
+      if (!cliPath) {
+        return false;
+      }
+      
+      // アイコンURIを取得
+      const platformManager = PlatformManager.getInstance();
+      const iconPath = platformManager.getResourceUri('media/icon.svg');
+      
+      // スコープ情報をJSON文字列に変換
+      const scopeJson = JSON.stringify({
+        id: scopeData.id,
+        path: this.scopeFilePath
+      });
+      
+      // ターミナルの作成
+      const terminal = vscode.window.createTerminal({
+        name: 'AppGenius CLI',
+        cwd: this.projectPath,
+        iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
+      });
+      
+      // ターミナルの表示
+      terminal.show();
+      
+      // 環境変数を設定
+      terminal.sendText(`export CLAUDE_API_KEY="${apiKey}"`);
+      terminal.sendText(`export APPGENIUS_CLI="true"`);
+      terminal.sendText(`export APPGENIUS_PROJECT_ID="${scopeData.id}"`);
+      terminal.sendText(`export APPGENIUS_SCOPE_PATH="${this.scopeFilePath}"`);
+      terminal.sendText(`export APPGENIUS_PROJECT_PATH="${this.projectPath}"`);
+      
+      // デバッグモードの設定
+      if (debugMode) {
+        terminal.sendText(`export APPGENIUS_DEBUG="true"`);
+      }
+      
+      // CLIを実行
+      terminal.sendText(`${cliPath} chat`);
+      
+      // 自動復旧用の手動コマンドも表示
+      terminal.sendText(`if [ $? -ne 0 ]; then
+        echo ""
+        echo "※ CLIの起動に問題が発生しました。以下の手順を試してください:"
+        echo "1. ターミナルで直接 'appgenius-cli chat' を実行"
+        echo "2. 起動後、'/load-scope ${this.scopeFilePath}' と入力"
+        echo "3. '/set-project ${this.projectPath}' と入力"
+        echo ""
+      fi`);
+      
+      // 状態更新
+      this.status = CLIExecutionStatus.RUNNING;
+      
+      // 進捗監視の開始
+      this.startProgressMonitoring();
+      
+      return true;
+    } catch (error) {
+      Logger.error('Nodeを使用したCLI起動に失敗しました', error as Error);
       return false;
     }
   }
@@ -305,6 +388,26 @@ export class CLILauncherService {
    */
   public getStatus(): CLIExecutionStatus {
     return this.status;
+  }
+  
+  /**
+   * CLIの状態を強制リセット
+   */
+  public resetStatus(): void {
+    if (this.status === CLIExecutionStatus.RUNNING) {
+      Logger.warn('CLIの状態を強制的にリセットします');
+      this.status = CLIExecutionStatus.IDLE;
+      
+      // 進捗監視のクリーンアップも実行
+      this.stopProgressMonitoring();
+      
+      // イベント発火
+      this.eventBus.emit(
+        AppGeniusEventType.CLI_STOPPED,
+        { projectPath: this.projectPath },
+        'CLILauncherService'
+      );
+    }
   }
   
   /**
