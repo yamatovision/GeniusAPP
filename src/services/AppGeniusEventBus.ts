@@ -17,12 +17,12 @@ export enum AppGeniusEventType {
   PROJECT_UPDATED = 'project-updated',
   PHASE_COMPLETED = 'phase-completed',
   
-  // CLI関連イベント
-  CLI_STARTED = 'cli-started',
-  CLI_PROGRESS = 'cli-progress',
-  CLI_COMPLETED = 'cli-completed',
-  CLI_ERROR = 'cli-error',
-  CLI_STOPPED = 'cli-stopped'
+  // ClaudeCode関連イベント
+  CLAUDE_CODE_STARTED = 'claude-code-started',
+  CLAUDE_CODE_PROGRESS = 'claude-code-progress',
+  CLAUDE_CODE_COMPLETED = 'claude-code-completed',
+  CLAUDE_CODE_ERROR = 'claude-code-error',
+  CLAUDE_CODE_STOPPED = 'claude-code-stopped'
 }
 
 /**

@@ -218,6 +218,9 @@
     mockupsList.forEach(mockup => {
       const li = document.createElement('li');
       li.className = 'page-item';
+      // データ属性としてモックアップIDを追加
+      li.dataset.mockupId = mockup.id;
+      
       if (mockup.id === currentMockupId) {
         li.classList.add('active');
       }
@@ -250,11 +253,13 @@
     const activeItems = document.querySelectorAll('.page-item.active');
     activeItems.forEach(item => item.classList.remove('active'));
     
-    // 新しいアイテムをアクティブに
-    const selectedItem = document.querySelector(`.page-item a span:first-child:contains('${mockupId}')`).closest('.page-item');
-    if (selectedItem) {
-      selectedItem.classList.add('active');
-    }
+    // モックアップIDをデータ属性として設定するよう変更
+    const mockupItems = document.querySelectorAll('.page-item');
+    mockupItems.forEach(item => {
+      if (item.dataset.mockupId === mockupId) {
+        item.classList.add('active');
+      }
+    });
     
     // 現在のモックアップIDを更新
     currentMockupId = mockupId;
@@ -270,15 +275,21 @@
   
   // モックアップの描画
   function renderMockupPreview(mockup) {
-    const previewContainer = document.getElementById('preview-container');
+    // mockupFrameがiframeであることを確認
     const mockupFrame = document.getElementById('mockup-frame');
     const previewTitle = document.getElementById('preview-title');
     const statusBadge = document.querySelector('.toolbar-left .page-status');
     
-    if (!previewContainer || !mockupFrame) return;
+    if (!mockupFrame) {
+      console.error('mockup-frame element not found');
+      return;
+    }
     
-    // 表示を有効に
-    previewContainer.style.display = 'block';
+    // モックアップパネルを表示状態にする
+    const mockupPanel = document.querySelector('.mockup-panel');
+    if (mockupPanel) {
+      mockupPanel.style.display = 'flex';
+    }
     
     // タイトルを更新
     if (previewTitle) {
@@ -291,11 +302,33 @@
       statusBadge.textContent = getStatusLabel(mockup.status || 'pending');
     }
     
+    // HTMLを描画 - 処理前にHTML表示を非表示にして、iframeを表示状態にする
+    const htmlDisplay = document.getElementById('html-code-display');
+    if (htmlDisplay) {
+      htmlDisplay.style.display = 'none';
+    }
+    mockupFrame.style.display = 'block';
+    
     // HTMLを描画
-    const doc = mockupFrame.contentDocument || mockupFrame.contentWindow.document;
-    doc.open();
-    doc.write(mockup.html);
-    doc.close();
+    try {
+      // 安全にiframeにアクセス
+      setTimeout(() => {
+        try {
+          const doc = mockupFrame.contentDocument || (mockupFrame.contentWindow && mockupFrame.contentWindow.document);
+          if (doc) {
+            doc.open();
+            doc.write(mockup.html);
+            doc.close();
+          } else {
+            console.error('Cannot access iframe document');
+          }
+        } catch (innerError) {
+          console.error('Error in delayed iframe rendering:', innerError);
+        }
+      }, 10);
+    } catch (error) {
+      console.error('Error rendering mockup preview:', error);
+    }
   }
   
   // チャット履歴の読み込み
@@ -343,7 +376,8 @@
     // モックアップリストの更新
     const mockupItems = document.querySelectorAll('.page-item');
     mockupItems.forEach(item => {
-      const itemId = item.dataset.id;
+      // 正しいデータ属性名を使用
+      const itemId = item.dataset.mockupId;
       if (itemId === mockupId) {
         const statusBadge = item.querySelector('.page-status');
         if (statusBadge) {
@@ -465,10 +499,32 @@
             if (mockups.length > 0) {
               selectMockup(mockups[0].id);
             } else {
-              // モックアップがなければプレビューを非表示
-              const previewContainer = document.getElementById('preview-container');
-              if (previewContainer) {
-                previewContainer.style.display = 'none';
+              // モックアップがなければプレビューをリセット
+              const mockupFrame = document.getElementById('mockup-frame');
+              if (mockupFrame) {
+                try {
+                  const doc = mockupFrame.contentDocument || (mockupFrame.contentWindow && mockupFrame.contentWindow.document);
+                  if (doc) {
+                    doc.open();
+                    doc.write('<div style="padding: 20px; text-align: center;"><p>モックアップがありません</p></div>');
+                    doc.close();
+                  }
+                } catch (error) {
+                  console.error('Error resetting iframe:', error);
+                }
+              }
+              
+              // プレビュータイトルをリセット
+              const previewTitle = document.getElementById('preview-title');
+              if (previewTitle) {
+                previewTitle.textContent = 'モックアップ';
+              }
+              
+              // ステータスバッジをリセット
+              const statusBadge = document.querySelector('.toolbar-left .page-status');
+              if (statusBadge) {
+                statusBadge.className = 'page-status status-pending';
+                statusBadge.textContent = '未選択';
               }
             }
           }
@@ -516,6 +572,87 @@
           addChatMessage(`エラー: ${message.text}`, 'ai');
         }
         break;
+        
+      case 'displayDirectHtml':
+        // HTMLを直接表示（IDなしで表示）
+        if (message.html) {
+          // 現在のモックアップIDを一時的にクリア
+          const previousMockupId = currentMockupId;
+          currentMockupId = null;
+          
+          // タイトルを更新
+          const previewTitle = document.getElementById('preview-title');
+          if (previewTitle) {
+            previewTitle.textContent = message.title || 'プレビュー';
+          }
+          
+          // ステータスバッジを更新
+          const statusBadge = document.querySelector('.toolbar-left .page-status');
+          if (statusBadge) {
+            statusBadge.className = 'page-status status-review';
+            statusBadge.textContent = 'プレビュー中';
+          }
+          
+          // iframeにHTMLを直接書き込み
+          const mockupFrame = document.getElementById('mockup-frame');
+          if (mockupFrame) {
+            try {
+              // HTMLディスプレイを非表示に
+              const htmlDisplay = document.getElementById('html-code-display');
+              if (htmlDisplay) {
+                htmlDisplay.style.display = 'none';
+              }
+              
+              // iframeを表示
+              mockupFrame.style.display = 'block';
+              
+              // HTMLを書き込み
+              const doc = mockupFrame.contentDocument || (mockupFrame.contentWindow && mockupFrame.contentWindow.document);
+              if (doc) {
+                doc.open();
+                doc.write(message.html);
+                doc.close();
+                
+                // 承認UIをリセット
+                resetApprovalUI();
+                
+                // チャット履歴をクリア
+                const chatHistory = document.getElementById('chat-history');
+                if (chatHistory) {
+                  chatHistory.innerHTML = '';
+                  addChatMessage('プレビューモードでHTMLを直接表示しています。このモードではフィードバックや承認機能は利用できません。', 'ai');
+                }
+                
+                // 通知
+                console.log('Direct HTML display:', message.title);
+              }
+            } catch (error) {
+              console.error('Error displaying direct HTML:', error);
+            }
+          }
+        }
+        break;
     }
   });
+  
+  // 承認UIをリセット
+  function resetApprovalUI() {
+    const implementationNotes = document.getElementById('implementation-notes');
+    const approveButton = document.getElementById('approve-button');
+    
+    if (implementationNotes) {
+      implementationNotes.value = '';
+      implementationNotes.disabled = true;
+    }
+    
+    if (approveButton) {
+      approveButton.disabled = true;
+      approveButton.textContent = 'プレビューモード';
+    }
+    
+    const updateRequestButton = document.getElementById('update-request-button');
+    if (updateRequestButton) {
+      updateRequestButton.disabled = true;
+    }
+  }
 })();

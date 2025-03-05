@@ -538,6 +538,87 @@ export class MockupStorageService {
     
     return { pending, generating, completed, total };
   }
+  
+  /**
+   * ファイルパスからモックアップを取得または作成
+   * @param filePath HTMLファイルパス
+   * @returns モックアップオブジェクト
+   */
+  public async getMockupByFilePath(filePath: string): Promise<Mockup | null> {
+    try {
+      // 既に同じファイルパスに関連するモックアップが存在するか確認
+      const existingMockup = Array.from(this.mockups.values()).find(
+        mockup => mockup.description === `File: ${filePath}`
+      );
+      
+      if (existingMockup) {
+        return existingMockup;
+      }
+      
+      // ファイルが存在するか確認
+      if (!fs.existsSync(filePath)) {
+        Logger.error(`File not found: ${filePath}`);
+        return null;
+      }
+      
+      // ファイル名から情報を抽出
+      const fileName = path.basename(filePath);
+      const fileNameWithoutExt = fileName.replace(/\.[^/.]+$/, ''); // 拡張子を削除
+      
+      // HTMLの内容を読み込む
+      const html = await fs.promises.readFile(filePath, 'utf8');
+      
+      // ファイルの状態を取得
+      const stats = fs.statSync(filePath);
+      const createdAt = stats.birthtimeMs;
+      const updatedAt = stats.mtimeMs;
+      
+      // 一意のIDを生成
+      const mockupId = `mockup_${Date.now()}_${fileNameWithoutExt}`;
+      
+      // モックアップオブジェクトを作成
+      const mockup: Mockup = {
+        id: mockupId,
+        name: fileNameWithoutExt,
+        html,
+        createdAt,
+        updatedAt,
+        sourceType: 'imported',
+        description: `File: ${filePath}`,
+        status: 'review'
+      };
+      
+      // マップに追加して保存
+      this.mockups.set(mockupId, mockup);
+      await this.saveMetadata();
+      
+      Logger.info(`Created mockup from file: ${filePath}`);
+      return mockup;
+    } catch (error) {
+      Logger.error(`Failed to get mockup by file path: ${(error as Error).message}`);
+      return null;
+    }
+  }
+  
+  /**
+   * ファイルパスから直接モックアップを読み込んで表示
+   * @param filePath HTMLファイルパス
+   * @returns HTMLコンテンツ
+   */
+  public async getHTMLContentFromFile(filePath: string): Promise<string | null> {
+    try {
+      if (!fs.existsSync(filePath)) {
+        Logger.error(`File not found: ${filePath}`);
+        return null;
+      }
+      
+      const html = await fs.promises.readFile(filePath, 'utf8');
+      return html;
+    } catch (error) {
+      Logger.error(`Failed to read file: ${(error as Error).message}`);
+      return null;
+    }
+  }
 
   /**
    * メタデータをファイルに保存

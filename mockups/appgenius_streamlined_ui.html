@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppGenius - 統合開発プロセス</title>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5.11.16/umd/material-ui.production.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  
+  <style>
+    :root {
+      --primary: #3f51b5;
+      --primary-light: #757de8;
+      --primary-dark: #002984;
+      --secondary: #f50057;
+      --background: #f5f5f5;
+      --surface: #ffffff;
+      --text-primary: #212121;
+      --text-secondary: #757575;
+      --border: #e0e0e0;
+      --success: #4caf50;
+      --warning: #ff9800;
+      --error: #f44336;
+      --phase-inactive: #e0e0e0;
+      --phase-active: #3f51b5;
+      --phase-completed: #4caf50;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Roboto', sans-serif;
+      background-color: var(--background);
+      color: var(--text-primary);
+    }
+    
+    #app {
+      display: flex;
+      min-height: 100vh;
+    }
+    
+    .sidebar {
+      width: 80px;
+      background-color: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    
+    .phase-indicator {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100%;
+      position: relative;
+    }
+    
+    .phase-line {
+      position: absolute;
+      width: 2px;
+      background-color: var(--phase-inactive);
+      top: 40px;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+    
+    .phase-step {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--phase-inactive);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      margin: 10px 0;
+      position: relative;
+      z-index: 2;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .phase-step.active {
+      background-color: var(--phase-active);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    
+    .phase-step.completed {
+      background-color: var(--phase-completed);
+    }
+    
+    .phase-label {
+      font-size: 10px;
+      text-align: center;
+      margin-top: 4px;
+      color: var(--text-secondary);
+    }
+    
+    .main-content {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .logo {
+      font-size: 24px;
+      font-weight: 500;
+      color: var(--primary);
+    }
+    
+    .save-status {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+    }
+    
+    .save-status .indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-right: 5px;
+      background-color: var(--success);
+    }
+    
+    .workspace {
+      display: flex;
+      flex: 1;
+    }
+    
+    .content-area {
+      flex: 1;
+      background-color: var(--surface);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .content-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .content-title {
+      font-size: 20px;
+      font-weight: 500;
+    }
+    
+    .content-body {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    
+    .context-panel {
+      width: 280px;
+      margin-left: 20px;
+      background-color: var(--surface);
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .context-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 16px;
+      font-weight: 500;
+    }
+    
+    .context-body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    
+    .context-section {
+      margin-bottom: 20px;
+    }
+    
+    .context-section-title {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    
+    .context-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    
+    .context-item:last-child {
+      border-bottom: none;
+    }
+    
+    .context-item .material-icons {
+      font-size: 16px;
+      margin-right: 8px;
+      color: var(--text-secondary);
+    }
+    
+    .action-button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    
+    .action-button:hover {
+      background-color: var(--primary-dark);
+    }
+    
+    .action-button .material-icons {
+      margin-right: 8px;
+      font-size: 18px;
+    }
+    
+    /* フェーズ固有のスタイル */
+    .concept-form {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .form-section {
+      margin-bottom: 24px;
+    }
+    
+    .form-section-title {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      color: var(--primary);
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+    }
+    
+    .form-control:focus {
+      border-color: var(--primary);
+      outline: none;
+    }
+    
+    textarea.form-control {
+      min-height: 80px;
+      resize: vertical;
+    }
+    
+    /* タブ切り替え */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .tab {
+      padding: 12px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.2s ease;
+    }
+    
+    .tab.active {
+      color: var(--primary);
+      border-bottom: 2px solid var(--primary);
+    }
+    
+    /* ビジュアル設計のスタイル */
+    .design-preview {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 500px;
+      overflow: auto;
+      margin-bottom: 16px;
+    }
+    
+    .control-panel {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .chat-interface {
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 200px;
+      padding: 10px;
+      overflow-y: auto;
+      margin-bottom: 16px;
+    }
+    
+    .message {
+      padding: 8px 12px;
+      border-radius: 16px;
+      margin-bottom: 8px;
+      max-width: 80%;
+    }
+    
+    .message.user {
+      background-color: var(--primary-light);
+      color: white;
+      align-self: flex-end;
+      margin-left: auto;
+    }
+    
+    .message.ai {
+      background-color: #f1f1f1;
+      color: var(--text-primary);
+    }
+    
+    .chat-input {
+      display: flex;
+    }
+    
+    .chat-input input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px 0 0 4px;
+      font-size: 14px;
+    }
+    
+    .chat-input button {
+      background-color: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 0 4px 4px 0;
+      padding: 10px 16px;
+      cursor: pointer;
+    }
+    
+    /* アニメーション */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    /* 実装フェーズのスタイル */
+    .file-tree {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 300px;
+      overflow: auto;
+      font-family: monospace;
+      font-size: 13px;
+    }
+    
+    .file-item {
+      padding: 4px 0 4px 20px;
+      position: relative;
+    }
+    
+    .file-item::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 10px;
+      width: 8px;
+      height: 2px;
+      background-color: var(--text-secondary);
+    }
+    
+    .folder {
+      font-weight: bold;
+    }
+    
+    .file {
+      color: var(--text-secondary);
+    }
+    
+    .code-preview {
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      height: 300px;
+      overflow: auto;
+      font-family: monospace;
+      font-size: 13px;
+      background-color: #f8f8f8;
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  
+  <script type="text/babel">
+    const { useState } = React;
+    const { 
+      Paper, 
+      Button, 
+      Typography 
+    } = MaterialUI;
+    
+    // モックデータ
+    const phases = [
+      { id: 'concept', name: 'コンセプト定義', icon: '1', completed: false },
+      { id: 'design', name: 'ビジュアル設計', icon: '2', completed: false },
+      { id: 'build', name: '実装', icon: '3', completed: false }
+    ];
+    
+    const conceptForm = {
+      productName: '',
+      summary: '',
+      targetUsers: '',
+      mainFeatures: '',
+      designStyle: ''
+    };
+    
+    const mockScreens = [
+      { id: 'login', name: 'ログイン画面' },
+      { id: 'dashboard', name: 'ダッシュボード' },
+      { id: 'profile', name: 'プロフィール' }
+    ];
+    
+    // メインコンポーネント
+    function App() {
+      const [currentPhase, setCurrentPhase] = useState('concept');
+      const [formData, setFormData] = useState(conceptForm);
+      const [activeTab, setActiveTab] = useState('login');
+      const [isSaved, setIsSaved] = useState(true);
+      
+      const handlePhaseChange = (phase) => {
+        setCurrentPhase(phase);
+      };
+      
+      const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({
+          ...formData,
+          [name]: value
+        });
+        setIsSaved(false);
+      };
+      
+      const handleSave = () => {
+        // 保存処理のモック
+        setTimeout(() => {
+          setIsSaved(true);
+        }, 1000);
+      };
+      
+      const renderPhaseContent = () => {
+        switch(currentPhase) {
+          case 'concept':
+            return (
+              <div className="concept-form fade-in">
+                <div className="form-section">
+                  <div className="form-section-title">基本情報</div>
+                  <div className="form-group">
+                    <label className="form-label">製品名</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      name="productName"
+                      value={formData.productName}
+                      onChange={handleInputChange}
+                      placeholder="例: TaskMaster"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">一行サマリー</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      name="summary"
+                      value={formData.summary}
+                      onChange={handleInputChange}
+                      placeholder="例: シンプルで使いやすいタスク管理アプリ"
+                    />
+                  </div>
+                </div>
+                
+                <div className="form-section">
+                  <div className="form-section-title">ターゲットと機能</div>
+                  <div className="form-group">
+                    <label className="form-label">ターゲットユーザー</label>
+                    <textarea 
+                      className="form-control" 
+                      name="targetUsers"
+                      value={formData.targetUsers}
+                      onChange={handleInputChange}
+                      placeholder="例: 40-60代の主婦、デジタル機器に詳しくない方"
+                    ></textarea>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">主要機能 (MoSCoW形式で)</label>
+                    <textarea 
+                      className="form-control" 
+                      name="mainFeatures"
+                      value={formData.mainFeatures}
+                      onChange={handleInputChange}
+                      placeholder="Must: タスク追加、リスト表示
+Should: リマインダー設定
+Could: タグ付け
+Won't: チーム共有機能"
+                    ></textarea>
+                  </div>
+                </div>
+                
+                <div className="form-section">
+                  <div className="form-section-title">デザイン方向性</div>
+                  <div className="form-group">
+                    <label className="form-label">デザインスタイル</label>
+                    <select 
+                      className="form-control" 
+                      name="designStyle"
+                      value={formData.designStyle}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">選択してください</option>
+                      <option value="simple">シンプル・ミニマル</option>
+                      <option value="friendly">フレンドリー・カジュアル</option>
+                      <option value="elegant">エレガント・高級感</option>
+                      <option value="playful">遊び心・カラフル</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <button className="action-button" onClick={() => {
+                  handleSave();
+                  handlePhaseChange('design');
+                }}>
+                  <span className="material-icons">arrow_forward</span>
+                  ビジュアル設計フェーズへ進む
+                </button>
+              </div>
+            );
+          
+          case 'design':
+            return (
+              <div className="design-phase fade-in">
+                <div className="tabs">
+                  {mockScreens.map(screen => (
+                    <div 
+                      key={screen.id}
+                      className={`tab ${activeTab === screen.id ? 'active' : ''}`}
+                      onClick={() => setActiveTab(screen.id)}
+                    >
+                      {screen.name}
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="control-panel">
+                  <div>
+                    <span className="material-icons" style={{ marginRight: '8px' }}>devices</span>
+                    <select className="form-control" style={{ display: 'inline-block', width: 'auto' }}>
+                      <option value="desktop">デスクトップ</option>
+                      <option value="tablet">タブレット</option>
+                      <option value="mobile">モバイル</option>
+                    </select>
+                  </div>
+                  <button className="action-button" style={{ margin: 0, padding: '8px 12px' }}>
+                    <span className="material-icons" style={{ margin: 0 }}>refresh</span>
+                  </button>
+                </div>
+                
+                <div className="design-preview">
+                  {activeTab === 'login' && (
+                    <div style={{ padding: '20px', textAlign: 'center' }}>
+                      <h1 style={{ marginBottom: '20px' }}>TaskMaster</h1>
+                      <div style={{ maxWidth: '300px', margin: '0 auto' }}>
+                        <div className="form-group">
+                          <input 
+                            type="email" 
+                            className="form-control" 
+                            placeholder="メールアドレス"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <input 
+                            type="password" 
+                            className="form-control" 
+                            placeholder="パスワード"
+                          />
+                        </div>
+                        <button 
+                          style={{ 
+                            width: '100%', 
+                            padding: '10px', 
+                            backgroundColor: '#4CAF50', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          ログイン
+                        </button>
+                        <p style={{ marginTop: '20px', fontSize: '14px' }}>
+                          アカウントをお持ちでない方は<a href="#" style={{ color: '#4CAF50' }}>こちら</a>から登録
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {activeTab === 'dashboard' && (
+                    <div style={{ padding: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <h2>マイタスク</h2>
+                        <button 
+                          style={{ 
+                            padding: '8px 16px', 
+                            backgroundColor: '#4CAF50', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <span className="material-icons" style={{ fontSize: '16px', marginRight: '4px' }}>add</span>
+                          新規タスク
+                        </button>
+                      </div>
+                      <div 
+                        style={{ 
+                          backgroundColor: 'white',
+                          padding: '16px',
+                          borderRadius: '4px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                          marginBottom: '16px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <input type="checkbox" style={{ marginRight: '16px' }} />
+                          <div>
+                            <div style={{ fontWeight: '500' }}>週刊レポートを作成する</div>
+                            <div style={{ fontSize: '12px', color: '#757575' }}>2025年3月8日まで</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div 
+                        style={{ 
+                          backgroundColor: 'white',
+                          padding: '16px',
+                          borderRadius: '4px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)',
+                          marginBottom: '16px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <input type="checkbox" style={{ marginRight: '16px' }} />
+                          <div>
+                            <div style={{ fontWeight: '500' }}>買い物リストを作成する</div>
+                            <div style={{ fontSize: '12px', color: '#757575' }}>2025年3月7日まで</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div 
+                        style={{ 
+                          backgroundColor: 'white',
+                          padding: '16px',
+                          borderRadius: '4px',
+                          boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <input type="checkbox" style={{ marginRight: '16px' }} />
+                          <div>
+                            <div style={{ fontWeight: '500' }}>予約の確認電話をする</div>
+                            <div style={{ fontSize: '12px', color: '#757575' }}>2025年3月10日まで</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {activeTab === 'profile' && (
+                    <div style={{ padding: '20px' }}>
+                      <h2 style={{ marginBottom: '20px' }}>プロフィール設定</h2>
+                      <div style={{ maxWidth: '500px' }}>
+                        <div className="form-group">
+                          <label className="form-label">お名前</label>
+                          <input 
+                            type="text" 
+                            className="form-control" 
+                            value="山田 花子"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">メールアドレス</label>
+                          <input 
+                            type="email" 
+                            className="form-control" 
+                            value="hanako@example.com"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">パスワード</label>
+                          <input 
+                            type="password" 
+                            className="form-control" 
+                            value="********"
+                          />
+                        </div>
+                        <div className="form-group">
+                          <label className="form-label">通知設定</label>
+                          <div>
+                            <label style={{ display: 'flex', alignItems: 'center', marginBottom: '8px' }}>
+                              <input type="checkbox" checked style={{ marginRight: '8px' }} />
+                              メール通知
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center' }}>
+                              <input type="checkbox" style={{ marginRight: '8px' }} />
+                              プッシュ通知
+                            </label>
+                          </div>
+                        </div>
+                        <button 
+                          style={{ 
+                            padding: '10px 16px', 
+                            backgroundColor: '#4CAF50', 
+                            color: 'white', 
+                            border: 'none', 
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            marginTop: '16px'
+                          }}
+                        >
+                          保存する
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{ fontWeight: '500', marginBottom: '8px' }}>AIとの調整</div>
+                  <div className="chat-interface">
+                    <div className="message ai">ログイン画面のデザインをカスタマイズしましょう。どのような変更を希望されますか？</div>
+                    <div className="message user">ボタンの色をもう少し優しい緑色に変更したいです</div>
+                    <div className="message ai">了解しました。ボタンの色を優しい緑色に変更しました。他に調整したい部分はありますか？</div>
+                  </div>
+                  <div className="chat-input">
+                    <input type="text" placeholder="AIに指示を入力..." />
+                    <button>送信</button>
+                  </div>
+                </div>
+                
+                <button className="action-button" onClick={() => {
+                  handleSave();
+                  handlePhaseChange('build');
+                }} style={{ marginTop: '20px' }}>
+                  <span className="material-icons">arrow_forward</span>
+                  実装フェーズへ進む
+                </button>
+              </div>
+            );
+            
+          case 'build':
+            return (
+              <div className="build-phase fade-in">
+                <div className="tabs">
+                  <div className="tab active">フロントエンド</div>
+                  <div className="tab">バックエンド</div>
+                </div>
+                
+                <div style={{ display: 'flex', marginTop: '20px', gap: '20px' }}>
+                  <div style={{ flex: '1' }}>
+                    <div style={{ fontWeight: '500', marginBottom: '8px' }}>ファイル構造</div>
+                    <div className="file-tree">
+                      <div className="file-item folder">src</div>
+                      <div className="file-item folder" style={{ paddingLeft: '40px' }}>components</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>LoginForm.js</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>Dashboard.js</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>ProfileSettings.js</div>
+                      <div className="file-item folder" style={{ paddingLeft: '40px' }}>pages</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>LoginPage.js</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>DashboardPage.js</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>ProfilePage.js</div>
+                      <div className="file-item folder" style={{ paddingLeft: '40px' }}>services</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>authService.js</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>taskService.js</div>
+                      <div className="file-item folder" style={{ paddingLeft: '40px' }}>styles</div>
+                      <div className="file-item" style={{ paddingLeft: '60px' }}>globalStyles.css</div>
+                      <div className="file-item" style={{ paddingLeft: '40px' }}>App.js</div>
+                      <div className="file-item" style={{ paddingLeft: '40px' }}>index.js</div>
+                    </div>
+                  </div>
+                  
+                  <div style={{ flex: '1' }}>
+                    <div style={{ fontWeight: '500', marginBottom: '8px' }}>コードプレビュー</div>
+                    <div className="code-preview">
+                      <pre style={{ margin: 0 }}>
+{`import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/authService';
+import '../styles/globalStyles.css';
+
+const LoginForm = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    try {
+      await authService.login(email, password);
+      navigate('/dashboard');
+    } catch (err) {
+      setError('ログインに失敗しました。認証情報を確認してください。');
+    }
+  };
+
+  return (
+    <div className="login-container">
+      <h1>TaskMaster</h1>
+      {error && <div className="error-message">{error}</div>}
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="メールアドレス"
+            required
+          />
+        </div>
+        <div className="form-group">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="パスワード"
+            required
+          />
+        </div>
+        <button type="submit" className="primary-button">
+          ログイン
+        </button>
+      </form>
+      <p className="signup-link">
+        アカウントをお持ちでない方は<a href="/signup">こちら</a>から登録
+      </p>
+    </div>
+  );
+};
+
+export default LoginForm;`}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+                
+                <div style={{ marginTop: '20px' }}>
+                  <div style={{ fontWeight: '500', marginBottom: '8px' }}>AIとの調整</div>
+                  <div className="chat-interface">
+                    <div className="message ai">LoginForm.jsコンポーネントを生成しました。エラー処理とフォームのバリデーションを追加しています。</div>
+                    <div className="message user">バリデーションにeメールの形式チェックも追加してください</div>
+                    <div className="message ai">了解しました。eメール形式のバリデーションを追加します。他に必要な機能はありますか？</div>
+                  </div>
+                  <div className="chat-input">
+                    <input type="text" placeholder="AIに指示を入力..." />
+                    <button>送信</button>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
+                  <button className="action-button" onClick={() => handlePhaseChange('design')} style={{ backgroundColor: '#757575' }}>
+                    <span className="material-icons">arrow_back</span>
+                    デザインフェーズに戻る
+                  </button>
+                  <button className="action-button">
+                    <span className="material-icons">check</span>
+                    実装を確定する
+                  </button>
+                </div>
+              </div>
+            );
+            
+          default:
+            return <div>不明なフェーズです</div>;
+        }
+      };
+      
+      const renderContextPanel = () => {
+        switch(currentPhase) {
+          case 'concept':
+            return (
+              <>
+                <div className="context-section">
+                  <div className="context-section-title">フェーズ目標</div>
+                  <div className="context-item">
+                    <span className="material-icons">check_circle_outline</span>
+                    製品の基本概要を定義
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">check_circle_outline</span>
+                    ターゲットユーザーの特定
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">check_circle_outline</span>
+                    機能の優先順位付け
+                  </div>
+                </div>
+                
+                <div className="context-section">
+                  <div className="context-section-title">ヒント</div>
+                  <div className="context-item">
+                    <span className="material-icons">lightbulb</span>
+                    具体的なユースケースを考えましょう
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">lightbulb</span>
+                    MoSCoWメソッドで機能を分類しましょう
+                  </div>
+                </div>
+                
+                <div className="context-section">
+                  <div className="context-section-title">次のステップ</div>
+                  <div className="context-item">
+                    <span className="material-icons">arrow_forward</span>
+                    デザインスタイルの決定
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">arrow_forward</span>
+                    ビジュアル設計フェーズへ移行
+                  </div>
+                </div>
+              </>
+            );
+          
+          case 'design':
+            return (
+              <>
+                <div className="context-section">
+                  <div className="context-section-title">現在の画面</div>
+                  <div className="context-item">
+                    <span className="material-icons">article</span>
+                    {mockScreens.find(s => s.id === activeTab)?.name}
+                  </div>
+                </div>
+                
+                <div className="context-section">
+                  <div className="context-section-title">要件</div>
+                  {activeTab === 'login' && (
+                    <>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        ユーザー認証フォーム
+                      </div>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        新規登録リンク
+                      </div>
+                    </>
+                  )}
+                  {activeTab === 'dashboard' && (
+                    <>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        タスク一覧表示
+                      </div>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        新規タスク追加機能
+                      </div>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        タスク完了チェック機能
+                      </div>
+                    </>
+                  )}
+                  {activeTab === 'profile' && (
+                    <>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        ユーザー情報表示
+                      </div>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        パスワード変更
+                      </div>
+                      <div className="context-item">
+                        <span className="material-icons">check_circle_outline</span>
+                        通知設定
+                      </div>
+                    </>
+                  )}
+                </div>
+                
+                <div className="context-section">
+                  <div className="context-section-title">AI指示例</div>
+                  <div className="context-item">
+                    <span className="material-icons">tips_and_updates</span>
+                    「ボタンの色を変更して」
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">tips_and_updates</span>
+                    「もっとシンプルなデザインに」
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">tips_and_updates</span>
+                    「フォームに説明を追加して」
+                  </div>
+                </div>
+              </>
+            );
+            
+          case 'build':
+            return (
+              <>
+                <div className="context-section">
+                  <div className="context-section-title">実装情報</div>
+                  <div className="context-item">
+                    <span className="material-icons">code</span>
+                    React + React Router
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">code</span>
+                    RESTful API連携
+                  </div>
+                </div>
+                
+                <div className="context-section">
+                  <div className="context-section-title">API連携ポイント</div>
+                  <div className="context-item">
+                    <span className="material-icons">api</span>
+                    認証API (POST /api/auth/login)
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">api</span>
+                    タスク取得 (GET /api/tasks)
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">api</span>
+                    タスク追加 (POST /api/tasks)
+                  </div>
+                </div>
+                
+                <div className="context-section">
+                  <div className="context-section-title">AI指示例</div>
+                  <div className="context-item">
+                    <span className="material-icons">tips_and_updates</span>
+                    「入力バリデーションを追加して」
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">tips_and_updates</span>
+                    「エラーメッセージを詳細に」
+                  </div>
+                  <div className="context-item">
+                    <span className="material-icons">tips_and_updates</span>
+                    「パスワード強度チェックを実装して」
+                  </div>
+                </div>
+              </>
+            );
+            
+          default:
+            return <div>不明なフェーズです</div>;
+        }
+      };
+      
+      return (
+        <>
+          <div className="sidebar">
+            <div className="phase-indicator">
+              <div className="phase-line" />
+              {phases.map((phase, index) => (
+                <div key={phase.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 2 }}>
+                  <div 
+                    className={`phase-step ${currentPhase === phase.id ? 'active' : ''} ${phase.completed ? 'completed' : ''}`}
+                    onClick={() => handlePhaseChange(phase.id)}
+                  >
+                    {phase.icon}
+                  </div>
+                  <div className="phase-label">{phase.name}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="main-content">
+            <div className="header">
+              <div className="logo">AppGenius</div>
+              <div className="save-status">
+                <div className="indicator" style={{ backgroundColor: isSaved ? 'var(--success)' : 'var(--warning)' }}></div>
+                {isSaved ? '保存済み' : '未保存の変更'}
+              </div>
+            </div>
+            
+            <div className="workspace">
+              <div className="content-area">
+                <div className="content-header">
+                  <div className="content-title">
+                    {currentPhase === 'concept' && 'コンセプト定義'}
+                    {currentPhase === 'design' && 'ビジュアル設計'}
+                    {currentPhase === 'build' && '実装'}
+                  </div>
+                </div>
+                <div className="content-body">
+                  {renderPhaseContent()}
+                </div>
+              </div>
+              
+              <div className="context-panel">
+                <div className="context-header">コンテキスト情報</div>
+                <div className="context-body">
+                  {renderContextPanel()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+    
+    ReactDOM.render(<App />, document.getElementById('app'));
+  </script>
+</body>
+</html>

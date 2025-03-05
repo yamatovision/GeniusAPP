@@ -126,6 +126,7 @@
     const requirementsEditor = document.getElementById('requirements-editor');
     const editRequirementsBtn = document.getElementById('edit-requirements');
     const saveRequirementsBtn = document.getElementById('save-requirements');
+    const claudecodeRequirementsBtn = document.getElementById('claudecode-requirements');
     
     if (editRequirementsBtn) {
       editRequirementsBtn.addEventListener('click', () => {
@@ -179,12 +180,27 @@
         }, 3000);
       });
     }
+
+    // ClaudeCode起動ボタン
+    if (claudecodeRequirementsBtn) {
+      claudecodeRequirementsBtn.addEventListener('click', () => {
+        // 状態メッセージを更新
+        document.getElementById('status-message').textContent = 'ClaudeCodeを起動しています...';
+        
+        // 拡張機能に要求
+        vscode.postMessage({
+          command: 'launchClaudeCode',
+          filePath: 'docs/requirements.md'
+        });
+      });
+    }
     
     // Structure editor
     const structurePreview = document.getElementById('structure-preview');
     const structureEditor = document.getElementById('structure-editor');
     const editStructureBtn = document.getElementById('edit-structure');
     const saveStructureBtn = document.getElementById('save-structure');
+    const claudecodeStructureBtn = document.getElementById('claudecode-structure');
     
     if (editStructureBtn) {
       editStructureBtn.addEventListener('click', () => {
@@ -247,6 +263,20 @@
           command: 'generateProjectStructure'
         });
         document.getElementById('status-message').textContent = 'ディレクトリ構造を生成中...';
+      });
+    }
+    
+    // ClaudeCode起動ボタン
+    if (claudecodeStructureBtn) {
+      claudecodeStructureBtn.addEventListener('click', () => {
+        // 状態メッセージを更新
+        document.getElementById('status-message').textContent = 'ClaudeCodeを起動しています...';
+        
+        // 拡張機能に要求
+        vscode.postMessage({
+          command: 'launchClaudeCode',
+          filePath: 'docs/structure.md'
+        });
       });
     }
   }

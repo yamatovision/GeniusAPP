@@ -364,6 +364,48 @@ export class MockupGalleryPanel {
       this._showError(`モックアップの削除に失敗しました: ${(error as Error).message}`);
     }
   }
+  
+  /**
+   * HTMLファイルを直接ロードして表示
+   * @param filePath HTMLファイルのパス
+   */
+  public async loadHtmlFile(filePath: string): Promise<void> {
+    try {
+      // 既存のモックアップをロードするか、新規にインポートする
+      const mockup = await this._storage.getMockupByFilePath(filePath);
+      
+      if (mockup) {
+        // モックアップが存在する場合はそれを表示
+        this._loadAndSelectMockup(mockup.id);
+        this._panel.webview.postMessage({
+          command: 'addAssistantMessage',
+          text: `HTMLファイルをロードしました: ${path.basename(filePath)}`
+        });
+        Logger.info(`HTMLファイルをロードしました: ${filePath}`);
+      } else {
+        this._showError(`HTMLファイルのロードに失敗しました: ${filePath}`);
+      }
+    } catch (error) {
+      Logger.error(`HTMLファイルロードエラー: ${(error as Error).message}`);
+      this._showError(`HTMLファイルのロードに失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * HTMLコンテンツを直接表示（IDなしで表示）
+   * @param html HTMLコンテンツ
+   * @param title 表示タイトル
+   */
+  public displayHtmlContent(html: string, title: string = 'プレビュー'): void {
+    // WebViewにメッセージを送信
+    this._panel.webview.postMessage({
+      command: 'displayDirectHtml',
+      html: html,
+      title: title
+    });
+    
+    Logger.info(`HTMLコンテンツを直接表示: ${title}`);
+  }
 
   /**
    * モックアップのインポート

@@ -8,11 +8,12 @@ import { FileOperationManager } from '../utils/fileOperationManager';
 import { ProjectManagementService } from '../services/ProjectManagementService';
 import { AppGeniusStateManager, Requirements } from '../services/AppGeniusStateManager';
 import { ClaudeMdService } from '../utils/ClaudeMdService';
+import { CLILauncherService } from '../services/cli/CLILauncherService';
 
 /**
  * シンプルなチャットパネルを管理するクラス
  */
-export class SimpleChatPanel {
+export class SimpleChatPanel implements vscode.Disposable {
   public static currentPanel: SimpleChatPanel | undefined;
   private static readonly viewType = 'simpleChat';
   
@@ -21,6 +22,7 @@ export class SimpleChatPanel {
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _aiService: AIService;
   private readonly _claudeMdService = ClaudeMdService.getInstance();
+  private readonly _cliLauncherService = CLILauncherService.getInstance();
   private _extractedCodeBlocks: Array<{id: number, language: string, code: string}> = [];
   private _chatHistory: Array<{role: 'user' | 'ai', content: string}> = [];
   
@@ -101,6 +103,10 @@ export class SimpleChatPanel {
           case 'updateFile':
             // ファイル更新処理
             await this._handleFileUpdate(message.filePath, message.content);
+            break;
+          case 'launchClaudeCode':
+            // ClaudeCode起動処理
+            await this._launchClaudeCode(message.filePath);
             break;
         }
       },
@@ -689,6 +695,20 @@ Phase#5：実装用要件定義書`
       <link rel="stylesheet" href="${resetCssUri}">
       <link rel="stylesheet" href="${styleUri}">
       <title>要件定義ビジュアライザー</title>
+      <style>
+        .claudecode-button {
+          background-color: #42b883 !important;
+          color: white !important;
+          border: none !important;
+          padding: 4px 12px !important;
+          margin-left: 8px;
+          font-size: 14px;
+        }
+        
+        .claudecode-button:hover {
+          background-color: #35a573 !important;
+        }
+      </style>
     </head>
     <body>
       <div class="chat-container">
@@ -737,6 +757,7 @@ Phase#5：実装用要件定義書`
               <div class="actions">
                 <button id="edit-requirements" class="action-button">編集</button>
                 <button id="save-requirements" class="action-button" disabled>保存</button>
+                <button id="claudecode-requirements" class="claudecode-button">ClaudeCodeで編集・相談</button>
               </div>
             </div>
             <div class="file-preview-content">
@@ -753,6 +774,7 @@ Phase#5：実装用要件定義書`
               <div class="actions">
                 <button id="edit-structure" class="action-button">編集</button>
                 <button id="save-structure" class="action-button" disabled>保存</button>
+                <button id="claudecode-structure" class="claudecode-button">ClaudeCodeで編集・相談</button>
               </div>
             </div>
             <div class="file-preview-content">
@@ -1726,9 +1748,136 @@ project/
   }
 
   /**
+   * ClaudeCodeをファイル参照モードで起動
+   */
+  private async _launchClaudeCode(filePath: string): Promise<boolean> {
+    try {
+      // AppGenius2/AppGeniusが固定パスの場合、直接指定する
+      const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
+      Logger.info(`AppGenius固定パスを使用: ${appGeniusPath}`);
+      
+      const fullPath = path.isAbsolute(filePath)
+        ? filePath
+        : path.join(appGeniusPath, filePath);
+      
+      if (!fs.existsSync(fullPath)) {
+        this._panel.webview.postMessage({
+          command: 'showError',
+          text: `ファイルが見つかりません: ${filePath}`
+        });
+        return false;
+      }
+      
+      // WebViewに起動中メッセージを表示
+      this._panel.webview.postMessage({
+        command: 'showMessage',
+        text: `ClaudeCodeを起動しています: ${filePath}`
+      });
+      
+      // 最もシンプルな方法: 新しいターミナルを開き、直接コマンドを実行
+      try {
+        // ターミナルを作成
+        const terminal = vscode.window.createTerminal({
+          name: 'ClaudeCode',
+          cwd: appGeniusPath
+        });
+        
+        // ターミナルを表示
+        terminal.show();
+        
+        // macOSの場合は環境変数のソースを確保
+        if (process.platform === 'darwin') {
+          terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found"');
+          terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+        }
+        
+        // ファイルパスをエスケープ（スペースを含む場合）
+        const escapedPath = fullPath.replace(/ /g, '\\ ');
+        
+        // ClaudeCodeを起動
+        terminal.sendText(`claude ${escapedPath}`);
+        
+        // 少し待ってから日本語メッセージを送信（ターミナル起動後に実行されるように）
+        const timerId = setTimeout(() => {
+          if (terminal) {
+            terminal.sendText(`こんにちは！要件定義ファイルを開きました。このファイルについて質問や編集の相談があれば日本語でどうぞ。`);
+          }
+        }, 2000);
+        
+        // タイマーをクリーンアップのために記録
+        this._disposables.push({ dispose: () => clearTimeout(timerId) });
+        
+        // 成功メッセージを表示
+        this._panel.webview.postMessage({
+          command: 'showMessage',
+          text: `ClaudeCodeを起動しました: ${filePath}`
+        });
+        
+        return true;
+      } catch (terminalError) {
+        // ターミナル起動が失敗した場合はフォールバック
+        Logger.error('ターミナル起動エラー、別の方法を試みます', terminalError as Error);
+        
+        // VSCodeの統合ターミナルを取得し、コマンドを直接実行
+        const terminals = vscode.window.terminals;
+        if (terminals.length > 0) {
+          const activeTerminal = terminals[0]; // 最初のターミナルを使用
+          activeTerminal.show();
+          // ClaudeCodeを起動
+          activeTerminal.sendText(`claude "${fullPath}"`);
+          
+          // 少し待ってから日本語メッセージを送信
+          const timerId = setTimeout(() => {
+            activeTerminal.sendText(`こんにちは！要件定義ファイルを開きました。このファイルについて質問や編集の相談があれば日本語でどうぞ。`);
+          }, 2000);
+          
+          // タイマーをクリーンアップのために記録
+          this._disposables.push({ dispose: () => clearTimeout(timerId) });
+          
+          this._panel.webview.postMessage({
+            command: 'showMessage',
+            text: `既存のターミナルでClaudeCodeを起動しました: ${filePath}`
+          });
+          
+          return true;
+        }
+        
+        // それでも失敗した場合は外部コマンドを実行
+        const { exec } = require('child_process');
+        // 直接ClaudeCodeを起動（プロンプトなしで）
+        exec(`claude "${fullPath}"`, (error: Error | null, _stdout: string, _stderr: string) => {
+          if (error) {
+            Logger.error(`外部コマンド実行エラー: ${error.message}`);
+            this._panel.webview.postMessage({
+              command: 'showError',
+              text: `外部コマンド実行エラー: ${error.message}`
+            });
+          } else {
+            this._panel.webview.postMessage({
+              command: 'showMessage',
+              text: `外部コマンドでClaudeCodeを起動しました: ${filePath}`
+            });
+          }
+        });
+        
+        return true;
+      }
+    } catch (error) {
+      Logger.error(`ClaudeCode起動エラー: ${filePath}`, error as Error);
+      
+      this._panel.webview.postMessage({
+        command: 'showError',
+        text: `ClaudeCode起動エラー: ${(error as Error).message}`
+      });
+      
+      return false;
+    }
+  }
+
+  /**
    * リソース解放
    */
-  public dispose() {
+  public dispose(): void {
     SimpleChatPanel.currentPanel = undefined;
     
     this._panel.dispose();

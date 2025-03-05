@@ -1,16 +1,17 @@
 # AppGenius 開発ガイド
 
-このファイルはプロジェクトの中心的なドキュメントです。VSCode拡張とCLIの両方がこのファイルを参照することで、開発情報を一元管理します。
+このファイルはプロジェクトの中心的なドキュメントです。VSCode拡張とClaudeCodeの両方がこのファイルを参照することで、開発情報を一元管理します。
 
 ## プロジェクト概要
 
-AppGeniusは非技術者がClaudeCodeを活用してアプリケーション開発を行えるようにするツールです。AIチャットを中心とした開発フローと、コンテンツの適切な保存・管理機能を提供します。
+AppGeniusは非技術者がClaudeCodeを活用してアプリケーション開発を行えるようにするツールです。AIチャットを中心とした開発フローと、コンテンツの適切な保存・管理機能を提供します。VSCode上で設計と準備を行い、ClaudeCodeで実装を行うシームレスな開発体験を提供します。
 
 **主要コンセプト**:
 - 「おばちゃんでもアプリが作れる」を実現するUI/UX
 - AIとの対話を中心とした開発体験
 - 生成コンテンツの自動保存と管理
 - CLAUDE.mdを中心とした設計情報管理
+- VSCodeで設計・ClaudeCodeで実装の連携
 
 ## 開発フェーズ
 
@@ -42,12 +43,6 @@ cd AppGenius
 npm install
 npm run watch  # 開発モード
 npm run package  # パッケージング
-
-# CLI開発
-cd appgenius-cli
-npm install
-npm run build
-./launch-appgenius.sh  # CLI起動
 ```
 
 ## コーディング規約
@@ -82,22 +77,38 @@ npm run build
 ## 実装対象ファイル
 - src/modes/developmentMode/* - 開発モードの機能拡張
 - src/modes/implementationMode/* - 実装モードの機能拡張
-- src/ui/mockupDesigner/* - モックアップデザイナーの完成
+- src/ui/mockupGallery/* - モックアップギャラリーの完成
+- src/ui/scopeManager/* - スコープマネージャーの実装
+- src/ui/requirementManager/* - 要件マネージャーの強化
+- src/ui/components/* - 共通コンポーネントの整理
 
 ## チェックリスト - フェーズ1
 - [x] 要件定義の完了
 - [x] CLAUDE.md管理システムの実装
 - [x] チャットUIの実装
 - [x] ダッシュボードの実装
-- [x] VSCode-CLI連携の確立
+- [x] VSCode-ClaudeCode連携の基盤設計
 
 ## チェックリスト - フェーズ2 (進行中)
 - [x] 要件定義・構造マネージャーの自動変更検出
 - [ ] モックアップギャラリーの実装
 - [ ] スコープ計画機能の拡張
 - [ ] リファレンス管理機能の拡張
+- [ ] ClaudeCode実装連携の最適化
 
 ## プロジェクト情報
 - 作成日: 2025-03-05
-- 最終更新日: 2025-03-05
+- 最終更新日: 2025-03-06
 - ステータス: 開発中（フェーズ2）
+
+## ClaudeCode連携メモ
+- CLAUDE.mdを中央情報源として活用し、VSCodeで生成・編集したデータをClaudeCodeが読み取る
+- 要件定義、ディレクトリ構造、モックアップは全てVSCode拡張で生成・管理
+- スコープ単位でClaudeCodeに実装を依頼
+- ファイル作成状況はVSCode拡張側で検出してCLAUDE.mdに記録
+- ClaudeCodeでの実装時に参照すべき情報：
+  1. `docs/requirements.md` - 要件定義（実装方針）
+  2. `docs/structure.md` - ディレクトリ構造（ファイル配置）
+  3. `docs/scope.md` - 実装スコープ（優先順位と依存関係）
+  4. `mockups/` - モックアップ（UIとデータフロー）
+  5. `docs/api.md` - API設計（データモデルとエンドポイント）
