@@ -1527,10 +1527,51 @@ ${projectName}/
         
         if (isRequirements) {
           updates['requirements'] = true;
+          
+          // AppGeniusStateManagerを通して要件定義フェーズを更新
+          try {
+            const { AppGeniusStateManager } = await import('../services/AppGeniusStateManager');
+            const { ProjectManagementService } = await import('../services/ProjectManagementService');
+            
+            const stateManager = AppGeniusStateManager.getInstance();
+            const projectService = ProjectManagementService.getInstance();
+            
+            // アクティブなプロジェクトを取得
+            const activeProject = projectService.getActiveProject();
+            if (activeProject) {
+              // 要件定義ファイルの内容をStateManagerに保存し、フェーズを更新
+              await stateManager.saveRequirements(activeProject.id, {
+                document: content,
+                sections: [],
+                extractedItems: [],
+                chatHistory: []
+              });
+            }
+          } catch (e) {
+            Logger.warn(`プロジェクトフェーズの更新に失敗しました: ${(e as Error).message}`);
+          }
         }
         
         if (isStructure) {
           updates['directoryStructure'] = true;
+          
+          // AppGeniusStateManagerを通して構造フェーズを更新
+          try {
+            const { AppGeniusStateManager } = await import('../services/AppGeniusStateManager');
+            const { ProjectManagementService } = await import('../services/ProjectManagementService');
+            
+            const stateManager = AppGeniusStateManager.getInstance();
+            const projectService = ProjectManagementService.getInstance();
+            
+            // アクティブなプロジェクトを取得
+            const activeProject = projectService.getActiveProject();
+            if (activeProject) {
+              // 構造ファイルの内容をStateManagerに保存し、フェーズを更新
+              await stateManager.saveStructure(activeProject.id, content);
+            }
+          } catch (e) {
+            Logger.warn(`プロジェクトフェーズの更新に失敗しました: ${(e as Error).message}`);
+          }
         }
         
         // AppGenius固定パスを使用

@@ -405,6 +405,9 @@ export class AppGeniusStateManager {
         await fs.promises.writeFile(requirementsPath, markdownContent, 'utf8');
         Logger.info(`Requirements saved to ${requirementsPath}`);
         
+        // 初期テンプレートからの変更を確認
+        const isChanged = this.isRequirementsChangedFromInitial(markdownContent);
+        
         // CLAUDE.mdのセクションも更新
         try {
           const { ClaudeMdService } = await import('../utils/ClaudeMdService');
@@ -421,7 +424,9 @@ export class AppGeniusStateManager {
       
       // 要件定義完了フェーズを更新 (すでに取得したプロジェクト情報を再利用)
       if (project) {
-        await this.projectService.updateProjectPhase(projectId, 'requirements', true);
+        // 変更が十分であれば完了とマーク
+        const updatePhase = !markdownContent || isChanged; 
+        await this.projectService.updateProjectPhase(projectId, 'requirements', updatePhase);
         
         // イベント発火
         this.eventBus.emit(
@@ -468,6 +473,168 @@ export class AppGeniusStateManager {
     }
   }
   
+  /**
+   * ディレクトリ構造の保存
+   * @param projectId プロジェクトID
+   * @param structureContent ディレクトリ構造のマークダウン内容
+   */
+  public async saveStructure(projectId: string, structureContent: string): Promise<void> {
+    try {
+      // プロジェクトパスを取得
+      const project = this.projectService.getProject(projectId);
+      if (!project || !project.path) {
+        throw new Error('プロジェクトパスが設定されていません');
+      }
+      
+      // 新しいプロジェクト構造に保存
+      const structurePath = path.join(project.path, 'docs', 'structure.md');
+      this.ensureDirectoryExists(path.dirname(structurePath));
+      
+      // ファイルに保存
+      await fs.promises.writeFile(structurePath, structureContent, 'utf8');
+      Logger.info(`Directory structure saved to ${structurePath}`);
+      
+      // 初期テンプレートからの変更を確認
+      const isChanged = this.isStructureChangedFromInitial(structureContent);
+      
+      // 変更されていればフェーズを更新
+      if (isChanged) {
+        await this.projectService.updateProjectPhase(projectId, 'directoryStructure', true);
+        
+        // CLAUDE.mdのセクションも更新
+        try {
+          const { ClaudeMdService } = await import('../utils/ClaudeMdService');
+          const claudeMdService = ClaudeMdService.getInstance();
+          claudeMdService.updateClaudeMdSection(project.path, 'ディレクトリ構造', 
+            `[ディレクトリ構造ファイル](./docs/structure.md) - カスタム構造が定義されています。`);
+          
+          // ファイル一覧の抽出も実行
+          await claudeMdService.extractFileListFromStructure(project.path);
+        } catch (e) {
+          Logger.warn(`Failed to update CLAUDE.md: ${(e as Error).message}`);
+        }
+        
+        // イベント発火
+        this.eventBus.emit(
+          AppGeniusEventType.PROJECT_STRUCTURE_UPDATED,
+          { content: structureContent },
+          'AppGeniusStateManager',
+          projectId
+        );
+      }
+    } catch (error) {
+      Logger.error(`Failed to save structure: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * ディレクトリ構造が初期テンプレートから変更されているか確認
+   * @param content 現在の構造ファイルの内容
+   */
+  private isStructureChangedFromInitial(content: string): boolean {
+    // 初期テンプレートの内容（DashboardPanel._createInitialDocumentsから抽出）
+    const initialStructureTemplate = `# ディレクトリ構造
+
+\`\`\`
+project/
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── assets/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── styles/
+│       └── utils/
+├── backend/
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   └── models/
+\`\`\``;
+
+    // 初期テンプレートと異なるか確認
+    // 厳密な比較ではなく、コンテンツが十分に変更されているかを判断
+    // カスタマイズコード：明らかに初期テンプレートと異なる構造かチェック
+    
+    // 行数が異なるか確認
+    const contentLines = content.split('\n').filter(line => line.trim() !== '');
+    const templateLines = initialStructureTemplate.split('\n').filter(line => line.trim() !== '');
+    
+    // 行数が明らかに異なる場合は変更されたと判断
+    if (Math.abs(contentLines.length - templateLines.length) > 3) {
+      return true;
+    }
+    
+    // 同じ行数でも内容が異なるか確認（最低でも30%以上の行が変更されていること）
+    let differentLines = 0;
+    for (let i = 0; i < Math.min(contentLines.length, templateLines.length); i++) {
+      if (contentLines[i] !== templateLines[i]) {
+        differentLines++;
+      }
+    }
+    
+    const diffPercentage = differentLines / Math.min(contentLines.length, templateLines.length);
+    return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
+  }
+  
+  /**
+   * 要件定義が初期テンプレートから変更されているか確認
+   * @param content 現在の要件定義ファイルの内容
+   */
+  private isRequirementsChangedFromInitial(content: string): boolean {
+    // 初期テンプレートの内容（DashboardPanel._createInitialDocumentsから抽出）
+    const initialRequirementsTemplate = `# 要件定義
+
+## 機能要件
+
+1. 要件1
+   - 説明: 機能の詳細説明
+   - 優先度: 高
+
+2. 要件2
+   - 説明: 機能の詳細説明
+   - 優先度: 中
+
+## 非機能要件
+
+1. パフォーマンス
+   - 説明: レスポンス時間や処理能力に関する要件
+   - 優先度: 中
+
+2. セキュリティ
+   - 説明: セキュリティに関する要件
+   - 優先度: 高
+
+## ユーザーストーリー
+
+- ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。`;
+
+    // 初期テンプレートと異なるか確認
+    // 厳密な比較ではなく、コンテンツが十分に変更されているかを判断
+    
+    // 行数が異なるか確認
+    const contentLines = content.split('\n').filter(line => line.trim() !== '');
+    const templateLines = initialRequirementsTemplate.split('\n').filter(line => line.trim() !== '');
+    
+    // 行数が明らかに異なる場合は変更されたと判断
+    if (Math.abs(contentLines.length - templateLines.length) > 3) {
+      return true;
+    }
+    
+    // 同じ行数でも内容が異なるか確認（最低でも30%以上の行が変更されていること）
+    let differentLines = 0;
+    for (let i = 0; i < Math.min(contentLines.length, templateLines.length); i++) {
+      if (contentLines[i] !== templateLines[i]) {
+        differentLines++;
+      }
+    }
+    
+    const diffPercentage = differentLines / Math.min(contentLines.length, templateLines.length);
+    return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
+  }
+
   /**
    * 要件定義をマークダウンに変換
    */
