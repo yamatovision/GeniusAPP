@@ -118,6 +118,12 @@ export class MockupDesignerPanel {
           case 'updateMockup':
             await this._handleUpdateMockup(message.pageId, message.mockupIndex);
             break;
+          case 'saveToProject':
+            await this._handleSaveToProject(message.pageId, message.mockupIndex, message.fileName);
+            break;
+          case 'updateClaudeMdProgress':
+            await this._handleUpdateClaudeMdProgress(message.phase, message.isCompleted);
+            break;
           case 'generateDirectoryStructure':
             await this._handleGenerateDirectoryStructure();
             break;
@@ -486,6 +492,16 @@ export class MockupDesignerPanel {
           
           progress.report({ increment: 100 });
           
+          // プロジェクトへの保存を確認
+          const saveToProject = await vscode.window.showInformationMessage(
+            'ディレクトリ構造を生成しました。プロジェクトに保存しますか？',
+            '保存する', 'キャンセル'
+          );
+          
+          if (saveToProject === '保存する') {
+            await this._handleSaveDirectoryStructure();
+          }
+          
           // UIを更新
           await this._updateWebview();
         }
@@ -493,6 +509,76 @@ export class MockupDesignerPanel {
     } catch (error) {
       Logger.error('ディレクトリ構造生成エラー', error as Error);
       await this._showError(`ディレクトリ構造生成エラー: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ディレクトリ構造をプロジェクトに保存する処理
+   */
+  private async _handleSaveDirectoryStructure(): Promise<void> {
+    try {
+      if (!this._currentDirectoryStructure) {
+        throw new Error('ディレクトリ構造が生成されていません');
+      }
+      
+      // ワークスペースのルートディレクトリを取得
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('ワークスペースが開かれていません。プロジェクトを開いてから再試行してください。');
+      }
+      
+      const projectPath = workspaceFolders[0].uri.fsPath;
+      
+      // docsディレクトリを確認・作成
+      const docsDir = path.join(projectPath, 'docs');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      
+      // ディレクトリ構造ファイルを保存
+      const structureFilePath = path.join(docsDir, 'structure.md');
+      
+      // ファイルにマークダウン形式でディレクトリ構造を書き込む
+      const content = `# ディレクトリ構造\n\n${this._currentDirectoryStructure}`;
+      fs.writeFileSync(structureFilePath, content, 'utf8');
+      
+      // CLAUDE.md進捗状況の更新
+      try {
+        // ClaudeMdServiceをインポート
+        const { ClaudeMdService } = await import('../../utils/ClaudeMdService');
+        const claudeMdService = ClaudeMdService.getInstance();
+        
+        // ディレクトリ構造の進捗状況を更新
+        await claudeMdService.updateProgressStatus(projectPath, 'directoryStructure', true);
+        
+        // 保存完了メッセージの表示
+        vscode.window.showInformationMessage(
+          `ディレクトリ構造をプロジェクトに保存しました: docs/structure.md\nCLAUDE.mdの進捗状況も更新しました。`,
+          '確認'
+        );
+        
+        // WebViewに成功メッセージを送信
+        await this._panel.webview.postMessage({
+          command: 'saveDirectoryStructureComplete',
+          success: true,
+          path: structureFilePath
+        });
+      } catch (claudeError) {
+        Logger.error('CLAUDE.md更新エラー', claudeError as Error);
+        
+        // CLAUDE.md更新失敗メッセージ
+        vscode.window.showWarningMessage(
+          `ディレクトリ構造は保存されましたが、CLAUDE.mdの更新に失敗しました: ${(claudeError as Error).message}`,
+          '確認'
+        );
+      }
+      
+      // エディタでファイルを開く
+      const uri = vscode.Uri.file(structureFilePath);
+      await vscode.window.showTextDocument(uri);
+    } catch (error) {
+      Logger.error('ディレクトリ構造保存エラー', error as Error);
+      await this._showError(`ディレクトリ構造の保存に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -530,6 +616,16 @@ export class MockupDesignerPanel {
           
           progress.report({ increment: 100 });
           
+          // プロジェクトへの保存を確認
+          const saveToProject = await vscode.window.showInformationMessage(
+            '要件定義書を生成しました。プロジェクトに保存しますか？',
+            '保存する', 'キャンセル'
+          );
+          
+          if (saveToProject === '保存する') {
+            await this._handleSaveSpecification();
+          }
+          
           // UIを更新
           await this._updateWebview();
         }
@@ -537,6 +633,76 @@ export class MockupDesignerPanel {
     } catch (error) {
       Logger.error('要件定義書生成エラー', error as Error);
       await this._showError(`要件定義書生成エラー: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 要件定義書をプロジェクトに保存する処理
+   */
+  private async _handleSaveSpecification(): Promise<void> {
+    try {
+      if (!this._currentSpecification) {
+        throw new Error('要件定義書が生成されていません');
+      }
+      
+      // ワークスペースのルートディレクトリを取得
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('ワークスペースが開かれていません。プロジェクトを開いてから再試行してください。');
+      }
+      
+      const projectPath = workspaceFolders[0].uri.fsPath;
+      
+      // docsディレクトリを確認・作成
+      const docsDir = path.join(projectPath, 'docs');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      
+      // 要件定義書ファイルを保存
+      const requirementsFilePath = path.join(docsDir, 'requirements.md');
+      
+      // ファイルにマークダウン形式で要件定義書を書き込む
+      const content = `# 要件定義\n\n${this._currentSpecification}`;
+      fs.writeFileSync(requirementsFilePath, content, 'utf8');
+      
+      // CLAUDE.md進捗状況の更新
+      try {
+        // ClaudeMdServiceをインポート
+        const { ClaudeMdService } = await import('../../utils/ClaudeMdService');
+        const claudeMdService = ClaudeMdService.getInstance();
+        
+        // 要件定義の進捗状況を更新
+        await claudeMdService.updateProgressStatus(projectPath, 'requirements', true);
+        
+        // 保存完了メッセージの表示
+        vscode.window.showInformationMessage(
+          `要件定義書をプロジェクトに保存しました: docs/requirements.md\nCLAUDE.mdの進捗状況も更新しました。`,
+          '確認'
+        );
+        
+        // WebViewに成功メッセージを送信
+        await this._panel.webview.postMessage({
+          command: 'saveSpecificationComplete',
+          success: true,
+          path: requirementsFilePath
+        });
+      } catch (claudeError) {
+        Logger.error('CLAUDE.md更新エラー', claudeError as Error);
+        
+        // CLAUDE.md更新失敗メッセージ
+        vscode.window.showWarningMessage(
+          `要件定義書は保存されましたが、CLAUDE.mdの更新に失敗しました: ${(claudeError as Error).message}`,
+          '確認'
+        );
+      }
+      
+      // エディタでファイルを開く
+      const uri = vscode.Uri.file(requirementsFilePath);
+      await vscode.window.showTextDocument(uri);
+    } catch (error) {
+      Logger.error('要件定義書保存エラー', error as Error);
+      await this._showError(`要件定義書の保存に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -613,6 +779,259 @@ export class MockupDesignerPanel {
       Logger.error('チャットメッセージ処理エラー', error as Error);
       await this._showError(`チャットメッセージの処理中にエラーが発生しました: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * モックアップをプロジェクトに保存する処理
+   * @param pageId ページID
+   * @param mockupIndex モックアップインデックス
+   * @param customFileName カスタムファイル名（指定があれば）
+   */
+  private async _handleSaveToProject(pageId: string, mockupIndex: number = 0, customFileName?: string): Promise<void> {
+    try {
+      const mockups = this._currentMockups.get(pageId);
+      if (!mockups || mockups.length === 0) {
+        throw new Error(`モックアップが見つかりません: ${pageId}`);
+      }
+
+      if (mockupIndex < 0 || mockupIndex >= mockups.length) {
+        throw new Error(`指定されたインデックスのモックアップが見つかりません: index=${mockupIndex}`);
+      }
+      
+      // ワークスペースのルートディレクトリを取得
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('ワークスペースが開かれていません。プロジェクトを開いてから再試行してください。');
+      }
+      
+      const projectPath = workspaceFolders[0].uri.fsPath;
+      
+      // モックアップフォルダを確認・作成
+      const mockupsDir = path.join(projectPath, 'mockups');
+      if (!fs.existsSync(mockupsDir)) {
+        fs.mkdirSync(mockupsDir, { recursive: true });
+      }
+      
+      // モックアップ情報を取得
+      const mockup = mockups[mockupIndex];
+      const page = this._mockupDesigner.getPageById(pageId);
+      
+      // ファイル名の提案 (ページ名に基づく)
+      let suggestedFileName = '';
+      if (page) {
+        // ページ名から安全なファイル名を生成
+        suggestedFileName = this._generateSafeFileName(page.name);
+      } else {
+        // ページ情報がない場合はページIDを使用
+        suggestedFileName = `page-${pageId}`;
+      }
+      
+      // カスタムファイル名があれば使用
+      const fileName = customFileName || suggestedFileName;
+      
+      // ユーザーに確認
+      const userFileName = await vscode.window.showInputBox({
+        prompt: 'モックアップのファイル名を入力してください（拡張子なし）',
+        value: fileName,
+        placeHolder: '例: ユーザー登録ページ, ダッシュボード, etc...'
+      });
+      
+      if (!userFileName) {
+        // キャンセルされた場合
+        return;
+      }
+      
+      // プログレスバーを表示
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'モックアップをプロジェクトに保存中...',
+          cancellable: false
+        },
+        async (progress) => {
+          progress.report({ increment: 0 });
+          
+          try {
+            // モックアップのコンテンツを取得
+            let htmlContent = '';
+            let cssContent = '';
+            let jsContent = '';
+            
+            if (mockup.htmlPath && fs.existsSync(mockup.htmlPath)) {
+              htmlContent = fs.readFileSync(mockup.htmlPath, 'utf8');
+            }
+            
+            if (mockup.cssPath && fs.existsSync(mockup.cssPath)) {
+              cssContent = fs.readFileSync(mockup.cssPath, 'utf8');
+            }
+            
+            if (mockup.jsPath && fs.existsSync(mockup.jsPath)) {
+              jsContent = fs.readFileSync(mockup.jsPath, 'utf8');
+            }
+            
+            // 保存先のディレクトリを作成
+            const mockupDir = path.join(mockupsDir, userFileName);
+            if (!fs.existsSync(mockupDir)) {
+              fs.mkdirSync(mockupDir, { recursive: true });
+            }
+            
+            progress.report({ increment: 30 });
+            
+            // ファイルを保存
+            if (htmlContent) {
+              fs.writeFileSync(path.join(mockupDir, 'index.html'), htmlContent, 'utf8');
+            }
+            
+            if (cssContent) {
+              fs.writeFileSync(path.join(mockupDir, 'style.css'), cssContent, 'utf8');
+            }
+            
+            if (jsContent) {
+              fs.writeFileSync(path.join(mockupDir, 'script.js'), jsContent, 'utf8');
+            }
+            
+            // 一体型HTMLを保存
+            if (mockup.fullHtmlPath && fs.existsSync(mockup.fullHtmlPath)) {
+              const fullHtmlContent = fs.readFileSync(mockup.fullHtmlPath, 'utf8');
+              fs.writeFileSync(path.join(mockupDir, `${userFileName}.html`), fullHtmlContent, 'utf8');
+            } else if (htmlContent) {
+              // 一体型HTMLが存在しない場合は、HTMLファイルをコピー
+              fs.writeFileSync(path.join(mockupDir, `${userFileName}.html`), htmlContent, 'utf8');
+            }
+            
+            progress.report({ increment: 60 });
+            
+            // CLAUDE.md進捗状況の更新
+            try {
+              // ClaudeMdServiceをインポート
+              const { ClaudeMdService } = await import('../../utils/ClaudeMdService');
+              const claudeMdService = ClaudeMdService.getInstance();
+              
+              // モックアップの進捗状況を更新
+              await claudeMdService.updateProgressStatus(projectPath, 'mockup', true);
+              
+              progress.report({ increment: 90 });
+              
+              // 保存完了メッセージの表示
+              vscode.window.showInformationMessage(
+                `モックアップをプロジェクトに保存しました: ${userFileName}\nCLAUDE.mdの進捗状況も更新しました。`,
+                '確認'
+              );
+              
+              // WebViewに成功メッセージを送信
+              await this._panel.webview.postMessage({
+                command: 'saveToProjectComplete',
+                success: true,
+                fileName: userFileName,
+                path: mockupDir
+              });
+            } catch (claudeError) {
+              Logger.error('CLAUDE.md更新エラー', claudeError as Error);
+              
+              // CLAUDE.md更新失敗メッセージ
+              vscode.window.showWarningMessage(
+                `モックアップは保存されましたが、CLAUDE.mdの更新に失敗しました: ${(claudeError as Error).message}`,
+                '確認'
+              );
+              
+              // WebViewに部分的成功メッセージを送信
+              await this._panel.webview.postMessage({
+                command: 'saveToProjectComplete',
+                success: true,
+                claudeMdUpdateFailed: true,
+                fileName: userFileName,
+                path: mockupDir
+              });
+            }
+            
+            progress.report({ increment: 100 });
+          } catch (error) {
+            Logger.error('モックアップ保存エラー', error as Error);
+            
+            // エラーメッセージを表示
+            vscode.window.showErrorMessage(`モックアップの保存に失敗しました: ${(error as Error).message}`);
+            
+            // WebViewにエラーメッセージを送信
+            await this._panel.webview.postMessage({
+              command: 'saveToProjectComplete',
+              success: false,
+              error: (error as Error).message
+            });
+          }
+        }
+      );
+    } catch (error) {
+      Logger.error('モックアッププロジェクト保存エラー', error as Error);
+      await this._showError(`モックアップをプロジェクトに保存できませんでした: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * CLAUDE.md進捗状況を更新する処理
+   * @param phase 更新するフェーズ
+   * @param isCompleted 完了したかどうか
+   */
+  private async _handleUpdateClaudeMdProgress(phase: string, isCompleted: boolean): Promise<void> {
+    try {
+      // ワークスペースのルートディレクトリを取得
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        throw new Error('ワークスペースが開かれていません。プロジェクトを開いてから再試行してください。');
+      }
+      
+      const projectPath = workspaceFolders[0].uri.fsPath;
+      
+      // ClaudeMdServiceをインポート
+      const { ClaudeMdService } = await import('../../utils/ClaudeMdService');
+      const claudeMdService = ClaudeMdService.getInstance();
+      
+      // 進捗状況を更新
+      const updated = await claudeMdService.updateProgressStatus(
+        projectPath,
+        phase as any,
+        isCompleted
+      );
+      
+      if (updated) {
+        vscode.window.showInformationMessage(`CLAUDE.mdの進捗状況を更新しました: ${phase} -> ${isCompleted ? '完了' : '未完了'}`);
+        
+        // WebViewに成功メッセージを送信
+        await this._panel.webview.postMessage({
+          command: 'updateClaudeMdProgressComplete',
+          success: true,
+          phase,
+          isCompleted
+        });
+      } else {
+        throw new Error('CLAUDE.mdの更新に失敗しました');
+      }
+    } catch (error) {
+      Logger.error('CLAUDE.md進捗更新エラー', error as Error);
+      await this._showError(`CLAUDE.mdの進捗更新に失敗しました: ${(error as Error).message}`);
+      
+      // WebViewにエラーメッセージを送信
+      await this._panel.webview.postMessage({
+        command: 'updateClaudeMdProgressComplete',
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  }
+  
+  /**
+   * ファイル名に使用できる安全な文字列を生成
+   * @param name 元の名前
+   * @returns ファイルシステムで使用可能な名前
+   */
+  private _generateSafeFileName(name: string): string {
+    // スペースをハイフンに変換し、ファイル名に使用できない文字を削除
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')           // スペースをハイフンに変換
+      .replace(/[^\w\-]/g, '')        // 英数字、アンダースコア、ハイフン以外を削除
+      .replace(/\-{2,}/g, '-')        // 連続するハイフンを1つにまとめる
+      .replace(/^-+|-+$/g, '');       // 先頭と末尾のハイフンを削除
   }
   
   /**

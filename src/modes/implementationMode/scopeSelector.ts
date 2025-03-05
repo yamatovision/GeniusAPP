@@ -16,6 +16,9 @@ export interface ImplementationItem {
   status: 'pending' | 'in-progress' | 'completed' | 'blocked';
   progress: number; // 0-100 の進捗率
   notes?: string; // 実装メモ
+  relatedFiles?: string[]; // 関連ファイル一覧
+  relatedMockups?: string[]; // 関連モックアップ
+  relatedRequirements?: string[]; // 関連要件
 }
 
 /**

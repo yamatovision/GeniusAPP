@@ -5,6 +5,8 @@ import * as os from 'os';
 import { AIService } from '../core/aiService';
 import { Logger } from '../utils/logger';
 import { FileOperationManager } from '../utils/fileOperationManager';
+import { ProjectManagementService } from '../services/ProjectManagementService';
+import { AppGeniusStateManager, Requirements } from '../services/AppGeniusStateManager';
 
 /**
  * シンプルなチャットパネルを管理するクラス
@@ -86,6 +88,9 @@ export class SimpleChatPanel {
             break;
           case 'createProject':
             await this._handleCreateProject();
+            break;
+          case 'exportRequirements':
+            await this._handleExportRequirements();
             break;
           case 'initialize':
             // 初期化処理（必要に応じて）
@@ -678,7 +683,7 @@ Phase#5：実装用要件定義書`
         <div class="chat-header">
           <h2>要件定義ビジュアライザー</h2>
           <div class="header-actions">
-            <button id="create-project-button" class="project-action-btn create-project-btn">プロジェクト作成</button>
+            <button id="export-requirements-button" class="export-btn" title="要件定義をプロジェクトに保存">プロジェクトに保存</button>
             <button id="clear-chat-button" class="clear-chat-btn" title="チャット履歴をクリア">クリア</button>
           </div>
         </div>
@@ -1233,6 +1238,144 @@ ${projectName}/
         text: `プロジェクト作成に失敗しました: ${(error as Error).message}`
       });
     }
+  }
+
+  /**
+   * 要件定義をプロジェクトに保存
+   */
+  private async _handleExportRequirements(): Promise<void> {
+    try {
+      Logger.info('要件定義のプロジェクト保存を開始します');
+      
+      // プロジェクト管理サービスからアクティブなプロジェクトを取得
+      const projectService = ProjectManagementService.getInstance();
+      const activeProject = projectService.getActiveProject();
+      
+      if (!activeProject) {
+        throw new Error('アクティブなプロジェクトがありません。プロジェクトを作成または選択してください。');
+      }
+      
+      // プロジェクトのパスを確認
+      if (!activeProject.path) {
+        throw new Error('プロジェクトのパスが設定されていません。');
+      }
+      
+      // 会話履歴から要件定義を抽出
+      const requirementsDocument = this._generateRequirementsFromChat();
+      
+      // 要件定義オブジェクトを作成
+      const requirements: Requirements = {
+        document: requirementsDocument.document,
+        sections: requirementsDocument.sections,
+        extractedItems: requirementsDocument.extractedItems,
+        chatHistory: this._chatHistory.map(msg => ({
+          id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+          timestamp: Date.now()
+        }))
+      };
+      
+      // 状態管理サービスに保存
+      const stateManager = AppGeniusStateManager.getInstance();
+      await stateManager.saveRequirements(activeProject.id, requirements);
+      
+      // ユーザーに成功メッセージを表示
+      vscode.window.showInformationMessage(`要件定義をプロジェクト「${activeProject.name}」に保存しました`);
+      
+      // WebViewに保存成功メッセージを送信
+      this._panel.webview.postMessage({
+        command: 'showNotification',
+        message: `要件定義をプロジェクト「${activeProject.name}」に保存しました`,
+        type: 'success'
+      });
+      
+      Logger.info(`要件定義を保存しました: ${activeProject.id}`);
+    } catch (error) {
+      Logger.error(`要件定義のプロジェクト保存に失敗: ${(error as Error).message}`);
+      
+      // エラーメッセージを表示
+      vscode.window.showErrorMessage(`要件定義の保存に失敗しました: ${(error as Error).message}`);
+      
+      // WebViewにエラーメッセージを送信
+      this._panel.webview.postMessage({
+        command: 'showError',
+        text: `要件定義の保存に失敗しました: ${(error as Error).message}`
+      });
+    }
+  }
+  
+  /**
+   * チャット履歴から要件定義を生成
+   */
+  private _generateRequirementsFromChat(): { document: string, sections: any[], extractedItems: any[] } {
+    // 会話履歴を元に要件をまとめる
+    let document = '';
+    const sections = [];
+    const extractedItems = [];
+    
+    // AIの応答から要件らしき内容を抽出
+    for (let i = 0; i < this._chatHistory.length; i++) {
+      const message = this._chatHistory[i];
+      
+      if (message.role === 'ai') {
+        // AIの応答から要件定義に関する部分を抽出
+        document += message.content + '\n\n';
+        
+        // 見出しを含む行を検出してセクションに分割
+        const headingRegex = /#+\s+(.*)/g;
+        let match;
+        
+        while ((match = headingRegex.exec(message.content)) !== null) {
+          const headingTitle = match[1];
+          const sectionId: string = `section_${Date.now()}_${sections.length}`;
+          
+          sections.push({
+            id: sectionId,
+            title: headingTitle,
+            content: match[0] // 見出しを含む行
+          });
+          
+          // 機能要件と思われる項目を抽出
+          if (headingTitle.includes('機能要件') || headingTitle.includes('要件') || 
+              headingTitle.includes('必要な機能') || headingTitle.includes('主な機能')) {
+            
+            // 番号付きリストアイテムを検出
+            const listItemRegex = /\d+\.\s+(.*?)(?=\n\d+\.|$)/gs;
+            let listMatch;
+            
+            while ((listMatch = listItemRegex.exec(message.content)) !== null) {
+              const itemText = listMatch[1].trim();
+              const itemLines = itemText.split('\n');
+              const itemTitle = itemLines[0].trim();
+              
+              // 優先度を検出（ない場合はデフォルト「medium」）
+              let priority = 'medium';
+              const priorityMatch = itemText.match(/優先[度順][:：]?\s*(高|中|低)/);
+              if (priorityMatch) {
+                const priorityText = priorityMatch[1];
+                if (priorityText === '高') priority = 'high';
+                else if (priorityText === '中') priority = 'medium';
+                else if (priorityText === '低') priority = 'low';
+              }
+              
+              extractedItems.push({
+                id: `req_${Date.now()}_${extractedItems.length}`,
+                title: itemTitle,
+                description: itemText,
+                priority: priority
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    return {
+      document,
+      sections,
+      extractedItems
+    };
   }
 
   /**

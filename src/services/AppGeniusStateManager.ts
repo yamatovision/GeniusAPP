@@ -121,6 +121,7 @@ export interface ImplementationItem {
   estimatedHours?: number;
   relatedMockups?: string[];
   relatedRequirements?: string[];
+  relatedFiles?: string[]; // 関連ファイル一覧
 }
 
 /**
@@ -386,20 +387,53 @@ export class AppGeniusStateManager {
    * @param requirements 要件定義データ
    */
   public async saveRequirements(projectId: string, requirements: Requirements): Promise<void> {
-    await this.saveProjectData(projectId, 'requirements', requirements);
-    
-    // 要件定義完了フェーズを更新
-    const project = this.projectService.getProject(projectId);
-    if (project) {
-      await this.projectService.updateProjectPhase(projectId, 'requirements', true);
+    try {
+      // プロジェクトパスを取得
+      const project = this.projectService.getProject(projectId);
+      if (!project || !project.path) {
+        // プロジェクトパスが設定されていない場合は従来の方法で保存
+        await this.saveProjectData(projectId, 'requirements', requirements);
+      } else {
+        // 新しいプロジェクト構造に保存
+        const requirementsPath = path.join(project.path, 'docs', 'requirements.md');
+        this.ensureDirectoryExists(path.dirname(requirementsPath));
+        
+        // 構造化された要件データをマークダウンに変換
+        const markdownContent = this.convertRequirementsToMarkdown(requirements);
+        
+        // ファイルに保存
+        await fs.promises.writeFile(requirementsPath, markdownContent, 'utf8');
+        Logger.info(`Requirements saved to ${requirementsPath}`);
+        
+        // CLAUDE.mdのセクションも更新
+        try {
+          const { ClaudeMdService } = await import('../utils/ClaudeMdService');
+          const claudeMdService = ClaudeMdService.getInstance();
+          claudeMdService.updateClaudeMdSection(project.path, '要件定義', 
+            `[要件定義ファイル](./docs/requirements.md) - ${requirements.extractedItems.length}個の要件が定義されています。`);
+        } catch (e) {
+          Logger.warn(`Failed to update CLAUDE.md: ${(e as Error).message}`);
+        }
+        
+        // バックアップとして従来の方法でも保存
+        await this.saveProjectData(projectId, 'requirements', requirements);
+      }
       
-      // イベント発火
-      this.eventBus.emit(
-        AppGeniusEventType.REQUIREMENTS_UPDATED,
-        requirements,
-        'AppGeniusStateManager',
-        projectId
-      );
+      // 要件定義完了フェーズを更新 (すでに取得したプロジェクト情報を再利用)
+      if (project) {
+        await this.projectService.updateProjectPhase(projectId, 'requirements', true);
+        
+        // イベント発火
+        this.eventBus.emit(
+          AppGeniusEventType.REQUIREMENTS_UPDATED,
+          requirements,
+          'AppGeniusStateManager',
+          projectId
+        );
+      }
+    } catch (error) {
+      Logger.error(`Failed to save requirements: ${(error as Error).message}`);
+      throw error;
     }
   }
   
@@ -408,7 +442,161 @@ export class AppGeniusStateManager {
    * @param projectId プロジェクトID
    */
   public async getRequirements(projectId: string): Promise<Requirements | undefined> {
-    return this.getProjectData<Requirements>(projectId, 'requirements', undefined as any);
+    try {
+      // プロジェクトパスを取得
+      const project = this.projectService.getProject(projectId);
+      if (!project || !project.path) {
+        // プロジェクトパスが設定されていない場合は従来の方法で取得
+        return this.getProjectData<Requirements>(projectId, 'requirements', undefined as any);
+      }
+      
+      // 新しいプロジェクト構造から読み込み
+      const requirementsPath = path.join(project.path, 'docs', 'requirements.md');
+      if (fs.existsSync(requirementsPath)) {
+        // マークダウンからRequirementsオブジェクトに変換
+        const markdownContent = await fs.promises.readFile(requirementsPath, 'utf8');
+        const requirements = this.convertMarkdownToRequirements(markdownContent);
+        
+        return requirements;
+      }
+      
+      // 新しい場所に見つからない場合は従来の方法で取得
+      return this.getProjectData<Requirements>(projectId, 'requirements', undefined as any);
+    } catch (error) {
+      Logger.error(`Failed to get requirements: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+  
+  /**
+   * 要件定義をマークダウンに変換
+   */
+  private convertRequirementsToMarkdown(requirements: Requirements): string {
+    let markdown = '# 要件定義\n\n';
+    
+    // ドキュメント全体の内容
+    if (requirements.document) {
+      markdown += requirements.document + '\n\n';
+    }
+    
+    // 機能要件セクション
+    markdown += '## 機能要件\n\n';
+    
+    const functionalItems = requirements.extractedItems.filter(item => 
+      item.title.toLowerCase().includes('機能') || 
+      !item.title.toLowerCase().includes('非機能'));
+    
+    functionalItems.forEach((item, index) => {
+      markdown += `${index + 1}. ${item.title}\n`;
+      markdown += `   - 説明: ${item.description}\n`;
+      markdown += `   - 優先度: ${item.priority}\n`;
+      markdown += '\n';
+    });
+    
+    // 非機能要件セクション
+    markdown += '## 非機能要件\n\n';
+    
+    const nonFunctionalItems = requirements.extractedItems.filter(item => 
+      item.title.toLowerCase().includes('非機能'));
+    
+    if (nonFunctionalItems.length > 0) {
+      nonFunctionalItems.forEach((item, index) => {
+        markdown += `${index + 1}. ${item.title}\n`;
+        markdown += `   - 説明: ${item.description}\n`;
+        markdown += `   - 優先度: ${item.priority}\n`;
+        markdown += '\n';
+      });
+    } else {
+      markdown += '準備中...\n\n';
+    }
+    
+    // セクション（追加情報）
+    if (requirements.sections && requirements.sections.length > 0) {
+      requirements.sections.forEach(section => {
+        if (section.title && !section.title.toLowerCase().includes('機能要件') &&
+            !section.title.toLowerCase().includes('非機能要件')) {
+          markdown += `## ${section.title}\n\n`;
+          markdown += `${section.content}\n\n`;
+        }
+      });
+    }
+    
+    return markdown;
+  }
+  
+  /**
+   * マークダウンから要件定義オブジェクトに変換
+   */
+  private convertMarkdownToRequirements(markdown: string): Requirements {
+    const requirements: Requirements = {
+      document: '',
+      sections: [],
+      extractedItems: [],
+      chatHistory: []
+    };
+    
+    try {
+      // セクション分割
+      const sections = markdown.split(/^##\s+/m).filter(Boolean);
+      
+      // メインドキュメント部分
+      if (sections[0] && sections[0].startsWith('# ')) {
+        const mainContent = sections[0].replace(/^#\s+.*?\n/m, '').trim();
+        requirements.document = mainContent;
+      }
+      
+      // 各セクションを処理
+      for (let i = 1; i < sections.length; i++) {
+        const section = sections[i];
+        const titleMatch = section.match(/^(.*?)\n/);
+        const title = titleMatch ? titleMatch[1].trim() : `Section ${i}`;
+        const content = section.replace(/^.*?\n/, '').trim();
+        
+        requirements.sections.push({
+          id: `section_${Date.now()}_${i}`,
+          title,
+          content
+        });
+        
+        // 機能要件と非機能要件からアイテムを抽出
+        if (title.toLowerCase().includes('機能要件') || title.toLowerCase().includes('非機能要件')) {
+          const requirementItems = content.split(/^\d+\.\s+/m).filter(Boolean);
+          
+          requirementItems.forEach(item => {
+            const lines = item.split('\n').filter(line => line.trim() !== '');
+            if (lines.length > 0) {
+              const title = lines[0].trim();
+              let description = '';
+              let priority = 'medium';
+              
+              for (let j = 1; j < lines.length; j++) {
+                const line = lines[j].trim();
+                if (line.startsWith('- 説明:')) {
+                  description = line.replace('- 説明:', '').trim();
+                } else if (line.startsWith('- 優先度:')) {
+                  const priorityStr = line.replace('- 優先度:', '').trim().toLowerCase();
+                  if (['high', 'medium', 'low'].includes(priorityStr)) {
+                    priority = priorityStr as 'high' | 'medium' | 'low';
+                  }
+                }
+              }
+              
+              requirements.extractedItems.push({
+                id: `req_${Date.now()}_${requirements.extractedItems.length}`,
+                title,
+                description,
+                priority: priority as 'high' | 'medium' | 'low'
+              });
+            }
+          });
+        }
+      }
+      
+      return requirements;
+    } catch (error) {
+      Logger.error(`Error converting markdown to requirements: ${(error as Error).message}`);
+      return requirements;
+    }
   }
   
   /**
@@ -471,7 +659,56 @@ export class AppGeniusStateManager {
         Logger.debug(`スコープIDを生成しました: ${scope.id}`);
       }
       
-      // ProjectDataに保存
+      // プロジェクトの取得
+      const project = this.projectService.getProject(projectId);
+      
+      // プロジェクトパスが設定されている場合は、新しい構造に保存
+      if (project && project.path) {
+        const scopePath = path.join(project.path, 'docs', 'scope.md');
+        this.ensureDirectoryExists(path.dirname(scopePath));
+        
+        // 構造化されたスコープデータをマークダウンに変換
+        const markdownContent = this.convertScopeToMarkdown(scope);
+        
+        // ファイルに保存
+        await fs.promises.writeFile(scopePath, markdownContent, 'utf8');
+        Logger.info(`Scope saved to ${scopePath}`);
+        
+        // CLAUDE.mdのセクションも更新
+        try {
+          const { ClaudeMdService } = await import('../utils/ClaudeMdService');
+          const claudeMdService = ClaudeMdService.getInstance();
+          claudeMdService.updateClaudeMdSection(project.path, '実装スコープ', 
+            `[実装スコープファイル](./docs/scope.md) - 進捗: ${scope.totalProgress}% (${scope.items.filter(i => i.status === 'completed').length}/${scope.items.length}項目完了)`);
+          
+          // 進捗状況も更新
+          const statusSection = `- 要件定義: ${project.phases.requirements ? '完了' : '未完了'}\n` +
+                                `- モックアップ: ${project.phases.design ? '完了' : '未完了'}\n` +
+                                `- ディレクトリ構造: ${project.phases.implementation ? '完了' : '未完了'}\n` +
+                                `- 実装: ${scope.totalProgress === 100 ? '完了' : scope.totalProgress > 0 ? `${scope.totalProgress}%完了` : '未開始'}\n` +
+                                `- テスト: ${project.phases.testing ? '完了' : '未開始'}\n` +
+                                `- デプロイ: ${project.phases.deployment ? '完了' : '未開始'}`;
+          
+          claudeMdService.updateClaudeMdSection(project.path, '進捗状況', statusSection);
+          
+          // チェックリストも更新
+          const checklistSection = `- [${project.phases.requirements ? 'x' : ' '}] 要件定義の完了\n` +
+                                  `- [${project.phases.design ? 'x' : ' '}] モックアップの作成\n` +
+                                  `- [${project.phases.implementation ? 'x' : ' '}] ディレクトリ構造の確定\n` +
+                                  `- [${scope.items.length > 0 ? 'x' : ' '}] API設計の完了\n` +
+                                  `- [ ] 環境変数の設定\n` +
+                                  `- [${scope.items.length > 0 ? 'x' : ' '}] 実装スコープの決定\n` +
+                                  `- [${scope.totalProgress > 0 ? 'x' : ' '}] 実装の開始\n` +
+                                  `- [${project.phases.testing ? 'x' : ' '}] テストの実施\n` +
+                                  `- [${project.phases.deployment ? 'x' : ' '}] デプロイの準備`;
+          
+          claudeMdService.updateClaudeMdSection(project.path, 'チェックリスト', checklistSection);
+        } catch (e) {
+          Logger.warn(`Failed to update CLAUDE.md: ${(e as Error).message}`);
+        }
+      }
+      
+      // ProjectDataに保存（バックアップとして）
       await this.saveProjectData(projectId, 'implementationScope', scope);
       
       // VSCode設定にも直接保存（CLIとの連携用）
@@ -481,7 +718,7 @@ export class AppGeniusStateManager {
       try {
         // ホームディレクトリに.appgenius/scopesディレクトリを作成
         const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-        const scopesDir = path.join(homeDir, '.appgenius', 'scopes');
+        const scopesDir = path.join(homeDir, '.appgenius-ai', 'scopes');
         this.ensureDirectoryExists(scopesDir);
         
         // スコープファイルを作成（CLIから直接アクセスできるように）
@@ -503,9 +740,8 @@ export class AppGeniusStateManager {
       }
       
       // スコープが設定されたら実装フェーズが開始されたとみなす
-      const project = this.projectService.getProject(projectId);
+      // 進捗状況に基づいて実装フェーズの完了状態を更新
       if (project) {
-        // 進捗状況に基づいて実装フェーズの完了状態を更新
         const isCompleted = scope.totalProgress >= 100;
         await this.projectService.updateProjectPhase(projectId, 'implementation', isCompleted);
       }
@@ -530,7 +766,261 @@ export class AppGeniusStateManager {
    * @param projectId プロジェクトID
    */
   public async getImplementationScope(projectId: string): Promise<ImplementationScope | undefined> {
-    return this.getProjectData<ImplementationScope>(projectId, 'implementationScope', undefined as any);
+    try {
+      // プロジェクトパスを取得
+      const project = this.projectService.getProject(projectId);
+      if (!project || !project.path) {
+        // プロジェクトパスが設定されていない場合は従来の方法で取得
+        return this.getProjectData<ImplementationScope>(projectId, 'implementationScope', undefined as any);
+      }
+      
+      // 新しいプロジェクト構造から読み込み
+      const scopePath = path.join(project.path, 'docs', 'scope.md');
+      if (fs.existsSync(scopePath)) {
+        // マークダウンからImplementationScopeオブジェクトに変換
+        const markdownContent = await fs.promises.readFile(scopePath, 'utf8');
+        const scope = this.convertMarkdownToScope(markdownContent, project.path);
+        
+        return scope;
+      }
+      
+      // 新しい場所に見つからない場合は従来の方法で取得
+      return this.getProjectData<ImplementationScope>(projectId, 'implementationScope', undefined as any);
+    } catch (error) {
+      Logger.error(`Failed to get implementation scope: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+  
+  /**
+   * 実装スコープをマークダウンに変換
+   */
+  private convertScopeToMarkdown(scope: ImplementationScope): string {
+    let markdown = '# 実装スコープ\n\n';
+    
+    // 完了した項目
+    markdown += '## 完了\n\n';
+    const completedItems = scope.items.filter(item => item.status === 'completed');
+    
+    if (completedItems.length > 0) {
+      completedItems.forEach((item, index) => {
+        markdown += `${index + 1}. ${item.title}\n`;
+        markdown += `   - 説明: ${item.description}\n`;
+        markdown += `   - 優先度: ${item.priority}\n`;
+        markdown += `   - 複雑度: ${item.complexity}\n`;
+        if (item.relatedFiles && item.relatedFiles.length > 0) {
+          markdown += `   - 関連ファイル: ${item.relatedFiles.join(', ')}\n`;
+        }
+        markdown += '\n';
+      });
+    } else {
+      markdown += '（まだ完了した項目はありません）\n\n';
+    }
+    
+    // 進行中の項目
+    markdown += '## 進行中\n\n';
+    const inProgressItems = scope.items.filter(item => item.status === 'in-progress');
+    
+    if (inProgressItems.length > 0) {
+      inProgressItems.forEach((item, index) => {
+        markdown += `${index + 1}. ${item.title}\n`;
+        markdown += `   - 説明: ${item.description}\n`;
+        markdown += `   - 優先度: ${item.priority}\n`;
+        markdown += `   - 複雑度: ${item.complexity}\n`;
+        markdown += `   - 進捗: ${item.progress}%\n`;
+        if (item.relatedFiles && item.relatedFiles.length > 0) {
+          markdown += `   - 関連ファイル: ${item.relatedFiles.join(', ')}\n`;
+        }
+        markdown += '\n';
+      });
+    } else {
+      markdown += '（実装中の項目がここに表示されます）\n\n';
+    }
+    
+    // 未着手の項目
+    markdown += '## 未着手\n\n';
+    const pendingItems = scope.items.filter(item => item.status === 'pending');
+    
+    if (pendingItems.length > 0) {
+      pendingItems.forEach((item, index) => {
+        markdown += `${index + 1}. ${item.title}\n`;
+        markdown += `   - 説明: ${item.description}\n`;
+        markdown += `   - 優先度: ${item.priority}\n`;
+        markdown += `   - 複雑度: ${item.complexity}\n`;
+        if (item.dependencies && item.dependencies.length > 0) {
+          markdown += `   - 依存関係: ${item.dependencies.join(', ')}\n`;
+        }
+        markdown += '\n';
+      });
+    } else {
+      markdown += '（未着手の項目がここに表示されます）\n\n';
+    }
+    
+    // 全体の進捗情報
+    markdown += '## 進捗情報\n\n';
+    markdown += `- 全体進捗: ${scope.totalProgress}%\n`;
+    markdown += `- 開始日: ${scope.startDate || '未設定'}\n`;
+    markdown += `- 目標日: ${scope.targetDate || '未設定'}\n`;
+    markdown += `- 合計項目数: ${scope.items.length}\n`;
+    markdown += `- 完了項目数: ${completedItems.length}\n`;
+    markdown += `- 進行中項目数: ${inProgressItems.length}\n`;
+    markdown += `- 未着手項目数: ${pendingItems.length}\n`;
+    
+    return markdown;
+  }
+  
+  /**
+   * マークダウンから実装スコープオブジェクトに変換
+   */
+  private convertMarkdownToScope(markdown: string, projectPath: string): ImplementationScope {
+    const scopeTemplate: ImplementationScope = {
+      id: `scope-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      items: [],
+      selectedIds: [],
+      estimatedTime: '',
+      totalProgress: 0,
+      startDate: new Date().toISOString().split('T')[0],
+      targetDate: '',
+      projectPath: projectPath
+    };
+    
+    try {
+      // セクション分割
+      const sections = markdown.split(/^##\s+/m).filter(Boolean);
+      
+      // 進捗情報セクションの処理
+      const progressSection = sections.find(section => section.trim().startsWith('進捗情報'));
+      if (progressSection) {
+        const progressLines = progressSection.split('\n').filter(line => line.trim() !== '');
+        
+        for (const line of progressLines) {
+          if (line.includes('全体進捗:')) {
+            const progress = line.match(/\d+/);
+            if (progress) {
+              scopeTemplate.totalProgress = parseInt(progress[0], 10);
+            }
+          } else if (line.includes('開始日:')) {
+            const startDate = line.replace('- 開始日:', '').trim();
+            if (startDate !== '未設定') {
+              scopeTemplate.startDate = startDate;
+            }
+          } else if (line.includes('目標日:')) {
+            const targetDate = line.replace('- 目標日:', '').trim();
+            if (targetDate !== '未設定') {
+              scopeTemplate.targetDate = targetDate;
+            }
+          }
+        }
+      }
+      
+      // 完了項目の処理
+      this.extractImplementationItems(markdown, '完了', 'completed', scopeTemplate);
+      
+      // 進行中項目の処理
+      this.extractImplementationItems(markdown, '進行中', 'in-progress', scopeTemplate);
+      
+      // 未着手項目の処理
+      this.extractImplementationItems(markdown, '未着手', 'pending', scopeTemplate);
+      
+      // 選択されたIDの設定（デフォルトですべてを選択）
+      scopeTemplate.selectedIds = scopeTemplate.items.map(item => item.id);
+      
+      // 全体の進捗を再計算
+      const completedItems = scopeTemplate.items.filter(item => item.status === 'completed').length;
+      if (scopeTemplate.items.length > 0) {
+        scopeTemplate.totalProgress = Math.round((completedItems / scopeTemplate.items.length) * 100);
+      } else {
+        scopeTemplate.totalProgress = 0;
+      }
+      
+      return scopeTemplate;
+    } catch (error) {
+      Logger.error(`Error converting markdown to scope: ${(error as Error).message}`);
+      return scopeTemplate;
+    }
+  }
+  
+  /**
+   * マークダウンから実装項目を抽出
+   */
+  private extractImplementationItems(markdown: string, sectionName: string, status: string, scope: ImplementationScope): void {
+    try {
+      // セクションを正規表現で抽出
+      const sectionPattern = new RegExp(`## ${sectionName}([\\s\\S]*?)(?=##|$)`, 'm');
+      const match = markdown.match(sectionPattern);
+      
+      if (match && match[1]) {
+        const sectionContent = match[1].trim();
+        if (sectionContent.includes('（まだ完了した項目はありません）') || 
+            sectionContent.includes('（実装中の項目がここに表示されます）') ||
+            sectionContent.includes('（未着手の項目がここに表示されます）')) {
+          return;
+        }
+        
+        // 項目を抽出
+        const itemPattern = /^\d+\.\s+(.*?)(?=^\d+\.|$)/gms;
+        let itemMatch;
+        
+        while ((itemMatch = itemPattern.exec(sectionContent)) !== null) {
+          const itemContent = itemMatch[0].trim();
+          const lines = itemContent.split('\n').filter(line => line.trim() !== '');
+          
+          if (lines.length > 0) {
+            // タイトルを抽出（"1. タイトル" 形式から "タイトル" を取得）
+            const titleLine = lines[0];
+            const title = titleLine.replace(/^\d+\.\s+/, '').trim();
+            
+            // 初期値を設定
+            const item: ImplementationItem = {
+              id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+              title,
+              description: '',
+              priority: 'medium',
+              complexity: 'medium',
+              isSelected: true,
+              dependencies: [],
+              status: status as any,
+              progress: status === 'completed' ? 100 : status === 'in-progress' ? 50 : 0
+            };
+            
+            // 詳細情報を抽出
+            for (let i = 1; i < lines.length; i++) {
+              const line = lines[i].trim();
+              
+              if (line.startsWith('- 説明:')) {
+                item.description = line.replace('- 説明:', '').trim();
+              } else if (line.startsWith('- 優先度:')) {
+                const priority = line.replace('- 優先度:', '').trim().toLowerCase();
+                if (['high', 'medium', 'low'].includes(priority)) {
+                  item.priority = priority as any;
+                }
+              } else if (line.startsWith('- 複雑度:')) {
+                const complexity = line.replace('- 複雑度:', '').trim().toLowerCase();
+                if (['high', 'medium', 'low'].includes(complexity)) {
+                  item.complexity = complexity as any;
+                }
+              } else if (line.startsWith('- 進捗:')) {
+                const progressMatch = line.match(/\d+/);
+                if (progressMatch) {
+                  item.progress = parseInt(progressMatch[0], 10);
+                }
+              } else if (line.startsWith('- 関連ファイル:')) {
+                const files = line.replace('- 関連ファイル:', '').trim();
+                item.relatedFiles = files.split(',').map(f => f.trim());
+              } else if (line.startsWith('- 依存関係:')) {
+                const deps = line.replace('- 依存関係:', '').trim();
+                item.dependencies = deps.split(',').map(d => d.trim());
+              }
+            }
+            
+            // 配列に追加
+            scope.items.push(item);
+          }
+        }
+      }
+    } catch (error) {
+      Logger.error(`Error extracting implementation items: ${(error as Error).message}`);
+    }
   }
   
   /**

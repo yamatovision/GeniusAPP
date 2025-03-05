@@ -44,6 +44,11 @@
       showNewProjectModal();
     });
     
+    // プロジェクト読み込みボタン
+    document.getElementById('load-project-btn').addEventListener('click', () => {
+      loadExistingProject();
+    });
+    
     // 新規プロジェクトフォーム
     document.getElementById('new-project-form').addEventListener('submit', event => {
       event.preventDefault();
@@ -340,6 +345,13 @@
     vscode.postMessage({
       command: 'deleteProject',
       id
+    });
+  }
+  
+  // 既存プロジェクトの読み込み
+  function loadExistingProject() {
+    vscode.postMessage({
+      command: 'loadExistingProject'
     });
   }
   

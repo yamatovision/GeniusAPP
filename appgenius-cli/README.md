@@ -6,6 +6,46 @@ AppGeniusの開発支援AIコマンドラインインターフェース
 
 AppGenius CLIは、AIを活用してソフトウェア開発を支援するコマンドラインツールです。Claude AIと連携して、プロジェクト分析、コード生成、デバッグ支援などの機能を提供します。
 
+## Claude API 接続問題の修正方法
+
+AppGenius CLI で Claude API 接続エラー（400 Bad Request）が発生した場合の修正手順です。
+
+### 問題の原因
+
+Claude API との通信に以下の問題がありました：
+
+1. `anthropic-beta` ヘッダーが不要または無効になっている
+2. `max_tokens` の値が大きすぎる（100,000 → 4,096 に変更）
+3. モデル名の指定が正しくない可能性がある
+
+### 修正手順
+
+1. テストスクリプトを実行して問題を診断する:
+   ```bash
+   cd /path/to/appgenius-cli
+   node test/claude_api_test.js
+   ```
+
+2. 修正された claudeService.ts を適用する:
+   ```bash
+   # 現在の実装をバックアップ
+   cp src/services/claudeService.ts src/services/claudeService.ts.bak
+   
+   # 修正版をコピー
+   cp src/services/claudeService.ts.fixed src/services/claudeService.ts
+   ```
+
+3. 主な修正内容:
+   - `anthropic-beta` ヘッダーの削除
+   - `max_tokens` の値を 100,000 から 4,096 に削減
+   - リクエストヘッダーの最適化
+
+4. 再コンパイルとインストール:
+   ```bash
+   npm run build
+   npm link
+   ```
+
 ## 主な機能
 
 - インタラクティブな開発支援チャット

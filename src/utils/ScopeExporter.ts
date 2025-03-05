@@ -14,6 +14,9 @@ export interface ImplementationItem {
   description: string;
   completed?: boolean;
   estimatedHours?: number;
+  relatedFiles?: string[]; // 関連ファイル一覧
+  relatedMockups?: string[]; // 関連モックアップ
+  relatedRequirements?: string[]; // 関連要件
 }
 
 /**

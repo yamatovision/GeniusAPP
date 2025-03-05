@@ -50,7 +50,7 @@ export class ClaudeService {
     const config = configManager.getConfig();
     this.apiKey = config.apiKey;
     this.model = options?.model || ClaudeModel.CLAUDE_3_SONNET_20250219; // デフォルトでClaude 3.7を使用
-    this.maxTokens = options?.maxTokens || 32000; // Claude 3.7の最大コンテキスト長に近い値
+    this.maxTokens = options?.maxTokens || 4096; // 適切なサイズに調整（上限は32k）
     this.temperature = options?.temperature || 0.7;
     this.systemPrompt = options?.systemPrompt || this.getDefaultSystemPrompt();
     this.streaming = options?.streaming || false;
@@ -90,41 +90,8 @@ export class ClaudeService {
 3. 整った構造の慣用的なコードを生成する
 4. テストとベストプラクティスのガイダンスを提供する
 
-【ツール使用に関する重要指示】
-あなたには以下のファイル操作ツールが利用可能です：
-- GlobTool: ファイルパターン検索（例: **/*.js, src/**/*.ts）
-- GrepTool: ファイル内容検索（例: "function main"というテキストを検索）
-- View: ファイル内容表示
-- LS: ディレクトリ一覧表示
-- Edit: ファイル編集
-- Replace: ファイル全体を置換
-- Bash: コマンド実行
-- その他多数のツール
-
-ツール使用時は必ず以下の形式で記述してください：
-<function_calls>
-<invoke name="ツール名">
-<parameter name="パラメータ名">値</parameter>
-</invoke>
-</function_calls>
-
-必ず以下のシナリオでツールを使用してください:
-- ファイル検索: GlobToolを使って「**/*.拡張子」のパターンで検索
-- コード検索: GrepToolを使って特定のコードパターンを検索
-- ファイル表示: Viewを使ってファイル内容を確認
-- ディレクトリ確認: LSを使ってディレクトリ内容を確認
-- ファイル編集: EditやReplaceを使用
-
-以下の場合も積極的にツールを使用してください:
-- ファイル名を尋ねられたら、GlobToolで検索
-- ファイル内容について質問されたら、ViewToolで内容を確認
-- 「どこにあるか」という質問には、GlobToolとGrepToolで検索
-- 設定やドキュメントの参照を求められたら、GlobToolとViewで検索・表示
-- 実装時はコード内容やディレクトリ構造を自主的に検索して理解
-- ファイルパスの明示がなくても、名前から場所を推測して検索
-
-情報や答えを推測せず、必ずツールを使って正確な情報を収集してください。
-想像や仮定に基づく回答は避け、ツールで得られた事実だけに基づいて回答してください。
+ファイル操作のためのツールにアクセスでき、ファイルの検索、読み取り、編集ができます。
+これらのツールを使用する際は、特にファイルパスに対して正確かつ慎重に扱ってください。
 
 あなたは「拡張思考」が可能です - 複雑な問題に直面したとき、それをステップに分解し、
 システマティックに取り組み、その推論を示します。これは以下のようなタスクに役立ちます：
@@ -136,7 +103,7 @@ export class ClaudeService {
 TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していますが、ほとんどのプログラミング言語をサポートできます。
 常にクリーンで保守性が高く、効率的なコードの作成を優先してください。
 
-重要: ユーザーの意図を積極的に推測し、先回りして行動してください。ファイル操作が役立ちそうな場面では、指示を待たずにすぐにツールを使用して情報を収集してください。ClaudeCodeのような積極的なサポートを心がけてください。
+重要: 支援において積極的かつ徹底的であること。ユーザーが明示的に尋ねたこと以上の潜在的な問題や改善点に気づいた場合は、丁寧に言及してください。
 
 すべての回答は必ず日本語で行ってください。英語での回答は避けてください。`;
   }
@@ -215,15 +182,8 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
    * Claude APIにメッセージを送信
    * @param message ユーザーメッセージ
    * @param streamCallback ストリーミング用コールバック
-   * @param thinkingEnabled 拡張思考モードを有効にするかどうか
-   * @param thinkingBudget 拡張思考のトークン予算（デフォルト4096）
    */
-  public async sendMessage(
-    message: string, 
-    streamCallback?: StreamCallback, 
-    thinkingEnabled: boolean = false,
-    thinkingBudget: number = 4096
-  ): Promise<string> {
+  public async sendMessage(message: string, streamCallback?: StreamCallback): Promise<string> {
     try {
       if (!this.apiKey) {
         const errorMessage = 'Claude APIキーが設定されていません';
@@ -236,8 +196,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
       
       logger.debug('Claude APIにリクエスト送信', {
         model: this.model,
-        messageCount: this.conversation.length,
-        thinkingEnabled
+        messageCount: this.conversation.length
       });
       
       // システムメッセージを取得
@@ -247,7 +206,7 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
       const messagesWithoutSystem = this.conversation.filter(msg => msg.role !== 'system');
       
       // リクエストボディを構築 - ツール定義を含める
-      const requestBody: any = {
+      const requestBody = {
         model: this.model,
         messages: messagesWithoutSystem,
         max_tokens: this.maxTokens,
@@ -264,18 +223,6 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
         })),
         stream: this.streaming || !!streamCallback // ストリーミングコールバックがある場合はストリーミングを有効化
       };
-      
-      // 拡張思考モードを設定（Claude 3.7のみサポート）
-      if (thinkingEnabled && 
-          (this.model === ClaudeModel.CLAUDE_3_SONNET_20250219)) {
-        requestBody.thinking = {
-          type: "enabled",
-          budget_tokens: Math.min(thinkingBudget, this.maxTokens - 1000) // 最大トークン数の制限を考慮
-        };
-        logger.debug('拡張思考モードを有効化', {
-          budget_tokens: requestBody.thinking.budget_tokens
-        });
-      }
       
       // 共通のヘッダー - 更新されたバージョン
       const headers = {
@@ -319,7 +266,6 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
                     try {
                       const parsed = JSON.parse(data);
                       
-                      // テキストデルタの処理
                       if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.text) {
                         // テキストデルタを取得
                         const textChunk = parsed.delta.text;
@@ -327,16 +273,6 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
                         
                         // コールバックでクライアントに送信
                         streamCallback(textChunk);
-                      }
-                      // 拡張思考デルタの処理
-                      else if (parsed.type === 'content_block_delta' && parsed.delta && parsed.delta.type === 'thinking_delta') {
-                        const thinkingChunk = parsed.delta.thinking;
-                        
-                        // 思考内容を送信（プレフィックスを追加して区別）
-                        if (thinkingChunk && streamCallback) {
-                          // 思考内容をプレフィックス付きで送信（クライアント側で思考と通常テキストを区別できるように）
-                          streamCallback(`[思考中] ${thinkingChunk}`, 'thinking');
-                        }
                       }
                     } catch (e) {
                       logger.warn('ストリーミングデータのパースに失敗しました', e);
@@ -375,63 +311,24 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
         // レスポンスを処理
         const claudeResponse = response.data;
 
-        // ContentとContent[]の有無をチェック
-        let textContent = '';
-        let toolUseContent = '';
+        // テキスト部分の抽出
+        const textContent = claudeResponse.content
+          .filter(item => item.type === 'text')
+          .map(item => item.text || '')
+          .join('');
         
-        // contentが配列で、かつ値が存在する場合のみ処理
-        if (claudeResponse.content && Array.isArray(claudeResponse.content)) {
-          // テキスト部分の抽出
-          textContent = claudeResponse.content
-            .filter(item => item && item.type === 'text')
-            .map(item => item.text || '')
-            .join('');
-          
-          // ツール使用部分も文字列に含める
-          toolUseContent = claudeResponse.content
-            .filter(item => item && (item.tool_use || item.tool_result))
-            .map(item => {
-              if (item.tool_use) {
-                return `[ツール使用: ${item.tool_use.name}]`;
-              } else if (item.tool_result) {
-                return `[ツール結果: ${item.tool_result.content?.substring(0, 30) || ''}...]`;
-              }
-              return '';
-            })
-            .join('\n');
-        } else {
-          // content配列がない場合（APIレスポンス形式が変更された可能性）
-          logger.warn('Claude APIレスポンスに content プロパティがありません', claudeResponse);
-          
-          // APIレスポンスの形式に応じて応答テキストを抽出
-          if (claudeResponse.text) {
-            textContent = claudeResponse.text;
-          } else if (typeof claudeResponse === 'string') {
-            textContent = claudeResponse;
-          } else if (claudeResponse && typeof claudeResponse === 'object') {
-            // 任意のプロパティをチェック (型定義に依存しない)
-            const anyResponse = claudeResponse as any;
-            
-            if (anyResponse.completion) {
-              textContent = anyResponse.completion;
-            } else if (anyResponse.message && anyResponse.message.content) {
-              // 新しい形式のレスポンス構造をチェック
-              const content = anyResponse.message.content;
-              if (Array.isArray(content)) {
-                textContent = content
-                  .filter(item => item.type === 'text')
-                  .map(item => item.text || '')
-                  .join('');
-              } else {
-                textContent = String(content);
-              }
-            } else {
-              textContent = 'マークダウンファイルを検索しています。結果は以下の通りです。';
+        // ツール使用部分も文字列に含める
+        const toolUseContent = claudeResponse.content
+          .filter(item => item.tool_use || item.tool_result)
+          .map(item => {
+            if (item.tool_use) {
+              return `[ツール使用: ${item.tool_use.name}]`;
+            } else if (item.tool_result) {
+              return `[ツール結果: ${item.tool_result.content.substring(0, 30)}...]`;
             }
-          } else {
-            textContent = 'マークダウンファイルを検索しています。結果は以下の通りです。';
-          }
-        }
+            return '';
+          })
+          .join('\n');
         
         // 最終的なアシスタントメッセージを構築
         const assistantMessage = [textContent, toolUseContent].filter(Boolean).join('\n');
@@ -439,15 +336,10 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
         // アシスタントの応答を会話履歴に追加
         this.conversation.push({ role: 'assistant', content: assistantMessage });
         
-        // usageプロパティの存在確認
-        if (claudeResponse.usage) {
-          logger.debug('Claude APIからの応答を受信', {
-            inputTokens: claudeResponse.usage.inputTokens || 0,
-            outputTokens: claudeResponse.usage.outputTokens || 0
-          });
-        } else {
-          logger.debug('Claude APIからの応答を受信 (使用量情報なし)');
-        }
+        logger.debug('Claude APIからの応答を受信', {
+          inputTokens: claudeResponse.usage.inputTokens,
+          outputTokens: claudeResponse.usage.outputTokens
+        });
         
         return assistantMessage;
       }
@@ -464,27 +356,12 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
 
   /**
    * ツール使用リクエストを検出・実行（ネイティブツールサポート対応）
-   * @param message ユーザーメッセージ
-   * @param streamCallback ストリーミング用コールバック
-   * @param thinkingEnabled 拡張思考モードを有効にするかどうか
-   * @param thinkingBudget 拡張思考のトークン予算（デフォルト4096）
    */
-  public async detectAndExecuteTools(
-    message: string, 
-    streamCallback?: StreamCallback,
-    thinkingEnabled: boolean = false,
-    thinkingBudget: number = 4096
-  ): Promise<{ 
+  public async detectAndExecuteTools(message: string, streamCallback?: StreamCallback): Promise<{ 
     responseText: string; 
     toolResults: ToolUseResult[];
   }> {
     try {
-      // 開始時間を記録
-      const startTime = Date.now();
-      
-      // ツール実行結果を格納する配列
-      const toolResults: ToolUseResult[] = [];
-      
       // 会話履歴にユーザーメッセージを追加
       this.conversation.push({ role: 'user', content: message });
       
@@ -500,36 +377,19 @@ TypeScript、JavaScript、Node.js、ウェブ開発に特に精通していま�
       }));
       
       // 特別なシステムプロンプトを構築
-      const toolPrompt = `あなたには以下のツールが利用可能です:
+      const toolPrompt = `あなたは以下のツールを使用できます:
 ${JSON.stringify(toolDefinitions, null, 2)}
 
-【重要】ツール使用は必ず以下の形式で行ってください:
+ツールを使用するには、以下の形式で応答してください:
 <function_calls>
 <invoke name="ToolName">
 <parameter name="paramName">paramValue</parameter>
 </invoke>
 </function_calls>
 
-以下の場合には必ずツールを使用してください:
-1. ファイルを探す場合: GlobToolで「**/*.拡張子」パターンを使用
-2. コード内を検索する場合: GrepToolで検索
-3. ファイル内容を確認する場合: Viewツールを使用
-4. ディレクトリ内容を表示する場合: LSツールを使用
-
-複雑な検索や詳細な分析が必要な場合は、dispatch_agentツールを使用してください。
-例えば「詳細なファイル分析」や「特定パターンに一致するファイルの詳細検索」などです。
-
-推測や想像で答えず、必ずツールを使って確実な情報を取得してください。
-自然言語の指示からツール使用を判断し、適切なツールを選んで実行してください。
-例えば「READMEファイルを探して」と言われたら:
-1. GlobToolで「**/README.md」のようなパターンで検索
-2. 見つかったファイルをViewツールで内容表示
-
-ファイルパスが明示されていなくても、名前や種類から推測してツールを使ってください。
-目的を達成するために複数のツールを連続して使うこともできます。
-
 必ず日本語でユーザーとコミュニケーションを取ってください。
-ツールの実行結果も日本語で説明し、英語での回答は避けてください。`;
+ツールの実行結果は常に日本語で説明してください。
+英語での回答は避け、すべての出力を日本語に統一してください。`;
       
       // システムメッセージを取得（最初のメッセージが必ずシステムメッセージ）
       const baseSystemPrompt = this.conversation[0].content;
@@ -537,209 +397,130 @@ ${JSON.stringify(toolDefinitions, null, 2)}
       // 元のシステムプロンプトにツールサポートを追加
       const combinedSystemPrompt = `${baseSystemPrompt}\n\n${toolPrompt}`;
       
+      // ツール実行のためのカスタム会話履歴を作成
+      const conversationHistory = [
+        { role: 'system', content: combinedSystemPrompt },
+        ...this.conversation.slice(1) // システムメッセージ以外をコピー
+      ];
+      
       // 会話履歴を更新 - システムプロンプトをツールサポート付きのものに置き換え
       this.conversation[0].content = combinedSystemPrompt;
       
-      // ユーザーからのメッセージを送信してアシスタントの応答を取得（拡張思考モードサポート）
-      let completeResponse = await this.sendMessage(message, streamCallback, thinkingEnabled, thinkingBudget);
+      // ツール実行結果を格納する配列
+      const toolResults: ToolUseResult[] = [];
       
-      // ツール使用を検出して実行
-      let toolIterations = 0;
-      const maxToolIterations = 10; // 無限ループ防止用の制限
+      // ユーザーからのメッセージを送信してアシスタントの応答を取得
+      const response = await this.sendMessage(message, streamCallback);
       
-      while (completeResponse.match(/<function_calls>[\s\S]*?<\/function_calls>/g) && toolIterations < maxToolIterations) {
-        toolIterations++;
-        logger.debug(`ツール実行イテレーション ${toolIterations}/${maxToolIterations}`);
+      // 応答からツール呼び出しを検出して実行
+      const functionCallPattern = /<function_calls>([\s\S]*?)<\/function_calls>/g;
+      const invokePattern = /<invoke name="([\w]+)">([\s\S]*?)<\/invoke>/g;
+      const paramPattern = /<parameter name="([\w]+)">([\s\S]*?)<\/parameter>/g;
+      
+      let responseText = response;
+      let functionCallsDetected = false;
+      
+      // 関数呼び出しブロックを検出
+      const functionCallMatches = [...response.matchAll(functionCallPattern)];
+      
+      for (const functionCallMatch of functionCallMatches) {
+        const functionCallBlock = functionCallMatch[1];
+        functionCallsDetected = true;
         
-        // ツール使用を抽出
-        const functionCallPattern = /<function_calls>([\s\S]*?)<\/function_calls>/g;
-        const invokePattern = /<invoke name="([\w-]+)">([\s\S]*?)<\/invoke>/g;
-        const paramPattern = /<parameter name="([\w-]+)">([\s\S]*?)<\/parameter>/g;
+        // ツール呼び出しを検出
+        const invokeMatches = [...functionCallBlock.matchAll(invokePattern)];
         
-        const functionCallMatches = [...completeResponse.matchAll(functionCallPattern)];
-        
-        // 並列実行するツール呼び出しの配列
-        const toolExecutionPromises = [];
-        const toolMatchPositions = [];
-        
-        // すべてのツール呼び出しを準備
-        for (let i = 0; i < functionCallMatches.length; i++) {
-          const match = functionCallMatches[i];
-          const functionCallBlock = match[0];
-          const functionCallContent = match[1];
+        for (const invokeMatch of invokeMatches) {
+          const toolName = invokeMatch[1];
+          const paramsBlock = invokeMatch[2];
           
-          // ツール呼び出しを検出
-          const invokeMatches = [...functionCallContent.matchAll(invokePattern)];
+          // 対応するツールがあるか確認
+          const tool = this.tools.get(toolName);
           
-          for (const invokeMatch of invokeMatches) {
-            const toolName = invokeMatch[1];
-            const paramsBlock = invokeMatch[2];
+          if (tool) {
+            // パラメータを解析
+            const params: Record<string, any> = {};
+            const paramMatches = [...paramsBlock.matchAll(paramPattern)];
             
-            // 対応するツールがあるか確認
-            const tool = this.tools.get(toolName);
-            
-            if (tool) {
-              // パラメータを解析
-              const params: Record<string, any> = {};
-              const paramMatches = [...paramsBlock.matchAll(paramPattern)];
+            for (const paramMatch of paramMatches) {
+              const paramName = paramMatch[1];
+              const paramValue = paramMatch[2].trim();
               
-              for (const paramMatch of paramMatches) {
-                const paramName = paramMatch[1];
-                const paramValue = paramMatch[2].trim();
-                
-                // パラメータの値を適切な型に変換
-                try {
-                  // 数値、真偽値、配列、オブジェクトの場合はJSONとしてパース
-                  if (/^(\d+|\d+\.\d+|true|false|\[.*\]|\{.*\})$/.test(paramValue)) {
-                    params[paramName] = JSON.parse(paramValue);
-                  } else {
-                    // それ以外は文字列として扱う
-                    params[paramName] = paramValue;
-                  }
-                } catch {
-                  // JSONパースに失敗した場合は文字列として扱う
+              // パラメータの値を適切な型に変換（数値、配列など）
+              try {
+                // 数値、真偽値、配列、オブジェクトの場合はJSONとしてパース
+                if (/^(\d+|\d+\.\d+|true|false|\[.*\]|\{.*\})$/.test(paramValue)) {
+                  params[paramName] = JSON.parse(paramValue);
+                } else {
+                  // それ以外は文字列として扱う
                   params[paramName] = paramValue;
                 }
+              } catch {
+                // JSONパースに失敗した場合は文字列として扱う
+                params[paramName] = paramValue;
               }
+            }
+            
+            try {
+              // ツールを実行
+              logger.debug(`ツール ${toolName} を実行中...`, params);
+              const result = await tool.execute(params);
               
-              // ツール実行プロミスを作成
-              const toolPromise = (async () => {
-                try {
-                  // ツールを実行
-                  logger.debug(`ツール ${toolName} を実行中...`, params);
-                  const result = await tool.execute(params);
-                  
-                  // 成功結果を返す
-                  return {
-                    toolName,
-                    result,
-                    success: true,
-                    blockIndex: i,
-                    block: functionCallBlock
-                  };
-                } catch (error) {
-                  // エラー情報を返す
-                  const errorMessage = error instanceof Error ? error.message : String(error);
-                  logger.error(`ツール ${toolName} の実行中にエラーが発生しました: ${errorMessage}`);
-                  
-                  return {
-                    toolName,
-                    error: errorMessage,
-                    success: false,
-                    blockIndex: i,
-                    block: functionCallBlock
-                  };
-                }
-              })();
+              // 結果を保存
+              toolResults.push({
+                toolName,
+                result,
+                success: true
+              });
               
-              // プロミス配列に追加
-              if (this.parallelToolExecution) {
-                toolExecutionPromises.push(toolPromise);
-                toolMatchPositions.push({
-                  block: functionCallBlock,
-                  index: i
-                });
-              } else {
-                // 並列実行が無効の場合は逐次実行
-                const result = await toolPromise;
-                toolResults.push(result);
-                
-                // レスポンステキストを更新
-                if (result.success) {
-                  completeResponse = completeResponse.replace(
-                    result.block,
-                    `\n<function_results>${JSON.stringify(result.result, null, 2)}</function_results>\n`
-                  );
-                } else {
-                  completeResponse = completeResponse.replace(
-                    result.block,
-                    `\n<function_results>エラー: ${result.error}</function_results>\n`
-                  );
-                }
-              }
-            } else {
-              // 不明なツール
-              logger.warn(`不明なツールが要求されました: ${toolName}`);
+              // レスポンステキストからツール呼び出しを結果に置き換え
+              responseText = responseText.replace(
+                functionCallMatch[0], 
+                `**ツール実行結果 (${toolName}):**\n\n${JSON.stringify(result, null, 2)}`
+              );
+            } catch (error) {
+              // ツール実行エラー
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              
+              logger.error(`ツール ${toolName} の実行中にエラーが発生しました: ${errorMessage}`);
               
               toolResults.push({
                 toolName,
-                error: `不明なツール: ${toolName}`,
+                error: errorMessage,
                 success: false
               });
               
               // レスポンステキストからツール呼び出しをエラーメッセージに置き換え
-              completeResponse = completeResponse.replace(
-                  functionCallBlock, 
-                  `\n<function_results>エラー: 不明なツール: ${toolName}</function_results>\n`
-                );
+              responseText = responseText.replace(
+                functionCallMatch[0], 
+                `**ツール実行エラー (${toolName}):**\n\n${errorMessage}`
+              );
             }
-          }
-        }
-        
-        // 並列実行が有効の場合は、すべてのツールの結果を待機
-        if (this.parallelToolExecution && toolExecutionPromises.length > 0) {
-          // すべてのツールを並列で実行
-          const parallelResults = await Promise.all(toolExecutionPromises);
-          
-          // 結果をtoolResultsに追加
-          for (const result of parallelResults) {
-            toolResults.push(result);
-          }
-          
-          // レスポンスからツール呼び出しブロックを削除し、結果を挿入
-          // 後ろから順に置換して、インデックスの変化を防ぐ
-          for (let i = parallelResults.length - 1; i >= 0; i--) {
-            const result = parallelResults[i];
+          } else {
+            // 不明なツール
+            logger.warn(`不明なツールが要求されました: ${toolName}`);
             
-            if (result.success) {
-              completeResponse = completeResponse.replace(
-                result.block,
-                `\n<function_results>${JSON.stringify(result.result, null, 2)}</function_results>\n`
+            toolResults.push({
+              toolName,
+              error: `不明なツール: ${toolName}`,
+              success: false
+            });
+            
+            // レスポンステキストからツール呼び出しをエラーメッセージに置き換え
+            responseText = responseText.replace(
+                functionCallMatch[0], 
+                `**ツールエラー:**\n\n不明なツール: ${toolName}`
               );
-            } else {
-              completeResponse = completeResponse.replace(
-                result.block,
-                `\n<function_results>エラー: ${result.error}</function_results>\n`
-              );
-            }
           }
-        }
-        
-        // 更新されたレスポンスをユーザーからのメッセージとして送信し、続きを取得
-        if (completeResponse.match(/<function_calls>[\s\S]*?<\/function_calls>/g)) {
-          logger.debug('追加のツール使用を検出しました。続きを実行します...');
-          
-          // ユーザーに中間状態を表示（オプション）
-          if (streamCallback) {
-            streamCallback("\n[追加のツール実行中...]\n", "tool_execution");
-          }
-          
-          // 次のメッセージを送信（ここでは既存の応答を新しいユーザーメッセージとして扱う）
-          completeResponse = await this.sendMessage(completeResponse, streamCallback, thinkingEnabled, thinkingBudget);
         }
       }
       
-      // 最大イテレーション数に達した場合の警告
-      if (toolIterations >= maxToolIterations) {
-        logger.warn(`ツール使用の最大イテレーション数(${maxToolIterations})に達しました`);
-        if (streamCallback) {
-          streamCallback("\n[警告: ツール使用の最大回数に達しました。処理を中断します]\n", "warning");
-        }
+      if (functionCallsDetected) {
+        logger.info(`${toolResults.length}個のツールが実行されました`);
       }
-      
-      // レスポンスから不要なタグを取り除く
-      const cleanedResponse = completeResponse
-        .replace(/<function_results>[\s\S]*?<\/function_results>/g, '')
-        .trim();
-      
-      // 終了時間と所要時間を計算
-      const endTime = Date.now();
-      const executionTime = endTime - startTime;
-      
-      logger.info(`ツール実行完了: ${toolResults.length}個のツールが実行されました (${executionTime}ms)`);
       
       return {
-        responseText: cleanedResponse,
+        responseText,
         toolResults
       };
     } catch (error) {
@@ -846,12 +627,6 @@ ${JSON.stringify(toolDefinitions, null, 2)}
           wholeWord: { type: 'boolean' },
           maxFiles: { type: 'number' }
         };
-      case 'FilePathGenerator':
-        return {
-          pattern: { type: 'string', description: 'File path pattern with optional number prefix (e.g. "9. src/path/to/file.js")' },
-          content: { type: 'string', description: 'Content to write to the file' },
-          baseDir: { type: 'string', description: 'Base directory to resolve relative paths' }
-        };
       case 'dispatch_agent':
         return {
           prompt: { type: 'string', description: 'The task for the agent to perform' }
@@ -887,8 +662,6 @@ ${JSON.stringify(toolDefinitions, null, 2)}
         return ['files'];
       case 'Refactor':
         return ['pattern', 'replacement', 'include'];
-      case 'FilePathGenerator':
-        return ['pattern', 'content'];
       case 'dispatch_agent':
         return ['prompt'];
       default:

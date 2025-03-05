@@ -36,6 +36,18 @@
       case 'notifyCodeSaved':
         notifyCodeSaved(message.filename, message.language);
         break;
+      case 'saveToProjectComplete':
+        notifySaveToProjectComplete(message);
+        break;
+      case 'saveDirectoryStructureComplete':
+        notifySaveDirectoryStructureComplete(message);
+        break;
+      case 'saveSpecificationComplete':
+        notifySaveSpecificationComplete(message);
+        break;
+      case 'updateClaudeMdProgressComplete':
+        notifyClaudeMdUpdateComplete(message);
+        break;
     }
   });
   
@@ -166,6 +178,7 @@
             <button class="button show-preview" data-page-id="${page.id}">プレビュー表示</button>
             <button class="button open-browser" data-page-id="${page.id}">ブラウザで開く</button>
             <button class="button regenerate-mockup" data-page-id="${page.id}">再生成</button>
+            <button class="button save-to-project" data-page-id="${page.id}">プロジェクトに保存</button>
           `;
         } else {
           mockupButtons.innerHTML = `
@@ -230,6 +243,25 @@
           command: 'generateMockup',
           pageId,
           framework: 'html' // デフォルトはHTML
+        });
+      });
+    });
+    
+    // プロジェクト保存ボタン
+    document.querySelectorAll('.save-to-project').forEach(button => {
+      button.addEventListener('click', () => {
+        const pageId = button.dataset.pageId;
+        const mockupIndex = button.dataset.mockupIndex || 0;
+        
+        // ページ名をファイル名の候補として渡す
+        const page = state.pages.find(p => p.id === pageId);
+        const suggestedFileName = page ? page.name.toLowerCase().replace(/\s+/g, '-') : `page-${pageId}`;
+        
+        vscode.postMessage({
+          command: 'saveToProject',
+          pageId,
+          mockupIndex: parseInt(mockupIndex),
+          fileName: suggestedFileName
         });
       });
     });
@@ -376,6 +408,52 @@
       
       block.appendChild(copyButton);
     });
+  }
+  
+  // プロジェクト保存完了通知
+  function notifySaveToProjectComplete(message) {
+    const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+    
+    const notification = document.createElement('div');
+    notification.className = 'message system';
+    
+    if (message.success) {
+      notification.innerHTML = `<p>✅ モックアップをプロジェクトに保存しました: <strong>${message.fileName}</strong></p>`;
+      
+      if (message.claudeMdUpdateFailed) {
+        notification.innerHTML += `<p>⚠️ CLAUDE.mdの更新に失敗しました</p>`;
+      } else {
+        notification.innerHTML += `<p>✅ CLAUDE.mdの進捗状況も更新しました</p>`;
+      }
+    } else {
+      notification.innerHTML = `<p>❌ モックアップの保存に失敗しました: ${message.error}</p>`;
+    }
+    
+    messagesContainer.appendChild(notification);
+    
+    // 自動スクロール
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+  
+  // CLAUDE.md更新完了通知
+  function notifyClaudeMdUpdateComplete(message) {
+    const messagesContainer = document.getElementById('chat-messages');
+    if (!messagesContainer) return;
+    
+    const notification = document.createElement('div');
+    notification.className = 'message system';
+    
+    if (message.success) {
+      notification.innerHTML = `<p>✅ CLAUDE.mdの進捗状況を更新しました: ${message.phase} -> ${message.isCompleted ? '完了' : '未完了'}</p>`;
+    } else {
+      notification.innerHTML = `<p>❌ CLAUDE.mdの更新に失敗しました: ${message.error}</p>`;
+    }
+    
+    messagesContainer.appendChild(notification);
+    
+    // 自動スクロール
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
 
   // 初期化メッセージを送信

@@ -7,7 +7,7 @@
     const sendButton = document.getElementById('send-button');
     const messageInput = document.getElementById('message-input');
     const clearChatButton = document.getElementById('clear-chat-button');
-    const createProjectButton = document.getElementById('create-project-button');
+    const exportRequirementsButton = document.getElementById('export-requirements-button');
     
     sendButton.addEventListener('click', sendMessage);
     messageInput.addEventListener('keypress', (event) => {
@@ -24,9 +24,9 @@
       });
     }
     
-    // プロジェクト作成ボタンの設定
-    if (createProjectButton) {
-      createProjectButton.addEventListener('click', createProject);
+    // 要件定義エクスポートボタンの設定
+    if (exportRequirementsButton) {
+      exportRequirementsButton.addEventListener('click', exportRequirements);
     }
 
     // 初期化メッセージを送信
@@ -40,6 +40,13 @@
     });
   }
 
+  // 要件定義をプロジェクトに保存
+  function exportRequirements() {
+    vscode.postMessage({
+      command: 'exportRequirements'
+    });
+  }
+  
   // メッセージ送信処理
   function sendMessage() {
     if (isWaitingForResponse) return;

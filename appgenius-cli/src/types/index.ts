@@ -18,6 +18,9 @@ export interface AppConfig {
     streamingEnabled?: boolean;
     markdownEnabled?: boolean;
     parallelToolExecution?: boolean;
+    thinkingEnabled?: boolean;
+    thinkingBudget?: number;
+    agentModeEnabled?: boolean;
   };
 }
 
@@ -122,7 +125,7 @@ export interface ClaudeResponse {
   id: string;
   type: string;
   role: string;
-  content: Array<{
+  content?: Array<{
     type: string;
     text?: string;
     tool_use?: {
@@ -136,12 +139,14 @@ export interface ClaudeResponse {
     };
   }>;
   model: string;
-  stopReason: string;
-  stopSequence: string | null;
-  usage: {
-    inputTokens: number;
-    outputTokens: number;
+  stopReason?: string;
+  stopSequence?: string | null;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
   };
+  // API形式変更対応のためのフォールバックフィールド
+  text?: string;
 }
 
 /**
@@ -162,17 +167,22 @@ export interface AIMessage {
 }
 
 /**
+ * ストリーミングメッセージタイプ
+ */
+export type StreamMessageType = 'text' | 'thinking' | 'tool_use' | 'tool_execution' | 'warning' | 'error' | 'system';
+
+/**
  * ストリーミングコールバック関数
  */
-export type StreamCallback = (chunk: string) => void;
+export type StreamCallback = (chunk: string, type?: StreamMessageType) => void;
 
 /**
  * ツール使用結果
  */
 export interface ToolUseResult {
   toolName: string;
-  args: any;
-  result: any;
+  result?: any;
+  success: boolean;
   error?: string;
   errorType?: 'validation' | 'execution' | 'timeout' | 'permission' | 'notFound' | 'unknown' | 'syntax' | 'network' | 'conflict' | 'limit' | 'unsupported' | 'format' | 'security' | 'api' | 'compatibility';
   suggestions?: string[];

@@ -37,7 +37,7 @@ body {
   gap: 10px;
 }
 
-.clear-chat-btn {
+.clear-chat-btn, .export-btn {
   background-color: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
   border: none;
@@ -46,6 +46,11 @@ body {
   font-size: 0.85em;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.export-btn {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
 }
 
 .clear-chat-btn:hover {

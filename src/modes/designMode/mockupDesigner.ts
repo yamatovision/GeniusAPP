@@ -652,10 +652,22 @@ root.render(<App />);`;
 
   /**
    * モックアップファイルを保存
+   * @param pageId ページID
+   * @param code モックアップコード
+   * @param framework フレームワーク
+   * @param options 保存オプション（カスタムファイル名、保存先等）
    */
-  private async saveMockupFiles(pageId: string, code: MockupCode, framework: string): Promise<Mockup> {
+  private async saveMockupFiles(
+    pageId: string, 
+    code: MockupCode, 
+    framework: string,
+    options?: {
+      fileName?: string;  // カスタムファイル名（拡張子なし）
+      projectPath?: string;  // プロジェクトパス（指定された場合はそこに保存）
+    }
+  ): Promise<Mockup> {
     try {
-      // ユーザーのホームディレクトリを使用
+      // ユーザーのホームディレクトリをデフォルトとして使用
       const homeDir = process.env.HOME || process.env.USERPROFILE || '';
       
       // ワークスペース名を取得
@@ -664,24 +676,51 @@ root.render(<App />);`;
       // タイムスタンプ
       const timestamp = Date.now();
       
-      // ディレクトリパスを生成
-      const appDir = path.join(homeDir, '.appgenius-ai');
-      const mockupsDir = path.join(appDir, 'mockups');
-      const mockupDir = path.join(mockupsDir, `${workspaceName}_${pageId}_${timestamp}`);
-      
-      // 各階層のディレクトリを確認して作成
-      if (!await FileManager.directoryExists(appDir)) {
-        await FileManager.createDirectory(appDir);
+      // ページ情報を取得（名前を保存用に使用）
+      const page = this.getPageById(pageId);
+      if (!page) {
+        Logger.warn(`ページ情報が見つかりません: ${pageId}`);
       }
       
-      if (!await FileManager.directoryExists(mockupsDir)) {
-        await FileManager.createDirectory(mockupsDir);
+      // ファイル名の生成（オプションで指定されていればそれを使用、なければページ名またはIDから生成）
+      const fileName = options?.fileName || this._generateSafeFileName(page?.name || `page-${pageId}`);
+      
+      // ディレクトリパスを決定
+      let mockupDir: string;
+      
+      if (options?.projectPath) {
+        // プロジェクトパスが指定されていれば、その中のmockupsディレクトリに保存
+        const projectMockupsDir = path.join(options.projectPath, 'mockups');
+        
+        // mockupsディレクトリが存在しなければ作成
+        if (!await FileManager.directoryExists(projectMockupsDir)) {
+          await FileManager.createDirectory(projectMockupsDir);
+        }
+        
+        // モックアップのサブディレクトリを作成（ファイル名+タイムスタンプ）
+        mockupDir = path.join(projectMockupsDir, `${fileName}-${timestamp}`);
+      } else {
+        // 指定がなければデフォルトのアプリディレクトリに保存
+        const appDir = path.join(homeDir, '.appgenius-ai');
+        const mockupsDir = path.join(appDir, 'mockups');
+        mockupDir = path.join(mockupsDir, `${workspaceName}_${fileName}_${timestamp}`);
+        
+        // 各階層のディレクトリを確認して作成
+        if (!await FileManager.directoryExists(appDir)) {
+          await FileManager.createDirectory(appDir);
+        }
+        
+        if (!await FileManager.directoryExists(mockupsDir)) {
+          await FileManager.createDirectory(mockupsDir);
+        }
       }
       
+      // モックアップディレクトリを作成
       if (!await FileManager.directoryExists(mockupDir)) {
         await FileManager.createDirectory(mockupDir);
       }
       
+      // モックアップオブジェクトの初期化
       const mockup: Mockup = {
         pageId,
         timestamp
@@ -694,9 +733,9 @@ root.render(<App />);`;
         mockup.htmlPath = htmlPath;
       }
       
-      // CSSファイルを保存
+      // CSSファイルを保存 (名前を統一して style.css に変更)
       if (code.css) {
-        const cssPath = path.join(mockupDir, 'styles.css');
+        const cssPath = path.join(mockupDir, 'style.css');
         await FileManager.writeFile(cssPath, code.css);
         mockup.cssPath = cssPath;
       }
@@ -732,7 +771,7 @@ root.render(<App />);`;
         }
         
         // 一体型HTMLを保存
-        const fullHtmlPath = path.join(mockupDir, 'full.html');
+        const fullHtmlPath = path.join(mockupDir, `${fileName}.html`);
         await FileManager.writeFile(fullHtmlPath, fullHtml);
         mockup.fullHtmlPath = fullHtmlPath;
       }
@@ -742,11 +781,28 @@ root.render(<App />);`;
         mockup.previewUrl = vscode.Uri.file(mockup.htmlPath).toString();
       }
       
+      Logger.info(`モックアップを保存しました: ${mockupDir}`);
       return mockup;
     } catch (error) {
       Logger.error('モックアップファイルの保存に失敗しました', error as Error);
       throw new Error('モックアップファイルの保存に失敗しました');
     }
+  }
+  
+  /**
+   * ファイル名に使用できる安全な文字列を生成
+   * @param name 元の名前
+   * @returns ファイルシステムで使用可能な名前
+   */
+  private _generateSafeFileName(name: string): string {
+    // スペースをハイフンに変換し、ファイル名に使用できない文字を削除
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '-')           // スペースをハイフンに変換
+      .replace(/[^\w\-]/g, '')        // 英数字、アンダースコア、ハイフン以外を削除
+      .replace(/\-{2,}/g, '-')        // 連続するハイフンを1つにまとめる
+      .replace(/^-+|-+$/g, '');       // 先頭と末尾のハイフンを削除
   }
 
   /**

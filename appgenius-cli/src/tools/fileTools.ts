@@ -1253,6 +1253,105 @@ export class BatchReplaceTool implements Tool {
 }
 
 /**
+ * FilePathGenerator クラス - 指定パターンのファイルパスと内容を解析して作成するツール
+ */
+export class FilePathGenerator implements Tool {
+  name = 'FilePathGenerator';
+  description = 'Analyzes file path patterns like "9. src/modules/Auth/services/authService.js" and creates the directories and file with the specified content.';
+
+  async execute(args: { 
+    pattern: string; 
+    content: string; 
+    baseDir?: string 
+  }): Promise<FileOperationResult> {
+    try {
+      // 引数検証
+      if (!args.pattern) {
+        return {
+          success: false,
+          filePath: '',
+          error: 'ファイルパスパターンが指定されていません',
+          errorType: 'validation',
+          suggestions: ['pattern パラメータを指定してください']
+        };
+      }
+
+      if (args.content === undefined) {
+        return {
+          success: false,
+          filePath: '',
+          error: 'ファイル内容が指定されていません',
+          errorType: 'validation',
+          suggestions: ['content パラメータを指定してください']
+        };
+      }
+
+      // パターンからファイルパスを抽出
+      // 例: "9. src/modules/Auth/services/authService.js" から "src/modules/Auth/services/authService.js" を抽出
+      const pathMatch = args.pattern.match(/(?:\d+\.\s*)?(.+)/);
+      if (!pathMatch || !pathMatch[1]) {
+        return {
+          success: false,
+          filePath: '',
+          error: '有効なファイルパスパターンではありません',
+          errorType: 'validation',
+          suggestions: ['番号付きパス (例: "9. src/path/to/file.js") または通常のパス (例: "src/path/to/file.js") を指定してください']
+        };
+      }
+
+      const filePath = pathMatch[1].trim();
+      
+      // ベースディレクトリの設定
+      const config = configManager.getConfig();
+      const baseDir = args.baseDir || config.projectRoot;
+      const fullPath = path.isAbsolute(filePath) ? filePath : path.join(baseDir, filePath);
+      
+      // ディレクトリが存在しなければ作成
+      const dir = path.dirname(fullPath);
+      if (!fs.existsSync(dir)) {
+        await fs.mkdirp(dir);
+        logger.debug(`ディレクトリを作成しました: ${dir}`);
+      }
+      
+      // ファイルに内容を書き込み
+      await fs.writeFile(fullPath, args.content);
+      logger.info(`ファイルを作成しました: ${fullPath}`);
+      
+      return {
+        success: true,
+        filePath: fullPath
+      };
+    } catch (error) {
+      logger.error(`FilePathGenerator実行エラー: ${(error as Error).message}`, error as Error);
+      
+      // エラータイプと提案を設定
+      let errorType = 'execution';
+      let suggestions = [
+        'パスが有効か確認してください',
+        '書き込み権限があるか確認してください'
+      ];
+      
+      const errorMsg = (error as Error).message;
+      if (errorMsg.includes('EACCES') || errorMsg.includes('permission')) {
+        errorType = 'permission';
+        suggestions = ['ファイルの書き込み権限があるか確認してください'];
+      } else if (errorMsg.includes('ENOENT')) {
+        errorType = 'notFound';
+        suggestions = ['パス内のディレクトリ名を確認してください'];
+      }
+      
+      return {
+        success: false,
+        filePath: args.pattern,
+        error: errorMsg,
+        errorType,
+        suggestions
+      };
+    }
+  }
+}
+
+/**
  * RefactorTool クラス - コードリファクタリングツール
  */
 export class RefactorTool implements Tool {

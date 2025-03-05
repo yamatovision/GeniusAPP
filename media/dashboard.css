@@ -46,14 +46,27 @@
 .sidebar-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   padding: 0.8rem;
   border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .sidebar-header h2 {
-  margin: 0;
+  margin: 0 0 0.6rem 0;
   font-size: 1rem;
+}
+
+.project-buttons {
+  display: flex;
+  width: 100%;
+  gap: 0.5rem;
+}
+
+.project-buttons button {
+  flex: 1;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
 }
 
 .projects-container {

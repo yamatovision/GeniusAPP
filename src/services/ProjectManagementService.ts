@@ -82,7 +82,7 @@ export class ProjectManagementService {
       const id = `project_${Date.now()}`;
       const projectDir = path.join(this.storageDir, id);
       
-      // ディレクトリの作成
+      // プロジェクトの内部ディレクトリの作成
       this.ensureDirectoryExists(projectDir);
       
       // 現在時刻を取得
@@ -106,6 +106,37 @@ export class ProjectManagementService {
         },
         metadata: {}
       };
+      
+      // プロジェクトパスが指定されている場合は、プロジェクトフォルダ構造を作成
+      if (project.path) {
+        try {
+          // プロジェクトフォルダを作成
+          this.ensureDirectoryExists(project.path);
+          
+          // 新しいプロジェクト構造を作成
+          this.ensureDirectoryExists(path.join(project.path, 'docs'));
+          this.ensureDirectoryExists(path.join(project.path, 'mockups'));
+          
+          // 基本的なドキュメントファイルを作成
+          this.createInitialDocuments(project.path);
+          
+          // CLAUDE.mdファイルを生成
+          try {
+            const { ClaudeMdService } = await import('../utils/ClaudeMdService');
+            const claudeMdService = ClaudeMdService.getInstance();
+            await claudeMdService.generateClaudeMd(project.path, {
+              name: project.name,
+              description: project.description
+            });
+            
+            Logger.info(`CLAUDE.md file created for project: ${id}`);
+          } catch (e) {
+            Logger.warn(`Failed to create CLAUDE.md file: ${(e as Error).message}`);
+          }
+        } catch (e) {
+          Logger.error(`Failed to create project structure: ${(e as Error).message}`);
+        }
+      }
       
       // メモリ上のマップに保存
       this.projects.set(id, project);
@@ -134,6 +165,156 @@ export class ProjectManagementService {
     } catch (error) {
       Logger.error(`Failed to create project: ${(error as Error).message}`);
       throw new Error(`プロジェクトの作成に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 初期ドキュメントファイルを作成
+   * @param projectPath プロジェクトのパス
+   */
+  private createInitialDocuments(projectPath: string): void {
+    try {
+      // requirements.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'requirements.md'),
+        `# 要件定義
+
+## 機能要件
+
+1. 要件1
+   - 説明: 機能の詳細説明
+   - 優先度: 高
+
+2. 要件2
+   - 説明: 機能の詳細説明
+   - 優先度: 中
+
+## 非機能要件
+
+1. パフォーマンス
+   - 説明: レスポンス時間や処理能力に関する要件
+   - 優先度: 中
+
+2. セキュリティ
+   - 説明: セキュリティに関する要件
+   - 優先度: 高
+
+## ユーザーストーリー
+
+- ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。
+`,
+        'utf8'
+      );
+      
+      // structure.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'structure.md'),
+        `# ディレクトリ構造
+
+\`\`\`
+project/
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── assets/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── styles/
+│       └── utils/
+├── backend/
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   └── models/
+\`\`\`
+`,
+        'utf8'
+      );
+      
+      // scope.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'scope.md'),
+        `# 実装スコープ
+
+## 完了
+
+（まだ完了した項目はありません）
+
+## 進行中
+
+（実装中の項目がここに表示されます）
+
+## 未着手
+
+1. ユーザー認証機能
+   - 説明: ログイン・登録機能の実装
+   - 優先度: 高
+   - 関連ファイル: 未定
+
+2. データ表示機能
+   - 説明: メインデータの一覧表示
+   - 優先度: 高
+   - 関連ファイル: 未定
+`,
+        'utf8'
+      );
+      
+      // api.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'api.md'),
+        `# API設計
+
+## エンドポイント一覧
+
+### ユーザー管理
+
+- \`POST /api/auth/login\`
+  - 説明: ユーザーログイン
+  - リクエスト: \`{ email: string, password: string }\`
+  - レスポンス: \`{ token: string, user: User }\`
+
+- \`POST /api/auth/register\`
+  - 説明: ユーザー登録
+  - リクエスト: \`{ name: string, email: string, password: string }\`
+  - レスポンス: \`{ token: string, user: User }\`
+
+### データ管理
+
+- \`GET /api/data\`
+  - 説明: データ一覧取得
+  - リクエストパラメータ: \`{ page: number, limit: number }\`
+  - レスポンス: \`{ data: DataItem[], total: number }\`
+`,
+        'utf8'
+      );
+      
+      // env.example
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'env.example'),
+        `# 環境変数サンプル
+# 実際の値は.envファイルに設定してください
+
+# サーバー設定
+PORT=3000
+NODE_ENV=development
+
+# データベース設定
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mydatabase
+DB_USER=user
+DB_PASSWORD=password
+
+# 認証設定
+JWT_SECRET=your_jwt_secret_key
+`,
+        'utf8'
+      );
+      
+      Logger.info(`Initial documents created for project at: ${projectPath}`);
+    } catch (error) {
+      Logger.error(`Failed to create initial documents: ${(error as Error).message}`);
     }
   }
 

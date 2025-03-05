@@ -8,7 +8,7 @@ import { exec } from 'child_process';
 import * as marked from 'marked';
 import TerminalRenderer from 'marked-terminal';
 import terminalLink from 'terminal-link';
-import { AIMessage, ScopeData, Tool } from '../types';
+import { AIMessage, ScopeData, StreamMessageType, Tool } from '../types';
 import { logger } from '../utils/logger';
 import { ClaudeService } from './claudeService';
 import { progressService } from './progressService';
@@ -37,6 +37,7 @@ import {
   BatchEditTool,
   BatchReplaceTool,
   EditTool, 
+  FilePathGenerator,
   GlobTool, 
   GrepTool, 
   LSTool, 
@@ -304,7 +305,8 @@ ${content.trim()}
       // 複数ファイル編集関連の新ツール
       new BatchEditTool(),
       new BatchReplaceTool(),
-      new RefactorTool()
+      new RefactorTool(),
+      new FilePathGenerator() // ブルーランプ出力パターン対応のファイル生成ツール
     ];
     
     this.claudeService.registerTools(tools);
@@ -488,7 +490,13 @@ ${selectedItemsInfo}
       if (input.startsWith('/')) {
         await this.handleCommand(input);
       } else {
-        await this.handleUserMessage(input);
+        // ユーザー設定からエージェントモードと拡張思考モードを取得
+        const config = configManager.getConfig();
+        const agentMode = config.userPreferences?.agentModeEnabled === true;
+        const thinkingMode = config.userPreferences?.thinkingEnabled === true;
+        
+        // 設定に基づいてモードを有効化
+        await this.handleUserMessage(input, agentMode, thinkingMode);
       }
     } catch (error) {
       logger.error('ユーザー入力の処理中にエラーが発生しました', error as Error);
@@ -646,11 +654,28 @@ ${selectedItemsInfo}
         break;
         
       case '/extend':
+      case '/thinking':
         if (!paramsContent) {
           console.log(chalk.yellow('拡張思考する質問を指定してください'));
           return;
         }
         await this.handleExtendCommand(paramsContent);
+        break;
+        
+      case '/agent':
+        if (!paramsContent) {
+          console.log(chalk.yellow('エージェントモードで実行する質問を指定してください'));
+          return;
+        }
+        await this.handleAgentCommand(paramsContent);
+        break;
+        
+      case '/agent-thinking':
+        if (!paramsContent) {
+          console.log(chalk.yellow('エージェントモード+拡張思考で実行する質問を指定してください'));
+          return;
+        }
+        await this.handleAgentThinkingCommand(paramsContent);
         break;
         
       case '/debug':
@@ -753,7 +778,24 @@ ${contentB}
    */
   private async handleExtendCommand(question: string): Promise<void> {
     const prompt = `以下の問題について拡張思考モードで考えてください。段階的に分析を進め、考慮すべき要素、トレードオフ、代替案などを詳細に検討してください。最終的な結論や推奨事項を含めてください。\n\n問題: ${question}`;
-    await this.handleUserMessage(prompt);
+    // 拡張思考モード（第3引数がtrue）で実行
+    await this.handleUserMessage(prompt, false, true);
+  }
+  
+  /**
+   * エージェントモードコマンドの処理
+   */
+  private async handleAgentCommand(question: string): Promise<void> {
+    // エージェントモード（第2引数がtrue）で実行
+    await this.handleUserMessage(question, true, false);
+  }
+  
+  /**
+   * エージェント+拡張思考モードコマンドの処理
+   */
+  private async handleAgentThinkingCommand(question: string): Promise<void> {
+    // エージェントモード（第2引数）と拡張思考モード（第3引数）の両方をtrueで実行
+    await this.handleUserMessage(question, true, true);
   }
   
   /**
@@ -1623,6 +1665,11 @@ ${fileStats || 'ファイル変更情報が取得できません'}
       console.log(chalk.green('language') + ' - 言語設定 (ja, en)');
       console.log(chalk.green('streamingEnabled') + ' - ストリーミング有効化 (true, false)');
       console.log(chalk.green('markdownEnabled') + ' - マークダウンレンダリング (true, false)');
+      console.log(chalk.green('parallelToolExecution') + ' - 並列ツール実行 (true, false)');
+      console.log(chalk.bold('\nClaude拡張機能:'));
+      console.log(chalk.green('thinkingEnabled') + ' - 拡張思考モードをデフォルトで有効化 (true, false)');
+      console.log(chalk.green('thinkingBudget') + ' - 拡張思考モードのトークン予算 (1024-32000)');
+      console.log(chalk.green('agentModeEnabled') + ' - エージェントモードをデフォルトで有効化 (true, false)');
       console.log('');
       return;
     }
@@ -1698,6 +1745,34 @@ ${fileStats || 'ファイル変更情報が取得できません'}
           }
           config.userPreferences.parallelToolExecution = value === 'true';
           this.claudeService.setParallelToolExecution(value === 'true');
+          break;
+          
+        case 'thinkingEnabled':
+          if (value !== 'true' && value !== 'false') {
+            console.log(chalk.red('拡張思考モード設定は "true" または "false" で指定してください'));
+            return;
+          }
+          config.userPreferences.thinkingEnabled = value === 'true';
+          console.log(chalk.gray(`拡張思考モードを ${value === 'true' ? '有効' : '無効'} にしました`));
+          break;
+          
+        case 'thinkingBudget':
+          const budget = parseInt(value, 10);
+          if (isNaN(budget) || budget < 1024 || budget > 32000) {
+            console.log(chalk.red('拡張思考予算は1024から32000の整数で指定してください'));
+            return;
+          }
+          config.userPreferences.thinkingBudget = budget;
+          console.log(chalk.gray(`拡張思考予算を ${budget} トークンに設定しました`));
+          break;
+          
+        case 'agentModeEnabled':
+          if (value !== 'true' && value !== 'false') {
+            console.log(chalk.red('エージェントモード設定は "true" または "false" で指定してください'));
+            return;
+          }
+          config.userPreferences.agentModeEnabled = value === 'true';
+          console.log(chalk.gray(`エージェントモードを ${value === 'true' ? '有効' : '無効'} にしました`));
           break;
         
         default:
@@ -1792,7 +1867,9 @@ ${fileStats || 'ファイル変更情報が取得できません'}
     console.log(chalk.green('/explain <コード>') + ' - コードの詳細な説明を提供');
     console.log(chalk.green('/improve <コード>') + ' - コードの改善案を提案');
     console.log(chalk.green('/diff <ファイルA> <ファイルB>') + ' - 2つのファイルの差分を表示して説明');
-    console.log(chalk.green('/extend <質問>') + ' - 拡張思考モードで体系的に考える');
+    console.log(chalk.green('/extend') + ' または ' + chalk.green('/thinking <質問>') + ' - 拡張思考モードで体系的に考える');
+    console.log(chalk.green('/agent <質問>') + ' - エージェントモードで積極的に情報を探索');
+    console.log(chalk.green('/agent-thinking <質問>') + ' - エージェント + 拡張思考モードを組み合わせて使用');
     console.log(chalk.green('/debug <コード>') + ' - コードのデバッグ支援を提供');
     console.log(chalk.green('/git-history [ファイルパス]') + ' - Gitコミット履歴を分析');
     console.log(chalk.green('/preferences <キー> <値>') + ' - ユーザー設定を管理');
@@ -2164,15 +2241,34 @@ ${fileStats || 'ファイル変更情報が取得できません'}
   
   /**
    * ユーザーメッセージを処理
+   * @param message ユーザーメッセージ
+   * @param useAgentMode エージェントモード（先回り探索）を使用するかどうか
+   * @param useThinking 拡張思考を使用するかどうか
    */
-  private async handleUserMessage(message: string): Promise<void> {
+  private async handleUserMessage(
+    message: string,
+    useAgentMode: boolean = false,
+    useThinking: boolean = false
+  ): Promise<void> {
     try {
       // スピナーを開始
       this.spinner.start();
       
-      // ユーザー設定から言語を取得
+      // ユーザー設定から言語と拡張思考設定を取得
       const config = configManager.getConfig();
       const language = config.userPreferences?.language || 'ja';
+      
+      // ユーザー設定から拡張思考設定を取得
+      const thinkingEnabled = useThinking || 
+        (config.userPreferences?.thinkingEnabled === true);
+      
+      // 思考予算のデフォルト値
+      const thinkingBudget = config.userPreferences?.thinkingBudget || 4096;
+      
+      // エージェントモードのヒントを追加（先回り探索を促進）
+      if (useAgentMode) {
+        message = `[AGENT_MODE] 質問に答えるために必要なファイルを積極的に探索してください。質問に答えるために必要な情報が見つからない場合は、関連するファイルを探してください。\n\n${message}`;
+      }
       
       // 言語設定に基づいて指示を追加
       if (language === 'ja' && !message.includes('日本語で') && !message.includes('in Japanese')) {
@@ -2189,28 +2285,62 @@ ${fileStats || 'ファイル変更情報が取得できません'}
       // ストリーミングコールバック - メッセージをリアルタイム表示
       let isFirstChunk = true;
       let fullResponseText = '';
+      let isThinkingSection = false; // 思考セクションかどうか
       
       // 改良版ストリーミングコールバック - インテリジェントなチャンク処理
       let codeBlockBuffer = '';
       let inCodeBlock = false;
       let codeBlockType = '';
-      let lastLineWasEmpty = false;
+      let thinkingBuffer = ''; // 思考内容バッファ
       
-      const streamCallback = (chunk: string) => {
+      const streamCallback = (chunk: string, type?: StreamMessageType) => {
         // 最初のチャンクの場合はヘッダを表示
         if (isFirstChunk) {
           // スピナーを停止
           this.spinner.stop();
-          console.log(chalk.blue('\n[AI]:'));
+          
+          // メッセージタイプに応じたヘッダーを表示
+          if (type === 'thinking') {
+            console.log(chalk.yellow('\n[AI 思考プロセス]:'));
+            isThinkingSection = true;
+          } else {
+            console.log(chalk.blue('\n[AI]:'));
+          }
+          
           isFirstChunk = false;
           
           // バッファ初期化
           fullResponseText = '';
           codeBlockBuffer = '';
+          thinkingBuffer = '';
           inCodeBlock = false;
         }
         
-        // チャンクを追加
+        // チャンクがない場合は処理しない
+        if (!chunk) return;
+        
+        // メッセージタイプが変わった場合の処理
+        if (type === 'thinking' && !isThinkingSection) {
+          // 思考セクション開始
+          console.log(chalk.yellow('\n[AI 思考プロセス]:'));
+          isThinkingSection = true;
+        } else if (type !== 'thinking' && isThinkingSection) {
+          // 思考セクションが終わり応答セクション開始
+          console.log(chalk.blue('\n[AI 応答]:'));
+          isThinkingSection = false;
+        }
+        
+        // 思考内容の処理
+        if (type === 'thinking') {
+          // 思考内容はバッファに追加
+          thinkingBuffer += chunk;
+          
+          // 思考内容を黄色で表示
+          process.stdout.write(chalk.yellow(chunk));
+          return;
+        }
+        
+        // 通常の応答を処理
         fullResponseText += chunk;
                 
         // コードブロック検出と特殊処理 (ClaudeCode互換スタイル)
@@ -2260,8 +2390,13 @@ ${fileStats || 'ファイル変更情報が取得できません'}
         }
       };
       
-      // ツール使用検出を有効にしてメッセージを送信（ストリーミングコールバック付き）
-      const { responseText, toolResults } = await this.claudeService.detectAndExecuteTools(message, streamCallback);
+      // ツール使用検出を有効にしてメッセージを送信（拡張思考モードサポート付き）
+      const { responseText, toolResults } = await this.claudeService.detectAndExecuteTools(
+        message, 
+        streamCallback,
+        thinkingEnabled,
+        thinkingBudget
+      );
       
       // ストリーミングが行われなかった場合は通常の表示
       if (isFirstChunk) {

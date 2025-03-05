@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
 import { ProjectManagementService, Project } from '../../services/ProjectManagementService';
@@ -129,6 +130,9 @@ export class DashboardPanel {
             break;
           case 'analyzeProject':
             await this._handleAnalyzeProject();
+            break;
+          case 'loadExistingProject':
+            await this._handleLoadExistingProject();
             break;
           case 'refreshProjects':
             await this._refreshProjects();
@@ -537,6 +541,137 @@ export class DashboardPanel {
       await this._showError(`プロジェクト分析の実行に失敗しました: ${(error as Error).message}`);
     }
   }
+  
+  /**
+   * 既存プロジェクトを読み込む
+   */
+  private async _handleLoadExistingProject(): Promise<void> {
+    try {
+      // フォルダ選択ダイアログを表示
+      const options: vscode.OpenDialogOptions = {
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: 'プロジェクトフォルダを選択'
+      };
+      
+      const folderUri = await vscode.window.showOpenDialog(options);
+      if (!folderUri || folderUri.length === 0) {
+        return; // ユーザーがキャンセルした場合
+      }
+      
+      const folderPath = folderUri[0].fsPath;
+      
+      // プロジェクトフォルダを検証
+      await this._validateAndLoadProject(folderPath);
+    } catch (error) {
+      Logger.error(`プロジェクト読み込みエラー`, error as Error);
+      await this._showError(`プロジェクトの読み込みに失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * プロジェクトフォルダを検証して読み込む
+   */
+  private async _validateAndLoadProject(folderPath: string): Promise<void> {
+    // CLAUDE.mdファイルの存在確認
+    const claudeMdPath = path.join(folderPath, 'CLAUDE.md');
+    let claudeMdExists = fs.existsSync(claudeMdPath);
+    
+    // CLAUDE.mdがない場合、作成するか確認
+    if (!claudeMdExists) {
+      const createFile = await vscode.window.showInformationMessage(
+        `選択されたフォルダにCLAUDE.mdファイルが見つかりません。新しく作成しますか？`,
+        'はい', 'いいえ'
+      );
+      
+      if (createFile !== 'はい') {
+        throw new Error('プロジェクトの読み込みをキャンセルしました。');
+      }
+      
+      // CLAUDE.mdを新規作成
+      try {
+        // ClaudeMdServiceをインポート
+        const { ClaudeMdService } = await import('../../utils/ClaudeMdService');
+        const claudeMdService = ClaudeMdService.getInstance();
+        
+        // フォルダ名をプロジェクト名として使用
+        const folderName = path.basename(folderPath);
+        
+        // テンプレートからCLAUDE.mdを生成
+        await claudeMdService.generateClaudeMd(folderPath, {
+          name: folderName,
+          description: `${folderName} プロジェクト`
+        });
+        
+        claudeMdExists = true;
+        Logger.info(`CLAUDE.mdファイルを作成しました: ${claudeMdPath}`);
+      } catch (e) {
+        Logger.error(`CLAUDE.mdファイルの作成に失敗しました: ${(e as Error).message}`);
+        throw new Error(`CLAUDE.mdファイルの作成に失敗しました: ${(e as Error).message}`);
+      }
+    }
+    
+    // docs/mockupsディレクトリの存在確認
+    const docsPath = path.join(folderPath, 'docs');
+    const mockupsPath = path.join(folderPath, 'mockups');
+    
+    // 必要に応じてディレクトリを作成
+    if (!fs.existsSync(docsPath)) {
+      fs.mkdirSync(docsPath, { recursive: true });
+      
+      // 基本的なドキュメントファイルも作成
+      try {
+        this._createInitialDocuments(folderPath);
+        Logger.info(`初期ドキュメントファイルを作成しました`);
+      } catch (e) {
+        Logger.warn(`初期ドキュメントの作成に失敗しました: ${(e as Error).message}`);
+      }
+    }
+    
+    if (!fs.existsSync(mockupsPath)) {
+      fs.mkdirSync(mockupsPath, { recursive: true });
+    }
+    
+    // フォルダ名をプロジェクト名として取得
+    const folderName = path.basename(folderPath);
+    
+    // CLAUDE.mdから説明を取得
+    let description = '';
+    try {
+      const claudeMdContent = fs.readFileSync(claudeMdPath, 'utf8');
+      const firstLine = claudeMdContent.split('\n')[0];
+      if (firstLine && firstLine.startsWith('# ')) {
+        description = firstLine.substring(2).replace(' 開発ガイド', '').trim();
+      }
+    } catch (e) {
+      Logger.warn(`CLAUDE.mdファイルの読み込みに失敗しました: ${(e as Error).message}`);
+    }
+    
+    // プロジェクトを作成
+    const projectData = {
+      name: folderName,
+      description: description,
+      path: folderPath
+    };
+    
+    try {
+      // プロジェクトを登録
+      const projectId = await this._projectService.createProject(projectData);
+      
+      // 作成したプロジェクトをアクティブに設定
+      await this._projectService.setActiveProject(projectId);
+      
+      // データを更新
+      await this._refreshProjects();
+      
+      // 成功メッセージを表示
+      vscode.window.showInformationMessage(`プロジェクト「${folderName}」を読み込みました`);
+    } catch (error) {
+      Logger.error(`プロジェクト登録エラー`, error as Error);
+      throw new Error(`プロジェクトの登録に失敗しました: ${(error as Error).message}`);
+    }
+  }
 
   /**
    * エラーメッセージの表示
@@ -549,6 +684,157 @@ export class DashboardPanel {
       command: 'showError', 
       message 
     });
+  }
+  
+  /**
+   * 初期ドキュメントファイルを作成
+   * @param projectPath プロジェクトのパス
+   */
+  private _createInitialDocuments(projectPath: string): void {
+    try {
+      // requirements.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'requirements.md'),
+        `# 要件定義
+
+## 機能要件
+
+1. 要件1
+   - 説明: 機能の詳細説明
+   - 優先度: 高
+
+2. 要件2
+   - 説明: 機能の詳細説明
+   - 優先度: 中
+
+## 非機能要件
+
+1. パフォーマンス
+   - 説明: レスポンス時間や処理能力に関する要件
+   - 優先度: 中
+
+2. セキュリティ
+   - 説明: セキュリティに関する要件
+   - 優先度: 高
+
+## ユーザーストーリー
+
+- ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。
+`,
+        'utf8'
+      );
+      
+      // structure.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'structure.md'),
+        `# ディレクトリ構造
+
+\`\`\`
+project/
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── assets/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── styles/
+│       └── utils/
+├── backend/
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   └── models/
+\`\`\`
+`,
+        'utf8'
+      );
+      
+      // scope.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'scope.md'),
+        `# 実装スコープ
+
+## 完了
+
+（まだ完了した項目はありません）
+
+## 進行中
+
+（実装中の項目がここに表示されます）
+
+## 未着手
+
+1. ユーザー認証機能
+   - 説明: ログイン・登録機能の実装
+   - 優先度: 高
+   - 関連ファイル: 未定
+
+2. データ表示機能
+   - 説明: メインデータの一覧表示
+   - 優先度: 高
+   - 関連ファイル: 未定
+`,
+        'utf8'
+      );
+      
+      // api.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'api.md'),
+        `# API設計
+
+## エンドポイント一覧
+
+### ユーザー管理
+
+- \`POST /api/auth/login\`
+  - 説明: ユーザーログイン
+  - リクエスト: \`{ email: string, password: string }\`
+  - レスポンス: \`{ token: string, user: User }\`
+
+- \`POST /api/auth/register\`
+  - 説明: ユーザー登録
+  - リクエスト: \`{ name: string, email: string, password: string }\`
+  - レスポンス: \`{ token: string, user: User }\`
+
+### データ管理
+
+- \`GET /api/data\`
+  - 説明: データ一覧取得
+  - リクエストパラメータ: \`{ page: number, limit: number }\`
+  - レスポンス: \`{ data: DataItem[], total: number }\`
+`,
+        'utf8'
+      );
+      
+      // env.example
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'env.example'),
+        `# 環境変数サンプル
+# 実際の値は.envファイルに設定してください
+
+# サーバー設定
+PORT=3000
+NODE_ENV=development
+
+# データベース設定
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=mydatabase
+DB_USER=user
+DB_PASSWORD=password
+
+# 認証設定
+JWT_SECRET=your_jwt_secret_key
+`,
+        'utf8'
+      );
+      
+      Logger.info(`初期ドキュメントを作成しました: ${projectPath}`);
+    } catch (error) {
+      Logger.error(`初期ドキュメント作成エラー: ${(error as Error).message}`);
+      throw error;
+    }
   }
 
   /**
@@ -648,7 +934,10 @@ export class DashboardPanel {
         <div class="project-list">
           <div class="sidebar-header">
             <h2>プロジェクト一覧</h2>
-            <button id="new-project-btn" class="button">新規作成</button>
+            <div class="project-buttons">
+              <button id="new-project-btn" class="button">新規作成</button>
+              <button id="load-project-btn" class="button">読み込む</button>
+            </div>
           </div>
           <div id="projects-container" class="projects-container">
             <!-- プロジェクト一覧が動的に表示されます -->

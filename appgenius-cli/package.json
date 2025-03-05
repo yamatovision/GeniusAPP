@@ -5,15 +5,22 @@
   "main": "dist/index.js",
   "bin": {
     "appgenius": "dist/index.js",
-    "appgenius-cli": "dist/index.js"
+    "appgenius-cli": "dist/index.js",
+    "appgenius-tool": "dist/tool-cli.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-js",
+    "copy-js": "mkdir -p dist/commands && cp src/commands/tool-cli.js dist/commands/ && cp src/services/claude-tool-wrapper.js dist/services/ && cp src/services/claude-tool-wrapper-enhanced.js dist/services/ && cp src/tool-cli.js dist/tool-cli.js && chmod +x dist/tool-cli.js",
     "watch": "tsc -w",
     "start": "node dist/index.js",
+    "tool": "node dist/tool-cli.js",
+    "tool:offline": "node dist/tool-cli.js --offline",
     "dev": "ts-node src/index.ts",
     "lint": "eslint src --ext .ts",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "test:ai": "node test/ai_search_test.js",
+    "test:wrapper": "node test/wrapper_test.js",
+    "test:md": "node test/wrapper_test.js 'マークダウンファイルを探して詳細を教えてください' --verbose",
     "prepare": "npm run build"
   },
   "engines": {
