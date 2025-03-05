@@ -128,6 +128,9 @@ export class DashboardPanel {
           case 'openDevelopmentAssistant':
             await this._handleOpenDevelopmentAssistant();
             break;
+          case 'openReferenceManager':
+            await this._handleOpenReferenceManager();
+            break;
           case 'analyzeProject':
             await this._handleAnalyzeProject();
             break;
@@ -522,6 +525,29 @@ export class DashboardPanel {
     } catch (error) {
       Logger.error(`開発アシスタント起動エラー`, error as Error);
       await this._showError(`開発アシスタントの起動に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * リファレンスマネージャーを開く
+   */
+  private async _handleOpenReferenceManager(): Promise<void> {
+    try {
+      // アクティブなプロジェクトがあるか確認
+      if (!this._activeProject) {
+        throw new Error('開いているプロジェクトがありません。まずプロジェクトを作成または選択してください。');
+      }
+
+      // Webview経由でリファレンス追加中の場合はそのメッセージをバックエンドに送信
+      await this._panel.webview.postMessage({
+        command: 'syncReferenceManagerState'
+      });
+
+      // リファレンスマネージャーを開く
+      vscode.commands.executeCommand('appgenius-ai.openReferenceManager');
+    } catch (error) {
+      Logger.error(`リファレンスマネージャー起動エラー`, error as Error);
+      await this._showError(`リファレンスマネージャーの起動に失敗しました: ${(error as Error).message}`);
     }
   }
 

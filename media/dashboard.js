@@ -565,7 +565,7 @@
   }
   
   /**
-   * リファレンスアップローダーを表示
+   * リファレンスマネージャーを表示
    */
   function renderRecentFiles() {
     const recentFilesElement = document.getElementById('recent-files');
@@ -574,137 +574,142 @@
     try {
       const projectPath = state.activeProject.path || '';
       
-      const referenceUploaderHtml = `
+      const referenceManagerHtml = `
         <div class="recent-files-header">
-          <h2><i class="icon">📚</i> リファレンスアップローダー</h2>
+          <h2><i class="icon">📚</i> リファレンスマネージャー</h2>
         </div>
-        <div class="reference-uploader">
-          <div class="uploader-description">
-            <p>外部のリファレンス資料やサンプルをアップロードして、AIが参考にできるようにします。</p>
-            <p>UIデザイン、技術仕様書、サンプルコードなどが利用できます。</p>
+        <div class="reference-manager-wrapper">
+          <div class="reference-description">
+            <p>リファレンス情報を簡単に追加して整理できます。</p>
+            <p>コードスニペット、API情報、環境設定、ドキュメントなどを保存できます。</p>
           </div>
           
-          <div class="upload-controls">
-            <div class="upload-types">
-              <div class="upload-type-item active" data-type="ui">
-                <i class="icon">🎨</i>
-                <span>UIデザイン</span>
+          <div class="reference-input-wrapper">
+            <div class="tabs">
+              <div class="tab-item active" data-tab="text">テキスト</div>
+              <div class="tab-item" data-tab="image">画像</div>
+            </div>
+            
+            <!-- テキスト入力タブ -->
+            <div class="tab-content active" id="text-content">
+              <div class="input-field">
+                <textarea id="reference-content" placeholder="ここにテキストを入力またはコピー＆ペーストしてください。タイトルとタイプが自動検出されます。"></textarea>
               </div>
-              <div class="upload-type-item" data-type="code">
-                <i class="icon">📜</i>
-                <span>サンプルコード</span>
-              </div>
-              <div class="upload-type-item" data-type="docs">
-                <i class="icon">📄</i>
-                <span>仕様書</span>
+              
+              <div class="input-actions">
+                <button id="add-reference-button" class="button primary">
+                  <i class="icon">➕</i> 追加
+                </button>
+                <button id="clear-reference-button" class="button">
+                  <i class="icon">🗑️</i> クリア
+                </button>
               </div>
             </div>
             
-            <div class="upload-dropzone" id="upload-dropzone">
-              <i class="icon large">📁</i>
-              <p>ファイルをドラッグ＆ドロップ または クリックして選択</p>
-              <input type="file" id="file-upload" style="display: none;" />
+            <!-- 画像入力タブ -->
+            <div class="tab-content" id="image-content" style="display: none;">
+              <div class="upload-dropzone" id="upload-dropzone">
+                <i class="icon large">📷</i>
+                <p>画像をドラッグ＆ドロップ または クリックして選択</p>
+                <input type="file" id="image-upload" accept="image/*" style="display: none;" />
+              </div>
+              
+              <div id="image-preview-container" style="display: none;">
+                <img id="preview-image" src="" alt="プレビュー">
+                <button id="remove-image-button" class="button">
+                  <i class="icon">🗑️</i> 削除
+                </button>
+              </div>
+              
+              <div class="input-field">
+                <input type="text" id="image-title" placeholder="画像タイトル (必須)">
+              </div>
+              
+              <div class="input-actions">
+                <button id="add-image-button" class="button primary" disabled>
+                  <i class="icon">➕</i> 追加
+                </button>
+                <button id="clear-image-button" class="button">
+                  <i class="icon">🗑️</i> クリア
+                </button>
+              </div>
             </div>
-            
-            <button class="button primary upload-button" disabled>
-              <i class="icon">⬆️</i> アップロード
-            </button>
           </div>
           
-          <div class="upload-history">
-            <h3>最近のアップロード</h3>
+          <div class="reference-history">
+            <h3>最近のリファレンス</h3>
             <div class="history-empty">
-              <p>アップロード履歴がありません</p>
+              <p>リファレンス履歴がありません</p>
             </div>
           </div>
         </div>
       `;
       
-      recentFilesElement.innerHTML = referenceUploaderHtml;
+      recentFilesElement.innerHTML = referenceManagerHtml;
       
-      // ドロップゾーンの処理を設定
-      const dropzone = document.getElementById('upload-dropzone');
-      const fileInput = document.getElementById('file-upload');
-      const uploadButton = document.querySelector('.upload-button');
+      // リファレンスマネージャーを開くボタンを追加
+      const openReferenceManagerBtn = document.createElement('button');
+      openReferenceManagerBtn.className = 'button primary';
+      openReferenceManagerBtn.innerHTML = '<i class="icon">📚</i> リファレンスマネージャーを全画面で開く';
+      openReferenceManagerBtn.style.marginBottom = '15px';
+      recentFilesElement.insertBefore(openReferenceManagerBtn, recentFilesElement.firstChild);
       
-      if (dropzone && fileInput) {
-        // ドロップゾーンクリックでファイル選択を開く
-        dropzone.addEventListener('click', () => {
-          fileInput.click();
+      // ボタンにクリックイベントを追加
+      openReferenceManagerBtn.addEventListener('click', () => {
+        vscode.postMessage({
+          command: 'openReferenceManager'
         });
-        
-        // ファイル選択変更時の処理
-        fileInput.addEventListener('change', () => {
-          if (fileInput.files && fileInput.files.length > 0) {
-            dropzone.classList.add('has-files');
-            dropzone.innerHTML = `
-              <i class="icon">📄</i>
-              <p>${fileInput.files[0].name}</p>
-              <span class="file-size">${formatFileSize(fileInput.files[0].size)}</span>
-            `;
-            uploadButton.disabled = false;
-          }
-        });
-        
-        // ドラッグ&ドロップイベント
-        dropzone.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          dropzone.classList.add('dragover');
-        });
-        
-        dropzone.addEventListener('dragleave', () => {
-          dropzone.classList.remove('dragover');
-        });
-        
-        dropzone.addEventListener('drop', (e) => {
-          e.preventDefault();
-          dropzone.classList.remove('dragover');
+      });
+      
+      // タブ切り替え処理
+      const tabs = document.querySelectorAll('.tab-item');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // タブのアクティブ状態を切り替え
+          tabs.forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
           
-          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const file = e.dataTransfer.files[0];
-            fileInput.files = e.dataTransfer.files;
-            
-            dropzone.classList.add('has-files');
-            dropzone.innerHTML = `
-              <i class="icon">📄</i>
-              <p>${file.name}</p>
-              <span class="file-size">${formatFileSize(file.size)}</span>
-            `;
-            uploadButton.disabled = false;
+          // コンテンツ表示を切り替え
+          const tabName = tab.dataset.tab;
+          document.querySelectorAll('.tab-content').forEach(content => {
+            content.style.display = 'none';
+          });
+          
+          const activeContent = document.getElementById(`${tabName}-content`);
+          if (activeContent) {
+            activeContent.style.display = 'block';
           }
         });
-        
-        // アップロードタイプの切り替え
-        document.querySelectorAll('.upload-type-item').forEach(item => {
-          item.addEventListener('click', () => {
-            document.querySelectorAll('.upload-type-item').forEach(i => {
-              i.classList.remove('active');
+      });
+      
+      // テキスト入力処理
+      const referenceContent = document.getElementById('reference-content');
+      const addReferenceButton = document.getElementById('add-reference-button');
+      const clearReferenceButton = document.getElementById('clear-reference-button');
+      
+      if (addReferenceButton) {
+        addReferenceButton.addEventListener('click', () => {
+          if (!referenceContent || !referenceContent.value.trim()) {
+            vscode.postMessage({
+              command: 'showError',
+              message: 'リファレンス内容を入力してください'
             });
-            item.classList.add('active');
-          });
-        });
-        
-        // アップロードボタンの処理
-        uploadButton.addEventListener('click', () => {
-          const activeType = document.querySelector('.upload-type-item.active').dataset.type;
-          const file = fileInput.files[0];
+            return;
+          }
           
-          // 実際のアップロード処理の代わりに通知を表示
           vscode.postMessage({
-            command: 'showInfo',
-            message: `${file.name} のアップロードを開始しました (${activeType}タイプ)`
+            command: 'addReference',
+            content: referenceContent.value,
+            type: 'auto'
           });
           
-          // アップロードの仮実装
-          dropzone.innerHTML = `
-            <i class="icon large">📁</i>
-            <p>ファイルをドラッグ＆ドロップ または クリックして選択</p>
-          `;
-          dropzone.classList.remove('has-files');
-          uploadButton.disabled = true;
+          // 入力をクリア
+          if (referenceContent) {
+            referenceContent.value = '';
+          }
           
-          // 履歴に追加
-          const historyElement = document.querySelector('.upload-history');
+          // 履歴に追加 (仮実装)
+          const historyElement = document.querySelector('.reference-history');
           const emptyNotice = historyElement.querySelector('.history-empty');
           
           if (emptyNotice) {
@@ -716,27 +721,215 @@
           
           historyElement.insertAdjacentHTML('beforeend', `
             <div class="history-item">
-              <div class="history-icon">${getTypeIcon(activeType)}</div>
+              <div class="history-icon">📄</div>
               <div class="history-details">
-                <div class="history-name">${file.name}</div>
+                <div class="history-name">新しいリファレンス</div>
                 <div class="history-meta">
                   <span class="history-time">${timeStr}</span>
-                  <span class="history-type">${getTypeName(activeType)}</span>
+                  <span class="history-type">テキスト</span>
                 </div>
               </div>
             </div>
           `);
         });
       }
+      
+      if (clearReferenceButton) {
+        clearReferenceButton.addEventListener('click', () => {
+          if (referenceContent) {
+            referenceContent.value = '';
+          }
+        });
+      }
+      
+      // 画像入力処理
+      const uploadDropzone = document.getElementById('upload-dropzone');
+      const imageUpload = document.getElementById('image-upload');
+      const previewContainer = document.getElementById('image-preview-container');
+      const previewImage = document.getElementById('preview-image');
+      const removeImageButton = document.getElementById('remove-image-button');
+      const imageTitle = document.getElementById('image-title');
+      const addImageButton = document.getElementById('add-image-button');
+      const clearImageButton = document.getElementById('clear-image-button');
+      
+      if (uploadDropzone && imageUpload) {
+        // ドロップゾーンクリックでファイル選択を開く
+        uploadDropzone.addEventListener('click', () => {
+          imageUpload.click();
+        });
+        
+        // ファイル選択変更時の処理
+        imageUpload.addEventListener('change', () => {
+          handleImageSelection(imageUpload);
+        });
+        
+        // ドラッグ&ドロップイベント
+        uploadDropzone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          uploadDropzone.classList.add('dragover');
+        });
+        
+        uploadDropzone.addEventListener('dragleave', () => {
+          uploadDropzone.classList.remove('dragover');
+        });
+        
+        uploadDropzone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          uploadDropzone.classList.remove('dragover');
+          
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.type.startsWith('image/')) {
+              imageUpload.files = e.dataTransfer.files;
+              handleImageSelection(imageUpload);
+            } else {
+              vscode.postMessage({
+                command: 'showError',
+                message: '画像ファイルを選択してください'
+              });
+            }
+          }
+        });
+      }
+      
+      // 画像選択処理
+      function handleImageSelection(input) {
+        if (input.files && input.files.length > 0) {
+          const file = input.files[0];
+          const reader = new FileReader();
+          
+          reader.onload = function(e) {
+            if (previewImage && previewContainer && uploadDropzone) {
+              previewImage.src = e.target.result;
+              previewContainer.style.display = 'block';
+              uploadDropzone.style.display = 'none';
+              
+              if (addImageButton) {
+                addImageButton.disabled = imageTitle.value.trim() === '';
+              }
+              
+              // バックエンドに画像データを送信
+              vscode.postMessage({
+                command: 'saveImage',
+                imageData: e.target.result
+              });
+            }
+          };
+          
+          reader.readAsDataURL(file);
+        }
+      }
+      
+      // 画像タイトル入力監視
+      if (imageTitle) {
+        imageTitle.addEventListener('input', () => {
+          if (addImageButton) {
+            addImageButton.disabled = imageTitle.value.trim() === '';
+          }
+        });
+      }
+      
+      // 画像削除処理
+      if (removeImageButton) {
+        removeImageButton.addEventListener('click', () => {
+          if (previewContainer && uploadDropzone) {
+            previewContainer.style.display = 'none';
+            uploadDropzone.style.display = 'block';
+            if (previewImage) {
+              previewImage.src = '';
+            }
+            if (addImageButton) {
+              addImageButton.disabled = true;
+            }
+          }
+        });
+      }
+      
+      // 画像追加処理
+      if (addImageButton) {
+        addImageButton.addEventListener('click', () => {
+          if (!imageTitle || !imageTitle.value.trim()) {
+            vscode.postMessage({
+              command: 'showError',
+              message: '画像タイトルを入力してください'
+            });
+            return;
+          }
+          
+          vscode.postMessage({
+            command: 'addImageReference',
+            title: imageTitle.value,
+            type: 'screenshot'
+          });
+          
+          // 入力をクリア
+          if (previewContainer && uploadDropzone) {
+            previewContainer.style.display = 'none';
+            uploadDropzone.style.display = 'block';
+            if (previewImage) {
+              previewImage.src = '';
+            }
+            if (imageTitle) {
+              imageTitle.value = '';
+            }
+            if (addImageButton) {
+              addImageButton.disabled = true;
+            }
+          }
+          
+          // 履歴に追加 (仮実装)
+          const historyElement = document.querySelector('.reference-history');
+          const emptyNotice = historyElement.querySelector('.history-empty');
+          
+          if (emptyNotice) {
+            emptyNotice.remove();
+          }
+          
+          const now = new Date();
+          const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+          
+          historyElement.insertAdjacentHTML('beforeend', `
+            <div class="history-item">
+              <div class="history-icon">📷</div>
+              <div class="history-details">
+                <div class="history-name">${imageTitle.value}</div>
+                <div class="history-meta">
+                  <span class="history-time">${timeStr}</span>
+                  <span class="history-type">画像</span>
+                </div>
+              </div>
+            </div>
+          `);
+        });
+      }
+      
+      // 画像フォームクリア
+      if (clearImageButton) {
+        clearImageButton.addEventListener('click', () => {
+          if (previewContainer && uploadDropzone) {
+            previewContainer.style.display = 'none';
+            uploadDropzone.style.display = 'block';
+            if (previewImage) {
+              previewImage.src = '';
+            }
+            if (imageTitle) {
+              imageTitle.value = '';
+            }
+            if (addImageButton) {
+              addImageButton.disabled = true;
+            }
+          }
+        });
+      }
     } catch (error) {
-      console.error('リファレンスアップローダーの表示中にエラーが発生しました:', error);
+      console.error('リファレンスマネージャーの表示中にエラーが発生しました:', error);
       recentFilesElement.innerHTML = `
         <div class="recent-files-header">
-          <h2><i class="icon">📚</i> リファレンスアップローダー</h2>
+          <h2><i class="icon">📚</i> リファレンスマネージャー</h2>
         </div>
         <div class="error-panel">
           <h2><i class="icon">⚠️</i> 表示エラー</h2>
-          <p>アップロードインターフェースを表示できませんでした。</p>
+          <p>リファレンスマネージャーを表示できませんでした。</p>
         </div>
       `;
     }
