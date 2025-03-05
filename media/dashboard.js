@@ -245,19 +245,15 @@
     
     // アクティブプロジェクトがある場合、プロセスセクションを表示
     if (state.activeProject) {
-      const overallProgress = document.getElementById('overall-progress');
       const processWrapper = document.getElementById('process-wrapper');
       
-      if (overallProgress) overallProgress.style.display = 'block';
       if (processWrapper) processWrapper.style.display = 'block';
       
       // プロセスステップのイベントハンドラを設定
       setupProcessStepHandlers();
     } else {
-      const overallProgress = document.getElementById('overall-progress');
       const processWrapper = document.getElementById('process-wrapper');
       
-      if (overallProgress) overallProgress.style.display = 'none';
       if (processWrapper) processWrapper.style.display = 'none';
     }
   }
@@ -347,7 +343,6 @@
     if (!document.getElementById('active-project-panel')) {
       mainContainer.innerHTML = `
         <div id="active-project-panel" class="active-project-panel"></div>
-        <div id="overall-progress" class="overall-progress" style="display: none;"></div>
         <div id="process-wrapper" style="display: none;">
           <div id="planning-process" class="process-section">
             <div class="section-header">
@@ -385,63 +380,8 @@
     
     try {
       const project = state.activeProject;
-      const details = state.activeProjectDetails || {};
       const createdDate = new Date(project.createdAt || Date.now()).toLocaleDateString();
       const updatedDate = new Date(project.updatedAt || Date.now()).toLocaleDateString();
-      
-      // フェーズの完了状況を計算 (プロジェクトフェーズがない場合の対応)
-      const phases = project.phases || { requirements: false, design: false, implementation: false, testing: false, deployment: false };
-      const completedPhases = Object.entries(phases)
-        .filter(([_, isCompleted]) => isCompleted)
-        .length;
-      const totalPhases = Object.keys(phases).length || 5; // 最低でも5フェーズ
-      const progressPercentage = Math.round((completedPhases / totalPhases) * 100);
-      
-      // 実装スコープの進捗状況
-      const implementationProgress = details.implementationProgress || 0;
-      const scopeItemCount = details.scopeItemCount || 0;
-      const inProgressItems = details.inProgressItems || 0;
-      const completedItems = details.completedItems || 0;
-      const mockupCount = details.mockupCount || 0;
-      
-      // 追加の詳細情報
-      let detailsSection = '';
-      
-      // モックアップ情報
-      detailsSection += `
-        <div class="detail-section">
-          <h3><i class="icon">🎨</i> モックアップ</h3>
-          <p class="stat-value">${mockupCount} 個のモックアップ</p>
-        </div>
-      `;
-      
-      // 実装スコープ情報
-      detailsSection += `
-        <div class="detail-section">
-          <h3><i class="icon">📋</i> 実装スコープ</h3>
-          <p class="stat-value">${scopeItemCount} 個の実装項目</p>
-          <div class="scope-stats">
-            <div class="stat-item">
-              <i class="icon">🔄</i>
-              <span class="stat-label">実装中</span>
-              <span class="stat-value">${inProgressItems}</span>
-            </div>
-            <div class="stat-item">
-              <i class="icon">✅</i>
-              <span class="stat-label">完了</span>
-              <span class="stat-value">${completedItems}</span>
-            </div>
-          </div>
-          <div class="scope-progress">
-            <div class="progress-info">
-              <span>実装進捗: ${implementationProgress}%</span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${implementationProgress}%"></div>
-            </div>
-          </div>
-        </div>
-      `;
       
       activeProjectPanel.innerHTML = `
         <div class="project-details">
@@ -460,31 +400,12 @@
             <h3><i class="icon">📝</i> プロジェクト説明</h3>
             <p>${escapeHtml(project.description || '説明はありません')}</p>
           </div>
-          
-          <div class="project-progress">
-            <h3><i class="icon">📊</i> 進捗状況</h3>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width: ${progressPercentage}%"></div>
-            </div>
-            <div class="progress-info">
-              <span>${completedPhases}/${totalPhases} フェーズ完了</span>
-              <span>${progressPercentage}%</span>
-            </div>
-          </div>
-          
-          ${detailsSection}
         </div>
       `;
       
-      // 関連セクションを表示
-      const overallProgress = document.getElementById('overall-progress');
+      // プロセスラッパーを表示
       const processWrapper = document.getElementById('process-wrapper');
-      
-      if (overallProgress) overallProgress.style.display = 'block';
       if (processWrapper) processWrapper.style.display = 'block';
-      
-      // 全体の進捗状況も更新
-      renderOverallProgress();
       
       // 開発プロセスの描画
       renderProcessSteps();
@@ -505,68 +426,7 @@
     }
   }
   
-  /**
-   * 全体の進捗状況を描画
-   */
-  function renderOverallProgress() {
-    const overallProgress = document.getElementById('overall-progress');
-    if (!overallProgress || !state.activeProject) return;
-    
-    try {
-      const project = state.activeProject;
-      const details = state.activeProjectDetails || {};
-      
-      // phase情報の安全な取得
-      const phases = project.phases || { requirements: false, design: false, implementation: false, testing: false, deployment: false };
-      
-      // 進捗率を計算
-      let totalProgress = 0;
-      let totalItems = 0;
-      
-      if (phases.requirements) { totalProgress += 100; totalItems += 1; }
-      if (phases.design) { totalProgress += 100; totalItems += 1; }
-      if (phases.implementation) { 
-        totalProgress += details.implementationProgress || 0; 
-        totalItems += 1; 
-      }
-      if (phases.testing) { totalProgress += 100; totalItems += 1; }
-      if (phases.deployment) { totalProgress += 100; totalItems += 1; }
-      
-      // 合計がゼロの場合の対応
-      if (totalItems === 0) {
-        totalItems = 1;
-        totalProgress = 0;
-      }
-      
-      const overallPercentage = Math.round(totalProgress / totalItems);
-      const fileCount = details.scopeItemCount ? `${details.completedItems || 0}/${details.scopeItemCount}` : '0/0';
-      
-      overallProgress.innerHTML = `
-        <div class="overall-progress-header">
-          <h2><i class="icon">📊</i> 開発達成率</h2>
-          <div class="progress-percentage">${overallPercentage}%</div>
-        </div>
-        <div class="progress-bar-container overall">
-          <div class="progress-bar" style="width: ${overallPercentage}%;"></div>
-        </div>
-        <div class="progress-stats">
-          <div class="stat-item">
-            <i class="icon">📄</i>
-            <span class="stat-label">作成済みファイル</span>
-            <span class="stat-value">${fileCount}</span>
-          </div>
-        </div>
-      `;
-    } catch (error) {
-      console.error('進捗状況の表示中にエラーが発生しました:', error);
-      overallProgress.innerHTML = `
-        <div class="error-panel">
-          <h2><i class="icon">⚠️</i> 進捗状況の表示エラー</h2>
-          <p>プロジェクトの進捗情報を取得できませんでした。</p>
-        </div>
-      `;
-    }
-  }
+  // renderOverallProgress関数を削除
   
   /**
    * 開発プロセスステップの描画

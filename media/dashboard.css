@@ -33,20 +33,6 @@
   --transition-speed: 0.3s ease;
 }
 
-/* ダークモード対応 */
-body.vscode-dark {
-  --primary-color: #7966f8;
-  --secondary-color: #0fb894;
-  --accent-color: #f9ca24;
-  
-  --primary-light: rgba(121, 102, 248, 0.15);
-  --secondary-light: rgba(15, 184, 148, 0.15);
-  --accent-light: rgba(249, 202, 36, 0.15);
-  
-  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  --card-shadow-hover: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
 /* ダッシュボードコンテナ */
 .dashboard-container {
   display: flex;
@@ -54,8 +40,8 @@ body.vscode-dark {
   height: 100vh;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  color: var(--vscode-foreground);
-  background-color: var(--vscode-editor-background);
+  color: #333333;
+  background-color: #FFFFFF;
 }
 
 /* ヘッダーセクション */
@@ -65,10 +51,11 @@ body.vscode-dark {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: var(--primary-color);
+  background-color: #4a69bd;
+  background-image: linear-gradient(to right, #4a69bd, #5c7cfa);
   color: white;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid #3a59ad;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   z-index: 10;
 }
 
@@ -99,10 +86,13 @@ body.vscode-dark {
   display: flex;
   align-items: center;
   gap: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .header-actions button:hover {
   background-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
 }
 
 .header-actions button i {
@@ -121,8 +111,8 @@ body.vscode-dark {
   width: var(--sidebar-width);
   display: flex;
   flex-direction: column;
-  background-color: var(--vscode-sideBar-background);
-  border-right: 1px solid var(--vscode-sideBar-border);
+  background-color: #f8faff;
+  border-right: 1px solid #e1e8f5;
   transition: width var(--transition-speed);
   z-index: 5;
 }
@@ -135,9 +125,10 @@ body.vscode-dark {
   padding: 1.2rem;
   display: flex;
   flex-direction: column;
-  background-color: var(--secondary-color);
-  color: white;
+  background-color: #f0f4fc;
+  color: #2d3748;
   position: relative;
+  border-bottom: 1px solid #e1e8f5;
 }
 
 .sidebar-header h2 {
@@ -154,13 +145,13 @@ body.vscode-dark {
 .project-buttons button {
   flex: 1;
   padding: 0.5rem;
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: var(--primary-color);
   color: white;
   border: none;
   border-radius: var(--border-radius);
   font-size: 0.85rem;
   cursor: pointer;
-  transition: background-color var(--transition-speed);
+  transition: all var(--transition-speed);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -168,7 +159,7 @@ body.vscode-dark {
 }
 
 .project-buttons button:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+  filter: brightness(1.1);
 }
 
 .toggle-sidebar {
@@ -177,7 +168,7 @@ body.vscode-dark {
   top: 10px;
   background: none;
   border: none;
-  color: white;
+  color: #333333;
   font-size: 1.2rem;
   cursor: pointer;
   opacity: 0.8;
@@ -192,29 +183,31 @@ body.vscode-dark {
   flex: 1;
   overflow-y: auto;
   padding: 1rem;
-  background-color: var(--vscode-sideBar-background);
+  background-color: #f8faff;
 }
 
 /* プロジェクトリスト */
 .project-item {
-  padding: 1rem;
+  padding: 1.2rem;
   margin-bottom: 1rem;
-  background-color: var(--vscode-editor-background);
+  background-color: #ffffff;
   border-radius: var(--border-radius);
-  border: 1px solid var(--vscode-panel-border);
+  border: 1px solid #e1e8f5;
   cursor: pointer;
   transition: all var(--transition-speed);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
 }
 
 .project-item:hover {
   transform: translateY(-2px);
-  box-shadow: var(--card-shadow-hover);
-  border-color: var(--primary-color);
+  box-shadow: 0 5px 15px rgba(74, 105, 189, 0.1);
+  border-color: #4a69bd;
 }
 
 .project-item.active {
-  border-left: 4px solid var(--primary-color);
-  background-color: var(--primary-light);
+  border-left: 4px solid #4a69bd;
+  background-color: rgba(74, 105, 189, 0.05);
+  box-shadow: 0 2px 8px rgba(74, 105, 189, 0.1);
 }
 
 .project-header {
@@ -225,16 +218,16 @@ body.vscode-dark {
 
 .project-header h3 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: #2d3748;
 }
 
 .project-description {
   margin: 0.8rem 0;
   font-size: 0.9rem;
-  color: var(--vscode-descriptionForeground);
-  line-height: 1.4;
+  color: #4a5568;
+  line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -244,8 +237,17 @@ body.vscode-dark {
 
 .project-updated {
   font-size: 0.8rem;
-  color: var(--vscode-descriptionForeground);
+  color: #718096;
   margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.project-updated::before {
+  content: "🕒";
+  font-size: 0.75rem;
+  margin-right: 0.3rem;
+  opacity: 0.8;
 }
 
 .project-actions {
@@ -303,16 +305,16 @@ body.vscode-dark {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
-  background-color: var(--vscode-editor-background);
+  background-color: #ffffff;
 }
 
 /* アクティブプロジェクトパネル */
 .active-project-panel {
-  background-color: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
+  background-color: #ffffff;
+  border: 1px solid #e1e8f5;
   border-radius: var(--border-radius);
   padding: 1.5rem;
-  box-shadow: var(--card-shadow);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .no-active-project {
@@ -335,30 +337,35 @@ body.vscode-dark {
 
 .project-details h2 {
   margin: 0 0 0.5rem 0;
-  font-size: 1.5rem;
+  font-size: 1.6rem;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--vscode-foreground);
+  color: #2d3748;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid rgba(74, 105, 189, 0.1);
 }
 
 .project-path {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 0.9rem;
-  padding: 0.3rem 0.5rem;
-  background-color: var(--vscode-input-background);
+  padding: 0.5rem 0.7rem;
+  background-color: #f1f5f9;
+  border: 1px solid #e2e8f0;
   border-radius: 4px;
-  margin: 0.5rem 0;
-  color: var(--vscode-input-foreground);
+  margin: 0.8rem 0;
+  color: #4a5568;
   word-break: break-all;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .project-dates {
-  margin: 0.5rem 0 1.5rem 0;
+  margin: 0.8rem 0 1.5rem 0;
   font-size: 0.9rem;
-  color: var(--vscode-descriptionForeground);
+  color: #4a5568;
   display: flex;
-  gap: 1rem;
+  gap: 1.2rem;
+  padding: 0.7rem 0;
 }
 
 .date-item {
@@ -368,33 +375,42 @@ body.vscode-dark {
 }
 
 .date-item i {
-  color: var(--primary-color);
+  color: #4a69bd;
+  font-size: 1.1rem;
 }
 
 /* プロジェクト概要セクション */
 .project-description-panel {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.8rem;
+  padding: 1rem;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #f8faff;
 }
 
 .project-description-panel h3 {
-  margin: 0 0 0.8rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 1rem 0;
+  font-size: 1.15rem;
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: #2d3748;
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(74, 105, 189, 0.15);
 }
 
 .project-description-panel h3 i {
-  color: var(--info-color);
+  color: #4a69bd;
 }
 
 .project-description-panel p {
-  line-height: 1.6;
+  line-height: 1.7;
   margin: 0;
+  color: #4a5568;
+  font-size: 0.95rem;
+  padding: 0.3rem 0.5rem;
 }
 
 /* プロジェクト進捗 */
@@ -528,8 +544,8 @@ body.vscode-dark {
 
 /* プロセスフロー */
 .process-section {
-  background-color: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
   border-radius: var(--border-radius);
   padding: 1.5rem;
   margin-bottom: 1.5rem;
@@ -542,23 +558,27 @@ body.vscode-dark {
 
 .section-header h2 {
   margin: 0 0 0.8rem 0;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: #2d3748;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(74, 105, 189, 0.15);
 }
 
 .section-header h2 i {
-  color: var(--primary-color);
+  color: #4a69bd;
+  font-size: 1.2rem;
 }
 
 .section-description {
-  color: var(--vscode-descriptionForeground);
-  font-size: 0.9rem;
-  line-height: 1.5;
-  margin: 0;
+  color: #4a5568;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0 0 0.5rem 0;
+  padding: 0 0.5rem;
 }
 
 .process-steps-flow {
@@ -579,18 +599,19 @@ body.vscode-dark {
 .process-step {
   flex: 1;
   min-width: 200px;
-  padding: 1.2rem;
-  background-color: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
+  padding: 1.5rem 1.2rem;
+  background-color: #ffffff;
+  border: 1px solid #e1e8f5;
   border-radius: var(--border-radius);
   position: relative;
   transition: all var(--transition-speed);
   text-decoration: none;
-  color: var(--vscode-foreground);
+  color: #2d3748;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
 }
 
 .process-step:hover {
@@ -617,19 +638,21 @@ body.vscode-dark {
 
 .step-number {
   position: absolute;
-  top: -10px;
-  left: -10px;
-  width: 28px;
-  height: 28px;
-  background-color: var(--primary-color);
+  top: -12px;
+  left: -12px;
+  width: 32px;
+  height: 32px;
+  background-color: #4a69bd;
+  background-image: linear-gradient(45deg, #4a69bd, #5c7cfa);
   color: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 0.9rem;
+  font-size: 1rem;
   z-index: 1;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
 .step-icon {
@@ -659,57 +682,66 @@ body.vscode-dark {
 }
 
 .step-title {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   font-weight: 600;
-  margin-bottom: 0.4rem;
-  color: var(--vscode-foreground);
+  margin-bottom: 0.6rem;
+  color: #2d3748;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed rgba(74, 105, 189, 0.2);
 }
 
 .step-instruction {
-  font-size: 0.85rem;
-  color: var(--vscode-descriptionForeground);
-  margin: 0 0 1.2rem 0;
+  font-size: 0.9rem;
+  color: #4a5568;
+  margin: 0 0 1.5rem 0;
   min-height: 2.5em;
-  line-height: 1.4;
+  line-height: 1.5;
+  padding: 0 0.3rem;
 }
 
 .step-action {
   display: block;
   color: white;
-  background-color: var(--primary-color);
+  background-color: #4a69bd;
   font-weight: 500;
-  font-size: 0.9rem;
-  padding: 0.4rem 0.8rem;
-  border-radius: 4px;
+  font-size: 0.95rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
   border: none;
   cursor: pointer;
   transition: all 0.2s;
   text-decoration: none;
   margin-top: auto;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .process-step.active .step-action {
-  background-color: var(--primary-color);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  background-color: #4a69bd;
+  background-image: linear-gradient(to right, #4a69bd, #5c7cfa);
+  box-shadow: 0 3px 6px rgba(74, 105, 189, 0.25);
 }
 
 .process-step:hover .step-action {
-  transform: scale(1.05);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(74, 105, 189, 0.3);
 }
 
 .process-step.completed .step-action {
-  background-color: var(--secondary-color);
+  background-color: #00b894;
+  background-image: linear-gradient(to right, #00b894, #38d39f);
+  box-shadow: 0 2px 4px rgba(0, 184, 148, 0.2);
 }
 
 .process-step.disabled .step-action {
-  background-color: var(--gray-500);
+  background-color: #a0aec0;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 /* 最近のファイル */
 .recent-files {
-  background-color: var(--vscode-editor-background);
-  border: 1px solid var(--vscode-panel-border);
+  background-color: #ffffff;
+  border: 1px solid #e9ecef;
   border-radius: var(--border-radius);
   padding: 1.5rem;
   box-shadow: var(--card-shadow);

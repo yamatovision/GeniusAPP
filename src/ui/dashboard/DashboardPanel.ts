@@ -941,7 +941,6 @@ JWT_SECRET=your_jwt_secret_key
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
   <title>AppGenius ダッシュボード</title>
   <link href="${resetCssUri}" rel="stylesheet">
-  <link href="${vscodeCssUri}" rel="stylesheet">
   <link href="${styleUri}" rel="stylesheet">
 </head>
 <body>
