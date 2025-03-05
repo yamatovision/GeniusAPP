@@ -9,8 +9,8 @@ import { GitManager } from './core/gitManager';
 import { TerminalInterface } from './ui/TerminalInterface';
 import { CommandHandler } from './ui/CommandHandler';
 import { FileOperationManager } from './utils/fileOperationManager';
-import { MockupDesignerPanel } from './ui/mockupDesigner/MockupDesignerPanel';
-import { SimpleMockupEditorPanel } from './ui/mockupEditor/SimpleMockupEditorPanel';
+// import { MockupDesignerPanel } from './ui/mockupDesigner/MockupDesignerPanel'; // 廃止予定
+import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
 import { DevelopmentAssistantPanel } from './ui/developmentAssistant/DevelopmentAssistantPanel';
 import { SimpleChatPanel } from './ui/simpleChat';
 import { ImplementationSelectorPanel } from './ui/implementationSelector/ImplementationSelectorPanel';
@@ -77,9 +77,10 @@ export function activate(context: vscode.ExtensionContext) {
 						'APIキーを設定',
 						'AppGenius ダッシュボードを開く',
 						'要件定義ビジュアライザーを開く',
-						'モックアップエディターを開く',
+						'モックアップギャラリーを開く',
 						'実装スコープ選択を開く',
-						'開発アシスタントを開く'
+						'開発アシスタントを開く',
+						'リファレンスマネージャーを開く'
 					],
 					{
 						placeHolder: 'AppGenius AI メニュー'
@@ -92,12 +93,14 @@ export function activate(context: vscode.ExtensionContext) {
 					vscode.commands.executeCommand('appgenius-ai.openDashboard');
 				} else if (selection === '要件定義ビジュアライザーを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
-				} else if (selection === 'モックアップエディターを開く') {
+				} else if (selection === 'モックアップギャラリーを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openMockupEditor');
 				} else if (selection === '実装スコープ選択を開く') {
 					vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');
 				} else if (selection === '開発アシスタントを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+				} else if (selection === 'リファレンスマネージャーを開く') {
+					vscode.commands.executeCommand('appgenius-ai.openReferenceManager');
 				}
 			} catch (error) {
 				Logger.error(`メインメニュー表示エラー: ${(error as Error).message}`);
@@ -250,7 +253,8 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		}, 1000);
 	}
 
-	// モックアップデザイナーを開くコマンド
+	// モックアップデザイナーを開くコマンド（廃止予定）
+	/* 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('appgenius-ai.openMockupDesigner', () => {
 			try {
@@ -262,22 +266,32 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			}
 		})
 	);
+	*/
 	
-	// モックアップエディターを開くコマンド
+	// モックアップギャラリーを開くコマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openMockupEditor', (mockupId?: string) => {
+		vscode.commands.registerCommand('appgenius-ai.openMockupEditor', (mockupId?: string, projectPath?: string) => {
 			try {
-				Logger.info('モックアップエディターを開きます');
+				Logger.info('モックアップギャラリーを開きます');
+
+					// プロジェクトパスが指定されている場合、mockupStorageServiceを初期化
+					if (projectPath) {
+						const { MockupStorageService } = require('./services/mockupStorageService');
+						const storageService = MockupStorageService.getInstance();
+						storageService.initializeWithPath(projectPath);
+						Logger.info(`モックアップギャラリーをプロジェクトパスで初期化: ${projectPath}`);
+					}
+					
 				if (mockupId) {
 					// 特定のモックアップを開く
-					SimpleMockupEditorPanel.openWithMockup(context.extensionUri, aiService, mockupId);
+					MockupGalleryPanel.openWithMockup(context.extensionUri, aiService, mockupId);
 				} else {
-					// 通常のモックアップエディターを開く
-					SimpleMockupEditorPanel.createOrShow(context.extensionUri, aiService);
+					// 通常のモックアップギャラリーを開く
+					MockupGalleryPanel.createOrShow(context.extensionUri, aiService);
 				}
 			} catch (error) {
-				Logger.error(`モックアップエディター起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`モックアップエディターの起動に失敗しました: ${(error as Error).message}`);
+				Logger.error(`モックアップギャラリー起動エラー: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`モックアップギャラリーの起動に失敗しました: ${(error as Error).message}`);
 			}
 		})
 	);
@@ -369,9 +383,10 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		'AppGenius ダッシュボードを開く',
 		'APIキーを設定',
 		'要件定義ビジュアライザーを開く',
-		'モックアップエディターを開く',
+		'モックアップギャラリーを開く',
 		'実装スコープ選択を開く',
-		'開発アシスタントを開く'
+		'開発アシスタントを開く',
+		'リファレンスマネージャーを開く'
 	).then(selection => {
 		if (selection === 'AppGenius ダッシュボードを開く') {
 			vscode.commands.executeCommand('appgenius-ai.openDashboard');
@@ -385,9 +400,34 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');
 		} else if (selection === '開発アシスタントを開く') {
 			vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+		} else if (selection === 'リファレンスマネージャーを開く') {
+			vscode.commands.executeCommand('appgenius-ai.openReferenceManager');
 		}
 	});
 	
+	// リファレンスマネージャーを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openReferenceManager', async () => {
+			try {
+				// 現在のワークスペースパスを取得
+				const workspaceFolders = vscode.workspace.workspaceFolders;
+				if (!workspaceFolders) {
+					vscode.window.showErrorMessage('プロジェクトが開かれていません');
+					return;
+				}
+				const workspacePath = workspaceFolders[0].uri.fsPath;
+				
+				// パネルを作成
+				const { ReferenceManagerPanel } = await import('./ui/referenceManager/ReferenceManagerPanel');
+				ReferenceManagerPanel.createOrShow(context.extensionUri, workspacePath);
+				Logger.info('リファレンスマネージャーを起動しました');
+			} catch (error) {
+				Logger.error('リファレンスマネージャーの起動に失敗しました', error as Error);
+				vscode.window.showErrorMessage(`リファレンスマネージャーの起動に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+
 	// AppGeniusEventBusとStateManagerを初期化
 	try {
 		// AppGeniusEventBusを初期化

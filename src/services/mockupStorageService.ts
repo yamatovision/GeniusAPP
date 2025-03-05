@@ -26,6 +26,7 @@ export class MockupStorageService {
   private mockups: Map<string, Mockup> = new Map();
   private storageDir: string;
   private metadataFile: string;
+  private _initialized: boolean = false;
 
   /**
    * シングルトンインスタンスを取得
@@ -41,9 +42,30 @@ export class MockupStorageService {
    * コンストラクタ
    */
   private constructor() {
-    // ストレージディレクトリの設定
-    const homeDir = process.env.HOME || process.env.USERPROFILE || '';
-    this.storageDir = path.join(homeDir, '.appgenius-ai', 'mockups');
+    // 初期状態ではデフォルトのワークスペースパスを使用
+    this.initializeWithDefaultPath();
+  }
+
+  /**
+   * デフォルトのワークスペースパスで初期化
+   */
+  private initializeWithDefaultPath(): void {
+    // VSCodeのワークスペースパスを取得
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    const rootPath = workspaceFolders && workspaceFolders.length > 0 
+      ? workspaceFolders[0].uri.fsPath 
+      : process.cwd();
+    
+    this.initializeWithPath(rootPath);
+  }
+
+  /**
+   * 指定されたプロジェクトパスでストレージを初期化
+   * @param projectPath プロジェクトのパス
+   */
+  public initializeWithPath(projectPath: string): void {
+    // プロジェクトディレクトリ内の'mockups'ディレクトリを使用
+    this.storageDir = path.join(projectPath, 'mockups');
     this.metadataFile = path.join(this.storageDir, 'metadata.json');
 
     // ディレクトリの作成
@@ -52,7 +74,8 @@ export class MockupStorageService {
     // 既存のモックアップをロード
     this.loadMockups();
     
-    Logger.info(`MockupStorageService initialized: ${this.storageDir}`);
+    this._initialized = true;
+    Logger.info(`MockupStorageService initialized with path: ${this.storageDir}`);
   }
 
   /**
@@ -273,6 +296,8 @@ export class MockupStorageService {
    */
   private async loadMockups(): Promise<void> {
     try {
+      this.mockups.clear(); // 既存のモックアップをクリア
+      
       // メタデータファイルが存在するか確認
       if (fs.existsSync(this.metadataFile)) {
         // メタデータファイルを読み込む
@@ -285,62 +310,106 @@ export class MockupStorageService {
         });
         
         Logger.info(`Loaded ${mockupList.length} mockups from metadata`);
-      } else {
-        // メタデータファイルがない場合は、ディレクトリからモックアップをロード
-        if (fs.existsSync(this.storageDir)) {
-          const directories = fs.readdirSync(this.storageDir, { withFileTypes: true })
-            .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('mockup_'))
-            .map(dirent => dirent.name);
+      }
+      
+      // ディレクトリ内のモックアップをロード
+      if (fs.existsSync(this.storageDir)) {
+        // 1. まずstructured mockupをロード (mockup_ディレクトリ)
+        const directories = fs.readdirSync(this.storageDir, { withFileTypes: true })
+          .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('mockup_'))
+          .map(dirent => dirent.name);
+        
+        for (const dir of directories) {
+          if (this.mockups.has(dir)) continue; // メタデータから既にロードされている場合はスキップ
           
-          for (const dir of directories) {
-            const mockupDir = path.join(this.storageDir, dir);
-            const htmlPath = path.join(mockupDir, 'index.html');
-            const cssPath = path.join(mockupDir, 'style.css');
-            const jsPath = path.join(mockupDir, 'script.js');
+          const mockupDir = path.join(this.storageDir, dir);
+          const htmlPath = path.join(mockupDir, 'index.html');
+          const cssPath = path.join(mockupDir, 'style.css');
+          const jsPath = path.join(mockupDir, 'script.js');
+          
+          // HTMLファイルが存在するか確認
+          if (fs.existsSync(htmlPath)) {
+            const html = await fs.promises.readFile(htmlPath, 'utf8');
             
-            // HTMLファイルが存在するか確認
-            if (fs.existsSync(htmlPath)) {
-              const html = await fs.promises.readFile(htmlPath, 'utf8');
-              
-              // CSSファイルの読み込み
-              let css: string | undefined;
-              if (fs.existsSync(cssPath)) {
-                css = await fs.promises.readFile(cssPath, 'utf8');
-              }
-              
-              // JSファイルの読み込み
-              let js: string | undefined;
-              if (fs.existsSync(jsPath)) {
-                js = await fs.promises.readFile(jsPath, 'utf8');
-              }
-              
-              // ディレクトリの作成日時を取得
-              const stats = fs.statSync(mockupDir);
-              const createdAt = stats.birthtimeMs;
-              const updatedAt = stats.mtimeMs;
-              
-              // モックアップオブジェクトを作成
-              const mockup: Mockup = {
-                id: dir,
-                name: `Mockup ${new Date(createdAt).toLocaleString()}`,
-                html,
-                css,
-                js,
-                createdAt,
-                updatedAt,
-                sourceType: 'imported' // ディレクトリから復元されたものはインポートとして扱う
-              };
-              
-              // マップに追加
-              this.mockups.set(dir, mockup);
+            // CSSファイルの読み込み
+            let css: string | undefined;
+            if (fs.existsSync(cssPath)) {
+              css = await fs.promises.readFile(cssPath, 'utf8');
             }
+            
+            // JSファイルの読み込み
+            let js: string | undefined;
+            if (fs.existsSync(jsPath)) {
+              js = await fs.promises.readFile(jsPath, 'utf8');
+            }
+            
+            // ディレクトリの作成日時を取得
+            const stats = fs.statSync(mockupDir);
+            const createdAt = stats.birthtimeMs;
+            const updatedAt = stats.mtimeMs;
+            
+            // モックアップオブジェクトを作成
+            const mockup: Mockup = {
+              id: dir,
+              name: `Mockup ${new Date(createdAt).toLocaleString()}`,
+              html,
+              css,
+              js,
+              createdAt,
+              updatedAt,
+              sourceType: 'imported' // ディレクトリから復元されたものはインポートとして扱う
+            };
+            
+            // マップに追加
+            this.mockups.set(dir, mockup);
           }
-          
-          // 新しいメタデータファイルを作成
-          await this.saveMetadata();
-          
-          Logger.info(`Loaded ${this.mockups.size} mockups from directory structure`);
         }
+        
+        // 2. 次にルートディレクトリのHTMLファイルをインポート
+        const htmlFiles = fs.readdirSync(this.storageDir, { withFileTypes: true })
+          .filter(dirent => dirent.isFile() && (dirent.name.endsWith('.html') || dirent.name.endsWith('.htm')))
+          .map(dirent => dirent.name);
+        
+        for (const htmlFile of htmlFiles) {
+          const htmlPath = path.join(this.storageDir, htmlFile);
+          const fileNameWithoutExt = htmlFile.replace(/\.[^/.]+$/, ''); // 拡張子を削除
+          const mockupId = `mockup_${Date.now()}_${fileNameWithoutExt}`;
+          
+          // ファイルが既にロードされているかチェック (同じパスのファイルがあるか)
+          const alreadyExists = Array.from(this.mockups.values()).some(
+            mockup => mockup.description === `File: ${htmlPath}`
+          );
+          
+          if (!alreadyExists) {
+            // HTMLの内容を読み込む
+            const html = await fs.promises.readFile(htmlPath, 'utf8');
+            
+            // ファイルの状態を取得
+            const stats = fs.statSync(htmlPath);
+            const createdAt = stats.birthtimeMs;
+            const updatedAt = stats.mtimeMs;
+            
+            // モックアップオブジェクトを作成
+            const mockup: Mockup = {
+              id: mockupId,
+              name: fileNameWithoutExt,
+              html,
+              createdAt,
+              updatedAt,
+              sourceType: 'imported',
+              description: `File: ${htmlPath}`
+            };
+            
+            // マップに追加
+            this.mockups.set(mockupId, mockup);
+            Logger.info(`Imported HTML file: ${htmlFile}`);
+          }
+        }
+        
+        // 新しいメタデータファイルを作成
+        await this.saveMetadata();
+        
+        Logger.info(`Loaded ${this.mockups.size} mockups from directory structure`);
       }
     } catch (error) {
       Logger.error(`Failed to load mockups: ${(error as Error).message}`);

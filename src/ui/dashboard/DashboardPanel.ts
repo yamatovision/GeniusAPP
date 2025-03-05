@@ -119,8 +119,8 @@ export class DashboardPanel {
           case 'openRequirementsEditor':
             await this._handleOpenRequirementsEditor();
             break;
-          case 'openMockupDesigner':
-            await this._handleOpenMockupDesigner();
+          case 'openMockupEditor':
+            await this._handleOpenMockupEditor();
             break;
           case 'openImplementationSelector':
             await this._handleOpenImplementationSelector();
@@ -529,20 +529,23 @@ export class DashboardPanel {
   }
 
   /**
-   * モックアップデザイナーを開く
+   * モックアップギャラリーを開く
    */
-  private async _handleOpenMockupDesigner(): Promise<void> {
+  private async _handleOpenMockupEditor(): Promise<void> {
     try {
       // アクティブなプロジェクトがあるか確認
       if (!this._activeProject) {
         throw new Error('開いているプロジェクトがありません。まずプロジェクトを作成または選択してください。');
       }
 
-      // モックアップデザイナーを開く
-      vscode.commands.executeCommand('appgenius-ai.openMockupDesigner');
+      // プロジェクトのパスを取得
+      const projectPath = this._activeProject.path;
+      
+      // プロジェクトパスをパラメータとして渡してモックアップギャラリーを開く
+      vscode.commands.executeCommand('appgenius-ai.openMockupEditor', undefined, projectPath);
     } catch (error) {
-      Logger.error(`モックアップデザイナー起動エラー`, error as Error);
-      await this._showError(`モックアップデザイナーの起動に失敗しました: ${(error as Error).message}`);
+      Logger.error(`モックアップギャラリー起動エラー`, error as Error);
+      await this._showError(`モックアップギャラリーの起動に失敗しました: ${(error as Error).message}`);
     }
   }
 
