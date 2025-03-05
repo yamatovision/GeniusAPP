@@ -275,12 +275,66 @@ export class DashboardPanel {
       // アクティブなプロジェクトのデータをロード
       if (this._activeProject) {
         const projectId = this._activeProject.id;
+        const projectPath = this._activeProject.path;
         
         // 要件定義データのロード
         try {
           const requirements = await this._stateManager.getRequirements(projectId);
           if (requirements) {
             this._projectRequirements[projectId] = requirements;
+          }
+          
+          // プロジェクトパスが設定されている場合、ファイルからも直接読み込み
+          if (projectPath) {
+            const fs = require('fs');
+            const path = require('path');
+            
+            // 要件定義ファイルのパス
+            const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
+            const structurePath = path.join(projectPath, 'docs', 'structure.md');
+            
+            // 要件定義ファイルの存在確認と内容チェック
+            if (fs.existsSync(requirementsPath)) {
+              try {
+                const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
+                
+                // 初期テンプレートからの変更を検出
+                // ここでは AppGeniusStateManager のメソッドは直接使えないので、簡易的な検出を実装
+                const isRequirementsChanged = this._isFileChangedFromTemplate(
+                  requirementsContent, 
+                  'requirements'
+                );
+                
+                if (isRequirementsChanged) {
+                  // フェーズを更新
+                  await this._projectService.updateProjectPhase(projectId, 'requirements', true);
+                  Logger.info(`要件定義ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
+                }
+              } catch (fileError) {
+                Logger.warn(`要件定義ファイルの読み込みに失敗: ${(fileError as Error).message}`);
+              }
+            }
+            
+            // ディレクトリ構造ファイルの存在確認と内容チェック
+            if (fs.existsSync(structurePath)) {
+              try {
+                const structureContent = fs.readFileSync(structurePath, 'utf8');
+                
+                // 初期テンプレートからの変更を検出
+                const isStructureChanged = this._isFileChangedFromTemplate(
+                  structureContent, 
+                  'structure'
+                );
+                
+                if (isStructureChanged) {
+                  // フェーズを更新
+                  await this._projectService.updateProjectPhase(projectId, 'directoryStructure', true);
+                  Logger.info(`構造ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
+                }
+              } catch (fileError) {
+                Logger.warn(`構造ファイルの読み込みに失敗: ${(fileError as Error).message}`);
+              }
+            }
           }
         } catch (e) {
           Logger.debug(`No requirements found for project: ${projectId}`);
@@ -698,6 +752,83 @@ export class DashboardPanel {
       Logger.error(`プロジェクト登録エラー`, error as Error);
       throw new Error(`プロジェクトの登録に失敗しました: ${(error as Error).message}`);
     }
+  }
+
+  /**
+   * ファイルが初期テンプレートから変更されているか確認
+   * @param content ファイルの内容
+   * @param fileType ファイルの種類（'requirements' または 'structure'）
+   */
+  private _isFileChangedFromTemplate(content: string, fileType: 'requirements' | 'structure'): boolean {
+    // テンプレート内容
+    const templates: Record<string, string> = {
+      requirements: `# 要件定義
+
+## 機能要件
+
+1. 要件1
+   - 説明: 機能の詳細説明
+   - 優先度: 高
+
+2. 要件2
+   - 説明: 機能の詳細説明
+   - 優先度: 中
+
+## 非機能要件
+
+1. パフォーマンス
+   - 説明: レスポンス時間や処理能力に関する要件
+   - 優先度: 中
+
+2. セキュリティ
+   - 説明: セキュリティに関する要件
+   - 優先度: 高
+
+## ユーザーストーリー
+
+- ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。`,
+      structure: `# ディレクトリ構造
+
+\`\`\`
+project/
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── assets/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── styles/
+│       └── utils/
+├── backend/
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   └── models/
+\`\`\``
+    };
+    
+    const templateContent = templates[fileType];
+    
+    // 行数が異なるか確認
+    const contentLines = content.split('\n').filter(line => line.trim() !== '');
+    const templateLines = templateContent.split('\n').filter(line => line.trim() !== '');
+    
+    // 行数が明らかに異なる場合は変更されたと判断
+    if (Math.abs(contentLines.length - templateLines.length) > 3) {
+      return true;
+    }
+    
+    // 同じ行数でも内容が異なるか確認（最低でも30%以上の行が変更されていること）
+    let differentLines = 0;
+    for (let i = 0; i < Math.min(contentLines.length, templateLines.length); i++) {
+      if (contentLines[i] !== templateLines[i]) {
+        differentLines++;
+      }
+    }
+    
+    const diffPercentage = differentLines / Math.min(contentLines.length, templateLines.length);
+    return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
   }
 
   /**

@@ -1470,6 +1470,52 @@ ${projectName}/
         Logger.warn(`構造ファイルが見つかりません: ${structurePath}`);
       }
       
+      // 初期テンプレートからの変更を検出し、フェーズを更新
+      try {
+        // ProjectManagementServiceを取得
+        const { ProjectManagementService } = await import('../services/ProjectManagementService');
+        const { AppGeniusStateManager } = await import('../services/AppGeniusStateManager');
+        
+        const projectService = ProjectManagementService.getInstance();
+        const stateManager = AppGeniusStateManager.getInstance();
+        
+        // アクティブなプロジェクトを取得
+        const activeProject = projectService.getActiveProject();
+        if (activeProject) {
+          const projectId = activeProject.id;
+          
+          // 要件定義ファイルの変更を検出
+          if (requirementsContent) {
+            const isRequirementsChanged = await this._isFileChangedFromTemplate(
+              requirementsContent, 
+              'requirements'
+            );
+            
+            if (isRequirementsChanged) {
+              // フェーズを更新
+              await projectService.updateProjectPhase(projectId, 'requirements', true);
+              Logger.info(`要件定義ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
+            }
+          }
+          
+          // 構造ファイルの変更を検出
+          if (structureContent) {
+            const isStructureChanged = await this._isFileChangedFromTemplate(
+              structureContent, 
+              'structure'
+            );
+            
+            if (isStructureChanged) {
+              // フェーズを更新
+              await projectService.updateProjectPhase(projectId, 'directoryStructure', true);
+              Logger.info(`構造ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
+            }
+          }
+        }
+      } catch (e) {
+        Logger.warn(`フェーズ更新処理でエラーが発生しました: ${(e as Error).message}`);
+      }
+
       // WebViewに初期データ送信
       this._panel.webview.postMessage({
         command: 'initialData',
@@ -1600,6 +1646,83 @@ ${projectName}/
         text: `ファイル保存エラー: ${(error as Error).message}`
       });
     }
+  }
+
+  /**
+   * ファイルが初期テンプレートから変更されているか確認
+   * @param content ファイルの内容
+   * @param fileType ファイルの種類（'requirements' または 'structure'）
+   */
+  private async _isFileChangedFromTemplate(content: string, fileType: 'requirements' | 'structure'): Promise<boolean> {
+    // テンプレート内容
+    const templates: Record<string, string> = {
+      requirements: `# 要件定義
+
+## 機能要件
+
+1. 要件1
+   - 説明: 機能の詳細説明
+   - 優先度: 高
+
+2. 要件2
+   - 説明: 機能の詳細説明
+   - 優先度: 中
+
+## 非機能要件
+
+1. パフォーマンス
+   - 説明: レスポンス時間や処理能力に関する要件
+   - 優先度: 中
+
+2. セキュリティ
+   - 説明: セキュリティに関する要件
+   - 優先度: 高
+
+## ユーザーストーリー
+
+- ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。`,
+      structure: `# ディレクトリ構造
+
+\`\`\`
+project/
+├── frontend/
+│   ├── public/
+│   │   ├── index.html
+│   │   └── assets/
+│   └── src/
+│       ├── components/
+│       ├── pages/
+│       ├── styles/
+│       └── utils/
+├── backend/
+│   ├── controllers/
+│   ├── routes/
+│   ├── services/
+│   └── models/
+\`\`\``
+    };
+    
+    const templateContent = templates[fileType];
+    
+    // 行数が異なるか確認
+    const contentLines = content.split('\n').filter(line => line.trim() !== '');
+    const templateLines = templateContent.split('\n').filter(line => line.trim() !== '');
+    
+    // 行数が明らかに異なる場合は変更されたと判断
+    if (Math.abs(contentLines.length - templateLines.length) > 3) {
+      return true;
+    }
+    
+    // 同じ行数でも内容が異なるか確認（最低でも30%以上の行が変更されていること）
+    let differentLines = 0;
+    for (let i = 0; i < Math.min(contentLines.length, templateLines.length); i++) {
+      if (contentLines[i] !== templateLines[i]) {
+        differentLines++;
+      }
+    }
+    
+    const diffPercentage = differentLines / Math.min(contentLines.length, templateLines.length);
+    return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
   }
 
   /**
