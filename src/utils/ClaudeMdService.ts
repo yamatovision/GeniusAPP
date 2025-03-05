@@ -341,6 +341,11 @@ export class ClaudeMdService {
       fs.writeFileSync(claudeMdPath, content);
       Logger.info(`CLAUDE.mdの進捗状況を更新しました: ${phase} -> ${status}`);
       
+      // ディレクトリ構造が完了した場合、ファイル一覧を抽出して更新
+      if (phase === 'directoryStructure' && isCompleted) {
+        await this.extractFileListFromStructure(projectPath);
+      }
+      
       return true;
     } catch (error) {
       Logger.error(`CLAUDE.mdの進捗状況更新に失敗しました`, error as Error);
@@ -459,9 +464,225 @@ export class ClaudeMdService {
       fs.writeFileSync(claudeMdPath, content);
       Logger.info(`CLAUDE.mdの複数の進捗状況を更新しました`);
       
+      // ディレクトリ構造が完了した場合、ファイル一覧を抽出して更新
+      if (updates['directoryStructure'] === true) {
+        await this.extractFileListFromStructure(projectPath);
+      }
+      
       return true;
     } catch (error) {
       Logger.error(`CLAUDE.mdの複数の進捗状況更新に失敗しました`, error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * ディレクトリ構造からファイル一覧を抽出しCLAUDE.mdに追加
+   */
+  public async extractFileListFromStructure(projectPath: string): Promise<boolean> {
+    try {
+      // ディレクトリ構造ファイルを読み込む
+      const structurePath = path.join(projectPath, 'docs', 'structure.md');
+      if (!fs.existsSync(structurePath)) {
+        Logger.warn('ディレクトリ構造ファイルが見つかりません');
+        return false;
+      }
+      
+      const structureContent = fs.readFileSync(structurePath, 'utf8');
+      
+      // コードブロックを抽出
+      const codeBlockRegex = /```[\s\S]*?```/g;
+      const codeBlocks = structureContent.match(codeBlockRegex);
+      
+      if (!codeBlocks || codeBlocks.length === 0) {
+        Logger.warn('ディレクトリ構造のコードブロックが見つかりません');
+        return false;
+      }
+      
+      // 最初のコードブロックを処理
+      const treeContent = codeBlocks[0].replace(/```/g, '').trim();
+      
+      // パスを抽出
+      const filePaths = this.parseDirectoryTree(treeContent);
+      
+      // コード関連のファイルのみをフィルタリング
+      const codeFilePaths = filePaths.filter(filePath => 
+        !filePath.endsWith('/') && 
+        !filePath.includes('node_modules/') &&
+        !filePath.includes('.git/') &&
+        !filePath.includes('.vscode/') &&
+        (
+          filePath.endsWith('.js') || 
+          filePath.endsWith('.ts') || 
+          filePath.endsWith('.jsx') || 
+          filePath.endsWith('.tsx') || 
+          filePath.endsWith('.html') || 
+          filePath.endsWith('.css') || 
+          filePath.endsWith('.json') ||
+          filePath.endsWith('.md')
+        )
+      );
+      
+      // 開発達成率セクションを更新
+      const achievementContent = `- 作成済みファイル: 0\n- 計画済みファイル: ${codeFilePaths.length}\n- 達成率: 0%`;
+      this.updateClaudeMdSection(projectPath, '開発達成率', achievementContent);
+      
+      // CLAUDE.mdの「実装対象ファイル」セクションを更新
+      const fileListContent = codeFilePaths.map(file => `- [ ] ${file}`).join('\n');
+      this.updateClaudeMdSection(projectPath, '実装対象ファイル', fileListContent);
+      
+      Logger.info(`${codeFilePaths.length}個のファイルをCLAUDE.mdに追加しました`);
+      return true;
+    } catch (error) {
+      Logger.error('ファイル一覧の抽出に失敗しました', error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * ディレクトリツリーからファイルパスを解析
+   */
+  private parseDirectoryTree(text: string): string[] {
+    const lines = text.split('\n');
+    const result: string[] = [];
+    const stack: string[] = [];
+    let currentPath = '';
+    
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      
+      // インデントレベルを計算（フォルダ構造の深さ）
+      let level = 0;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === ' ' || line[i] === '│' || line[i] === '├' || line[i] === '└' || line[i] === '─') {
+          level = Math.floor(i / 2) + 1;
+          continue;
+        }
+        break;
+      }
+      
+      // クリーンな名前を取得（ツリー記号を削除）
+      const cleanName = line.replace(/[│├└─\s]/g, '').trim();
+      
+      // スタックをレベルに合わせて調整
+      while (stack.length >= level) {
+        stack.pop();
+      }
+      
+      // 現在のパスを構築
+      stack.push(cleanName);
+      currentPath = stack.join('/');
+      
+      // フォルダの場合はスラッシュを追加
+      const isDirectory = !line.includes('.') || cleanName.includes('.gitkeep');
+      if (isDirectory) {
+        currentPath += '/';
+      }
+      
+      result.push(currentPath);
+    }
+    
+    return result;
+  }
+  
+  /**
+   * ファイルの実装状況を更新する
+   * @param projectPath プロジェクトパス
+   * @param filePath 実装されたファイルパス
+   * @param isImplemented 実装済みかどうか
+   */
+  public async updateFileImplementationStatus(
+    projectPath: string, 
+    filePath: string, 
+    isImplemented: boolean
+  ): Promise<boolean> {
+    try {
+      const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+      
+      // ファイルの存在確認
+      if (!this.fileExists(claudeMdPath)) {
+        Logger.error(`CLAUDE.mdファイルが見つかりません: ${claudeMdPath}`);
+        return false;
+      }
+      
+      // ファイルを読み込む
+      const content = fs.readFileSync(claudeMdPath, 'utf8');
+      
+      // 実装対象ファイルセクションを探す
+      const fileSection = content.match(/## 実装対象ファイル\n([\s\S]*?)(\n##|\n$)/);
+      
+      if (fileSection) {
+        let fileContent = fileSection[1];
+        const fileRegex = new RegExp(`- \\[([ x])\\] ${filePath.replace(/\//g, '\\/')}`, 'g');
+        
+        // ファイルのステータスを更新
+        if (fileContent.match(fileRegex)) {
+          fileContent = fileContent.replace(
+            fileRegex,
+            `- [${isImplemented ? 'x' : ' '}] ${filePath}`
+          );
+          
+          // 更新した内容を元の内容に反映
+          const updatedContent = content.replace(fileSection[0], `## 実装対象ファイル\n${fileContent}${fileSection[2]}`);
+          fs.writeFileSync(claudeMdPath, updatedContent);
+          
+          // 開発達成率も更新
+          await this.updateAchievementRate(projectPath);
+          
+          Logger.info(`ファイル「${filePath}」の実装状況を更新しました: ${isImplemented ? '完了' : '未完了'}`);
+          return true;
+        } else {
+          Logger.warn(`ファイル「${filePath}」が実装対象ファイル一覧に見つかりません`);
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      Logger.error(`ファイル実装状況の更新に失敗しました: ${filePath}`, error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * 開発達成率を更新する
+   */
+  public async updateAchievementRate(projectPath: string): Promise<boolean> {
+    try {
+      const claudeMdPath = path.join(projectPath, 'CLAUDE.md');
+      
+      // ファイルの存在確認
+      if (!this.fileExists(claudeMdPath)) {
+        Logger.error(`CLAUDE.mdファイルが見つかりません: ${claudeMdPath}`);
+        return false;
+      }
+      
+      // ファイルを読み込む
+      const content = fs.readFileSync(claudeMdPath, 'utf8');
+      
+      // 実装対象ファイルセクションを探す
+      const fileSection = content.match(/## 実装対象ファイル\n([\s\S]*?)(\n##|\n$)/);
+      
+      if (fileSection) {
+        const fileContent = fileSection[1];
+        
+        // チェック済みのファイル数を数える
+        const totalFiles = (fileContent.match(/- \[([ x])\]/g) || []).length;
+        const implementedFiles = (fileContent.match(/- \[x\]/g) || []).length;
+        
+        // 達成率を計算
+        const achievementRate = totalFiles > 0 ? Math.round((implementedFiles / totalFiles) * 100) : 0;
+        
+        // 開発達成率セクションを更新
+        const achievementContent = `- 作成済みファイル: ${implementedFiles}\n- 計画済みファイル: ${totalFiles}\n- 達成率: ${achievementRate}%`;
+        this.updateClaudeMdSection(projectPath, '開発達成率', achievementContent);
+        
+        Logger.info(`開発達成率を更新しました: ${achievementRate}%`);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      Logger.error('開発達成率の更新に失敗しました', error as Error);
       return false;
     }
   }
@@ -510,6 +731,14 @@ export class ClaudeMdService {
 - 実装: 未開始
 - テスト: 未開始
 - デプロイ: 未開始
+
+## 開発達成率
+- 作成済みファイル: 0
+- 計画済みファイル: 0
+- 達成率: 0%
+
+## 実装対象ファイル
+_ディレクトリ構造が確定次第、このセクションに実装対象ファイルが自動的に追加されます_
 
 ## チェックリスト
 - [ ] 要件定義の完了

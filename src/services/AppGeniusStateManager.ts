@@ -425,7 +425,7 @@ export class AppGeniusStateManager {
       // 要件定義完了フェーズを更新 (すでに取得したプロジェクト情報を再利用)
       if (project) {
         // 変更が十分であれば完了とマーク
-        const updatePhase = !markdownContent || isChanged; 
+        const updatePhase = true; // 常にtrueとして処理（以前の条件は削除）
         await this.projectService.updateProjectPhase(projectId, 'requirements', updatePhase);
         
         // イベント発火
@@ -499,7 +499,8 @@ export class AppGeniusStateManager {
       
       // 変更されていればフェーズを更新
       if (isChanged) {
-        await this.projectService.updateProjectPhase(projectId, 'directoryStructure', true);
+        // directoryStructureは直接のフェーズではないため、設計(design)フェーズとして扱う
+        await this.projectService.updateProjectPhase(projectId, 'design', true);
         
         // CLAUDE.mdのセクションも更新
         try {

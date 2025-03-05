@@ -458,12 +458,12 @@
             <div class="step-action">開く</div>
           </a>
 
-          <a href="#" class="process-step ${phases.design ? 'completed' : (phases.requirements ? 'active' : '')} ${!phases.requirements ? 'disabled' : ''}" id="mockup-step" data-command="openMockupDesigner">
+          <a href="#" class="process-step ${phases.design ? 'completed' : (phases.requirements ? 'active' : '')} ${!phases.requirements ? 'disabled' : ''}" id="mockup-step" data-command="openMockupEditor">
             <div class="step-number">2</div>
             <div class="step-icon">🎨</div>
             <div class="step-content">
-              <div class="step-title">モックアップ</div>
-              <div class="step-instruction">画面デザインのイメージを作成します</div>
+              <div class="step-title">モックアップギャラリー</div>
+              <div class="step-instruction">画面デザインのイメージを作成・編集します</div>
             </div>
             ${phases.design ? '<div class="step-check">✓</div>' : ''}
             <div class="step-action">開く</div>

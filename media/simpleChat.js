@@ -1,6 +1,9 @@
 (function() {
   const vscode = acquireVsCodeApi();
   let isWaitingForResponse = false;
+  let activeTab = 'chat'; // Default active tab
+  let requirementsContent = '';
+  let structureContent = '';
 
   // 初期化時に実行
   document.addEventListener('DOMContentLoaded', () => {
@@ -9,12 +12,26 @@
     const clearChatButton = document.getElementById('clear-chat-button');
     const exportRequirementsButton = document.getElementById('export-requirements-button');
     
-    sendButton.addEventListener('click', sendMessage);
-    messageInput.addEventListener('keypress', (event) => {
-      if (event.key === 'Enter') {
-        sendMessage();
-      }
-    });
+    // 送信ボタンのイベントリスナーを再登録
+    if (sendButton) {
+      sendButton.addEventListener('click', sendMessage);
+      console.log('送信ボタンにイベントリスナーを設定しました');
+    } else {
+      console.error('送信ボタンが見つかりません');
+    }
+    
+    // 入力フィールドのイベントリスナーを再登録
+    if (messageInput) {
+      messageInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+          event.preventDefault(); // フォーム送信を防止
+          sendMessage();
+        }
+      });
+      console.log('メッセージ入力欄にイベントリスナーを設定しました');
+    } else {
+      console.error('メッセージ入力欄が見つかりません');
+    }
     
     // クリアボタンの設定
     if (clearChatButton) {
@@ -29,9 +46,340 @@
       exportRequirementsButton.addEventListener('click', exportRequirements);
     }
 
+    // Tab functionality
+    addTabFunctionality();
+
+    // File editor functionality
+    addFileEditorFunctionality();
+    
+    // 初期ビューの設定
+    // デフォルトタブの設定
+    const defaultTab = 'chat';
+    switchTab(defaultTab);
+    
     // 初期化メッセージを送信
     vscode.postMessage({ command: 'initialize' });
+    
+    console.log('初期化処理が完了しました');
   });
+
+  // タブ機能を追加
+  function addTabFunctionality() {
+    // HTMLにすでにタブ要素がある場合の処理
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    if (tabButtons.length > 0) {
+      console.log(`タブボタンが見つかりました (${tabButtons.length}個)`);
+      
+      // すでに存在するタブボタンにイベントリスナーを追加
+      tabButtons.forEach(button => {
+        const tabId = button.id.replace('tab-', '');
+        
+        // クリックイベントを設定
+        button.addEventListener('click', () => {
+          console.log(`タブクリック: ${tabId}`);
+          switchTab(tabId);
+        });
+        
+        console.log(`タブボタンにイベントリスナーを設定: ${button.id} -> ${tabId}`);
+      });
+      
+      // タブコンテンツの初期状態を設定
+      if (tabContents.length > 0) {
+        console.log(`タブコンテンツが見つかりました (${tabContents.length}個)`);
+        
+        // 初期状態ではすべて非表示に
+        tabContents.forEach(content => {
+          // すべてのコンテンツを一旦非表示に
+          content.classList.add('hidden');
+          content.style.display = 'none';
+        });
+        
+        // チャットタブを初期表示に設定
+        const chatContent = document.getElementById('content-chat');
+        if (chatContent) {
+          chatContent.classList.remove('hidden');
+          chatContent.classList.add('active');
+          chatContent.style.display = 'block';
+        }
+      }
+      
+      // デフォルトの active タブを設定
+      document.getElementById('tab-chat')?.classList.add('active');
+      
+      return;
+    }
+    
+    // 以下は互換性のために残しておくが、通常は実行されません
+    console.log('タブ要素が見つかりません。これは通常は起きないはずです。');
+  }
+
+  // File editor functionality
+  function addFileEditorFunctionality() {
+    // State for editing
+    let isEditingRequirements = false;
+    let isEditingStructure = false;
+    
+    // Requirements editor
+    const requirementsPreview = document.getElementById('requirements-preview');
+    const requirementsEditor = document.getElementById('requirements-editor');
+    const editRequirementsBtn = document.getElementById('edit-requirements');
+    const saveRequirementsBtn = document.getElementById('save-requirements');
+    
+    if (editRequirementsBtn) {
+      editRequirementsBtn.addEventListener('click', () => {
+        if (isEditingRequirements) {
+          // Switch to preview mode
+          requirementsPreview.classList.remove('hidden');
+          requirementsEditor.classList.add('hidden');
+          editRequirementsBtn.textContent = '編集';
+          isEditingRequirements = false;
+          saveRequirementsBtn.disabled = true;
+        } else {
+          // Switch to edit mode
+          requirementsPreview.classList.add('hidden');
+          requirementsEditor.classList.remove('hidden');
+          requirementsEditor.value = requirementsContent || requirementsPreview.innerHTML;
+          editRequirementsBtn.textContent = 'プレビュー';
+          isEditingRequirements = true;
+          saveRequirementsBtn.disabled = false;
+        }
+      });
+    }
+    
+    if (saveRequirementsBtn) {
+      saveRequirementsBtn.addEventListener('click', () => {
+        // Get content from editor
+        requirementsContent = requirementsEditor.value;
+        
+        // Update the preview with HTML
+        requirementsPreview.innerHTML = formatMarkdown(requirementsContent);
+        
+        // Switch to preview mode
+        requirementsPreview.classList.remove('hidden');
+        requirementsEditor.classList.add('hidden');
+        editRequirementsBtn.textContent = '編集';
+        isEditingRequirements = false;
+        saveRequirementsBtn.disabled = true;
+        
+        // Send to extension
+        vscode.postMessage({
+          command: 'updateFile',
+          filePath: 'docs/requirements.md',
+          content: requirementsContent
+        });
+        
+        // Update status message
+        document.getElementById('status-message').textContent = '要件定義を保存しました';
+        
+        // Reset after 3 seconds
+        setTimeout(() => {
+          document.getElementById('status-message').textContent = '準備完了';
+        }, 3000);
+      });
+    }
+    
+    // Structure editor
+    const structurePreview = document.getElementById('structure-preview');
+    const structureEditor = document.getElementById('structure-editor');
+    const editStructureBtn = document.getElementById('edit-structure');
+    const saveStructureBtn = document.getElementById('save-structure');
+    
+    if (editStructureBtn) {
+      editStructureBtn.addEventListener('click', () => {
+        if (isEditingStructure) {
+          // Switch to preview mode
+          structurePreview.classList.remove('hidden');
+          structureEditor.classList.add('hidden');
+          editStructureBtn.textContent = '編集';
+          isEditingStructure = false;
+          saveStructureBtn.disabled = true;
+        } else {
+          // Switch to edit mode
+          structurePreview.classList.add('hidden');
+          structureEditor.classList.remove('hidden');
+          structureEditor.value = structureContent || structurePreview.innerHTML;
+          editStructureBtn.textContent = 'プレビュー';
+          isEditingStructure = true;
+          saveStructureBtn.disabled = false;
+        }
+      });
+    }
+    
+    if (saveStructureBtn) {
+      saveStructureBtn.addEventListener('click', () => {
+        // Get content from editor
+        structureContent = structureEditor.value;
+        
+        // Update the preview with HTML
+        structurePreview.innerHTML = formatMarkdown(structureContent);
+        
+        // Switch to preview mode
+        structurePreview.classList.remove('hidden');
+        structureEditor.classList.add('hidden');
+        editStructureBtn.textContent = '編集';
+        isEditingStructure = false;
+        saveStructureBtn.disabled = true;
+        
+        // Send to extension
+        vscode.postMessage({
+          command: 'updateFile',
+          filePath: 'docs/structure.md',
+          content: structureContent
+        });
+        
+        // Update status
+        document.getElementById('status-message').textContent = 'ディレクトリ構造を保存しました';
+        
+        // Reset after 3 seconds
+        setTimeout(() => {
+          document.getElementById('status-message').textContent = '準備完了';
+        }, 3000);
+      });
+    }
+    
+    // Add generate structure button functionality
+    const generateStructureButton = document.querySelector('.header-actions button:nth-child(2)');
+    if (generateStructureButton) {
+      generateStructureButton.addEventListener('click', () => {
+        vscode.postMessage({
+          command: 'generateProjectStructure'
+        });
+        document.getElementById('status-message').textContent = 'ディレクトリ構造を生成中...';
+      });
+    }
+  }
+
+  // Tab switching function
+  function switchTab(tabId) {
+    // Update active tab
+    activeTab = tabId;
+    
+    console.log(`タブ切替を開始: ${tabId}`);
+    
+    // タブの存在を確認
+    const selectedTab = document.getElementById(`tab-${tabId}`);
+    const selectedContent = document.getElementById(`content-${tabId}`);
+    
+    if (!selectedTab) {
+      console.error(`タブが見つかりません: tab-${tabId}`);
+      return;
+    }
+    
+    if (!selectedContent) {
+      console.error(`タブコンテンツが見つかりません: content-${tabId}`);
+      return;
+    }
+    
+    // すべてのタブボタンから active クラスを削除
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    // すべてのコンテンツを非表示にする (重要：CSSとの競合を避けるために !important を使用)
+    document.querySelectorAll('.tab-content').forEach(content => {
+      // active クラスを削除
+      content.classList.remove('active');
+      
+      // hidden クラスを追加（すでに追加されていなければ）
+      if (!content.classList.contains('hidden')) {
+        content.classList.add('hidden');
+      }
+      
+      // 非表示にする (CSS優先度の問題を避けるため強制的に設定)
+      content.style.cssText = 'display: none !important';
+    });
+    
+    // 選択したタブに active クラスを追加
+    selectedTab.classList.add('active');
+    
+    // 選択したコンテンツを表示
+    selectedContent.classList.add('active');
+    selectedContent.classList.remove('hidden');
+    selectedContent.style.cssText = 'display: block !important';
+    
+    console.log(`タブ切替完了: ${tabId} -> ${selectedContent.id}`);
+    
+    // タブごとの特別な処理
+    if (tabId === 'requirements') {
+      // 要件定義タブが選択された場合、コンテンツを再表示
+      const requirementsPreview = document.getElementById('requirements-preview');
+      if (requirementsPreview && requirementsContent) {
+        console.log('要件定義コンテンツを再表示します', requirementsContent.length);
+        requirementsPreview.innerHTML = formatMarkdown(requirementsContent);
+      } else {
+        console.log('要件定義コンテンツを表示できません', { 
+          previewElement: !!requirementsPreview, 
+          contentLength: requirementsContent ? requirementsContent.length : 0 
+        });
+      }
+    } else if (tabId === 'structure') {
+      // 構造タブが選択された場合、コンテンツを再表示
+      const structurePreview = document.getElementById('structure-preview');
+      if (structurePreview && structureContent) {
+        console.log('構造コンテンツを再表示します', structureContent.length);
+        structurePreview.innerHTML = formatMarkdown(structureContent);
+      } else {
+        console.log('構造コンテンツを表示できません', { 
+          previewElement: !!structurePreview, 
+          contentLength: structureContent ? structureContent.length : 0 
+        });
+      }
+    }
+    
+    // ステータスメッセージの更新
+    document.getElementById('status-message').textContent = `${tabId}タブを表示しています`;
+    
+    // 初期データリクエストの送信（必要に応じて）
+    if ((tabId === 'requirements' || tabId === 'structure') && 
+        (!requirementsContent && !structureContent)) {
+      console.log('初期データの再リクエスト');
+      vscode.postMessage({ command: 'initialize' });
+    }
+  }
+
+  // Helper function to convert HTML to Markdown
+  function createMarkdownFromHtml(html) {
+    // Extract content from HTML
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    
+    let markdown = '';
+    
+    // Process headings
+    const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    headings.forEach(heading => {
+      const level = parseInt(heading.tagName.charAt(1));
+      const hashes = '#'.repeat(level);
+      markdown += `${hashes} ${heading.textContent}\n\n`;
+    });
+    
+    // Process paragraphs
+    const paragraphs = tempDiv.querySelectorAll('p');
+    paragraphs.forEach(p => {
+      markdown += `${p.textContent}\n\n`;
+    });
+    
+    // Process lists
+    const lists = tempDiv.querySelectorAll('ul, ol');
+    lists.forEach(list => {
+      const items = list.querySelectorAll('li');
+      items.forEach(item => {
+        const prefix = list.tagName === 'UL' ? '- ' : '1. ';
+        markdown += `${prefix}${item.textContent}\n`;
+      });
+      markdown += '\n';
+    });
+    
+    // Process code blocks
+    const codeBlocks = tempDiv.querySelectorAll('pre code');
+    codeBlocks.forEach(block => {
+      markdown += '```\n' + block.textContent + '\n```\n\n';
+    });
+    
+    return markdown;
+  }
   
   // チャット履歴をクリア
   function clearChat() {
@@ -49,21 +397,41 @@
   
   // メッセージ送信処理
   function sendMessage() {
-    if (isWaitingForResponse) return;
+    console.log('sendMessage関数が呼び出されました');
+    
+    if (isWaitingForResponse) {
+      console.log('応答待ち中のため、送信をスキップします');
+      return;
+    }
 
     const messageInput = document.getElementById('message-input');
-    const text = messageInput.value.trim();
+    if (!messageInput) {
+      console.error('メッセージ入力欄が見つかりません (送信時)');
+      return;
+    }
     
-    if (!text) return;
+    const text = messageInput.value.trim();
+    console.log(`入力テキスト: "${text}"`);
+    
+    if (!text) {
+      console.log('テキストが空のため、送信をスキップします');
+      return;
+    }
     
     // ユーザーメッセージをUI追加
     addUserMessage(text);
     
     // メッセージを拡張機能に送信
-    vscode.postMessage({
-      command: 'sendMessage',
-      text: text
-    });
+    try {
+      console.log('VSCodeにメッセージを送信します', { command: 'sendMessage', text });
+      vscode.postMessage({
+        command: 'sendMessage',
+        text: text
+      });
+      console.log('メッセージ送信完了');
+    } catch (error) {
+      console.error('メッセージ送信中にエラーが発生しました', error);
+    }
     
     // 入力フィールドをクリア
     messageInput.value = '';
@@ -73,27 +441,50 @@
     
     // 応答待ちフラグをセット
     isWaitingForResponse = true;
+    console.log('送信処理完了、応答待ち状態に設定しました');
   }
 
   // ユーザーメッセージをチャットに追加
   function addUserMessage(text) {
+    console.log('ユーザーメッセージを追加します');
     const messagesContainer = document.getElementById('chat-messages');
-    const messageElement = document.createElement('div');
-    messageElement.className = 'message user';
-    messageElement.innerHTML = `<p>${escapeHtml(text)}</p>`;
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    if (!messagesContainer) {
+      console.error('チャットメッセージコンテナが見つかりません');
+      return;
+    }
+    
+    try {
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message user';
+      messageElement.innerHTML = `<p>${escapeHtml(text)}</p>`;
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      console.log('ユーザーメッセージを追加しました');
+    } catch (error) {
+      console.error('ユーザーメッセージ追加中にエラーが発生しました', error);
+    }
   }
 
   // AIの考え中メッセージを追加
   function addThinkingMessage() {
+    console.log('AIの考え中メッセージを追加します');
     const messagesContainer = document.getElementById('chat-messages');
-    const messageElement = document.createElement('div');
-    messageElement.className = 'message ai thinking';
-    messageElement.id = 'thinking-message';
-    messageElement.innerHTML = '<p>考え中...<span class="dot-animation"></span></p>';
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    if (!messagesContainer) {
+      console.error('チャットメッセージコンテナが見つかりません');
+      return;
+    }
+    
+    try {
+      const messageElement = document.createElement('div');
+      messageElement.className = 'message ai thinking';
+      messageElement.id = 'thinking-message';
+      messageElement.innerHTML = '<p>考え中...<span class="dot-animation"></span></p>';
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      console.log('AIの考え中メッセージを追加しました');
+    } catch (error) {
+      console.error('考え中メッセージ追加中にエラーが発生しました', error);
+    }
   }
 
   // AIメッセージをチャットに追加
@@ -112,6 +503,112 @@
     const formattedText = formatText(text, codeBlocks);
     messageElement.innerHTML = formattedText;
     
+    // メッセージ下部にクイックアクション機能ボタンを追加
+    const actionsContainer = document.createElement('div');
+    actionsContainer.className = 'message-actions';
+    
+    // 要件定義として保存ボタン
+    const saveAsRequirementsBtn = document.createElement('button');
+    saveAsRequirementsBtn.className = 'message-action-btn requirements-btn';
+    saveAsRequirementsBtn.innerHTML = '要件定義として保存';
+    saveAsRequirementsBtn.addEventListener('click', function() {
+      // メッセージの内容を要件定義として保存
+      const messageContent = text;
+      
+      // 要件定義としてフォーマット
+      // 見出しがなければ追加する
+      let formattedContent = messageContent;
+      if (!formattedContent.trim().startsWith('# ')) {
+        formattedContent = '# 要件定義\n\n' + formattedContent;
+      }
+      
+      // 要件定義タブを表示
+      switchTab('requirements');
+      
+      // 要件定義エディタに内容をセット
+      const requirementsEditor = document.getElementById('requirements-editor');
+      const requirementsPreview = document.getElementById('requirements-preview');
+      requirementsContent = formattedContent;
+      requirementsEditor.value = formattedContent;
+      requirementsPreview.innerHTML = formatMarkdown(formattedContent);
+      
+      // 保存コマンドを送信
+      vscode.postMessage({
+        command: 'updateFile',
+        filePath: 'docs/requirements.md',
+        content: formattedContent
+      });
+      
+      // 通知
+      const notification = document.createElement('div');
+      notification.className = 'save-notification';
+      notification.textContent = '要件定義として保存しました';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.classList.add('fadeout');
+        setTimeout(() => {
+          notification.remove();
+        }, 500);
+      }, 2000);
+    });
+    
+    // ディレクトリ構造として保存ボタン
+    const saveAsStructureBtn = document.createElement('button');
+    saveAsStructureBtn.className = 'message-action-btn structure-btn';
+    saveAsStructureBtn.innerHTML = 'ディレクトリ構造として保存';
+    saveAsStructureBtn.addEventListener('click', function() {
+      // メッセージからコードブロックを抽出
+      const structureMatch = text.match(/```[a-z]*\n([\s\S]*?)```/);
+      
+      let structureContent = '';
+      if (structureMatch && structureMatch[1]) {
+        // コードブロックが見つかった場合
+        structureContent = '# ディレクトリ構造\n\n```\n' + structureMatch[1] + '```';
+      } else {
+        // コードブロックが見つからない場合は全体を保存
+        structureContent = '# ディレクトリ構造\n\n```\n' + text + '\n```';
+      }
+      
+      // ディレクトリ構造タブを表示
+      switchTab('structure');
+      
+      // 構造エディタに内容をセット
+      const structureEditor = document.getElementById('structure-editor');
+      const structurePreview = document.getElementById('structure-preview');
+      structureContent = structureContent;
+      structureEditor.value = structureContent;
+      structurePreview.innerHTML = formatMarkdown(structureContent);
+      
+      // 保存コマンドを送信
+      vscode.postMessage({
+        command: 'updateFile',
+        filePath: 'docs/structure.md',
+        content: structureContent
+      });
+      
+      // 通知
+      const notification = document.createElement('div');
+      notification.className = 'save-notification';
+      notification.textContent = 'ディレクトリ構造として保存しました';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.classList.add('fadeout');
+        setTimeout(() => {
+          notification.remove();
+        }, 500);
+      }, 2000);
+    });
+    
+    // ボタンをアクションコンテナに追加
+    actionsContainer.appendChild(saveAsRequirementsBtn);
+    actionsContainer.appendChild(saveAsStructureBtn);
+    
+    // アクションコンテナをメッセージに追加
+    messageElement.appendChild(actionsContainer);
+    
+    // メッセージをチャットコンテナに追加
     messagesContainer.appendChild(messageElement);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
     
@@ -140,29 +637,29 @@
             const codeText = decodeHtmlEntities(codeElement.textContent);
             navigator.clipboard.writeText(codeText).then(() => {
               // 成功通知
-              const notification = document.createElement('div');
-              notification.className = 'save-notification';
-              notification.textContent = 'コードをクリップボードにコピーしました';
-              document.body.appendChild(notification);
+              const successNotification = document.createElement('div');
+              successNotification.className = 'save-notification';
+              successNotification.textContent = 'コードをクリップボードにコピーしました';
+              document.body.appendChild(successNotification);
               
               // 数秒後に通知を消す
               setTimeout(() => {
-                notification.classList.add('fadeout');
+                successNotification.classList.add('fadeout');
                 setTimeout(() => {
-                  notification.remove();
+                  successNotification.remove();
                 }, 500);
               }, 2000);
             }).catch(() => {
               // エラー通知
-              const notification = document.createElement('div');
-              notification.className = 'save-notification';
-              notification.textContent = 'コピーに失敗しました';
-              document.body.appendChild(notification);
+              const errorNotification = document.createElement('div');
+              errorNotification.className = 'save-notification';
+              errorNotification.textContent = 'コピーに失敗しました';
+              document.body.appendChild(errorNotification);
               
               setTimeout(() => {
-                notification.classList.add('fadeout');
+                errorNotification.classList.add('fadeout');
                 setTimeout(() => {
-                  notification.remove();
+                  errorNotification.remove();
                 }, 500);
               }, 2000);
             });
@@ -258,55 +755,6 @@
     return textarea.value;
   }
   
-  // ユーザーメッセージから自動的にプロジェクト構造を検出する処理は、
-  // サーバー側の_handleSendMessage内で実装するため、この関数は削除
-  
-  // プロジェクト生成中メッセージを追加
-  function addGeneratingMessage() {
-    const messagesContainer = document.getElementById('chat-messages');
-    const messageElement = document.createElement('div');
-    messageElement.className = 'message ai thinking';
-    messageElement.id = 'generating-message';
-    // 単純なテキストに変更して複雑なアニメーションを避ける
-    messageElement.innerHTML = '<p>プロジェクト構造を生成中...</p>';
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
-  }
-  
-  // AIの応答にプロジェクト作成ボタンを追加する関数
-  function addCreateProjectButtonToMessage(messageElement) {
-    if (!messageElement) return;
-    
-    // 既に作成ボタンがある場合は追加しない
-    if (messageElement.querySelector('.create-project-btn')) return;
-    
-    // コードブロックを含む場合のみボタンを追加
-    if (messageElement.querySelector('.code-block')) {
-      const createButton = document.createElement('button');
-      createButton.className = 'project-action-btn create-project-btn';
-      createButton.textContent = 'この構造でプロジェクトを作成';
-      createButton.addEventListener('click', createProject);
-      messageElement.appendChild(createButton);
-    }
-  }
-  
-  // プロジェクト作成（スケルトン）
-  function createProject() {
-    if (isWaitingForResponse) return;
-    
-    // 確認ダイアログではなく直接実行（VSCodeのWebview制約により）
-    // 「作成中...」メッセージを表示
-    addUserMessage("この構造でプロジェクトを作成してください。各ファイルには基本的なスケルトンコードを追加してください。");
-    
-    // メッセージを拡張機能に送信
-    vscode.postMessage({
-      command: 'createProject'
-    });
-    
-    // 応答待ちフラグをセット
-    isWaitingForResponse = true;
-  }
-
   // 拡張機能からのメッセージ処理
   window.addEventListener('message', event => {
     const message = event.data;
@@ -315,9 +763,6 @@
       case 'addAIResponse':
         // 通常の応答処理（非ストリーミング）
         addAIMessage(message.text, message.codeBlocks);
-        
-        // プロジェクト作成ボタンの自動追加を削除
-        // ユーザーが明示的にプロジェクト作成を求めた場合のみUIボタンから対応
         break;
         
       case 'projectStructureGenerated':
@@ -331,13 +776,50 @@
         // AIメッセージとして表示
         addAIMessage(message.text, message.codeBlocks);
         
-        // プロジェクト作成ボタンの自動追加を削除
-        // プロジェクト構造生成の後も、明示的なプロジェクト作成コマンドのみ有効にする
+        // Update structure tab content
+        if (message.text.includes('```')) {
+          const codeBlock = message.text.match(/```[\s\S]*?([\s\S]*?)```/);
+          if (codeBlock && codeBlock[1]) {
+            // Update structure preview
+            const structurePreview = document.getElementById('structure-preview');
+            structureContent = `# プロジェクト構造\n\n\`\`\`\n${codeBlock[1].trim()}\n\`\`\``;
+            structurePreview.innerHTML = formatMarkdown(structureContent);
+            
+            // Update status and switch to structure tab
+            document.getElementById('status-message').textContent = 'ディレクトリ構造を生成しました';
+            
+            // 保存コマンドを送信
+            vscode.postMessage({
+              command: 'updateFile',
+              filePath: 'docs/structure.md',
+              content: structureContent
+            });
+            
+            // タブ切り替え
+            switchTab('structure');
+          }
+        }
         break;
         
       case 'projectCreated':
         // プロジェクト作成完了時
         addAIMessage(message.text, message.codeBlocks);
+        break;
+        
+      case 'showNotification':
+        // 指定されたタイプの通知メッセージを表示
+        const notification = document.createElement('div');
+        notification.className = `save-notification ${message.type || ''}`;
+        notification.textContent = message.message;
+        document.body.appendChild(notification);
+        
+        // 数秒後に通知を消す
+        setTimeout(() => {
+          notification.classList.add('fadeout');
+          setTimeout(() => {
+            notification.remove();
+          }, 500);
+        }, 3000);
         break;
         
       case 'showMessage':
@@ -346,6 +828,15 @@
         infoNotification.className = 'save-notification';
         infoNotification.textContent = message.text;
         document.body.appendChild(infoNotification);
+        
+        // ステータスメッセージにも表示
+        document.getElementById('status-message').textContent = message.text;
+        
+        // 要件定義タブと構造タブのコンテンツを確認してデバッグ出力
+        console.log('要件定義プレビュー要素:', document.getElementById('requirements-preview'));
+        console.log('構造プレビュー要素:', document.getElementById('structure-preview'));
+        console.log('要件定義タブ:', document.getElementById('tab-requirements'));
+        console.log('構造タブ:', document.getElementById('tab-structure'));
         
         // 数秒後に通知を消す
         setTimeout(() => {
@@ -413,6 +904,111 @@
           const formattedText = formatText(message.text, message.codeBlocks);
           streamingElement.innerHTML = formattedText;
           
+          // メッセージ下部にクイックアクション機能ボタンを追加
+          const actionsContainer = document.createElement('div');
+          actionsContainer.className = 'message-actions';
+          
+          // 要件定義として保存ボタン
+          const saveAsRequirementsBtn = document.createElement('button');
+          saveAsRequirementsBtn.className = 'message-action-btn requirements-btn';
+          saveAsRequirementsBtn.innerHTML = '要件定義として保存';
+          saveAsRequirementsBtn.addEventListener('click', function() {
+            // メッセージの内容を要件定義として保存
+            const messageContent = message.text;
+            
+            // 要件定義としてフォーマット
+            // 見出しがなければ追加する
+            let formattedContent = messageContent;
+            if (!formattedContent.trim().startsWith('# ')) {
+              formattedContent = '# 要件定義\n\n' + formattedContent;
+            }
+            
+            // 要件定義タブを表示
+            switchTab('requirements');
+            
+            // 要件定義エディタに内容をセット
+            const requirementsEditor = document.getElementById('requirements-editor');
+            const requirementsPreview = document.getElementById('requirements-preview');
+            requirementsContent = formattedContent;
+            requirementsEditor.value = formattedContent;
+            requirementsPreview.innerHTML = formatMarkdown(formattedContent);
+            
+            // 保存コマンドを送信
+            vscode.postMessage({
+              command: 'updateFile',
+              filePath: 'docs/requirements.md',
+              content: formattedContent
+            });
+            
+            // 通知
+            const notification = document.createElement('div');
+            notification.className = 'save-notification';
+            notification.textContent = '要件定義として保存しました';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+              notification.classList.add('fadeout');
+              setTimeout(() => {
+                notification.remove();
+              }, 500);
+            }, 2000);
+          });
+          
+          // ディレクトリ構造として保存ボタン
+          const saveAsStructureBtn = document.createElement('button');
+          saveAsStructureBtn.className = 'message-action-btn structure-btn';
+          saveAsStructureBtn.innerHTML = 'ディレクトリ構造として保存';
+          saveAsStructureBtn.addEventListener('click', function() {
+            // メッセージからコードブロックを抽出
+            const structureMatch = message.text.match(/```[a-z]*\n([\s\S]*?)```/);
+            
+            let structureContent = '';
+            if (structureMatch && structureMatch[1]) {
+              // コードブロックが見つかった場合
+              structureContent = '# ディレクトリ構造\n\n```\n' + structureMatch[1] + '```';
+            } else {
+              // コードブロックが見つからない場合は全体を保存
+              structureContent = '# ディレクトリ構造\n\n```\n' + message.text + '\n```';
+            }
+            
+            // ディレクトリ構造タブを表示
+            switchTab('structure');
+            
+            // 構造エディタに内容をセット
+            const structureEditor = document.getElementById('structure-editor');
+            const structurePreview = document.getElementById('structure-preview');
+            structureContent = structureContent;
+            structureEditor.value = structureContent;
+            structurePreview.innerHTML = formatMarkdown(structureContent);
+            
+            // 保存コマンドを送信
+            vscode.postMessage({
+              command: 'updateFile',
+              filePath: 'docs/structure.md',
+              content: structureContent
+            });
+            
+            // 通知
+            const notification = document.createElement('div');
+            notification.className = 'save-notification';
+            notification.textContent = 'ディレクトリ構造として保存しました';
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+              notification.classList.add('fadeout');
+              setTimeout(() => {
+                notification.remove();
+              }, 500);
+            }, 2000);
+          });
+          
+          // ボタンをアクションコンテナに追加
+          actionsContainer.appendChild(saveAsRequirementsBtn);
+          actionsContainer.appendChild(saveAsStructureBtn);
+          
+          // アクションコンテナをメッセージに追加
+          streamingElement.appendChild(actionsContainer);
+          
           // イベントリスナーを設定
           const saveButtons = streamingElement.querySelectorAll('.save-code-btn');
           saveButtons.forEach(button => {
@@ -438,29 +1034,29 @@
                   const codeText = decodeHtmlEntities(codeElement.textContent);
                   navigator.clipboard.writeText(codeText).then(() => {
                     // 成功通知
-                    const notification = document.createElement('div');
-                    notification.className = 'save-notification';
-                    notification.textContent = 'コードをクリップボードにコピーしました';
-                    document.body.appendChild(notification);
+                    const successNotification2 = document.createElement('div');
+                    successNotification2.className = 'save-notification';
+                    successNotification2.textContent = 'コードをクリップボードにコピーしました';
+                    document.body.appendChild(successNotification2);
                     
                     // 数秒後に通知を消す
                     setTimeout(() => {
-                      notification.classList.add('fadeout');
+                      successNotification2.classList.add('fadeout');
                       setTimeout(() => {
-                        notification.remove();
+                        successNotification2.remove();
                       }, 500);
                     }, 2000);
                   }).catch(() => {
                     // エラー通知
-                    const notification = document.createElement('div');
-                    notification.className = 'save-notification';
-                    notification.textContent = 'コピーに失敗しました';
-                    document.body.appendChild(notification);
+                    const errorNotification2 = document.createElement('div');
+                    errorNotification2.className = 'save-notification';
+                    errorNotification2.textContent = 'コピーに失敗しました';
+                    document.body.appendChild(errorNotification2);
                     
                     setTimeout(() => {
-                      notification.classList.add('fadeout');
+                      errorNotification2.classList.add('fadeout');
                       setTimeout(() => {
-                        notification.remove();
+                        errorNotification2.remove();
                       }, 500);
                     }, 2000);
                   });
@@ -483,9 +1079,6 @@
               });
             });
           });
-          
-          // プロジェクト作成ボタンの自動追加を削除
-          // ストリーミング完了後もプロジェクト作成ボタンは表示しない
           
           // メッセージコンテナを最下部にスクロール
           const scrollContainer = document.getElementById('chat-messages');
@@ -523,16 +1116,16 @@
         
       case 'codeSaved':
         // 保存成功通知を表示
-        const notification = document.createElement('div');
-        notification.className = 'save-notification';
-        notification.textContent = `ファイルを保存しました: ${message.fileName}`;
-        document.body.appendChild(notification);
+        const codeSavedNotification = document.createElement('div');
+        codeSavedNotification.className = 'save-notification';
+        codeSavedNotification.textContent = `ファイルを保存しました: ${message.fileName}`;
+        document.body.appendChild(codeSavedNotification);
         
         // 数秒後に通知を消す
         setTimeout(() => {
-          notification.classList.add('fadeout');
+          codeSavedNotification.classList.add('fadeout');
           setTimeout(() => {
-            notification.remove();
+            codeSavedNotification.remove();
           }, 500);
         }, 3000);
         break;
@@ -563,6 +1156,82 @@
         }, 2000);
         
         break;
+
+      case 'initialData':
+        // Initial file data loading
+        if (message.requirementsContent) {
+          requirementsContent = message.requirementsContent;
+          document.getElementById('requirements-preview').innerHTML = formatMarkdown(message.requirementsContent);
+        }
+        if (message.structureContent) {
+          structureContent = message.structureContent;
+          document.getElementById('structure-preview').innerHTML = formatMarkdown(message.structureContent);
+        }
+        document.getElementById('status-message').textContent = '初期データを読み込みました';
+        break;
+
+      case 'fileSaved':
+        document.getElementById('status-message').textContent = message.message;
+        
+        // ファイルパスに応じた処理
+        if (message.filePath.includes('requirements.md')) {
+          // 保存したコンテンツを変数に保持
+          if (requirementsEditor.value) {
+            requirementsContent = requirementsEditor.value;
+          }
+        } else if (message.filePath.includes('structure.md')) {
+          // 保存したコンテンツを変数に保持
+          if (structureEditor.value) {
+            structureContent = structureEditor.value;
+          }
+        }
+        break;
+
+      case 'directoryTree':
+        // Update tree view
+        const treeView = document.getElementById('tree-view');
+        if (treeView && message.treeContent) {
+          treeView.textContent = message.treeContent;
+        }
+        break;
     }
   });
+
+  // Simple markdown formatter for file preview content
+  function formatMarkdown(markdown) {
+    if (!markdown) {
+      return '<p>ファイルが存在しないか内容がありません</p>';
+    }
+
+    // Convert headings
+    let html = markdown
+      .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+      .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+      .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+      .replace(/^#### (.*$)/gm, '<h4>$1</h4>');
+
+    // Convert code blocks
+    html = html.replace(/```([\s\S]*?)```/gm, function(match, code) {
+      return `<pre><code>${escapeHtml(code)}</code></pre>`;
+    });
+
+    // Convert lists
+    html = html.replace(/^\- (.*$)/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n)+/g, '<ul>$&</ul>');
+
+    // Convert numbered lists
+    html = html.replace(/^\d+\. (.*$)/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n)+/g, function(match) {
+      // Only wrap in <ol> if not already inside <ul>
+      if (!match.includes('<ul>')) {
+        return `<ol>${match}</ol>`;
+      }
+      return match;
+    });
+
+    // Convert paragraphs
+    html = html.replace(/^(?!<[^>]+>)(?!\s*$)(.*$)/gm, '<p>$1</p>');
+
+    return html;
+  }
 })();

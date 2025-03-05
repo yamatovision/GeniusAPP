@@ -1645,6 +1645,55 @@ Phase#5：要件定義書のまとめ
 
 重要：ユーザーの質問に必ず応答し、対話に一貫性を持たせてください。`;
 
+      case 'mockup-generation':
+        return `あなたはウェブアプリケーションモックアップ作成の専門家です。
+提供された情報から、機能的で美しいHTMLモックアップを作成することが任務です。
+
+【モックアップ作成の原則】
+1. シンプルで見やすいデザインを心がける
+2. モダンなデザイン要素を取り入れる
+3. 必要最小限のスタイリングを含める（インラインスタイル推奨）
+4. 日本語UIとする
+5. レスポンシブデザインを考慮する
+6. 適切なフォームバリデーションとフィードバック
+7. 視覚的なユーザーフローを意識する
+
+【技術要素】
+- HTML5, CSS3の最新標準を使用
+- 複雑なJavaScriptは避け、見た目とインタラクションの基本を優先
+- モックデータを使用した具体的な表示
+
+【出力形式】
+- 完全なHTMLファイルをコードブロック内に出力
+- コードブロックは\`\`\`htmlと\`\`\`で囲む
+- コード以外の説明は最小限に
+
+重要: ユーザーが提供するページ名と要件に基づいて、単一の完結したHTMLモックアップを生成してください。`;
+        
+      case 'mockup-update':
+        return `あなたはウェブアプリケーションモックアップ更新の専門家です。
+ユーザーからのフィードバックに基づいて、既存のHTMLモックアップを修正することが任務です。
+
+【モックアップ更新の原則】
+1. ユーザーのフィードバックに忠実に従う
+2. HTMLの基本構造を維持する（不要な部分を削除しない）
+3. フィードバックのみに対応し、余計な変更を加えない
+4. スタイリングはインラインスタイルを使用する
+5. 元の設計思想とデザイン言語を尊重する
+
+【更新プロセス】
+1. ユーザーのフィードバックを分析する
+2. 対応が必要な変更点を特定する
+3. 必要最小限の変更で目的を達成する
+4. 一貫性のあるデザインを維持する
+
+【出力形式】
+- 更新された完全なHTMLファイルをコードブロック内に出力
+- コードブロックは\`\`\`htmlと\`\`\`で囲む
+- 変更内容の簡単な説明を含める
+
+重要: ユーザーが提供するHTMLとフィードバックに基づいて、修正されたHTMLモックアップを生成してください。`;
+
       case 'development':
         return `あなたは追加開発を支援するアシスタントです。システム的な制約で以下のプロンプトの掟に従う必要があります：
 
@@ -1714,5 +1763,141 @@ PHASE 3: 実装
         return `あなたはAppGenius AIのアシスタントです。VSCode拡張機能内で動作し、ユーザーの開発作業を支援します。
 質問に対して簡潔で有用な回答を提供してください。`;
     }
+  }
+  
+  /**
+   * 特定のページのモックアップを生成
+   * @param pageName ページ名
+   * @param requirements 要件テキスト
+   * @returns 生成されたHTML
+   */
+  public async generateMockupForPage(pageName: string, requirements: string): Promise<string> {
+    try {
+      const prompt = this.buildMockupGenerationPrompt(pageName, requirements);
+      const response = await this.sendMessage(prompt, 'mockup-generation');
+      
+      // HTMLコードを抽出
+      const html = this.extractHtmlFromResponse(response);
+      
+      if (!html) {
+        throw new Error('No HTML found in the response');
+      }
+      
+      return html;
+    } catch (error) {
+      Logger.error(`Failed to generate mockup for page ${pageName}: ${(error as Error).message}`);
+      throw new Error(`モックアップ生成に失敗しました: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * モックアップをフィードバックに基づいて更新
+   * @param html 現在のHTML
+   * @param feedback フィードバックテキスト
+   * @returns 更新されたHTML
+   */
+  public async updateMockupWithFeedback(html: string, feedback: string): Promise<string> {
+    try {
+      const prompt = this.buildMockupUpdatePrompt(html, feedback);
+      const response = await this.sendMessage(prompt, 'mockup-update');
+      
+      // HTMLコードを抽出
+      const updatedHtml = this.extractHtmlFromResponse(response);
+      
+      if (!updatedHtml) {
+        throw new Error('No HTML found in the response');
+      }
+      
+      return updatedHtml;
+    } catch (error) {
+      Logger.error(`Failed to update mockup with feedback: ${(error as Error).message}`);
+      throw new Error(`モックアップ更新に失敗しました: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * モックアップ生成用のプロンプトを作成
+   * @param pageName ページ名
+   * @param requirements 要件テキスト
+   * @returns プロンプト
+   */
+  private buildMockupGenerationPrompt(pageName: string, requirements: string): string {
+    return `あなたはウェブアプリケーションモックアップ作成の専門家です。
+以下の情報から、機能的で美しいHTMLモックアップを作成してください。
+
+ページ名: ${pageName}
+
+要件:
+${requirements}
+
+重要なポイント:
+1. シンプルで見やすいデザインを心がける
+2. 必要最小限のスタイリングを含める (インラインスタイル推奨)
+3. 複雑なJavaScriptは避け、見た目のデモンストレーションを優先
+4. レスポンシブデザインを考慮する
+
+モックアップHTMLを以下のフォーマットで出力してください:
+
+\`\`\`html
+<!DOCTYPE html>
+<html>
+...
+</html>
+\`\`\``;
+  }
+
+  /**
+   * モックアップ更新用のプロンプトを作成
+   * @param html 現在のHTML
+   * @param feedback フィードバックテキスト
+   * @returns プロンプト
+   */
+  private buildMockupUpdatePrompt(html: string, feedback: string): string {
+    return `以下のHTMLモックアップを、フィードバックに基づいて更新してください:
+
+フィードバック:
+${feedback}
+
+現在のHTML:
+\`\`\`html
+${html}
+\`\`\`
+
+重要なポイント:
+1. HTMLの基本構造を維持する
+2. 不要な部分を削除しない
+3. フィードバックのみに対応する
+4. インラインスタイルを使用する
+5. 完全なHTMLドキュメントを返す
+
+更新したHTMLを以下のフォーマットで出力してください:
+
+\`\`\`html
+<!DOCTYPE html>
+<html>
+...
+</html>
+\`\`\``;
+  }
+
+  /**
+   * AIレスポンスからHTMLコードを抽出
+   * @param response AIの応答
+   * @returns HTMLコード、見つからない場合はnull
+   */
+  private extractHtmlFromResponse(response: string): string | null {
+    // コードブロックを検出
+    const htmlMatch = response.match(/```(?:html)?\s*([\s\S]*?)```/);
+    if (htmlMatch && htmlMatch[1]) {
+      return htmlMatch[1].trim();
+    }
+
+    // HTMLタグを探す
+    const docTypeMatch = response.match(/<(!DOCTYPE html|html)[\s\S]*<\/html>/i);
+    if (docTypeMatch) {
+      return docTypeMatch[0].trim();
+    }
+
+    return null;
   }
 }

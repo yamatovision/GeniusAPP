@@ -94,7 +94,7 @@ export function activate(context: vscode.ExtensionContext) {
 				} else if (selection === '要件定義ビジュアライザーを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
 				} else if (selection === 'モックアップギャラリーを開く') {
-					vscode.commands.executeCommand('appgenius-ai.openMockupEditor');
+					vscode.commands.executeCommand('appgenius-ai.openMockupGallery');
 				} else if (selection === '実装スコープ選択を開く') {
 					vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');
 				} else if (selection === '開発アシスタントを開く') {
@@ -394,7 +394,7 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			vscode.commands.executeCommand('appgenius-ai.setApiKey');
 		} else if (selection === "要件定義ビジュアライザーを開く") {
 			vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
-		} else if (selection === "モックアップエディターを開く") {
+		} else if (selection === "モックアップギャラリーを開く") {
 			vscode.commands.executeCommand('appgenius-ai.openMockupEditor');
 		} else if (selection === '実装スコープ選択を開く') {
 			vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');

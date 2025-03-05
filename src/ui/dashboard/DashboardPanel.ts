@@ -327,8 +327,8 @@ export class DashboardPanel {
                 );
                 
                 if (isStructureChanged) {
-                  // フェーズを更新
-                  await this._projectService.updateProjectPhase(projectId, 'directoryStructure', true);
+                  // directoryStructureは直接のフェーズではないため、設計(design)フェーズとして扱う
+                  await this._projectService.updateProjectPhase(projectId, 'design', true);
                   Logger.info(`構造ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
                 }
               } catch (fileError) {

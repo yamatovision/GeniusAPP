@@ -16,6 +16,10 @@ export interface Mockup {
   updatedAt: number;
   sourceType: 'requirements' | 'manual' | 'imported';
   description?: string;
+  // 以下を追加
+  status?: 'pending' | 'generating' | 'review' | 'approved';
+  feedback?: string[];
+  implementationNotes?: string;
 }
 
 /**
@@ -24,8 +28,8 @@ export interface Mockup {
 export class MockupStorageService {
   private static instance: MockupStorageService;
   private mockups: Map<string, Mockup> = new Map();
-  private storageDir: string;
-  private metadataFile: string;
+  private storageDir: string = '';
+  private metadataFile: string = '';
   private _initialized: boolean = false;
 
   /**
@@ -306,6 +310,10 @@ export class MockupStorageService {
         
         // メタデータをマップに設定
         mockupList.forEach(mockup => {
+          // ステータスが未設定の場合はデフォルト値を設定
+          if (!mockup.status) {
+            mockup.status = 'review';
+          }
           this.mockups.set(mockup.id, mockup);
         });
         
@@ -357,7 +365,8 @@ export class MockupStorageService {
               js,
               createdAt,
               updatedAt,
-              sourceType: 'imported' // ディレクトリから復元されたものはインポートとして扱う
+              sourceType: 'imported', // ディレクトリから復元されたものはインポートとして扱う
+              status: 'review'        // デフォルトのステータス
             };
             
             // マップに追加
@@ -397,7 +406,8 @@ export class MockupStorageService {
               createdAt,
               updatedAt,
               sourceType: 'imported',
-              description: `File: ${htmlPath}`
+              description: `File: ${htmlPath}`,
+              status: 'review'        // デフォルトのステータス
             };
             
             // マップに追加
@@ -414,6 +424,119 @@ export class MockupStorageService {
     } catch (error) {
       Logger.error(`Failed to load mockups: ${(error as Error).message}`);
     }
+  }
+  
+  /**
+   * モックアップのステータスを更新
+   * @param id モックアップID
+   * @param status 新しいステータス
+   * @returns 更新されたモックアップ、失敗時はundefined
+   */
+  public async updateMockupStatus(id: string, status: string): Promise<Mockup | undefined> {
+    try {
+      // モックアップの取得
+      const mockup = this.mockups.get(id);
+      if (!mockup) {
+        Logger.warn(`Mockup not found for status update: ${id}`);
+        return undefined;
+      }
+      
+      // ステータスを更新
+      mockup.status = status as 'pending' | 'generating' | 'review' | 'approved';
+      mockup.updatedAt = Date.now();
+      
+      // メタデータの更新
+      await this.saveMetadata();
+      
+      Logger.info(`Mockup status updated: ${id} -> ${status}`);
+      
+      return mockup;
+    } catch (error) {
+      Logger.error(`Failed to update mockup status: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+  
+  /**
+   * フィードバックを追加
+   * @param id モックアップID
+   * @param feedback フィードバックテキスト
+   * @returns 更新されたモックアップ、失敗時はundefined
+   */
+  public async addFeedback(id: string, feedback: string): Promise<Mockup | undefined> {
+    try {
+      // モックアップの取得
+      const mockup = this.mockups.get(id);
+      if (!mockup) {
+        Logger.warn(`Mockup not found for adding feedback: ${id}`);
+        return undefined;
+      }
+      
+      // フィードバック配列の初期化
+      if (!mockup.feedback) {
+        mockup.feedback = [];
+      }
+      
+      // フィードバックを追加
+      mockup.feedback.push(feedback);
+      mockup.updatedAt = Date.now();
+      
+      // メタデータの更新
+      await this.saveMetadata();
+      
+      Logger.info(`Feedback added to mockup: ${id}`);
+      
+      return mockup;
+    } catch (error) {
+      Logger.error(`Failed to add feedback: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+  
+  /**
+   * 実装メモを保存
+   * @param id モックアップID
+   * @param notes 実装メモテキスト
+   * @returns 更新されたモックアップ、失敗時はundefined
+   */
+  public async saveImplementationNotes(id: string, notes: string): Promise<Mockup | undefined> {
+    try {
+      // モックアップの取得
+      const mockup = this.mockups.get(id);
+      if (!mockup) {
+        Logger.warn(`Mockup not found for saving implementation notes: ${id}`);
+        return undefined;
+      }
+      
+      // 実装メモを保存
+      mockup.implementationNotes = notes;
+      mockup.updatedAt = Date.now();
+      
+      // メタデータの更新
+      await this.saveMetadata();
+      
+      Logger.info(`Implementation notes saved for mockup: ${id}`);
+      
+      return mockup;
+    } catch (error) {
+      Logger.error(`Failed to save implementation notes: ${(error as Error).message}`);
+      return undefined;
+    }
+  }
+  
+  /**
+   * キューの状態を取得
+   * @returns キュー状態オブジェクト
+   */
+  public getQueueStatus(): {pending: number, generating: number, completed: number, total: number} {
+    const mockupList = Array.from(this.mockups.values());
+    
+    const pending = mockupList.filter(m => m.status === 'pending').length;
+    const generating = mockupList.filter(m => m.status === 'generating').length;
+    const completed = mockupList.filter(m => m.status && ['review', 'approved'].includes(m.status)).length;
+    const total = mockupList.length;
+    
+    return { pending, generating, completed, total };
   }
 
   /**
