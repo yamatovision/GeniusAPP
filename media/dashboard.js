@@ -555,11 +555,6 @@
             <span class="stat-label">作成済みファイル</span>
             <span class="stat-value">${fileCount}</span>
           </div>
-          <div class="stat-item">
-            <i class="icon">🎨</i>
-            <span class="stat-label">モックアップ</span>
-            <span class="stat-value">${details.mockupCount || 0}</span>
-          </div>
         </div>
       `;
     } catch (error) {
@@ -710,101 +705,213 @@
   }
   
   /**
-   * 最近のファイル（仮データ）
+   * リファレンスアップローダーを表示
    */
   function renderRecentFiles() {
     const recentFilesElement = document.getElementById('recent-files');
     if (!recentFilesElement || !state.activeProject) return;
     
     try {
-      // プロジェクトパスを取得
       const projectPath = state.activeProject.path || '';
       
-      // 標準的なドキュメントファイル
-      const standardFiles = [
-        { id: 1, name: "CLAUDE.md", type: "md", updated: "今日", path: projectPath ? `${projectPath}/CLAUDE.md` : "" },
-        { id: 2, name: "requirements.md", type: "md", updated: "今日", path: projectPath ? `${projectPath}/docs/requirements.md` : "" },
-        { id: 3, name: "structure.md", type: "md", updated: "今日", path: projectPath ? `${projectPath}/docs/structure.md` : "" },
-        { id: 4, name: "scope.md", type: "md", updated: "今日", path: projectPath ? `${projectPath}/docs/scope.md` : "" }
-      ];
-      
-      const recentFilesHtml = `
+      const referenceUploaderHtml = `
         <div class="recent-files-header">
-          <h2><i class="icon">📑</i> プロジェクト重要ファイル</h2>
-          <a href="#" class="view-all">すべて表示 <i class="icon">→</i></a>
+          <h2><i class="icon">📚</i> リファレンスアップローダー</h2>
         </div>
-        <ul class="file-list">
-          ${standardFiles.map(file => `
-            <li class="file-item" data-file="${file.path || file.name}">
-              <div class="file-icon">
-                ${getFileIcon(file.type)}
+        <div class="reference-uploader">
+          <div class="uploader-description">
+            <p>外部のリファレンス資料やサンプルをアップロードして、AIが参考にできるようにします。</p>
+            <p>UIデザイン、技術仕様書、サンプルコードなどが利用できます。</p>
+          </div>
+          
+          <div class="upload-controls">
+            <div class="upload-types">
+              <div class="upload-type-item active" data-type="ui">
+                <i class="icon">🎨</i>
+                <span>UIデザイン</span>
               </div>
-              <div class="file-info">
-                <div class="file-name">${escapeHtml(file.name)}</div>
-                <div class="file-meta">
-                  <span class="file-date">${file.path ? '編集可能' : '未保存'}</span>
-                  <span class="file-type">${file.type.toUpperCase()}</span>
-                </div>
+              <div class="upload-type-item" data-type="code">
+                <i class="icon">📜</i>
+                <span>サンプルコード</span>
               </div>
-              <button class="file-action" title="開く" ${!file.path ? 'disabled' : ''}>
-                <i class="icon">↗️</i>
-              </button>
-            </li>
-          `).join('')}
-        </ul>
+              <div class="upload-type-item" data-type="docs">
+                <i class="icon">📄</i>
+                <span>仕様書</span>
+              </div>
+            </div>
+            
+            <div class="upload-dropzone" id="upload-dropzone">
+              <i class="icon large">📁</i>
+              <p>ファイルをドラッグ＆ドロップ または クリックして選択</p>
+              <input type="file" id="file-upload" style="display: none;" />
+            </div>
+            
+            <button class="button primary upload-button" disabled>
+              <i class="icon">⬆️</i> アップロード
+            </button>
+          </div>
+          
+          <div class="upload-history">
+            <h3>最近のアップロード</h3>
+            <div class="history-empty">
+              <p>アップロード履歴がありません</p>
+            </div>
+          </div>
+        </div>
       `;
       
-      recentFilesElement.innerHTML = recentFilesHtml;
+      recentFilesElement.innerHTML = referenceUploaderHtml;
       
-      // ファイルアイテムにイベントリスナーを追加
-      document.querySelectorAll('.file-item').forEach(item => {
-        const filePath = item.dataset.file;
+      // ドロップゾーンの処理を設定
+      const dropzone = document.getElementById('upload-dropzone');
+      const fileInput = document.getElementById('file-upload');
+      const uploadButton = document.querySelector('.upload-button');
+      
+      if (dropzone && fileInput) {
+        // ドロップゾーンクリックでファイル選択を開く
+        dropzone.addEventListener('click', () => {
+          fileInput.click();
+        });
         
-        // パスが空の場合はクリックを無効にする
-        if (!filePath) {
-          item.style.opacity = '0.7';
-          item.style.cursor = 'default';
-          return;
-        }
+        // ファイル選択変更時の処理
+        fileInput.addEventListener('change', () => {
+          if (fileInput.files && fileInput.files.length > 0) {
+            dropzone.classList.add('has-files');
+            dropzone.innerHTML = `
+              <i class="icon">📄</i>
+              <p>${fileInput.files[0].name}</p>
+              <span class="file-size">${formatFileSize(fileInput.files[0].size)}</span>
+            `;
+            uploadButton.disabled = false;
+          }
+        });
         
-        item.addEventListener('click', () => {
-          // ファイルを開くリクエスト
-          vscode.postMessage({
-            command: 'openFile',
-            fileName: filePath,
-            projectId: state.activeProject.id
+        // ドラッグ&ドロップイベント
+        dropzone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          dropzone.classList.add('dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+          dropzone.classList.remove('dragover');
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          dropzone.classList.remove('dragover');
+          
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            fileInput.files = e.dataTransfer.files;
+            
+            dropzone.classList.add('has-files');
+            dropzone.innerHTML = `
+              <i class="icon">📄</i>
+              <p>${file.name}</p>
+              <span class="file-size">${formatFileSize(file.size)}</span>
+            `;
+            uploadButton.disabled = false;
+          }
+        });
+        
+        // アップロードタイプの切り替え
+        document.querySelectorAll('.upload-type-item').forEach(item => {
+          item.addEventListener('click', () => {
+            document.querySelectorAll('.upload-type-item').forEach(i => {
+              i.classList.remove('active');
+            });
+            item.classList.add('active');
           });
         });
-      });
-      
-      // ファイルアクションボタンにイベントリスナーを追加
-      document.querySelectorAll('.file-action:not([disabled])').forEach(button => {
-        button.addEventListener('click', event => {
-          event.stopPropagation();
-          const filePath = event.target.closest('.file-item').dataset.file;
+        
+        // アップロードボタンの処理
+        uploadButton.addEventListener('click', () => {
+          const activeType = document.querySelector('.upload-type-item.active').dataset.type;
+          const file = fileInput.files[0];
           
-          // パスが空の場合は何もしない
-          if (!filePath) return;
-          
-          // ファイルを開くリクエスト
+          // 実際のアップロード処理の代わりに通知を表示
           vscode.postMessage({
-            command: 'openFile',
-            fileName: filePath,
-            projectId: state.activeProject.id
+            command: 'showInfo',
+            message: `${file.name} のアップロードを開始しました (${activeType}タイプ)`
           });
+          
+          // アップロードの仮実装
+          dropzone.innerHTML = `
+            <i class="icon large">📁</i>
+            <p>ファイルをドラッグ＆ドロップ または クリックして選択</p>
+          `;
+          dropzone.classList.remove('has-files');
+          uploadButton.disabled = true;
+          
+          // 履歴に追加
+          const historyElement = document.querySelector('.upload-history');
+          const emptyNotice = historyElement.querySelector('.history-empty');
+          
+          if (emptyNotice) {
+            emptyNotice.remove();
+          }
+          
+          const now = new Date();
+          const timeStr = `${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+          
+          historyElement.insertAdjacentHTML('beforeend', `
+            <div class="history-item">
+              <div class="history-icon">${getTypeIcon(activeType)}</div>
+              <div class="history-details">
+                <div class="history-name">${file.name}</div>
+                <div class="history-meta">
+                  <span class="history-time">${timeStr}</span>
+                  <span class="history-type">${getTypeName(activeType)}</span>
+                </div>
+              </div>
+            </div>
+          `);
         });
-      });
+      }
     } catch (error) {
-      console.error('ファイル一覧の表示中にエラーが発生しました:', error);
+      console.error('リファレンスアップローダーの表示中にエラーが発生しました:', error);
       recentFilesElement.innerHTML = `
         <div class="recent-files-header">
-          <h2><i class="icon">📑</i> プロジェクト重要ファイル</h2>
+          <h2><i class="icon">📚</i> リファレンスアップローダー</h2>
         </div>
         <div class="error-panel">
           <h2><i class="icon">⚠️</i> 表示エラー</h2>
-          <p>ファイル一覧を取得できませんでした。</p>
+          <p>アップロードインターフェースを表示できませんでした。</p>
         </div>
       `;
+    }
+  }
+  
+  /**
+   * ファイルサイズを読みやすい形式にフォーマット
+   */
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + " bytes";
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + " KB";
+    else return (bytes / 1048576).toFixed(1) + " MB";
+  }
+  
+  /**
+   * アップロードタイプごとのアイコンを取得
+   */
+  function getTypeIcon(type) {
+    switch(type) {
+      case 'ui': return '<i class="icon">🎨</i>';
+      case 'code': return '<i class="icon">📜</i>';
+      case 'docs': return '<i class="icon">📄</i>';
+      default: return '<i class="icon">📁</i>';
+    }
+  }
+  
+  /**
+   * アップロードタイプの名前を取得
+   */
+  function getTypeName(type) {
+    switch(type) {
+      case 'ui': return 'UIデザイン';
+      case 'code': return 'サンプルコード';
+      case 'docs': return '仕様書';
+      default: return 'その他';
     }
   }
   

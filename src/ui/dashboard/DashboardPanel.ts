@@ -274,39 +274,40 @@ export class DashboardPanel {
         const projectId = this._activeProject.id;
         
         // 要件定義データのロード
-        if (!this._projectRequirements[projectId]) {
-          try {
-            const requirements = await this._stateManager.getRequirements(projectId);
-            if (requirements) {
-              this._projectRequirements[projectId] = requirements;
-            }
-          } catch (e) {
-            Logger.debug(`No requirements found for project: ${projectId}`);
+        try {
+          const requirements = await this._stateManager.getRequirements(projectId);
+          if (requirements) {
+            this._projectRequirements[projectId] = requirements;
           }
-        }
-        
-        // モックアップデータのロード
-        if (!this._projectMockups[projectId]) {
-          try {
-            const mockups = await this._stateManager.getMockups(projectId);
-            if (mockups && mockups.length > 0) {
-              this._projectMockups[projectId] = mockups;
-            }
-          } catch (e) {
-            Logger.debug(`No mockups found for project: ${projectId}`);
-          }
+        } catch (e) {
+          Logger.debug(`No requirements found for project: ${projectId}`);
+          // 空のオブジェクトで初期化
+          this._projectRequirements[projectId] = { 
+            document: '', 
+            sections: [], 
+            extractedItems: [], 
+            chatHistory: [] 
+          };
         }
         
         // スコープデータのロード
-        if (!this._projectScopes[projectId]) {
-          try {
-            const scope = await this._stateManager.getImplementationScope(projectId);
-            if (scope) {
-              this._projectScopes[projectId] = scope;
-            }
-          } catch (e) {
-            Logger.debug(`No implementation scope found for project: ${projectId}`);
+        try {
+          const scope = await this._stateManager.getImplementationScope(projectId);
+          if (scope) {
+            this._projectScopes[projectId] = scope;
           }
+        } catch (e) {
+          Logger.debug(`No implementation scope found for project: ${projectId}`);
+          // 基本スコープデータで初期化
+          this._projectScopes[projectId] = {
+            items: [],
+            selectedIds: [],
+            estimatedTime: '',
+            totalProgress: 0,
+            startDate: new Date().toISOString().split('T')[0],
+            targetDate: '',
+            projectPath: this._activeProject.path || ''
+          };
         }
       }
       
