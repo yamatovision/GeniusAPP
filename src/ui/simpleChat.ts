@@ -7,6 +7,7 @@ import { Logger } from '../utils/logger';
 import { FileOperationManager } from '../utils/fileOperationManager';
 import { ProjectManagementService } from '../services/ProjectManagementService';
 import { AppGeniusStateManager, Requirements } from '../services/AppGeniusStateManager';
+import { ClaudeMdService } from '../utils/ClaudeMdService';
 
 /**
  * シンプルなチャットパネルを管理するクラス
@@ -19,6 +20,7 @@ export class SimpleChatPanel {
   private readonly _extensionUri: vscode.Uri;
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _aiService: AIService;
+  private readonly _claudeMdService = ClaudeMdService.getInstance();
   private _extractedCodeBlocks: Array<{id: number, language: string, code: string}> = [];
   private _chatHistory: Array<{role: 'user' | 'ai', content: string}> = [];
   
@@ -93,7 +95,12 @@ export class SimpleChatPanel {
             await this._handleExportRequirements();
             break;
           case 'initialize':
-            // 初期化処理（必要に応じて）
+            // 初期化時にファイル内容を読み込む
+            await this._loadInitialData();
+            break;
+          case 'updateFile':
+            // ファイル更新処理
+            await this._handleFileUpdate(message.filePath, message.content);
             break;
         }
       },
@@ -668,6 +675,10 @@ Phase#5：実装用要件定義書`
       vscode.Uri.joinPath(this._extensionUri, 'media', 'simpleChat.css')
     );
     
+    const resetCssUri = this._panel.webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
+    );
+    
     // WebViewに表示するHTML
     return `<!DOCTYPE html>
     <html lang="ja">
@@ -675,6 +686,7 @@ Phase#5：実装用要件定義書`
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${this._panel.webview.cspSource} 'unsafe-inline'; script-src ${this._panel.webview.cspSource} 'unsafe-inline'; frame-src data:;">
+      <link rel="stylesheet" href="${resetCssUri}">
       <link rel="stylesheet" href="${styleUri}">
       <title>要件定義ビジュアライザー</title>
     </head>
@@ -688,9 +700,16 @@ Phase#5：実装用要件定義書`
           </div>
         </div>
         
-        <div class="chat-messages" id="chat-messages">
-          <div class="message ai">
-            <p>はじめまして。私はあなたのアイデアや要望を具体的な形にするUI/UX設計の専門家です。
+        <div class="tabs">
+          <button id="tab-chat" class="tab-button active">AIチャット</button>
+          <button id="tab-requirements" class="tab-button">要件定義</button>
+          <button id="tab-structure" class="tab-button">ディレクトリ構造</button>
+        </div>
+        
+        <div id="content-chat" class="tab-content active">
+          <div class="chat-messages" id="chat-messages">
+            <div class="message ai">
+              <p>はじめまして。私はあなたのアイデアや要望を具体的な形にするUI/UX設計の専門家です。
 まずは、どのようなシステムを作りたいのか、普段の業務や課題について教えていただけませんか？
 
 専門的な用語は必要ありません。普段どんな作業をしているか、何に困っているか、
@@ -702,12 +721,49 @@ Phase#5：実装用要件定義書`
 - 営業報告をスマホからさっと入力したい
 
 といった具合です。どんなことでも構いませんので、お聞かせください。</p>
+            </div>
+          </div>
+          
+          <div class="chat-input">
+            <textarea id="message-input" placeholder="メッセージを入力..."></textarea>
+            <button id="send-button">送信</button>
           </div>
         </div>
         
-        <div class="chat-input">
-          <textarea id="message-input" placeholder="メッセージを入力..."></textarea>
-          <button id="send-button">送信</button>
+        <div id="content-requirements" class="tab-content">
+          <div class="file-preview">
+            <div class="file-preview-header">
+              <h3>要件定義</h3>
+              <div class="actions">
+                <button id="edit-requirements" class="action-button">編集</button>
+                <button id="save-requirements" class="action-button" disabled>保存</button>
+              </div>
+            </div>
+            <div class="file-preview-content">
+              <div id="requirements-preview" class="preview-mode"></div>
+              <textarea id="requirements-editor" class="edit-mode hidden"></textarea>
+            </div>
+          </div>
+        </div>
+        
+        <div id="content-structure" class="tab-content">
+          <div class="file-preview">
+            <div class="file-preview-header">
+              <h3>ディレクトリ構造</h3>
+              <div class="actions">
+                <button id="edit-structure" class="action-button">編集</button>
+                <button id="save-structure" class="action-button" disabled>保存</button>
+              </div>
+            </div>
+            <div class="file-preview-content">
+              <div id="structure-preview" class="preview-mode"></div>
+              <textarea id="structure-editor" class="edit-mode hidden"></textarea>
+            </div>
+          </div>
+        </div>
+        
+        <div class="status-bar">
+          <span id="status-message" class="status-message">準備完了</span>
         </div>
       </div>
       
@@ -1376,6 +1432,133 @@ ${projectName}/
       sections,
       extractedItems
     };
+  }
+
+  /**
+   * 初期データ読み込み処理
+   */
+  private async _loadInitialData(): Promise<void> {
+    try {
+      // AppGenius2/AppGeniusが固定パスの場合、直接指定する
+      const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
+      Logger.info(`AppGenius固定パスを使用: ${appGeniusPath}`);
+      
+      // 要件定義と構造ファイルのパスを構成
+      const requirementsPath = path.join(appGeniusPath, 'docs', 'requirements.md');
+      const structurePath = path.join(appGeniusPath, 'docs', 'structure.md');
+      
+      Logger.info(`要件定義ファイルパス: ${requirementsPath}`);
+      Logger.info(`構造ファイルパス: ${structurePath}`);
+      
+      // 要件定義ファイルの読み込み
+      let requirementsContent = '';
+      if (fs.existsSync(requirementsPath)) {
+        Logger.info('要件定義ファイルが見つかりました、読み込みを開始します');
+        requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
+        Logger.info(`要件定義ファイルを読み込みました (${requirementsContent.length} 文字)`);
+      } else {
+        Logger.warn(`要件定義ファイルが見つかりません: ${requirementsPath}`);
+      }
+      
+      // ディレクトリ構造ファイルの読み込み
+      let structureContent = '';
+      if (fs.existsSync(structurePath)) {
+        Logger.info('構造ファイルが見つかりました、読み込みを開始します');
+        structureContent = fs.readFileSync(structurePath, 'utf8');
+        Logger.info(`構造ファイルを読み込みました (${structureContent.length} 文字)`);
+      } else {
+        Logger.warn(`構造ファイルが見つかりません: ${structurePath}`);
+      }
+      
+      // WebViewに初期データ送信
+      this._panel.webview.postMessage({
+        command: 'initialData',
+        requirementsContent,
+        structureContent,
+        projectRoot: appGeniusPath
+      });
+      
+      Logger.info('WebViewに初期データを送信しました');
+      
+      // デバッグ用にパネルに直接メッセージを表示
+      this._panel.webview.postMessage({
+        command: 'showMessage',
+        text: `ファイル読み込み: 要件定義(${requirementsContent.length}文字), 構造(${structureContent.length}文字)`
+      });
+    } catch (error) {
+      Logger.error('初期データ読み込みエラー', error as Error);
+      
+      // エラーをWebViewに通知
+      this._panel.webview.postMessage({
+        command: 'showError',
+        text: `ファイル読み込みエラー: ${(error as Error).message}`
+      });
+    }
+  }
+  
+  /**
+   * ファイル更新処理
+   */
+  private async _handleFileUpdate(filePath: string, content: string): Promise<void> {
+    try {
+      // AppGenius2/AppGeniusが固定パスの場合、直接指定する
+      const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
+      Logger.info(`AppGenius固定パスを使用: ${appGeniusPath}`);
+      
+      const fullPath = path.isAbsolute(filePath)
+        ? filePath
+        : path.join(appGeniusPath, filePath);
+      
+      // ディレクトリが存在しない場合、作成
+      const dirPath = path.dirname(fullPath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+      
+      // ファイル書き込み
+      fs.writeFileSync(fullPath, content, 'utf8');
+      
+      // CLAUDE.md進捗状況も更新
+      const isRequirements = filePath.includes('requirements.md');
+      const isStructure = filePath.includes('structure.md');
+      
+      if (isRequirements || isStructure) {
+        const updates: { [key: string]: boolean } = {};
+        
+        if (isRequirements) {
+          updates['requirements'] = true;
+        }
+        
+        if (isStructure) {
+          updates['directoryStructure'] = true;
+        }
+        
+        // AppGenius固定パスを使用
+        const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
+        
+        await this._claudeMdService.updateMultipleProgressStatus(appGeniusPath, updates);
+        
+        // 構造ファイルが更新された場合、ファイル一覧も抽出
+        if (isStructure) {
+          await this._claudeMdService.extractFileListFromStructure(appGeniusPath);
+        }
+      }
+      
+      this._panel.webview.postMessage({
+        command: 'fileSaved',
+        filePath,
+        message: `ファイルを保存しました: ${filePath}`
+      });
+      
+      Logger.info(`ファイルを更新しました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`ファイル更新エラー: ${filePath}`, error as Error);
+      
+      this._panel.webview.postMessage({
+        command: 'showError',
+        text: `ファイル保存エラー: ${(error as Error).message}`
+      });
+    }
   }
 
   /**
