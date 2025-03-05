@@ -845,49 +845,70 @@ JWT_SECRET=your_jwt_secret_key
       return;
     }
 
-    this._panel.webview.html = this._getHtmlForWebview();
-    await this._updateWebview();
+    try {
+      this._panel.webview.html = this._getHtmlForWebview();
+      await this._updateWebview();
+    } catch (error) {
+      Logger.error(`WebView更新エラー`, error as Error);
+      // エラーが発生しても最低限のUIは維持
+      this._panel.webview.html = this._getHtmlForWebview();
+    }
   }
 
   /**
    * WebViewの状態を更新
    */
   private async _updateWebview(): Promise<void> {
-    // プロジェクト詳細情報を追加
-    let activeProjectDetails = undefined;
-    
-    if (this._activeProject) {
-      const projectId = this._activeProject.id;
-      activeProjectDetails = {
-        requirements: this._projectRequirements[projectId],
-        mockups: this._projectMockups[projectId] || [],
-        scope: this._projectScopes[projectId],
+    try {
+      // プロジェクト詳細情報を追加
+      let activeProjectDetails = undefined;
+      
+      if (this._activeProject) {
+        const projectId = this._activeProject.id;
         
-        // モックアップ数
-        mockupCount: this._projectMockups[projectId]?.length || 0,
+        // データがなくてもクラッシュしないように、安全にアクセス
+        const mockups = this._projectMockups[projectId] || [];
+        const scope = this._projectScopes[projectId] || { items: [], totalProgress: 0 };
+        const scopeItems = scope.items || [];
         
-        // 実装項目数
-        scopeItemCount: this._projectScopes[projectId]?.items?.length || 0,
-        
-        // 実装完了率
-        implementationProgress: this._projectScopes[projectId]?.totalProgress || 0,
-        
-        // 実装中の項目数
-        inProgressItems: this._projectScopes[projectId]?.items?.filter((item: any) => 
-          item.status === 'in-progress').length || 0,
+        activeProjectDetails = {
+          requirements: this._projectRequirements[projectId] || {},
+          mockups: mockups,
+          scope: scope,
           
-        // 完了した項目数
-        completedItems: this._projectScopes[projectId]?.items?.filter((item: any) => 
-          item.status === 'completed').length || 0
-      };
+          // モックアップ数
+          mockupCount: mockups.length || 0,
+          
+          // 実装項目数
+          scopeItemCount: scopeItems.length || 0,
+          
+          // 実装完了率
+          implementationProgress: scope.totalProgress || 0,
+          
+          // 実装中の項目数
+          inProgressItems: scopeItems.filter((item: any) => 
+            item && item.status === 'in-progress').length || 0,
+            
+          // 完了した項目数
+          completedItems: scopeItems.filter((item: any) => 
+            item && item.status === 'completed').length || 0
+        };
+      }
+      
+      await this._panel.webview.postMessage({
+        command: 'updateState',
+        projects: this._currentProjects || [],
+        activeProject: this._activeProject || null,
+        activeProjectDetails: activeProjectDetails
+      });
+    } catch (error) {
+      Logger.error(`WebView状態更新エラー`, error as Error);
+      // 最低限のメッセージを送信
+      await this._panel.webview.postMessage({
+        command: 'showError',
+        message: 'プロジェクトデータの読み込み中にエラーが発生しました。'
+      });
     }
-    
-    await this._panel.webview.postMessage({
-      command: 'updateState',
-      projects: this._currentProjects,
-      activeProject: this._activeProject,
-      activeProjectDetails: activeProjectDetails
-    });
   }
 
   /**
@@ -916,7 +937,7 @@ JWT_SECRET=your_jwt_secret_key
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
   <title>AppGenius ダッシュボード</title>
   <link href="${resetCssUri}" rel="stylesheet">
   <link href="${vscodeCssUri}" rel="stylesheet">
@@ -924,70 +945,47 @@ JWT_SECRET=your_jwt_secret_key
 </head>
 <body>
   <div class="dashboard-container">
+    <!-- ヘッダー -->
     <div class="header">
-      <h1>AppGenius AI ダッシュボード</h1>
-      <p>プロジェクト管理と機能選択</p>
+      <h1><i class="icon">🧠</i> AppGenius ダッシュボード</h1>
+      <div class="header-actions">
+        <button id="refresh-btn" class="button">
+          <i class="icon">🔄</i> 更新
+        </button>
+      </div>
     </div>
     
+    <!-- メインコンテンツ -->
     <div class="content">
+      <!-- サイドバー -->
       <div class="sidebar">
-        <div class="project-list">
-          <div class="sidebar-header">
-            <h2>プロジェクト一覧</h2>
-            <div class="project-buttons">
-              <button id="new-project-btn" class="button">新規作成</button>
-              <button id="load-project-btn" class="button">読み込む</button>
-            </div>
+        <div class="sidebar-header">
+          <h2>プロジェクト一覧</h2>
+          <div class="project-buttons">
+            <button id="new-project-btn" class="button">
+              <i class="icon">➕</i> 新規作成
+            </button>
+            <button id="load-project-btn" class="button">
+              <i class="icon">📂</i> 読み込む
+            </button>
           </div>
-          <div id="projects-container" class="projects-container">
-            <!-- プロジェクト一覧が動的に表示されます -->
-            <div class="loading">プロジェクトを読み込み中...</div>
+          <button id="toggle-sidebar" class="toggle-sidebar" title="サイドバー切替">
+            <i class="icon">◀</i>
+          </button>
+        </div>
+        <div id="projects-container" class="projects-container">
+          <!-- プロジェクト一覧が動的に表示されます -->
+          <div class="loading">
+            <div class="loading-spinner"></div>
+            <div>プロジェクトを読み込み中...</div>
           </div>
         </div>
       </div>
       
+      <!-- メインエリア -->
       <div class="main">
-        <div id="active-project-panel" class="active-project-panel">
-          <!-- アクティブなプロジェクトの詳細情報が表示されます -->
-          <div class="no-active-project">
-            <h2>プロジェクトを選択してください</h2>
-            <p>左側のリストからプロジェクトを選択するか、新しいプロジェクトを作成してください。</p>
-          </div>
-        </div>
-        
-        <div id="tools-panel" class="tools-panel">
-          <h2>開発ツール</h2>
-          <div class="tools-grid">
-            <div class="tool-card" id="requirements-editor">
-              <h3>要件定義エディタ</h3>
-              <p>プロジェクト要件を定義・管理します</p>
-              <button class="button">開く</button>
-            </div>
-            <div class="tool-card" id="mockup-designer">
-              <h3>モックアップデザイナー</h3>
-              <p>UIデザインとプロトタイプを作成します</p>
-              <button class="button">開く</button>
-            </div>
-            <div class="tool-card" id="implementation-selector">
-              <h3>実装スコープ選択</h3>
-              <p>コード生成の範囲と機能を選択します</p>
-              <button class="button">開く</button>
-            </div>
-            <div class="tool-card" id="development-assistant">
-              <h3>開発アシスタント</h3>
-              <p>コーディング・デバッグをサポートします</p>
-              <button class="button">開く</button>
-            </div>
-          </div>
-        </div>
-        
-        <div id="actions-panel" class="actions-panel">
-          <h2>プロジェクトアクション</h2>
-          <div class="actions-container">
-            <button id="analyze-project" class="button">プロジェクト分析</button>
-            <button id="export-project" class="button">エクスポート</button>
-            <button id="project-settings" class="button">設定</button>
-          </div>
+        <div id="active-project-info">
+          <!-- プロジェクト情報がここに表示されます -->
         </div>
       </div>
     </div>
@@ -999,12 +997,12 @@ JWT_SECRET=your_jwt_secret_key
       <h2>新規プロジェクト作成</h2>
       <form id="new-project-form">
         <div class="form-group">
-          <label for="project-name">プロジェクト名 *</label>
-          <input type="text" id="project-name" required>
+          <label for="project-name">プロジェクト名 <span style="color: #e74c3c;">*</span></label>
+          <input type="text" id="project-name" required placeholder="例: MyWebApp">
         </div>
         <div class="form-group">
           <label for="project-description">説明</label>
-          <textarea id="project-description" rows="3"></textarea>
+          <textarea id="project-description" rows="3" placeholder="プロジェクトの概要や目的を記述してください"></textarea>
         </div>
         <div class="form-actions">
           <button type="button" class="button secondary" id="cancel-new-project">キャンセル</button>
@@ -1014,6 +1012,7 @@ JWT_SECRET=your_jwt_secret_key
     </div>
   </div>
   
+  <!-- スクリプト -->
   <script src="${scriptUri}"></script>
 </body>
 </html>`;
