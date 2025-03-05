@@ -579,7 +579,7 @@
           <h2><i class="icon">📚</i> リファレンスマネージャー</h2>
         </div>
         <div class="reference-manager-wrapper">
-          <div class="reference-description">
+          <div class="reference-description" style="color: #333; background-color: #f2f6fc; font-size: 0.95rem;">
             <p>リファレンス情報を簡単に追加して整理できます。</p>
             <p>コードスニペット、API情報、環境設定、ドキュメントなどを保存できます。</p>
           </div>
@@ -637,29 +637,15 @@
           </div>
           
           <div class="reference-history">
-            <h3>最近のリファレンス</h3>
+            <h3 style="color: #2d3748; font-size: 1.05rem; margin-bottom: 0.8rem;">最近のリファレンス</h3>
             <div class="history-empty">
-              <p>リファレンス履歴がありません</p>
+              <p style="color: #4a5568; font-size: 0.95rem;">リファレンス履歴がありません</p>
             </div>
           </div>
         </div>
       `;
       
       recentFilesElement.innerHTML = referenceManagerHtml;
-      
-      // リファレンスマネージャーを開くボタンを追加
-      const openReferenceManagerBtn = document.createElement('button');
-      openReferenceManagerBtn.className = 'button primary';
-      openReferenceManagerBtn.innerHTML = '<i class="icon">📚</i> リファレンスマネージャーを全画面で開く';
-      openReferenceManagerBtn.style.marginBottom = '15px';
-      recentFilesElement.insertBefore(openReferenceManagerBtn, recentFilesElement.firstChild);
-      
-      // ボタンにクリックイベントを追加
-      openReferenceManagerBtn.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'openReferenceManager'
-        });
-      });
       
       // タブ切り替え処理
       const tabs = document.querySelectorAll('.tab-item');

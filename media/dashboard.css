@@ -759,14 +759,14 @@
   margin: 0;
   font-size: 1.2rem;
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: #2d3748;
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .recent-files-header h2 i {
-  color: var(--info-color);
+  color: #4a69bd;
 }
 
 .view-all {
@@ -796,16 +796,16 @@
 .reference-description {
   padding: 1rem;
   border-bottom: 1px solid var(--vscode-panel-border);
-  background-color: var(--primary-light);
+  background-color: #f2f6fc;
   border-radius: var(--border-radius);
   margin: 0 1rem;
 }
 
 .reference-description p {
   margin: 0 0 0.7rem 0;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   line-height: 1.5;
-  color: var(--vscode-foreground);
+  color: #333;
 }
 
 .reference-description p:last-child {
@@ -924,16 +924,16 @@
 }
 
 .reference-history h3 {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  margin: 0 0 1rem 0;
-  color: var(--vscode-foreground);
+  margin: 0 0 0.8rem 0;
+  color: #2d3748;
 }
 
 .history-empty {
   text-align: center;
   padding: 1rem;
-  color: var(--vscode-descriptionForeground);
+  color: #4a5568;
   font-style: italic;
   font-size: 0.9rem;
 }

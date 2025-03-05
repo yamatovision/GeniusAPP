@@ -973,7 +973,7 @@ JWT_SECRET=your_jwt_secret_key
   <div class="dashboard-container">
     <!-- ヘッダー -->
     <div class="header">
-      <h1><i class="icon">🧠</i> AppGenius ダッシュボード</h1>
+      <h1>AppGenius ダッシュボード</h1>
       <div class="header-actions">
         <button id="refresh-btn" class="button">
           <i class="icon">🔄</i> 更新
