@@ -13,7 +13,10 @@ AppGenius/
 │   ├── scope.md                  # 実装スコープ
 │   ├── api.md                    # API設計
 │   ├── env.example               # 環境変数例
-│   └── CURRENT_STATUS.md         # 現在の開発状況
+│   ├── CURRENT_STATUS.md         # 現在の開発状況
+│   ├── Scope_Manager_Prompt.md   # スコープ設計AIプロンプト
+│   ├── Scope_Implementation_Assistant_Prompt.md # 実装アシスタントAIプロンプト
+│   └── scopes/                   # 個別ページ・機能の要件定義
 ├── mockups/                      # モックアップと生成物
 │   ├── metadata.json             # モックアップ管理情報
 │   └── *.html                    # 各モックアップファイル
@@ -56,8 +59,8 @@ AppGenius/
 │   │   │   └── SimpleMockupEditorPanel.ts # エディタパネル
 │   │   ├── scopeManager/         # スコープマネージャー
 │   │   │   └── ScopeManagerPanel.ts # スコープパネル
-│   │   ├── developmentAssistant/ # 開発アシスタント
-│   │   │   └── DevelopmentAssistantPanel.ts # 開発パネル
+│   │   ├── scopeImplementationAssistant/ # スコープ実装アシスタント
+│   │   │   └── ScopeImplementationAssistantPanel.ts # 実装アシスタントパネル
 │   │   ├── referenceManager/     # リファレンスマネージャー
 │   │   │   └── ReferenceManagerPanel.ts # リファレンスパネル
 │   │   ├── claudeMd/             # CLAUDE.mdエディタ

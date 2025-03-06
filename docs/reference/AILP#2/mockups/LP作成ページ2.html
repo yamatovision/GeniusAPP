@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI LP Builder - LP作成・編集</title>
+  
+  <!-- React, ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@mui/material@5.14.5/umd/material-ui.production.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  
+  <!-- Emotion (for MUI) -->
+  <script src="https://unpkg.com/@emotion/react@11.11.1/dist/emotion-react.umd.min.js"></script>
+  <script src="https://unpkg.com/@emotion/styled@11.11.0/dist/emotion-styled.umd.min.js"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+      background-color: #f5f7fa;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .slide-in {
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .typing-indicator {
+      display: inline-flex;
+      align-items: center;
+    }
+    
+    .typing-indicator span {
+      width: 6px;
+      height: 6px;
+      margin: 0 1px;
+      background-color: #718096;
+      border-radius: 50%;
+      display: inline-block;
+      animation: typing 1.4s infinite both;
+    }
+    
+    .typing-indicator span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-indicator span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    @keyframes typing {
+      0% { transform: scale(1); opacity: 0.7; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(1); opacity: 0.7; }
+    }
+    
+    .preview-iframe {
+      border: none;
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.1);
+      background-color: white;
+    }
+    
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: #CBD5E0 #EDF2F7;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #EDF2F7;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #CBD5E0;
+      border-radius: 6px;
+    }
+    
+    .glow-effect {
+      box-shadow: 0 0 8px rgba(66, 153, 225, 0.6);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { 
+      createTheme, ThemeProvider, CssBaseline, 
+      AppBar, Toolbar, Typography, Button, IconButton, 
+      Container, Grid, Paper, Box, Chip, Avatar,
+      TextField, InputAdornment, CircularProgress,
+      Tabs, Tab, List, ListItem, ListItemText, ListItemIcon,
+      Divider, Switch, FormControlLabel, Select, MenuItem,
+      Stepper, Step, StepLabel, StepContent, Card, CardContent,
+      Dialog, DialogTitle, DialogContent, DialogActions, Alert, Collapse,
+      Accordion, AccordionSummary, AccordionDetails, Tooltip, Badge, ButtonGroup
+    } = MaterialUI;
+    
+    // テーマの作成
+    const theme = createTheme({
+      palette: {
+        primary: {
+          main: '#4299e1',
+        },
+        secondary: {
+          main: '#9f7aea',
+        },
+        background: {
+          default: '#f5f7fa',
+          paper: '#ffffff',
+        },
+      },
+      typography: {
+        fontFamily: "'Roboto', 'Helvetica', 'Arial', sans-serif",
+        h4: {
+          fontWeight: 600,
+        },
+        h5: {
+          fontWeight: 600,
+        },
+        h6: {
+          fontWeight: 600,
+        },
+      },
+      shape: {
+        borderRadius: 10,
+      },
+      components: {
+        MuiButton: {
+          styleOverrides: {
+            root: {
+              textTransform: 'none',
+              borderRadius: 8,
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
+              },
+            },
+            containedPrimary: {
+              '&:hover': {
+                backgroundColor: '#3182ce',
+              },
+            },
+          },
+        },
+        MuiPaper: {
+          styleOverrides: {
+            rounded: {
+              borderRadius: 12,
+            },
+            elevation1: {
+              boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
+            }
+          },
+        },
+        MuiChip: {
+          styleOverrides: {
+            root: {
+              borderRadius: 6,
+              fontWeight: 500,
+            },
+          },
+        },
+      },
+    });
+    
+    // ErrorBoundary コンポーネント
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+      
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+      
+      componentDidCatch(error, errorInfo) {
+        console.error("Error caught by boundary:", error, errorInfo);
+      }
+      
+      render() {
+        if (this.state.hasError) {
+          return (
+            <Box 
+              sx={{ 
+                p: 4, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                minHeight: '200px',
+                textAlign: 'center'
+              }}
+            >
+              <Typography variant="h6" color="error" gutterBottom>
+                エラーが発生しました
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                ページの再読み込みをお試しください
+              </Typography>
+              <Button
+                variant="outlined"
+                color="primary"
+                sx={{ mt: 2 }}
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                再試行
+              </Button>
+            </Box>
+          );
+        }
+        
+        return this.props.children;
+      }
+    }
+    
+    // モックデータ - チャット履歴
+    const mockChatHistory = [
+      { 
+        id: 1, 
+        role: 'system', 
+        content: 'LP作成アシスタントへようこそ。どのようなランディングページを作成したいですか？' 
+      },
+      { 
+        id: 2, 
+        role: 'user', 
+        content: 'オンラインコーチング用のLPを作りたいです。ビジネスマネジメントを教えるコーチングプログラムで、ターゲットは30代〜40代の会社員や管理職です。' 
+      },
+      { 
+        id: 3, 
+        role: 'system', 
+        content: 'ビジネスマネジメントのコーチングプログラム向けLPですね。以下の情報も教えていただけると、より最適なLPを作成できます：\n\n1. コーチングプログラムの期間と料金はどのくらいですか？\n2. どのような悩みや課題を解決するプログラムですか？\n3. コーチング提供者の実績や背景は？\n4. 他のコーチングと差別化できるポイントがあれば教えてください。' 
+      },
+      { 
+        id: 4, 
+        role: 'user', 
+        content: '1. 3ヶ月間のプログラムで、料金は一括29.8万円、または月々9.8万円の分割払いが可能です。\n2. リーダーシップスキルの向上、チームマネジメント、タイムマネジメント、効率的な意思決定などの課題を解決します。\n3. 元大手企業の人事責任者で、15年以上のマネジメント経験があります。これまで200人以上のマネージャーを育成してきました。\n4. 実践的な内容で、すぐに職場で使えるフレームワークとツールを提供します。毎週のグループコーチングと月2回の個別コーチングがセットになっています。' 
+      },
+      { 
+        id: 5, 
+        role: 'system', 
+        content: 'ありがとうございます。これらの情報を元に、効果的なLPを構成していきます。以下のようなLPの構造を提案します：\n\n1. **ヒーローセクション**：ターゲットの悩みと解決策を強調\n2. **課題認識セクション**：マネジメントで直面する具体的な課題\n3. **解決策セクション**：コーチングプログラムの概要\n4. **ベネフィットセクション**：得られる成果と変化\n5. **プログラム構成セクション**：3ヶ月の流れと内容\n6. **講師プロフィールセクション**：経験と実績\n7. **料金・申込セクション**：料金プランと申込方法\n8. **FAQ**：よくある質問と回答\n\nこの構成でよろしいですか？あるいは追加したいセクションはありますか？' 
+      },
+      { 
+        id: 6, 
+        role: 'user', 
+        content: 'その構成で良いと思います。あと、受講者の声（testimonial）のセクションも追加したいです。実際に5名ほど卒業生のインタビューがあります。' 
+      },
+      { 
+        id: 7, 
+        role: 'system', 
+        content: '受講者の声セクションを追加します。それでは、各セクションについて具体的なコンテンツ案を作成していきます。\n\nまず、ページ全体のデザインテイストについて確認させてください：\n\n1. カラースキームの好み（例：ブルー系、モダンなトーン、明るい色調など）\n2. 雰囲気（プロフェッショナル寄り、親しみやすさ重視など）\n3. 参考にしたいウェブサイトやデザインがあれば教えてください' 
+      }
+    ];
+    
+    // モックデータ - デザインスタイル選択肢
+    const mockDesignStyles = [
+      {
+        id: 'modern',
+        name: 'モダン',
+        description: 'クリーンで洗練されたデザイン。余白を活かした広々としたレイアウト。',
+        colors: 'グレー、ホワイト、アクセントカラー',
+        image: 'https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      },
+      {
+        id: 'corporate',
+        name: 'コーポレート',
+        description: 'ビジネス向けの堅実なデザイン。信頼感と専門性を強調。',
+        colors: 'ブルー、グレー、ネイビー',
+        image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      },
+      {
+        id: 'vibrant',
+        name: '活気あるデザイン',
+        description: '明るい色と動きのあるデザイン。エネルギッシュで魅力的。',
+        colors: 'オレンジ、ブルー、グリーン',
+        image: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      },
+      {
+        id: 'minimal',
+        name: 'ミニマル',
+        description: 'シンプルで必要最小限のデザイン。情報を明確に伝える。',
+        colors: 'モノクロ + 1色のアクセント',
+        image: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      }
+    ];
+    
+    // モックデータ - セクション構造
+    const mockSections = [
+      {
+        id: 'hero',
+        name: 'ヒーローセクション',
+        status: 'completed',
+        variants: ['A', 'B'],
+        active: 'A'
+      },
+      {
+        id: 'problems',
+        name: '課題認識セクション',
+        status: 'completed',
+        variants: ['A', 'B'],
+        active: 'A'
+      },
+      {
+        id: 'solution',
+        name: '解決策セクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      },
+      {
+        id: 'benefits',
+        name: 'ベネフィットセクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      },
+      {
+        id: 'program',
+        name: 'プログラム構成セクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      },
+      {
+        id: 'testimonials',
+        name: '受講者の声セクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      },
+      {
+        id: 'profile',
+        name: '講師プロフィールセクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      },
+      {
+        id: 'pricing',
+        name: '料金・申込セクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      },
+      {
+        id: 'faq',
+        name: 'FAQセクション',
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
+      }
+    ];
+    
+    // モックデータ - プロンプトテンプレート
+    const mockPromptTemplates = [
+      { id: 1, name: 'セクションの作成', template: '[セクション名]について、以下の要素を含めて作成してください：\n1. 見出し\n2. サブ見出し\n3. 主要コンテンツ\n4. デザイン要素' },
+      { id: 2, name: 'バリアント生成', template: '既存の[セクション名]に対して、以下の点を変更したバリアントを作成してください：\n1. 見出しのトーン（より直接的/より感情的）\n2. コンテンツ構成（簡潔/詳細）\n3. ビジュアル要素の提案' },
+      { id: 3, name: 'デザイン調整', template: '[セクション名]のデザインについて、以下の調整を行ってください：\n1. カラースキーム\n2. レイアウト（1カラム/2カラム等）\n3. フォントサイズと種類\n4. 余白と間隔' },
+      { id: 4, name: 'コピー改善', template: '[セクション名]のコピーを以下の点から改善してください：\n1. ターゲットユーザーの課題に共感する表現\n2. 具体的なベネフィットの強調\n3. 説得力のある表現へのブラッシュアップ\n4. CTAの訴求力向上' }
+    ];
+    
+    // モックデータ - LPプレビューHTML
+    const mockPreviewHTML = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ビジネスマネジメントコーチング</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            line-height: 1.6;
+          }
+          .hero {
+            background-color: #2a4365;
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+          }
+          .hero h1 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+          }
+          .hero p {
+            font-size: 1.2rem;
+            max-width: 700px;
+            margin: 0 auto 30px;
+          }
+          .cta-button {
+            display: inline-block;
+            background-color: #48bb78;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: background-color 0.3s;
+          }
+          .cta-button:hover {
+            background-color: #38a169;
+          }
+          .problems {
+            padding: 60px 20px;
+            background-color: #f7fafc;
+          }
+          .container {
+            max-width: 1100px;
+            margin: 0 auto;
+          }
+          .problems h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+            color: #2a4365;
+          }
+          .problem-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+          }
+          .problem-item {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+          }
+          .problem-item h3 {
+            color: #2b6cb0;
+            margin-top: 0;
+          }
+          .solution {
+            padding: 60px 20px;
+          }
+          .solution h2 {
+            text-align: center;
+            font-size: 2rem;
+            margin-bottom: 40px;
+            color: #2a4365;
+          }
+          .solution-content {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+          }
+          .solution-text {
+            flex: 1 1 500px;
+            padding: 20px;
+          }
+          .solution-image {
+            flex: 1 1 400px;
+            padding: 20px;
+          }
+          .solution-image img {
+            max-width: 100%;
+            border-radius: 8px;
+          }
+        </style>
+      </head>
+      <body>
+        <section class="hero">
+          <div class="container">
+            <h1>マネジメントスキルを磨き、真のリーダーへ</h1>
+            <p>15年以上の経験を持つ元人事責任者が教える3ヶ月間の実践的コーチングプログラム。効率的なチームマネジメント、的確な意思決定、時間管理まで、すぐに実践できるスキルを習得。</p>
+            <a href="#pricing" class="cta-button">詳細を見る</a>
+          </div>
+        </section>
+        
+        <section class="problems">
+          <div class="container">
+            <h2>こんな課題を抱えていませんか？</h2>
+            <div class="problem-grid">
+              <div class="problem-item">
+                <h3>チームのモチベーション維持が難しい</h3>
+                <p>メンバーの成長や貢献を促す方法がわからず、チーム全体のパフォーマンスが低下している。</p>
+              </div>
+              <div class="problem-item">
+                <h3>意思決定に自信が持てない</h3>
+                <p>重要な決断を迫られた時に迷いが生じ、機会損失や後悔につながっている。</p>
+              </div>
+              <div class="problem-item">
+                <h3>時間管理がうまくいかない</h3>
+                <p>日々の業務に追われ、戦略的な業務や自己成長のための時間が確保できていない。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <section class="solution">
+          <div class="container">
+            <h2>実践的なフレームワークで現場のマネジメント課題を解決</h2>
+            <div class="solution-content">
+              <div class="solution-text">
+                <p>当コーチングプログラムでは、現場ですぐに活用できる実践的なマネジメントツールとフレームワークを提供します。講義形式ではなく、あなたの実際の課題に取り組みながらスキルを身につけていくため、学びをそのまま業務に活かせます。</p>
+                <p>グループコーチングでは他の参加者との相互学習の機会があり、個別コーチングではあなた固有の課題に深く取り組みます。3ヶ月間で確実にマネジメントスキルを向上させ、自信を持ってチームを率いるリーダーへと成長できます。</p>
+              </div>
+              <div class="solution-image">
+                <img src="https://images.unsplash.com/photo-1516321318423-f06f85e504b3?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="コーチングセッションの様子">
+              </div>
+            </div>
+          </div>
+        </section>
+      </body>
+      </html>
+    `;
+    
+    // モックデータ - LPプレビューHTML（バリアントB）
+    const mockPreviewHTMLVariantB = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ビジネスマネジメントコーチング</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #333;
+            line-height: 1.6;
+          }
+          .hero {
+            background: linear-gradient(135deg, #1a365d 0%, #2a4365 100%);
+            color: white;
+            padding: 80px 20px;
+            text-align: center;
+          }
+          .hero h1 {
+            font-size: 2.7rem;
+            margin-bottom: 25px;
+            font-weight: 700;
+          }
+          .hero p {
+            font-size: 1.25rem;
+            max-width: 700px;
+            margin: 0 auto 35px;
+            line-height: 1.7;
+          }
+          .cta-button {
+            display: inline-block;
+            background-color: #ed8936;
+            color: white;
+            padding: 14px 28px;
+            border-radius: 30px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1.15rem;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(237, 137, 54, 0.4);
+          }
+          .cta-button:hover {
+            background-color: #dd6b20;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(237, 137, 54, 0.5);
+          }
+          .problems {
+            padding: 70px 20px;
+            background-color: #f7fafc;
+          }
+          .container {
+            max-width: 1100px;
+            margin: 0 auto;
+          }
+          .problems h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 50px;
+            color: #1a365d;
+          }
+          .problem-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+          }
+          .problem-item {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+          }
+          .problem-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+          }
+          .problem-item h3 {
+            color: #2b6cb0;
+            margin-top: 0;
+            font-size: 1.3rem;
+          }
+          .solution {
+            padding: 70px 20px;
+          }
+          .solution h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 50px;
+            color: #1a365d;
+          }
+          .solution-content {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+          }
+          .solution-text {
+            flex: 1 1 500px;
+            padding: 30px;
+          }
+          .solution-image {
+            flex: 1 1 400px;
+            padding: 20px;
+          }
+          .solution-image img {
+            max-width: 100%;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+          }
+        </style>
+      </head>
+      <body>
+        <section class="hero">
+          <div class="container">
+            <h1>マネジメントの壁を突破し、<br>キャリアを加速させる</h1>
+            <p>現場で15年以上の実績を持つ元人事責任者があなたの成長を徹底サポート。3ヶ月間で200人以上が実証した効果的なリーダーシップ開発プログラム。</p>
+            <a href="#pricing" class="cta-button">無料カウンセリングに申し込む</a>
+          </div>
+        </section>
+        
+        <section class="problems">
+          <div class="container">
+            <h2>成長するマネージャーの課題とは？</h2>
+            <div class="problem-grid">
+              <div class="problem-item">
+                <h3>チームの潜在能力を引き出せない</h3>
+                <p>メンバー一人ひとりの強みを活かし、チーム全体のパフォーマンスを最大化する方法が分からず、成果にムラが生じている。</p>
+              </div>
+              <div class="problem-item">
+                <h3>プレッシャーの中での意思決定</h3>
+                <p>不確実性の高い状況で、迅速かつ的確な決断を下すことに不安を感じ、リーダーとしての自信が揺らいでいる。</p>
+              </div>
+              <div class="problem-item">
+                <h3>業務と自己成長のバランス</h3>
+                <p>日々の業務対応に追われ、戦略的思考や自己成長のための時間を確保できず、キャリアの停滞を感じている。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <section class="solution">
+          <div class="container">
+            <h2>明日から使える実践的リーダーシップ育成プログラム</h2>
+            <div class="solution-content">
+              <div class="solution-text">
+                <p>「知識」だけでなく「実践力」を重視した当プログラムでは、あなたの実際の職場環境に合わせたカスタマイズされたフレームワークを提供。週次のグループセッションではケーススタディを通じた相互学習で視野を広げ、月2回の個別コーチングではあなた固有の課題に深くコミットします。</p>
+                <p>参加者の93%が「具体的な業務改善につながった」と回答し、76%が「6ヶ月以内に昇進・昇格を実現」しています。リーダーとしての自信を獲得し、キャリアを加速させる確かな一歩を踏み出しませんか？</p>
+              </div>
+              <div class="solution-image">
+                <img src="https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80" alt="リーダーシップトレーニングの様子">
+              </div>
+            </div>
+          </div>
+        </section>
+      </body>
+      </html>
+    `;
+    
+    // タイピングインジケーター
+    const TypingIndicator = () => (
+      <Box 
+        sx={{ 
+          display: 'flex',
+          mb: 2,
+        }}
+      >
+        <Avatar 
+          sx={{ 
+            bgcolor: 'primary.main',
+            width: 36,
+            height: 36,
+            mr: 1.5
+          }}
+        >
+          AI
+        </Avatar>
+        <Paper 
+          sx={{ 
+            p: 2, 
+            maxWidth: '75%',
+            borderRadius: '12px',
+            borderTopLeftRadius: 0,
+          }}
+          elevation={1}
+        >
+          <Box className="typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
+          </Box>
+        </Paper>
+      </Box>
+    );
+    
+    // チャットメッセージコンポーネント
+    const ChatMessage = ({ message }) => {
+      const isSystem = message.role === 'system';
+      
+      return (
+        <Box 
+          sx={{ 
+            display: 'flex',
+            mb: 2,
+            flexDirection: isSystem ? 'row' : 'row-reverse'
+          }}
+          className="fade-in"
+        >
+          <Avatar 
+            sx={{ 
+              bgcolor: isSystem ? 'primary.main' : 'secondary.main',
+              width: 36,
+              height: 36,
+              mr: isSystem ? 1.5 : 0,
+              ml: isSystem ? 0 : 1.5
+            }}
+          >
+            {isSystem ? 'AI' : 'You'}
+          </Avatar>
+          <Paper 
+            sx={{ 
+              p: 2, 
+              maxWidth: '75%',
+              borderRadius: '12px',
+              borderTopLeftRadius: isSystem ? 0 : '12px',
+              borderTopRightRadius: isSystem ? '12px' : 0,
+              backgroundColor: isSystem ? 'white' : '#f0f4f8'
+            }}
+            elevation={1}
+          >
+            <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>
+              {message.content}
+            </Typography>
+          </Paper>
+        </Box>
+      );
+    };
+    
+    // プレビューコンポーネント
+    const PreviewComponent = ({ html, title, variant }) => {
+      return (
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ p: 1, backgroundColor: '#f0f4f8', borderTopLeftRadius: 8, borderTopRightRadius: 8, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', gap: 0.5, mr: 2 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#fc8181' }}></Box>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#f6e05e' }}></Box>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: '#68d391' }}></Box>
+            </Box>
+            <Typography variant="caption" sx={{ flexGrow: 1, textAlign: 'center', fontWeight: 'medium' }}>
+              {title} - バリアント{variant}
+            </Typography>
+          </Box>
+          <Box sx={{ flexGrow: 1, position: 'relative', backgroundColor: 'white' }}>
+            <iframe
+              className="preview-iframe"
+              title={`Preview ${title} Variant ${variant}`}
+              srcDoc={html}
+            />
+          </Box>
+        </Box>
+      );
+    };
+    
+    // コンポーネントツリーアイテム
+    const ComponentTreeItem = ({ component, onSelect, activeComponent }) => {
+      const isActive = activeComponent === component.id;
+      
+      const getStatusIcon = (status) => {
+        switch(status) {
+          case 'completed':
+            return <span className="material-icons" style={{ color: '#48bb78', fontSize: 18 }}>check_circle</span>;
+          case 'in_progress':
+            return <span className="material-icons" style={{ color: '#4299e1', fontSize: 18 }}>autorenew</span>;
+          case 'pending':
+            return <span className="material-icons" style={{ color: '#a0aec0', fontSize: 18 }}>pending</span>;
+          default:
+            return null;
+        }
+      };
+      
+      return (
+        <ListItem 
+          button 
+          sx={{ 
+            borderRadius: 2, 
+            backgroundColor: isActive ? 'rgba(66, 153, 225, 0.08)' : 'transparent',
+            border: isActive ? '1px solid rgba(66, 153, 225, 0.5)' : '1px solid transparent',
+            mb: 1,
+            transition: 'all 0.2s'
+          }}
+          onClick={() => onSelect(component.id)}
+          className={isActive ? 'glow-effect' : ''}
+        >
+          <ListItemIcon sx={{ minWidth: 40 }}>
+            {getStatusIcon(component.status)}
+          </ListItemIcon>
+          <ListItemText 
+            primary={component.name} 
+            primaryTypographyProps={{ 
+              fontWeight: isActive ? 'medium' : 'regular',
+              color: component.status === 'pending' ? 'text.secondary' : 'text.primary'
+            }}
+          />
+          {component.variants.length > 0 && (
+            <Chip 
+              size="small" 
+              label={`${component.variants.length} バリアント`} 
+              sx={{ 
+                backgroundColor: '#e2e8f0',
+                fontWeight: 'medium',
+                fontSize: '0.7rem'
+              }}
+            />
+          )}
+        </ListItem>
+      );
+    };
+    
+    // デザインスタイルカード
+    const DesignStyleCard = ({ style, selected, onSelect }) => {
+      return (
+        <Card 
+          sx={{ 
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            border: selected ? '2px solid #4299e1' : '1px solid #e2e8f0',
+            boxShadow: selected ? '0 0 0 4px rgba(66, 153, 225, 0.2)' : 'none',
+            '&:hover': {
+              boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
+            }
+          }}
+          onClick={() => onSelect(style.id)}
+        >
+          <Box sx={{ position: 'relative', height: 160, overflow: 'hidden' }}>
+            <Box 
+              component="img" 
+              src={style.image}
+              alt={style.name}
+              sx={{ 
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+            {selected && (
+              <Box 
+                sx={{ 
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  backgroundColor: 'rgba(66, 153, 225, 0.9)',
+                  borderRadius: '50%',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-icons" style={{ color: 'white', fontSize: 18 }}>
+                  check
+                </span>
+              </Box>
+            )}
+          </Box>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              {style.name}
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+              {style.description}
+            </Typography>
+            <Chip 
+              size="small" 
+              label={style.colors} 
+              sx={{ 
+                backgroundColor: '#f0f4f8',
+                fontSize: '0.7rem'
+              }}
+            />
+          </CardContent>
+        </Card>
+      );
+    };
+    
+    // LP作成・編集画面
+    const LPEditor = () => {
+      const [activeTab, setActiveTab] = React.useState(0);
+      const [loading, setLoading] = React.useState(false);
+      const [isTyping, setIsTyping] = React.useState(false);
+      const [chatMessages, setChatMessages] = React.useState(mockChatHistory);
+      const [inputMessage, setInputMessage] = React.useState('');
+      const [selectedComponent, setSelectedComponent] = React.useState('hero');
+      const [activeVariant, setActiveVariant] = React.useState('A');
+      const [previewMode, setPreviewMode] = React.useState('desktop');
+      const [templateDialogOpen, setTemplateDialogOpen] = React.useState(false);
+      const [selectedTemplate, setSelectedTemplate] = React.useState(null);
+      const [selectedDesignStyle, setSelectedDesignStyle] = React.useState('corporate');
+      const [generatingPreview, setGeneratingPreview] = React.useState(false);
+      
+      const chatContainerRef = React.useRef(null);
+      
+      // チャット送信
+      const handleSendMessage = () => {
+        if (!inputMessage.trim()) return;
+        
+        // ユーザーメッセージをチャット履歴に追加
+        const userMessage = {
+          id: Date.now(),
+          role: 'user',
+          content: inputMessage
+        };
+        
+        setChatMessages([...chatMessages, userMessage]);
+        setInputMessage('');
+        setIsTyping(true);
+        
+        // AI応答をシミュレート
+        setTimeout(() => {
+          const aiResponse = {
+            id: Date.now() + 1,
+            role: 'system',
+            content: 'ご指示に基づいて処理しています。セクションの構成と内容を調整して、最適なデザインを作成します。追加の詳細や好みがあれば、教えてください。'
+          };
+          
+          setChatMessages(prevMessages => [...prevMessages, aiResponse]);
+          setIsTyping(false);
+        }, 2000);
+      };
+      
+      // チャットコンテナを自動スクロール
+      React.useEffect(() => {
+        if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+      }, [chatMessages, isTyping]);
+      
+      // プロンプトテンプレート選択
+      const handleTemplateSelect = (template) => {
+        setInputMessage(template.template);
+        setTemplateDialogOpen(false);
+      };
+      
+      // デザイン生成処理
+      const handleGenerateDesign = () => {
+        setGeneratingPreview(true);
+        // 生成完了をシミュレート
+        setTimeout(() => {
+          setGeneratingPreview(false);
+          setActiveTab(1); // デザインタブに切り替え
+        }, 3000);
+      };
+      
+      // バリアントB追加
+      const handleAddVariantB = () => {
+        // 元々バリアントBがある場合は何もしない
+        if (mockSections.find(s => s.id === selectedComponent).variants.includes('B')) {
+          return;
+        }
+        
+        setLoading(true);
+        // 生成完了をシミュレート
+        setTimeout(() => {
+          // セクションのバリアントを更新
+          const updatedSections = mockSections.map(section => {
+            if (section.id === selectedComponent) {
+              return { ...section, variants: [...section.variants, 'B'] };
+            }
+            return section;
+          });
+          
+          // 状態を更新
+          setActiveVariant('B');
+          setLoading(false);
+        }, 2000);
+      };
+      
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          
+          {/* ヘッダー */}
+          <AppBar position="static" color="default" elevation={0} sx={{ backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
+            <Toolbar>
+              <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 1 }}>
+                <span className="material-icons">arrow_back</span>
+              </IconButton>
+              <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                ビジネスマネジメントコーチングLP
+              </Typography>
+              <Tabs 
+                value={activeTab}
+                onChange={(e, val) => setActiveTab(val)}
+                sx={{ mx: 2 }}
+                indicatorColor="primary"
+                textColor="primary"
+              >
+                <Tab label="1. 文章作成" sx={{ minWidth: 140 }} />
+                <Tab label="2. LP生成" sx={{ minWidth: 140 }} />
+                <Tab label="3. デザイン調整" sx={{ minWidth: 140 }} />
+              </Tabs>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<span className="material-icons">save</span>}
+              >
+                公開する
+              </Button>
+            </Toolbar>
+          </AppBar>
+          
+          {/* フェーズ1: 文章作成 (チャット形式) */}
+          {activeTab === 0 && (
+            <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)' }}>              
+              {/* 中央 - AIチャットセクション */}
+              <Box 
+                sx={{ 
+                  flex: 1, 
+                  display: 'flex', 
+                  flexDirection: 'column'
+                }}
+              >
+                <Box
+                  ref={chatContainerRef}
+                  sx={{ 
+                    flex: 1, 
+                    p: 2, 
+                    overflowY: 'auto', 
+                    backgroundColor: '#f8fafc' 
+                  }}
+                  className="custom-scrollbar"
+                >
+                  <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+                    <Typography variant="h5" sx={{ mb: 3, textAlign: 'center' }}>
+                      LP内容の作成
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary" sx={{ mb: 4, textAlign: 'center' }}>
+                      AIと対話しながらLPの内容を作成してください。AIがLPに必要な情報について質問します。
+                    </Typography>
+                    
+                    {chatMessages.map((message) => (
+                      <ChatMessage key={message.id} message={message} />
+                    ))}
+                    {isTyping && <TypingIndicator />}
+                  </Box>
+                </Box>
+                
+                <Box 
+                  sx={{ 
+                    p: 2, 
+                    backgroundColor: 'white',
+                    borderTop: '1px solid #e2e8f0'
+                  }}
+                >
+                  <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+                    <Box sx={{ display: 'flex' }}>
+                      <TextField
+                        fullWidth
+                        variant="outlined"
+                        placeholder="AIに指示を送信..."
+                        multiline
+                        rows={2}
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        InputProps={{
+                          sx: { 
+                            borderRadius: 2, 
+                            backgroundColor: '#f8fafc',
+                            '&.Mui-focused': {
+                              boxShadow: '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                            }
+                          }
+                        }}
+                      />
+                      <IconButton 
+                        color="primary" 
+                        sx={{ ml: 1, alignSelf: 'flex-end' }}
+                        onClick={handleSendMessage}
+                        disabled={!inputMessage.trim()}
+                      >
+                        <span className="material-icons">send</span>
+                      </IconButton>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 2 }}>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={() => setActiveTab(1)}
+                        endIcon={<span className="material-icons">arrow_forward</span>}
+                      >
+                        次へ: LP生成
+                      </Button>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+          
+          {/* フェーズ2: LP生成 */}
+          {activeTab === 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+              {/* メイン - LP作成画面 */}
+              <Box 
+                sx={{ 
+                  flex: 1, 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  p: 3,
+                  backgroundColor: '#f8fafc',
+                  overflowY: 'auto'
+                }}
+                className="custom-scrollbar"
+              >
+                <Box sx={{ maxWidth: 900, mx: 'auto', width: '100%' }}>
+                  <Typography variant="h4" sx={{ mb: 3, textAlign: 'center', fontWeight: 'bold', color: '#2d3748' }}>
+                    AI LP ジェネレーター
+                  </Typography>
+                  <Typography variant="subtitle1" color="textSecondary" sx={{ mb: 3, textAlign: 'center' }}>
+                    チャットで入力した内容をもとに、LPを自動生成します
+                  </Typography>
+                  
+                  {/* LP内容確認フォーム */}
+                  <Paper 
+                    elevation={2} 
+                    sx={{ 
+                      p: 4, 
+                      borderRadius: 3,
+                      mb: 4,
+                      backgroundColor: 'white',
+                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    <Typography variant="h6" gutterBottom fontWeight="medium">
+                      LP内容の確認
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                      AIとの会話から抽出した内容です。必要に応じて編集してください。
+                    </Typography>
+                    
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      placeholder="LPの内容をここで確認・編集できます..."
+                      multiline
+                      rows={8}
+                      value="【コーチングプログラム名】ビジネスマネジメントコーチング
+
+【対象者】30代〜40代の会社員や管理職
+
+【プログラム概要】
+- 3ヶ月間のプログラム
+- 料金: 一括29.8万円、または月々9.8万円の分割払い可能
+- リーダーシップスキル向上、チームマネジメント、タイムマネジメント、効率的な意思決定などを習得
+- 元大手企業の人事責任者が指導（15年以上のマネジメント経験、200人以上のマネージャー育成実績）
+- 毎週のグループコーチングと月2回の個別コーチングがセット
+- 実践的な内容で、すぐに職場で使えるフレームワークとツールを提供
+
+【構成】
+- ヒーローセクション: ターゲットの悩みと解決策を強調
+- 課題認識セクション: マネジメントで直面する具体的な課題
+- 解決策セクション: コーチングプログラムの概要
+- ベネフィットセクション: 得られる成果と変化
+- プログラム構成セクション: 3ヶ月の流れと内容
+- 受講者の声セクション: 5名の卒業生のインタビュー
+- 講師プロフィールセクション: 経験と実績
+- 料金・申込セクション: 料金プランと申込方法
+- FAQセクション: よくある質問と回答"
+                      InputProps={{
+                        sx: { 
+                          borderRadius: 2, 
+                          '&.Mui-focused': {
+                            boxShadow: '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                          }
+                        }
+                      }}
+                      sx={{ mb: 3 }}
+                    />
+                    
+                    <Divider sx={{ my: 3 }} />
+                    
+                    <Typography variant="h6" gutterBottom fontWeight="medium">
+                      デザインイメージを設定
+                    </Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                      LPのトーンやスタイルを指定してください。画像をアップロードしてイメージを伝えることもできます。
+                    </Typography>
+                    
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        デザインスタイル
+                      </Typography>
+                      <Select
+                        size="small"
+                        fullWidth
+                        value={selectedDesignStyle}
+                        onChange={e => setSelectedDesignStyle(e.target.value)}
+                      >
+                        {mockDesignStyles.map(style => (
+                          <MenuItem key={style.id} value={style.id}>{style.name}</MenuItem>
+                        ))}
+                      </Select>
+                    </Box>
+                    
+                    <Box sx={{ mb: 3 }}>
+                      <Typography variant="subtitle2" gutterBottom>
+                        自然言語でデザインイメージを説明（オプション）
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        variant="outlined"
+                        size="small"
+                        placeholder="例: 「明るく優しい雰囲気で、自然のイメージを取り入れたデザイン」"
+                      />
+                    </Box>
+                    
+                    <Box>
+                      <Typography variant="subtitle2" gutterBottom>
+                        参考イメージをアップロード（オプション）
+                      </Typography>
+                      <Button 
+                        variant="outlined" 
+                        startIcon={<span className="material-icons">upload_file</span>}
+                        sx={{ mr: 1 }}
+                      >
+                        イメージをアップロード
+                      </Button>
+                    </Box>
+                  </Paper>
+                  
+                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      size="large"
+                      startIcon={<span className="material-icons">auto_awesome</span>}
+                      sx={{ 
+                        py: 1.5, 
+                        px: 4, 
+                        borderRadius: 3,
+                        fontSize: '1.1rem',
+                        boxShadow: '0 10px 15px -3px rgba(66, 153, 225, 0.2), 0 4px 6px -2px rgba(66, 153, 225, 0.1)'
+                      }}
+                      onClick={handleGenerateDesign}
+                      disabled={generatingPreview}
+                    >
+                      {generatingPreview ? (
+                        <React.Fragment>
+                          <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                          LP生成中...
+                        </React.Fragment>
+                      ) : (
+                        "AIでLP生成"
+                      )}
+                    </Button>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+          
+          {/* フェーズ3: デザイン調整 */}
+          {activeTab === 2 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+              <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {/* 左サイドバー - セクション一覧 */}
+                <Paper 
+                  sx={{ 
+                    width: 250, 
+                    p: 2, 
+                    overflowY: 'auto',
+                    borderRight: '1px solid #e2e8f0'
+                  }}
+                  className="custom-scrollbar"
+                  elevation={0}
+                >
+                  <Typography variant="h6" gutterBottom>セクション一覧</Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    調整したいセクションを選択してください
+                  </Typography>
+                  
+                  <List disablePadding>
+                    {mockSections.map((section) => (
+                      <ComponentTreeItem 
+                        key={section.id} 
+                        component={section} 
+                        onSelect={setSelectedComponent}
+                        activeComponent={selectedComponent}
+                      />
+                    ))}
+                  </List>
+                </Paper>
+                
+                {/* 中央 - プレビュー */}
+                <Box 
+                  sx={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    bgcolor: '#f1f5f9',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <Box sx={{ 
+                    p: 2, 
+                    backgroundColor: 'white', 
+                    borderBottom: '1px solid #e2e8f0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <Typography variant="subtitle1" fontWeight="medium">
+                      {mockSections.find(s => s.id === selectedComponent)?.name || 'セクション'} プレビュー
+                    </Typography>
+                    <Box>
+                      <ButtonGroup size="small">
+                        <Button 
+                          variant={previewMode === 'mobile' ? 'contained' : 'outlined'}
+                          startIcon={<span className="material-icons">smartphone</span>}
+                          onClick={() => setPreviewMode('mobile')}
+                        >
+                          モバイル
+                        </Button>
+                        <Button 
+                          variant={previewMode === 'desktop' ? 'contained' : 'outlined'}
+                          startIcon={<span className="material-icons">desktop_windows</span>}
+                          onClick={() => setPreviewMode('desktop')}
+                        >
+                          デスクトップ
+                        </Button>
+                      </ButtonGroup>
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flex: 1, 
+                    p: 2, 
+                    overflow: 'auto',
+                    alignItems: 'stretch'
+                  }}>
+                    <Box 
+                      sx={{ 
+                        flex: 1, 
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                        transition: 'all 0.3s',
+                        mx: previewMode === 'mobile' ? 'auto' : 0,
+                        maxWidth: previewMode === 'mobile' ? 375 : '100%',
+                      }}
+                    >
+                      <PreviewComponent 
+                        html={activeVariant === 'A' ? mockPreviewHTML : mockPreviewHTMLVariantB} 
+                        title={mockSections.find(s => s.id === selectedComponent)?.name || 'セクション'} 
+                        variant={activeVariant}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+              
+              {/* 下部 - 操作パネル */}
+              <Box sx={{ 
+                backgroundColor: 'white', 
+                borderTop: '1px solid #e2e8f0',
+                p: 3
+              }}>
+                {/* タブ・バリアント選択 */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="subtitle1" fontWeight="medium" sx={{ mr: 2 }}>
+                    バリアント:
+                  </Typography>
+                  <ButtonGroup size="medium">
+                    <Button 
+                      variant={activeVariant === 'A' ? 'contained' : 'outlined'}
+                      onClick={() => setActiveVariant('A')}
+                    >
+                      バリアントA
+                    </Button>
+                    {mockSections.find(s => s.id === selectedComponent)?.variants.includes('B') ? (
+                      <Button 
+                        variant={activeVariant === 'B' ? 'contained' : 'outlined'}
+                        onClick={() => setActiveVariant('B')}
+                      >
+                        バリアントB
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outlined"
+                        color="secondary"
+                        startIcon={<span className="material-icons">add</span>}
+                        onClick={() => {
+                          // バリアントB作成ダイアログを表示
+                          const elem = document.getElementById('variantBDialog');
+                          if (elem) elem.style.display = 'block';
+                        }}
+                      >
+                        バリアントB作成
+                      </Button>
+                    )}
+                  </ButtonGroup>
+                </Box>
+                
+                {/* プロンプト入力 */}
+                <Paper
+                  elevation={1}
+                  sx={{ 
+                    p: 2, 
+                    borderRadius: 2,
+                    mb: 2,
+                    border: '1px solid #e2e8f0'
+                  }}
+                >
+                  <Typography variant="subtitle2" gutterBottom fontWeight="medium">
+                    セクションの修正指示
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', mb: 2 }}>
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      placeholder="AIにデザイン指示を送信... (例: 「より明るいトーンにして」「フォントを大きくして」など)"
+                      multiline
+                      rows={2}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <span className="material-icons" style={{ color: '#4a5568' }}>brush</span>
+                          </InputAdornment>
+                        ),
+                        sx: { borderRadius: 2 }
+                      }}
+                    />
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Button 
+                      variant="outlined"
+                      startIcon={<span className="material-icons">upload_file</span>}
+                      size="small"
+                      sx={{ mr: 2 }}
+                    >
+                      画像を追加
+                    </Button>
+                    
+                    <Box sx={{ flex: 1 }} />
+                    
+                    <Button 
+                      variant="contained" 
+                      color="primary"
+                      startIcon={<span className="material-icons">auto_fix_high</span>}
+                    >
+                      修正を適用
+                    </Button>
+                  </Box>
+                </Paper>
+                
+                {/* バリアントB作成ダイアログ（初期状態は非表示） */}
+                <Box 
+                  id="variantBDialog" 
+                  sx={{ 
+                    display: 'none',
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    zIndex: 9999,
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                  onClick={(e) => {
+                    if (e.target === e.currentTarget) {
+                      e.currentTarget.style.display = 'none';
+                    }
+                  }}
+                >
+                  <Paper
+                    sx={{ 
+                      width: '500px', 
+                      maxWidth: '90%',
+                      p: 3,
+                      borderRadius: 2,
+                      boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <Typography variant="h6" sx={{ mb: 2 }}>バリアントBの作成</Typography>
+                    <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
+                      現在のセクションの別バージョンを作成します。AIに指示を与えるか、AIにおまかせすることができます。
+                    </Typography>
+                    
+                    <TextField
+                      fullWidth
+                      variant="outlined"
+                      size="small"
+                      placeholder="バリアントBの指示を入力... (例: 「より説得力のある表現にして」「違うレイアウトで」)"
+                      multiline
+                      rows={3}
+                      sx={{ mb: 3 }}
+                    />
+                    
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <Button 
+                        variant="outlined"
+                        onClick={() => {
+                          document.getElementById('variantBDialog').style.display = 'none';
+                        }}
+                      >
+                        キャンセル
+                      </Button>
+                      
+                      <Box>
+                        <Button 
+                          variant="outlined"
+                          color="secondary"
+                          sx={{ mr: 2 }}
+                          onClick={() => {
+                            document.getElementById('variantBDialog').style.display = 'none';
+                            handleAddVariantB();
+                          }}
+                        >
+                          AIにおまかせ
+                        </Button>
+                        
+                        <Button 
+                          variant="contained" 
+                          color="primary"
+                          onClick={() => {
+                            document.getElementById('variantBDialog').style.display = 'none';
+                            handleAddVariantB();
+                          }}
+                        >
+                          バリアントB作成
+                        </Button>
+                      </Box>
+                    </Box>
+                  </Paper>
+                </Box>
+              </Box>
+            </Box>
+          )}
+          
+          {/* プロンプトテンプレートダイアログ */}
+          <Dialog 
+            open={templateDialogOpen} 
+            onClose={() => setTemplateDialogOpen(false)}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>プロンプトテンプレート</DialogTitle>
+            <DialogContent dividers>
+              <Typography variant="body2" color="textSecondary" paragraph>
+                以下のテンプレートから選択して、指示を効率的に作成できます。
+              </Typography>
+              <List>
+                {mockPromptTemplates.map((template) => (
+                  <ListItem 
+                    key={template.id} 
+                    button
+                    onClick={() => handleTemplateSelect(template)}
+                    sx={{ 
+                      borderRadius: 2,
+                      mb: 1,
+                      '&:hover': {
+                        backgroundColor: 'rgba(66, 153, 225, 0.08)'
+                      }
+                    }}
+                  >
+                    <ListItemIcon>
+                      <span className="material-icons">description</span>
+                    </ListItemIcon>
+                    <ListItemText 
+                      primary={template.name}
+                      secondary={template.template.substring(0, 60) + '...'}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setTemplateDialogOpen(false)}>キャンセル</Button>
+            </DialogActions>
+          </Dialog>
+        </ThemeProvider>
+      );
+    };
+    
+    // アプリケーションのメインコンポーネント
+    const App = () => {
+      return (
+        <ErrorBoundary>
+          <LPEditor />
+        </ErrorBoundary>
+      );
+    };
+    
+    // Reactをレンダリング
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

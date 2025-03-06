@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LPテスターPro - ログイン</title>
+    
+    <!-- React と ReactDOM の CDN -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Material UI -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@mui/material@5.14.10/umd/material-ui.production.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+    
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+            background-color: #f5f5f5;
+        }
+        
+        .login-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .login-image {
+            flex: 1;
+            background-image: url('https://images.unsplash.com/photo-1579403124614-197f69d8187b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1964&q=80');
+            background-size: cover;
+            background-position: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            color: white;
+            position: relative;
+        }
+        
+        .login-image::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 1;
+        }
+        
+        .login-image-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .login-form {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        
+        .brand-logo {
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .brand-logo img {
+            height: 40px;
+            margin-right: 1rem;
+        }
+        
+        .form-title {
+            margin-bottom: 2rem;
+        }
+        
+        .MuiTextField-root, .MuiButton-root {
+            margin-bottom: 1rem !important;
+        }
+        
+        .helper-links {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1rem;
+        }
+        
+        .error-message {
+            color: #f44336;
+            margin: 1rem 0;
+            padding: 0.5rem;
+            background-color: rgba(244, 67, 54, 0.1);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .error-icon {
+            margin-right: 0.5rem;
+        }
+        
+        @media (max-width: 960px) {
+            .login-image {
+                display: none;
+            }
+        }
+        
+        /* アニメーション */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .animated {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        .delay-1 { animation-delay: 0.1s; }
+        .delay-2 { animation-delay: 0.2s; }
+        .delay-3 { animation-delay: 0.3s; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { 
+            Box, Button, TextField, Typography, Link, Checkbox, 
+            FormControlLabel, CircularProgress, Alert, Paper, 
+            ThemeProvider, createTheme, CssBaseline, Icon
+        } = MaterialUI;
+        
+        // テーマ設定
+        const theme = createTheme({
+            palette: {
+                primary: {
+                    main: '#3f51b5',
+                },
+                secondary: {
+                    main: '#f50057',
+                },
+            },
+            typography: {
+                fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+                h4: {
+                    fontWeight: 600,
+                },
+                h5: {
+                    fontWeight: 500,
+                }
+            },
+        });
+        
+        // エラーバウンダリ
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false };
+            }
+            
+            static getDerivedStateFromError(error) {
+                return { hasError: true };
+            }
+            
+            componentDidCatch(error, errorInfo) {
+                console.error("Error caught by boundary:", error, errorInfo);
+            }
+            
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <Box sx={{ p: 3, textAlign: 'center' }}>
+                            <Typography variant="h5" color="error" gutterBottom>
+                                エラーが発生しました
+                            </Typography>
+                            <Typography variant="body1" gutterBottom>
+                                ページを再読み込みしてください
+                            </Typography>
+                            <Button 
+                                variant="contained" 
+                                color="primary"
+                                onClick={() => window.location.reload()}
+                                sx={{ mt: 2 }}
+                            >
+                                再読み込み
+                            </Button>
+                        </Box>
+                    );
+                }
+                
+                return this.props.children;
+            }
+        }
+        
+        const LoginPage = () => {
+            const [email, setEmail] = React.useState('');
+            const [password, setPassword] = React.useState('');
+            const [rememberMe, setRememberMe] = React.useState(false);
+            const [isLoading, setIsLoading] = React.useState(false);
+            const [error, setError] = React.useState('');
+            
+            // モックデータでログイン処理をシミュレート
+            const handleLogin = (e) => {
+                e.preventDefault();
+                setIsLoading(true);
+                setError('');
+                
+                // 入力検証
+                if (!email.trim()) {
+                    setError('メールアドレスを入力してください');
+                    setIsLoading(false);
+                    return;
+                }
+                
+                if (!password) {
+                    setError('パスワードを入力してください');
+                    setIsLoading(false);
+                    return;
+                }
+                
+                // メールアドレスの簡易検証
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                if (!emailRegex.test(email)) {
+                    setError('有効なメールアドレスを入力してください');
+                    setIsLoading(false);
+                    return;
+                }
+                
+                // モック認証（成功ケース）
+                if (email === 'demo@example.com' && password === 'password') {
+                    // 認証成功シミュレーション
+                    setTimeout(() => {
+                        setIsLoading(false);
+                        // ダッシュボードにリダイレクト（モック）
+                        alert('ログイン成功！ダッシュボードに移動します。');
+                    }, 1500);
+                } else {
+                    // 認証失敗シミュレーション
+                    setTimeout(() => {
+                        setIsLoading(false);
+                        setError('メールアドレスまたはパスワードが正しくありません');
+                    }, 1500);
+                }
+            };
+            
+            return (
+                <ThemeProvider theme={theme}>
+                    <CssBaseline />
+                    <Box className="login-container">
+                        {/* 左側の画像エリア */}
+                        <Box className="login-image">
+                            <Box className="login-image-content">
+                                <Typography variant="h4" gutterBottom className="animated delay-1">
+                                    LPテスターPro
+                                </Typography>
+                                <Typography variant="h5" gutterBottom className="animated delay-2">
+                                    簡単操作で多変量テスト
+                                </Typography>
+                                <Typography variant="body1" className="animated delay-3">
+                                    専門知識不要で効果的なA/Bテストを実現。
+                                    成約率を最大化するLPを素早く見つけましょう。
+                                </Typography>
+                            </Box>
+                        </Box>
+                        
+                        {/* 右側のフォームエリア */}
+                        <Box className="login-form">
+                            <Box className="brand-logo">
+                                <img src="https://cdn-icons-png.flaticon.com/512/6295/6295417.png" alt="LPテスターPro ロゴ" />
+                                <Typography variant="h5">
+                                    LPテスターPro
+                                </Typography>
+                            </Box>
+                            
+                            <Box className="form-title">
+                                <Typography variant="h4" gutterBottom>
+                                    ログイン
+                                </Typography>
+                                <Typography variant="body1" color="textSecondary">
+                                    アカウント情報を入力してログインしてください
+                                </Typography>
+                            </Box>
+                            
+                            {error && (
+                                <Box className="error-message">
+                                    <span className="material-icons error-icon">error_outline</span>
+                                    {error}
+                                </Box>
+                            )}
+                            
+                            <form onSubmit={handleLogin}>
+                                <TextField
+                                    label="メールアドレス"
+                                    variant="outlined"
+                                    fullWidth
+                                    type="email"
+                                    placeholder="example@mail.com"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    disabled={isLoading}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <span className="material-icons" style={{ marginRight: '8px', color: '#757575' }}>
+                                                email
+                                            </span>
+                                        ),
+                                    }}
+                                />
+                                
+                                <TextField
+                                    label="パスワード"
+                                    variant="outlined"
+                                    fullWidth
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    disabled={isLoading}
+                                    InputProps={{
+                                        startAdornment: (
+                                            <span className="material-icons" style={{ marginRight: '8px', color: '#757575' }}>
+                                                lock
+                                            </span>
+                                        ),
+                                    }}
+                                />
+                                
+                                <FormControlLabel
+                                    control={
+                                        <Checkbox 
+                                            checked={rememberMe}
+                                            onChange={(e) => setRememberMe(e.target.checked)}
+                                            color="primary"
+                                            disabled={isLoading}
+                                        />
+                                    }
+                                    label="ログイン状態を保持する"
+                                />
+                                
+                                <Button
+                                    type="submit"
+                                    variant="contained"
+                                    color="primary"
+                                    fullWidth
+                                    size="large"
+                                    disabled={isLoading}
+                                    sx={{ py: 1.5, mt: 1 }}
+                                >
+                                    {isLoading ? (
+                                        <CircularProgress size={24} color="inherit" />
+                                    ) : (
+                                        'ログイン'
+                                    )}
+                                </Button>
+                                
+                                <Box className="helper-links" sx={{ display: 'flex', justifyContent: 'center' }}>
+                                    <Link href="#" variant="body2" underline="hover">
+                                        パスワードをお忘れですか？
+                                    </Link>
+                                </Box>
+                            </form>
+                            
+                            <Box sx={{ mt: 4, textAlign: 'center' }}>
+                                <Typography variant="body2" color="textSecondary">
+                                    デモアカウント: demo@example.com / password
+                                </Typography>
+                            </Box>
+                        </Box>
+                    </Box>
+                </ThemeProvider>
+            );
+        };
+        
+        // アプリケーションのレンダリング
+        const App = () => {
+            return (
+                <ErrorBoundary>
+                    <LoginPage />
+                </ErrorBoundary>
+            );
+        };
+        
+        const rootElement = document.getElementById('root');
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(<App />);
+    </script>
+</body>
+</html>

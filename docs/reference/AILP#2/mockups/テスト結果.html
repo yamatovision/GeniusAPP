@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI LP Builder - テスト結果分析</title>
+  
+  <!-- React, ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@mui/material@5.14.5/umd/material-ui.production.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  
+  <!-- Emotion (for MUI) -->
+  <script src="https://unpkg.com/@emotion/react@11.11.1/dist/emotion-react.umd.min.js"></script>
+  <script src="https://unpkg.com/@emotion/styled@11.11.0/dist/emotion-styled.umd.min.js"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
+      background-color: #f5f7fa;
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .slide-in-up {
+      animation: slideInUp 0.4s ease-out;
+    }
+    
+    @keyframes slideInUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    
+    .highlight-animation {
+      animation: highlightPulse 2s infinite;
+    }
+    
+    @keyframes highlightPulse {
+      0% { box-shadow: 0 0 0 0 rgba(72, 187, 120, 0.4); }
+      70% { box-shadow: 0 0 0 10px rgba(72, 187, 120, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(72, 187, 120, 0); }
+    }
+    
+    .variant-preview-iframe {
+      border: none;
+      width: 100%;
+      height: 100%;
+      border-radius: 8px;
+      background: white;
+    }
+    
+    .custom-scrollbar {
+      scrollbar-width: thin;
+      scrollbar-color: #CBD5E0 #EDF2F7;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #EDF2F7;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background-color: #CBD5E0;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { 
+      createTheme, ThemeProvider, CssBaseline, 
+      AppBar, Toolbar, Typography, Button, IconButton, 
+      Container, Grid, Paper, Box, Chip, Avatar,
+      CircularProgress, LinearProgress,
+      Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+      Divider, Dialog, DialogTitle, DialogContent, DialogActions, DialogContentText,
+      Card, CardContent, List, ListItem, ListItemIcon, ListItemText, TextField,
+      Snackbar, Alert
+    } = MaterialUI;
+    
+    // テーマの作成
+    const theme = createTheme({
+      palette: {
+        primary: {
+          main: '#4299e1',
+        },
+        secondary: {
+          main: '#9f7aea',
+        },
+        success: {
+          main: '#48bb78',
+        },
+        warning: {
+          main: '#ed8936',
+        },
+        error: {
+          main: '#f56565',
+        },
+        background: {
+          default: '#f5f7fa',
+          paper: '#ffffff',
+        },
+      },
+      typography: {
+        fontFamily: "'Roboto', 'Helvetica', 'Arial', sans-serif",
+        h4: {
+          fontWeight: 600,
+        },
+        h5: {
+          fontWeight: 600,
+        },
+        h6: {
+          fontWeight: 600,
+        },
+      },
+      shape: {
+        borderRadius: 10,
+      },
+      components: {
+        MuiButton: {
+          styleOverrides: {
+            root: {
+              textTransform: 'none',
+              borderRadius: 8,
+              boxShadow: 'none',
+              '&:hover': {
+                boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.1)',
+              },
+            }
+          },
+        },
+        MuiPaper: {
+          styleOverrides: {
+            rounded: {
+              borderRadius: 12,
+            },
+            elevation1: {
+              boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.05)',
+            }
+          },
+        },
+        MuiChip: {
+          styleOverrides: {
+            root: {
+              borderRadius: 6,
+              fontWeight: 500,
+            },
+          },
+        },
+        MuiTableCell: {
+          styleOverrides: {
+            root: {
+              padding: '12px 16px',
+            },
+            head: {
+              fontSize: '0.825rem',
+              fontWeight: 600,
+              color: '#4a5568',
+            }
+          },
+        },
+      },
+    });
+    
+    // ErrorBoundary コンポーネント
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+      
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+      
+      componentDidCatch(error, errorInfo) {
+        console.error("Error caught by boundary:", error, errorInfo);
+      }
+      
+      render() {
+        if (this.state.hasError) {
+          return (
+            <Box 
+              sx={{ 
+                p: 4, 
+                display: 'flex', 
+                flexDirection: 'column', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                minHeight: '200px',
+                textAlign: 'center'
+              }}
+            >
+              <Typography variant="h6" color="error" gutterBottom>
+                エラーが発生しました
+              </Typography>
+              <Typography variant="body2" color="textSecondary">
+                ページの再読み込みをお試しください
+              </Typography>
+              <Button
+                variant="outlined"
+                color="primary"
+                sx={{ mt: 2 }}
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                再試行
+              </Button>
+            </Box>
+          );
+        }
+        
+        return this.props.children;
+      }
+    }
+    
+    // モックデータ - テスト概要
+    const mockTestInfo = {
+      id: 'test123',
+      name: 'ビジネスマネジメントコーチングLPテスト',
+      status: 'running', // running, completed, paused
+      lpName: 'ビジネスマネジメントコーチングLP',
+      conversionGoal: 'form_submit',
+      totalVisitors: 1245,
+      totalConversions: 53,
+      overallConversionRate: 4.26,
+      confidenceThreshold: 95, // パーセンテージ
+      components: [
+        {
+          id: 'hero',
+          name: 'ヒーローセクション',
+          winners: [
+            { from: '2023-12-15', to: '2023-12-18', variant: 'A' },
+            { from: '2023-12-19', to: null, variant: 'B' }
+          ]
+        },
+        {
+          id: 'cta', 
+          name: 'CTAセクション',
+          winners: [
+            { from: '2023-12-15', to: null, variant: 'B' }
+          ]
+        }
+      ]
+    };
+    
+    // モックデータ - テストコンポーネント（ヒーローセクション）
+    const mockHeroComponent = {
+      id: 'hero',
+      name: 'ヒーローセクション',
+      description: 'ページの最初に表示される、注目を集めるセクション',
+      variantA: {
+        name: 'ベーシックヘッドライン',
+        imgUrl: 'https://images.unsplash.com/photo-1552664730-d307ca884978?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+        headline: 'マネジメントスキルを磨き、真のリーダーへ',
+        description: '15年以上の経験を持つ元人事責任者が教える3ヶ月間の実践的コーチングプログラム。',
+        visitors: 623,
+        conversions: 21,
+        conversionRate: 3.37,
+        avgTimeOnComponent: 42000, // ms
+        html: `<section class="hero">
+          <div class="container">
+            <h1>マネジメントスキルを磨き、真のリーダーへ</h1>
+            <p>15年以上の経験を持つ元人事責任者が教える3ヶ月間の実践的コーチングプログラム。効率的なチームマネジメント、的確な意思決定、時間管理まで、すぐに実践できるスキルを習得。</p>
+            <a href="#pricing" class="cta-button">詳細を見る</a>
+          </div>
+        </section>`,
+        cssClass: 'hero-variant-a',
+      },
+      variantB: {
+        name: 'インパクトある質問見出し',
+        imgUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+        headline: 'マネジメントの壁を突破し、キャリアを加速させる',
+        description: '現場で15年以上の実績を持つ元人事責任者があなたの成長を徹底サポート。',
+        visitors: 622,
+        conversions: 32,
+        conversionRate: 5.14,
+        avgTimeOnComponent: 56000, // ms
+        html: `<section class="hero">
+          <div class="container">
+            <h1>マネジメントの壁を突破し、<br>キャリアを加速させる</h1>
+            <p>現場で15年以上の実績を持つ元人事責任者があなたの成長を徹底サポート。3ヶ月間で200人以上が実証した効果的なリーダーシップ開発プログラム。</p>
+            <a href="#pricing" class="cta-button">無料カウンセリングに申し込む</a>
+          </div>
+        </section>`,
+        cssClass: 'hero-variant-b',
+      },
+      improvement: 52.5, // パーセンテージ
+      confidence: 97, // パーセンテージ
+      isSignificant: true,
+      winner: 'B',
+      keyInsights: [
+        'より具体的なベネフィットを明示する見出しの方が効果的',
+        'アクションを促す強いCTAボタンテキストが反応率を向上',
+        '数字を含めることで信頼性が向上（200人以上が実証）',
+      ],
+      testHistory: [
+        { 
+          date: '2023-11-10', 
+          variantA: { headline: 'リーダーシップを身につける', conversionRate: 2.8, engagementRate: 42.3, avgTimeOnPage: 35000 },
+          variantB: { headline: 'マネジメントスキルを磨く', conversionRate: 3.1, engagementRate: 45.1, avgTimeOnPage: 39000 },
+          winner: 'B',
+          winningFactor: '具体的なスキル獲得を強調した表現',
+          metrics: { primary: 'conversionRate', secondary: 'engagementRate' }
+        },
+        { 
+          date: '2023-12-01', 
+          variantA: { headline: 'マネジメントスキルを磨く', conversionRate: 3.1, engagementRate: 45.1, avgTimeOnPage: 39000 },
+          variantB: { headline: 'マネジメントスキルを磨き、真のリーダーへ', conversionRate: 3.4, engagementRate: 47.2, avgTimeOnPage: 42000 },
+          winner: 'B',
+          winningFactor: '目標到達点を明確にした表現',
+          metrics: { primary: 'conversionRate', secondary: 'engagementRate' }
+        }
+      ],
+      commonPatterns: [
+        { pattern: '具体的な数値の使用', win: 8, loss: 1, conversionLift: 38.7, example: '「200人以上」「15年以上」' },
+        { pattern: '成果を強調する言葉', win: 6, loss: 0, conversionLift: 45.2, example: '「キャリアを加速」「壁を突破」' },
+        { pattern: '直接的なCTA表現', win: 5, loss: 2, conversionLift: 29.8, example: '「申し込む」「カウンセリング」' }
+      ]
+    };
+    
+    // モックデータ - テストコンポーネント（CTAセクション）
+    const mockCtaComponent = {
+      id: 'cta',
+      name: 'CTAセクション',
+      description: '申し込みへの誘導を行うセクション',
+      variantA: {
+        name: 'ベーシックCTA',
+        imgUrl: 'https://images.unsplash.com/photo-1579389083078-4e7018379f7e?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+        headline: 'マネジメントスキルを磨く一歩を踏み出しませんか？',
+        description: '3ヶ月のプログラムで実践的なスキルを習得し、リーダーとしての成長を実現します。',
+        visitors: 623,
+        conversions: 19,
+        conversionRate: 3.05,
+        avgTimeOnComponent: 25000, // ms
+        html: `<section class="cta">
+          <div class="container">
+            <h2>マネジメントスキルを磨く一歩を踏み出しませんか？</h2>
+            <p>3ヶ月のプログラムで実践的なスキルを習得し、リーダーとしての成長を実現します。</p>
+            <a href="#form" class="button">詳しい資料をダウンロード</a>
+          </div>
+        </section>`,
+        cssClass: 'cta-variant-a',
+      },
+      variantB: {
+        name: '期間限定オファーCTA',
+        imgUrl: 'https://images.unsplash.com/photo-1556761175-b413da4baf72?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+        headline: '【期間限定】無料カウンセリング実施中',
+        description: '今なら個別相談＋診断シート（通常¥20,000相当）を無料プレゼント！※先着20名様限定',
+        visitors: 622,
+        conversions: 34,
+        conversionRate: 5.47,
+        avgTimeOnComponent: 38000, // ms
+        html: `<section class="cta">
+          <div class="container">
+            <h2>【期間限定】無料カウンセリング実施中</h2>
+            <p>今なら個別相談＋診断シート（通常¥20,000相当）を無料プレゼント！※先着20名様限定</p>
+            <a href="#form" class="button">今すぐ無料カウンセリングに申し込む</a>
+            <span class="deadline">※申込期限：12月31日まで</span>
+          </div>
+        </section>`,
+        cssClass: 'cta-variant-b',
+      },
+      improvement: 79.3, // パーセンテージ
+      confidence: 99, // パーセンテージ
+      isSignificant: true,
+      winner: 'B',
+      keyInsights: [
+        '希少性（先着20名）と期間限定感が強い反応を生む',
+        '具体的な金額表示（¥20,000相当）で価値を明確化',
+        '「今すぐ」という言葉が即時行動を促進',
+      ],
+      testHistory: [
+        { 
+          date: '2023-11-15', 
+          variantA: { headline: 'お問い合わせはこちら', conversionRate: 2.2, clickRate: 3.8, avgTimeToClick: 15000 },
+          variantB: { headline: '資料をダウンロード', conversionRate: 2.8, clickRate: 4.5, avgTimeToClick: 12000 },
+          winner: 'B',
+          winningFactor: '具体的な行動と得られるものを明示',
+          metrics: { primary: 'conversionRate', secondary: 'clickRate' }
+        },
+        { 
+          date: '2023-12-05', 
+          variantA: { headline: '資料をダウンロード', conversionRate: 2.8, clickRate: 4.5, avgTimeToClick: 12000 },
+          variantB: { headline: '期間限定：無料資料プレゼント', conversionRate: 3.9, clickRate: 6.2, avgTimeToClick: 8000 },
+          winner: 'B',
+          winningFactor: '期間限定感と無料の強調',
+          metrics: { primary: 'conversionRate', secondary: 'clickRate' }
+        }
+      ],
+      commonPatterns: [
+        { pattern: '期間限定表現', win: 7, loss: 0, conversionLift: 52.3, example: '「期間限定」「今だけ」' },
+        { pattern: '具体的な金額・価値', win: 5, loss: 1, conversionLift: 48.9, example: '「20,000円相当」「50%OFF」' },
+        { pattern: '希少性の演出', win: 9, loss: 1, conversionLift: 61.4, example: '「先着20名」「残りわずか」' },
+        { pattern: '即時行動促進語', win: 6, loss: 2, conversionLift: 38.2, example: '「今すぐ」「すぐに」' }
+      ]
+    };
+    
+    // モックデータ - デバイス別分析
+    const mockDeviceData = {
+      hero: {
+        desktop: {
+          variantA: { visitors: 325, conversions: 12, conversionRate: 3.69 },
+          variantB: { visitors: 318, conversions: 18, conversionRate: 5.66 },
+          improvement: 53.4,
+          winner: 'B'
+        },
+        mobile: {
+          variantA: { visitors: 298, conversions: 9, conversionRate: 3.02 },
+          variantB: { visitors: 304, conversions: 14, conversionRate: 4.61 },
+          improvement: 52.6,
+          winner: 'B'
+        }
+      },
+      cta: {
+        desktop: {
+          variantA: { visitors: 325, conversions: 11, conversionRate: 3.38 },
+          variantB: { visitors: 318, conversions: 20, conversionRate: 6.29 },
+          improvement: 86.1,
+          winner: 'B'
+        },
+        mobile: {
+          variantA: { visitors: 298, conversions: 8, conversionRate: 2.68 },
+          variantB: { visitors: 304, conversions: 14, conversionRate: 4.61 },
+          improvement: 72.0,
+          winner: 'B'
+        }
+      }
+    };
+    
+    // テスト結果分析画面（シンプル版）
+    const TestAnalysisScreen = () => {
+      const [comparisonDialogOpen, setComparisonDialogOpen] = React.useState(false);
+      const [comparisonData, setComparisonData] = React.useState({ componentId: null, variantId: null });
+      const [showDeviceData, setShowDeviceData] = React.useState(false);
+      const [showAIAnalysis, setShowAIAnalysis] = React.useState(false);
+      const [allComponents] = React.useState([mockHeroComponent, mockCtaComponent]);
+      const [nextVariantDialogOpen, setNextVariantDialogOpen] = React.useState(false);
+      const [selectedComponent, setSelectedComponent] = React.useState(null);
+      const [snackbarOpen, setSnackbarOpen] = React.useState(false);
+      const [snackbarMessage, setSnackbarMessage] = React.useState('');
+      
+      // 全体のコンバージョン改善率を計算
+      const calculateOverallImprovement = () => {
+        const totalComponentsImprovementValue = allComponents.reduce((acc, comp) => acc + comp.improvement, 0);
+        return (totalComponentsImprovementValue / allComponents.length).toFixed(1);
+      };
+      
+      // プレビュー表示
+      const handleShowComparison = (componentId, variantId) => {
+        setComparisonData({ componentId, variantId });
+        setComparisonDialogOpen(true);
+      };
+      
+      // プレビューダイアログを閉じる
+      const handleCloseComparison = () => {
+        setComparisonDialogOpen(false);
+      };
+      
+      // 次のバリアント作成ダイアログを開く
+      const handleOpenNextVariantDialog = (component) => {
+        setSelectedComponent(component);
+        setNextVariantDialogOpen(true);
+      };
+      
+      // 次のバリアント作成ダイアログを閉じる
+      const handleCloseNextVariantDialog = () => {
+        setNextVariantDialogOpen(false);
+      };
+      
+      // 勝者を本番適用
+      const handleApplyWinner = (component) => {
+        setSnackbarMessage(`${component.name}のバリアントBを本番環境に適用しました`);
+        setSnackbarOpen(true);
+      };
+      
+      // 次のバリアントを作成
+      const handleCreateNextVariant = () => {
+        setNextVariantDialogOpen(false);
+        setSnackbarMessage(`${selectedComponent.name}の新しいバリアントが作成され、テストが開始されました`);
+        setSnackbarOpen(true);
+      };
+      
+      // テスト終了
+      const handleEndTest = () => {
+        setSnackbarMessage('テストを終了しました');
+        setSnackbarOpen(true);
+      };
+      
+      // スナックバーを閉じる
+      const handleCloseSnackbar = () => {
+        setSnackbarOpen(false);
+      };
+      
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          
+          {/* ヘッダー */}
+          <AppBar position="static" color="default" elevation={0} sx={{ backgroundColor: 'white', borderBottom: '1px solid #e2e8f0' }}>
+            <Toolbar>
+              <IconButton edge="start" color="inherit" aria-label="back" sx={{ mr: 1 }}>
+                <span className="material-icons">arrow_back</span>
+              </IconButton>
+              <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+                テスト結果: {mockTestInfo.name}
+              </Typography>
+              <Button 
+                variant="outlined" 
+                color="primary" 
+                startIcon={<span className="material-icons">refresh</span>}
+                sx={{ mr: 1 }}
+              >
+                更新
+              </Button>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<span className="material-icons">stop</span>}
+                sx={{ mr: 1 }}
+                onClick={handleEndTest}
+              >
+                テスト終了
+              </Button>
+            </Toolbar>
+          </AppBar>
+          
+          {/* メインコンテンツ */}
+          <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            {/* テスト概要カード */}
+            <Paper sx={{ p: 3, mb: 4 }} className="fade-in">
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={8}>
+                  <Box sx={{ mb: 2 }}>
+                    <Typography variant="h5" gutterBottom>
+                      {mockTestInfo.lpName}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <Chip 
+                        label={
+                          mockTestInfo.status === 'running' ? '実行中' : 
+                          mockTestInfo.status === 'completed' ? '完了' : '一時停止'
+                        } 
+                        color={
+                          mockTestInfo.status === 'running' ? 'success' : 
+                          mockTestInfo.status === 'completed' ? 'primary' : 'warning'
+                        }
+                        size="small"
+                        sx={{ mr: 2 }}
+                      />
+                    </Box>
+                  </Box>
+                </Grid>
+                
+                <Grid item xs={12} md={4}>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', height: '100%' }}>
+                    <Box sx={{ width: '33%', mb: 2 }}>
+                      <Typography variant="caption" color="textSecondary" display="block">総訪問者数</Typography>
+                      <Typography variant="h6">{mockTestInfo.totalVisitors.toLocaleString()}</Typography>
+                    </Box>
+                    
+                    <Box sx={{ width: '33%', mb: 2 }}>
+                      <Typography variant="caption" color="textSecondary" display="block">総CV数</Typography>
+                      <Typography variant="h6">{mockTestInfo.totalConversions.toLocaleString()}</Typography>
+                    </Box>
+                    
+                    <Box sx={{ width: '33%', mb: 2 }}>
+                      <Typography variant="caption" color="textSecondary" display="block">平均CV率</Typography>
+                      <Typography variant="h6">{mockTestInfo.overallConversionRate.toFixed(2)}%</Typography>
+                    </Box>
+                    
+                    <Box sx={{ width: '100%' }}>
+                      <Typography variant="caption" color="textSecondary" display="block">全体の改善率</Typography>
+                      <Typography variant="h6" color="success.main">+{calculateOverallImprovement()}%</Typography>
+                    </Box>
+                  </Box>
+                </Grid>
+              </Grid>
+            </Paper>
+            
+            {/* テスト結果テーブル */}
+            <Paper sx={{ p: 3, mb: 4 }} className="slide-in-up">
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h6">コンポーネント別テスト結果</Typography>
+                <Box>
+                  <Button 
+                    variant="outlined" 
+                    size="small"
+                    startIcon={<span className="material-icons">devices</span>}
+                    sx={{ mr: 1 }}
+                    onClick={() => setShowDeviceData(!showDeviceData)}
+                  >
+                    {showDeviceData ? 'デバイス別データを隠す' : 'デバイス別データを表示'}
+                  </Button>
+                  <Button 
+                    variant="outlined" 
+                    color="secondary"
+                    size="small"
+                    startIcon={<span className="material-icons">psychology</span>}
+                    onClick={() => setShowAIAnalysis(!showAIAnalysis)}
+                  >
+                    {showAIAnalysis ? 'AI分析を隠す' : 'AI分析を実行'}
+                  </Button>
+                </Box>
+              </Box>
+              
+              <TableContainer className="custom-scrollbar">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>コンポーネント</TableCell>
+                      <TableCell>バリアント</TableCell>
+                      <TableCell align="right">訪問者数</TableCell>
+                      <TableCell align="right">コンバージョン数</TableCell>
+                      <TableCell align="right">コンバージョン率</TableCell>
+                      <TableCell align="right">平均滞在時間</TableCell>
+                      <TableCell align="center">改善率</TableCell>
+                      <TableCell align="center">統計的信頼度</TableCell>
+                      <TableCell align="center">アクション</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {allComponents.map((component) => (
+                      <React.Fragment key={component.id}>
+                        {/* バリアントA の行 */}
+                        <TableRow>
+                          <TableCell rowSpan={2}>{component.name}</TableCell>
+                          <TableCell sx={{ color: 'primary.main' }}>A</TableCell>
+                          <TableCell align="right">{component.variantA.visitors}</TableCell>
+                          <TableCell align="right">{component.variantA.conversions}</TableCell>
+                          <TableCell align="right">{component.variantA.conversionRate.toFixed(2)}%</TableCell>
+                          <TableCell align="right">{(component.variantA.avgTimeOnComponent / 1000).toFixed(1)}秒</TableCell>
+                          <TableCell align="center" rowSpan={2}>
+                            <Box sx={{ color: 'success.main', fontWeight: 'bold' }}>
+                              +{component.improvement.toFixed(1)}%
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center" rowSpan={2}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                              <Typography sx={{ 
+                                color: component.isSignificant ? 'success.main' : 'text.secondary',
+                                fontWeight: component.isSignificant ? 'bold' : 'normal'
+                              }}>
+                                {component.confidence}%
+                              </Typography>
+                              {component.isSignificant && (
+                                <Typography variant="caption" color="success.main">
+                                  有意差あり
+                                </Typography>
+                              )}
+                            </Box>
+                          </TableCell>
+                          <TableCell align="center" rowSpan={2}>
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <Button
+                                variant="contained"
+                                size="small"
+                                color="success"
+                                startIcon={<span className="material-icons">check_circle</span>}
+                                onClick={() => handleApplyWinner(component)}
+                              >
+                                勝者を適用
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                color="primary"
+                                startIcon={<span className="material-icons">add_circle</span>}
+                                onClick={() => handleOpenNextVariantDialog(component)}
+                              >
+                                次のテスト作成
+                              </Button>
+                              <Button
+                                variant="outlined"
+                                size="small"
+                                onClick={() => handleShowComparison(component.id, 'compare')}
+                                startIcon={<span className="material-icons">compare</span>}
+                              >
+                                プレビュー
+                              </Button>
+                            </Box>
+                          </TableCell>
+                        </TableRow>
+                        
+                        {/* バリアントB の行 */}
+                        <TableRow>
+                          <TableCell sx={{ color: 'secondary.main' }}>
+                            B
+                            {component.winner === 'B' && (
+                              <Chip 
+                                label="勝者" 
+                                color="success" 
+                                size="small" 
+                                sx={{ ml: 1 }}
+                                className="highlight-animation"
+                              />
+                            )}
+                          </TableCell>
+                          <TableCell align="right">{component.variantB.visitors}</TableCell>
+                          <TableCell align="right">{component.variantB.conversions}</TableCell>
+                          <TableCell align="right">{component.variantB.conversionRate.toFixed(2)}%</TableCell>
+                          <TableCell align="right">{(component.variantB.avgTimeOnComponent / 1000).toFixed(1)}秒</TableCell>
+                        </TableRow>
+                        
+                        {/* デバイス別データ（オプション表示） */}
+                        {showDeviceData && (
+                          <>
+                            <TableRow>
+                              <TableCell colSpan={9} sx={{ p: 0, borderBottom: 'none' }}>
+                                <Box sx={{ pl: 4, pr: 2, py: 2, bgcolor: '#f8fafc' }}>
+                                  <Typography variant="subtitle2" gutterBottom>
+                                    デバイス別データ：{component.name}
+                                  </Typography>
+                                  <TableContainer>
+                                    <Table size="small">
+                                      <TableHead>
+                                        <TableRow>
+                                          <TableCell>デバイス</TableCell>
+                                          <TableCell>バリアント</TableCell>
+                                          <TableCell align="right">訪問者数</TableCell>
+                                          <TableCell align="right">コンバージョン数</TableCell>
+                                          <TableCell align="right">コンバージョン率</TableCell>
+                                          <TableCell align="center">改善率</TableCell>
+                                          <TableCell align="center">勝者</TableCell>
+                                        </TableRow>
+                                      </TableHead>
+                                      <TableBody>
+                                        {/* デスクトップ - バリアントA */}
+                                        <TableRow>
+                                          <TableCell rowSpan={2}>デスクトップ</TableCell>
+                                          <TableCell>A</TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].desktop.variantA.visitors}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].desktop.variantA.conversions}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].desktop.variantA.conversionRate.toFixed(2)}%
+                                          </TableCell>
+                                          <TableCell align="center" rowSpan={2}>
+                                            <Box sx={{ color: 'success.main' }}>
+                                              +{mockDeviceData[component.id].desktop.improvement.toFixed(1)}%
+                                            </Box>
+                                          </TableCell>
+                                          <TableCell align="center" rowSpan={2}>
+                                            バリアント{mockDeviceData[component.id].desktop.winner}
+                                          </TableCell>
+                                        </TableRow>
+                                        
+                                        {/* デスクトップ - バリアントB */}
+                                        <TableRow>
+                                          <TableCell>B</TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].desktop.variantB.visitors}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].desktop.variantB.conversions}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].desktop.variantB.conversionRate.toFixed(2)}%
+                                          </TableCell>
+                                        </TableRow>
+                                        
+                                        {/* モバイル - バリアントA */}
+                                        <TableRow>
+                                          <TableCell rowSpan={2}>モバイル</TableCell>
+                                          <TableCell>A</TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].mobile.variantA.visitors}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].mobile.variantA.conversions}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].mobile.variantA.conversionRate.toFixed(2)}%
+                                          </TableCell>
+                                          <TableCell align="center" rowSpan={2}>
+                                            <Box sx={{ color: 'success.main' }}>
+                                              +{mockDeviceData[component.id].mobile.improvement.toFixed(1)}%
+                                            </Box>
+                                          </TableCell>
+                                          <TableCell align="center" rowSpan={2}>
+                                            バリアント{mockDeviceData[component.id].mobile.winner}
+                                          </TableCell>
+                                        </TableRow>
+                                        
+                                        {/* モバイル - バリアントB */}
+                                        <TableRow>
+                                          <TableCell>B</TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].mobile.variantB.visitors}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].mobile.variantB.conversions}
+                                          </TableCell>
+                                          <TableCell align="right">
+                                            {mockDeviceData[component.id].mobile.variantB.conversionRate.toFixed(2)}%
+                                          </TableCell>
+                                        </TableRow>
+                                      </TableBody>
+                                    </Table>
+                                  </TableContainer>
+                                </Box>
+                              </TableCell>
+                            </TableRow>
+                          </>
+                        )}
+                        
+                        {/* 区切り線 */}
+                        <TableRow>
+                          <TableCell colSpan={9} sx={{ p: 0 }}>
+                            <Divider />
+                          </TableCell>
+                        </TableRow>
+                      </React.Fragment>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Paper>
+            
+            {/* AI分析結果（オプション表示） */}
+            {showAIAnalysis && (
+              <Paper sx={{ p: 3, mb: 4 }} className="slide-in-up">
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                  <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+                    <span className="material-icons">psychology</span>
+                  </Avatar>
+                  <Typography variant="h6">AIによる分析と次のステップ</Typography>
+                </Box>
+                
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="subtitle1" gutterBottom>
+                    テスト結果サマリー
+                  </Typography>
+                  <Typography variant="body1" paragraph>
+                    全体として <strong>+{calculateOverallImprovement()}%</strong> のコンバージョン率改善が見られました。
+                    特にCTAセクションでは <strong>+79.3%</strong> の大幅な改善が確認されています。
+                  </Typography>
+                  
+                  <Typography variant="subtitle1" gutterBottom>
+                    主要インサイト
+                  </Typography>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#48bb78' }}>check_circle</span>
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="バリアントBでは具体的な数字を示すことで信頼性が向上しています（「200人以上が実証」「20,000円相当」）" 
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#48bb78' }}>check_circle</span>
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="期間限定感と希少性の演出（「先着20名様限定」）が強い反応を生んでいます" 
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#48bb78' }}>check_circle</span>
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary="明確な行動を促すCTAの文言（「今すぐ無料カウンセリングに申し込む」）が効果的です" 
+                      />
+                    </ListItem>
+                  </List>
+                </Box>
+                
+                <Box>
+                  <Typography variant="subtitle1" gutterBottom>
+                    全セクション横断分析
+                  </Typography>
+                  
+                  <Card sx={{ mb: 3, bgcolor: '#f8f9ff' }}>
+                    <CardContent>
+                      <Typography variant="subtitle2" color="primary" gutterBottom>
+                        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                          <span className="material-icons" style={{ marginRight: '8px' }}>analytics</span>
+                          AIによる全セクション共通の効果的パターン
+                        </Box>
+                      </Typography>
+                      
+                      <TableContainer sx={{ mb: 2 }}>
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>効果的パターン</TableCell>
+                              <TableCell>セクション</TableCell>
+                              <TableCell>使用回数</TableCell>
+                              <TableCell>勝率</TableCell>
+                              <TableCell align="right">平均改善率</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell>期間限定・希少性の演出</TableCell>
+                              <TableCell>ヒーロー, CTA, 特典</TableCell>
+                              <TableCell>18回</TableCell>
+                              <TableCell>94% (17/18)</TableCell>
+                              <TableCell align="right" sx={{ color: 'success.main' }}>+58.2%</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell>具体的な数値での信頼性向上</TableCell>
+                              <TableCell>ヒーロー, 特典, 実績</TableCell>
+                              <TableCell>15回</TableCell>
+                              <TableCell>93% (14/15)</TableCell>
+                              <TableCell align="right" sx={{ color: 'success.main' }}>+42.7%</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell>明確なCTA表現</TableCell>
+                              <TableCell>ヒーロー, CTA, フォーム</TableCell>
+                              <TableCell>12回</TableCell>
+                              <TableCell>83% (10/12)</TableCell>
+                              <TableCell align="right" sx={{ color: 'success.main' }}>+32.5%</TableCell>
+                            </TableRow>
+                            <TableRow>
+                              <TableCell>問題解決の明示</TableCell>
+                              <TableCell>悩み, 解決策, 特典</TableCell>
+                              <TableCell>9回</TableCell>
+                              <TableCell>78% (7/9)</TableCell>
+                              <TableCell align="right" sx={{ color: 'success.main' }}>+28.4%</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
+                      
+                      <Typography variant="subtitle2" gutterBottom sx={{ mt: 3 }}>
+                        デバイス別の効果的パターン
+                      </Typography>
+                      
+                      <Grid container spacing={2}>
+                        <Grid item xs={12} md={6}>
+                          <Paper variant="outlined" sx={{ p: 2 }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <span className="material-icons" style={{ fontSize: 16, marginRight: '4px' }}>desktop_windows</span>
+                                デスクトップ向け効果的要素
+                              </Box>
+                            </Typography>
+                            <List dense>
+                              <ListItem>
+                                <ListItemIcon sx={{ minWidth: 28 }}>
+                                  <span className="material-icons" style={{ fontSize: 16, color: '#48bb78' }}>check_circle</span>
+                                </ListItemIcon>
+                                <ListItemText primary="詳細な説明テキスト (平均 +24.7%)" />
+                              </ListItem>
+                              <ListItem>
+                                <ListItemIcon sx={{ minWidth: 28 }}>
+                                  <span className="material-icons" style={{ fontSize: 16, color: '#48bb78' }}>check_circle</span>
+                                </ListItemIcon>
+                                <ListItemText primary="表形式での情報提示 (平均 +18.3%)" />
+                              </ListItem>
+                            </List>
+                          </Paper>
+                        </Grid>
+                        
+                        <Grid item xs={12} md={6}>
+                          <Paper variant="outlined" sx={{ p: 2 }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <span className="material-icons" style={{ fontSize: 16, marginRight: '4px' }}>smartphone</span>
+                                モバイル向け効果的要素
+                              </Box>
+                            </Typography>
+                            <List dense>
+                              <ListItem>
+                                <ListItemIcon sx={{ minWidth: 28 }}>
+                                  <span className="material-icons" style={{ fontSize: 16, color: '#48bb78' }}>check_circle</span>
+                                </ListItemIcon>
+                                <ListItemText primary="簡潔な見出し (平均 +31.5%)" />
+                              </ListItem>
+                              <ListItem>
+                                <ListItemIcon sx={{ minWidth: 28 }}>
+                                  <span className="material-icons" style={{ fontSize: 16, color: '#48bb78' }}>check_circle</span>
+                                </ListItemIcon>
+                                <ListItemText primary="大きなCTAボタン (平均 +28.2%)" />
+                              </ListItem>
+                            </List>
+                          </Paper>
+                        </Grid>
+                      </Grid>
+                      
+                      <Button 
+                        variant="outlined" 
+                        color="primary"
+                        size="small"
+                        startIcon={<span className="material-icons">fact_check</span>}
+                        sx={{ mt: 2 }}
+                      >
+                        完全な分析レポートを表示
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  
+                  <Typography variant="subtitle1" gutterBottom>
+                    コンポーネント別データ
+                  </Typography>
+                  
+                  <Tabs value={0} sx={{ mb: 2 }}>
+                    <Tab label="ヒーローセクション" />
+                    <Tab label="CTAセクション" />
+                    <Tab label="特典セクション" />
+                    <Tab label="その他のセクション" />
+                  </Tabs>
+                  
+                  <TableContainer sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>効果的パターン</TableCell>
+                          <TableCell>勝敗</TableCell>
+                          <TableCell>使用例</TableCell>
+                          <TableCell align="right">平均改善率</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {/* ヒーローセクションの効果的パターン */}
+                        {mockHeroComponent.commonPatterns.map((pattern, index) => (
+                          <TableRow key={`hero-${index}`}>
+                            <TableCell>{pattern.pattern}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Box component="span" sx={{ color: 'success.main', mr: 1 }}>
+                                  {pattern.win}勝
+                                </Box>
+                                {pattern.loss > 0 && (
+                                  <Box component="span" sx={{ color: 'error.main' }}>
+                                    {pattern.loss}敗
+                                  </Box>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell>{pattern.example}</TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>+{pattern.conversionLift.toFixed(1)}%</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  
+                  <Typography variant="subtitle1" gutterBottom>
+                    次のステップの提案
+                  </Typography>
+                  <Card sx={{ mb: 3 }}>
+                    <CardContent>
+                      <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                        <Avatar sx={{ bgcolor: 'success.main', mr: 2 }}>1</Avatar>
+                        <Box>
+                          <Typography variant="subtitle1" gutterBottom>
+                            すべてのバリアントBを本番環境に適用する
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            テストの結果、すべてのコンポーネントでバリアントBが優れたパフォーマンスを示しています。
+                            これらのバリアントを本番環境に適用することで、全体のコンバージョン率が向上する見込みです。
+                          </Typography>
+                          <Button 
+                            variant="contained" 
+                            color="success"
+                            sx={{ mt: 2 }}
+                            startIcon={<span className="material-icons">check_circle</span>}
+                          >
+                            勝者バリアントをすべて適用
+                          </Button>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                  
+                  <Grid container spacing={2}>
+                    <Grid item xs={12} md={6}>
+                      <Card>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>2</Avatar>
+                            <Box>
+                              <Typography variant="subtitle1" gutterBottom>
+                                データに基づく次のバリアントテスト
+                              </Typography>
+                              <Typography variant="body2" color="textSecondary">
+                                過去のテストデータから、「期間限定」「希少性」「具体的な数値」といった要素を
+                                組み合わせたさらに効果的なバリアントをAIが自動生成できます。
+                              </Typography>
+                              <Button 
+                                variant="outlined" 
+                                color="primary"
+                                sx={{ mt: 2 }}
+                                startIcon={<span className="material-icons">auto_awesome</span>}
+                              >
+                                AIで次のバリアント作成
+                              </Button>
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                    
+                    <Grid item xs={12} md={6}>
+                      <Card>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', alignItems: 'flex-start' }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>3</Avatar>
+                            <Box>
+                              <Typography variant="subtitle1" gutterBottom>
+                                デバイス最適化テスト
+                              </Typography>
+                              <Typography variant="body2" color="textSecondary">
+                                モバイルとデスクトップで別々のバリアントをテストし、
+                                各デバイスに最適化された表示を提供することができます。
+                              </Typography>
+                              <Button 
+                                variant="outlined" 
+                                color="primary"
+                                sx={{ mt: 2 }}
+                                startIcon={<span className="material-icons">devices</span>}
+                              >
+                                デバイス別テスト作成
+                              </Button>
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Paper>
+            )}
+            
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+              <Button 
+                variant="contained" 
+                color="primary"
+                size="large"
+                startIcon={<span className="material-icons">file_download</span>}
+              >
+                詳細レポートをダウンロード
+              </Button>
+            </Box>
+          </Container>
+          
+          {/* プレビュー比較ダイアログ */}
+          <Dialog
+            open={comparisonDialogOpen}
+            onClose={handleCloseComparison}
+            maxWidth="lg"
+            fullWidth
+          >
+            <DialogTitle>
+              {comparisonData.componentId === 'hero' ? 'ヒーローセクション' : 'CTAセクション'}の
+              {comparisonData.variantId === 'compare' ? '比較' : `バリアント${comparisonData.variantId}表示`}
+            </DialogTitle>
+            <DialogContent>
+              {comparisonData.variantId === 'compare' ? (
+                <Grid container spacing={2}>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ height: 400 }}>
+                      <Typography variant="subtitle1" align="center" gutterBottom>バリアントA</Typography>
+                      <iframe
+                        className="variant-preview-iframe"
+                        title="Variant A Preview"
+                        srcDoc={comparisonData.componentId === 'hero' ? 
+                          mockHeroComponent.variantA.html : mockCtaComponent.variantA.html}
+                        style={{ height: '350px' }}
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <Box sx={{ height: 400 }}>
+                      <Typography variant="subtitle1" align="center" gutterBottom>バリアントB</Typography>
+                      <iframe
+                        className="variant-preview-iframe"
+                        title="Variant B Preview"
+                        srcDoc={comparisonData.componentId === 'hero' ? 
+                          mockHeroComponent.variantB.html : mockCtaComponent.variantB.html}
+                        style={{ height: '350px' }}
+                      />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Paper sx={{ p: 2, bgcolor: '#f8fafc' }}>
+                      <Typography variant="subtitle1" gutterBottom>主な違い</Typography>
+                      <List dense>
+                        {(comparisonData.componentId === 'hero' ? 
+                          mockHeroComponent.keyInsights : mockCtaComponent.keyInsights).map((insight, idx) => (
+                          <ListItem key={idx}>
+                            <ListItemIcon sx={{ minWidth: 28 }}>
+                              <span className="material-icons" style={{ fontSize: 16, color: '#4299e1' }}>
+                                arrow_right
+                              </span>
+                            </ListItemIcon>
+                            <ListItemText 
+                              primary={insight} 
+                              primaryTypographyProps={{ variant: 'body2' }}
+                            />
+                          </ListItem>
+                        ))}
+                      </List>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              ) : (
+                <Box sx={{ height: 500 }}>
+                  <iframe
+                    className="variant-preview-iframe"
+                    title="Variant Preview"
+                    srcDoc={
+                      comparisonData.componentId === 'hero' ? 
+                        (comparisonData.variantId === 'A' ? mockHeroComponent.variantA.html : mockHeroComponent.variantB.html) : 
+                        (comparisonData.variantId === 'A' ? mockCtaComponent.variantA.html : mockCtaComponent.variantB.html)
+                    }
+                    style={{ height: '100%' }}
+                  />
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseComparison}>閉じる</Button>
+            </DialogActions>
+          </Dialog>
+          
+          {/* 次のバリアント作成ダイアログ */}
+          <Dialog
+            open={nextVariantDialogOpen}
+            onClose={handleCloseNextVariantDialog}
+            maxWidth="md"
+            fullWidth
+          >
+            <DialogTitle>
+              {selectedComponent && `${selectedComponent.name}の次のバリアントを作成`}
+            </DialogTitle>
+            <DialogContent>
+              {selectedComponent && (
+                <>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="subtitle1">過去のテスト履歴</Typography>
+                    <Button 
+                      variant="outlined" 
+                      size="small"
+                      startIcon={<span className="material-icons">history</span>}
+                    >
+                      全履歴を表示
+                    </Button>
+                  </Box>
+                  
+                  <TableContainer sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>テスト日</TableCell>
+                          <TableCell>バリアントA</TableCell>
+                          <TableCell>バリアントB</TableCell>
+                          <TableCell>主要指標</TableCell>
+                          <TableCell>勝者</TableCell>
+                          <TableCell>勝因</TableCell>
+                          <TableCell>アクション</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {selectedComponent.testHistory.map((test, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{test.date}</TableCell>
+                            <TableCell>{test.variantA.headline}</TableCell>
+                            <TableCell>{test.variantB.headline}</TableCell>
+                            <TableCell>
+                              {test.metrics.primary === 'conversionRate' ? 'コンバージョン率' : 
+                               test.metrics.primary === 'clickRate' ? 'クリック率' : 
+                               test.metrics.primary === 'engagementRate' ? 'エンゲージ率' : ''}:
+                              <Box component="span" sx={{ 
+                                color: test.winner === 'A' ? 'primary.main' : 'secondary.main',
+                                fontWeight: 'bold',
+                                ml: 1
+                              }}>
+                                A: {test.variantA[test.metrics.primary].toFixed(1)}% vs B: {test.variantB[test.metrics.primary].toFixed(1)}%
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={`バリアント${test.winner}`} 
+                                color={test.winner === 'A' ? 'primary' : 'secondary'}
+                                size="small"
+                              />
+                            </TableCell>
+                            <TableCell>{test.winningFactor}</TableCell>
+                            <TableCell>
+                              <Button 
+                                variant="outlined" 
+                                size="small" 
+                                startIcon={<span className="material-icons">visibility</span>}
+                              >
+                                詳細
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+
+                  <Typography variant="subtitle1" gutterBottom>
+                    有効な共通パターン
+                  </Typography>
+                  
+                  <TableContainer sx={{ mb: 3 }}>
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>パターン</TableCell>
+                          <TableCell>勝敗</TableCell>
+                          <TableCell>使用例</TableCell>
+                          <TableCell align="right">平均改善率</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {selectedComponent.commonPatterns.map((pattern, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{pattern.pattern}</TableCell>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                <Box component="span" sx={{ color: 'success.main', mr: 1 }}>
+                                  {pattern.win}勝
+                                </Box>
+                                {pattern.loss > 0 && (
+                                  <Box component="span" sx={{ color: 'error.main' }}>
+                                    {pattern.loss}敗
+                                  </Box>
+                                )}
+                              </Box>
+                            </TableCell>
+                            <TableCell>{pattern.example}</TableCell>
+                            <TableCell align="right" sx={{ color: 'success.main' }}>+{pattern.conversionLift.toFixed(1)}%</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                  
+                  <Box sx={{ mb: 3 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      AIからの提案
+                    </Typography>
+                    <Card sx={{ mb: 2, bgcolor: '#f0f7ff' }}>
+                      <CardContent>
+                        <Typography variant="subtitle2" gutterBottom>
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 24, height: 24, fontSize: '0.8rem', mr: 1 }}>C</Avatar>
+                            バリアントC（推定改善率: +10〜15%）
+                          </Box>
+                        </Typography>
+                        <Typography variant="body2" paragraph>
+                          {selectedComponent.id === 'hero' ? 
+                            '「たった3ヶ月で200人以上がキャリアを加速させた実績あり」という数値とインパクトを強調した見出しで、より具体的な成果を強調します。' :
+                            '「期間・数量限定」と「今すぐ行動」を組み合わせた「あと3日限定！先着10名様に30,000円相当の特典をプレゼント」という緊急性とより高い価値を訴求します。'
+                          }
+                        </Typography>
+                        <Button 
+                          variant="outlined" 
+                          color="primary"
+                          size="small"
+                          startIcon={<span className="material-icons">edit</span>}
+                        >
+                          編集
+                        </Button>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card sx={{ mb: 2, bgcolor: '#f0f7ff' }}>
+                      <CardContent>
+                        <Typography variant="subtitle2" gutterBottom>
+                          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center' }}>
+                            <Avatar sx={{ bgcolor: 'primary.main', width: 24, height: 24, fontSize: '0.8rem', mr: 1 }}>D</Avatar>
+                            バリアントD（推定改善率: +8〜12%）
+                          </Box>
+                        </Typography>
+                        <Typography variant="body2" paragraph>
+                          {selectedComponent.id === 'hero' ? 
+                            '「あなたのマネジメント力を30日で変える」という期間限定感を加えた具体的な約束と成果を強調します。' :
+                            '「今だけのチャンス：無料診断で現在のスキルを客観的に評価」という新たなアプローチで、まずは自己診断という敷居の低いCTAを提案します。'
+                          }
+                        </Typography>
+                        <Button 
+                          variant="outlined" 
+                          color="primary"
+                          size="small"
+                          startIcon={<span className="material-icons">edit</span>}
+                        >
+                          編集
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </Box>
+                  
+                  <Typography variant="subtitle1" gutterBottom>
+                    オプション選択
+                  </Typography>
+                  <TextField
+                    select
+                    fullWidth
+                    variant="outlined"
+                    label="テストするバリアント"
+                    defaultValue="option1"
+                    helperText="テストするバリアントを選択してください"
+                    sx={{ mb: 2 }}
+                  >
+                    <option value="option1">バリアントC（AI推奨）</option>
+                    <option value="option2">バリアントD</option>
+                    <option value="option3">両方をテスト（トラフィックを3分割）</option>
+                  </TextField>
+                  
+                  <TextField
+                    select
+                    fullWidth
+                    variant="outlined"
+                    label="テスト対象"
+                    defaultValue="all"
+                    helperText="テスト対象のデバイスを選択してください"
+                  >
+                    <option value="all">すべてのデバイス</option>
+                    <option value="desktop">デスクトップのみ</option>
+                    <option value="mobile">モバイルのみ</option>
+                  </TextField>
+                </>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseNextVariantDialog}>キャンセル</Button>
+              <Button 
+                variant="contained" 
+                color="primary"
+                onClick={handleCreateNextVariant}
+              >
+                テスト開始
+              </Button>
+            </DialogActions>
+          </Dialog>
+          
+          {/* スナックバー通知 */}
+          <Snackbar
+            open={snackbarOpen}
+            autoHideDuration={6000}
+            onClose={handleCloseSnackbar}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          >
+            <Alert 
+              onClose={handleCloseSnackbar} 
+              severity="success" 
+              sx={{ width: '100%' }}
+            >
+              {snackbarMessage}
+            </Alert>
+          </Snackbar>
+          
+          {/* アーカイブ履歴ダイアログ */}
+          <Dialog
+            open={false} /* このダイアログはモックアップのため、初期状態では閉じています */
+            maxWidth="lg"
+            fullWidth
+          >
+            <DialogTitle>
+              テストアーカイブ
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ mb: 3 }}>
+                <TextField
+                  variant="outlined"
+                  label="検索"
+                  placeholder="キーワードで検索（コンポーネント名、日付、パターンなど）"
+                  fullWidth
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <span className="material-icons">search</span>
+                      </InputAdornment>
+                    )
+                  }}
+                  sx={{ mb: 2 }}
+                />
+                
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
+                  <Chip label="ヒーローセクション" color="primary" variant="outlined" />
+                  <Chip label="CTAセクション" color="primary" variant="outlined" />
+                  <Chip label="特典セクション" color="primary" variant="outlined" />
+                  <Chip label="期間限定表現" color="secondary" variant="outlined" />
+                  <Chip label="数値表現" color="secondary" variant="outlined" />
+                  <Chip label="デスクトップ" color="default" variant="outlined" />
+                  <Chip label="モバイル" color="default" variant="outlined" />
+                </Box>
+              </Box>
+              
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>テスト日</TableCell>
+                      <TableCell>コンポーネント</TableCell>
+                      <TableCell>バリアント内容</TableCell>
+                      <TableCell>主要指標</TableCell>
+                      <TableCell>勝者</TableCell>
+                      <TableCell>勝因</TableCell>
+                      <TableCell>アクション</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {/* 様々なテスト履歴をここにリスト表示 */}
+                    <TableRow>
+                      <TableCell>2023-12-10</TableCell>
+                      <TableCell>ヒーローセクション</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">A: シンプルな説明</Typography>
+                        <Typography variant="body2" fontWeight="bold">B: 成果を強調</Typography>
+                      </TableCell>
+                      <TableCell>コンバージョン率: 3.2% vs 5.1%</TableCell>
+                      <TableCell>
+                        <Chip label="B" color="secondary" size="small" />
+                      </TableCell>
+                      <TableCell>具体的な成果提示</TableCell>
+                      <TableCell>
+                        <Button variant="outlined" size="small">詳細</Button>
+                      </TableCell>
+                    </TableRow>
+                    
+                    <TableRow>
+                      <TableCell>2023-12-05</TableCell>
+                      <TableCell>CTAセクション</TableCell>
+                      <TableCell>
+                        <Typography variant="body2" fontWeight="bold">A: 標準CTA</Typography>
+                        <Typography variant="body2" fontWeight="bold">B: 期間限定表現</Typography>
+                      </TableCell>
+                      <TableCell>クリック率: 2.8% vs 5.4%</TableCell>
+                      <TableCell>
+                        <Chip label="B" color="secondary" size="small" />
+                      </TableCell>
+                      <TableCell>希少性・緊急性の強調</TableCell>
+                      <TableCell>
+                        <Button variant="outlined" size="small">詳細</Button>
+                      </TableCell>
+                    </TableRow>
+                    
+                    {/* さらに過去のテストデータが続く */}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </DialogContent>
+            <DialogActions>
+              <Button>閉じる</Button>
+            </DialogActions>
+          </Dialog>
+        </ThemeProvider>
+      );
+    };
+    
+    // アプリケーションのメインコンポーネント
+    const App = () => {
+      return (
+        <ErrorBoundary>
+          <TestAnalysisScreen />
+        </ErrorBoundary>
+      );
+    };
+    
+    // Reactをレンダリング
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

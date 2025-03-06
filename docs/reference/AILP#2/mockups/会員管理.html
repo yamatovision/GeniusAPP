@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>会員管理 - LPテスターPro</title>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@mui/material@5.14.7/umd/material-ui.production.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f7fa;
+    }
+    
+    .dashboard-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .page-loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1000;
+    }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .empty-state-icon {
+      font-size: 64px;
+      color: #9e9e9e;
+      margin-bottom: 20px;
+    }
+    
+    .empty-state-text {
+      color: #616161;
+      margin-bottom: 30px;
+    }
+    
+    /* アクティブな会員行のスタイル */
+    .active-row {
+      background-color: rgba(76, 175, 80, 0.08) !important;
+    }
+    
+    /* 試用期間会員行のスタイル */
+    .trial-row {
+      background-color: rgba(255, 193, 7, 0.08) !important;
+    }
+    
+    /* 無効な会員行のスタイル */
+    .inactive-row {
+      background-color: rgba(244, 67, 54, 0.08) !important;
+    }
+    
+    /* 詳細パネルのスタイル */
+    .detail-panel {
+      padding: 16px;
+      background-color: #f9f9f9;
+    }
+    
+    /* エラーバウンダリスタイル */
+    .error-boundary {
+      padding: 20px;
+      border: 1px solid #f44336;
+      border-radius: 4px;
+      background-color: #ffebee;
+      color: #d32f2f;
+      margin: 20px 0;
+    }
+    
+    /* アニメーション */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    
+    /* レスポンシブ調整 */
+    @media (max-width: 768px) {
+      .header-title {
+        display: none;
+      }
+      
+      .filters-container {
+        flex-direction: column;
+      }
+      
+      .filters-container > div {
+        margin-bottom: 10px;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const {
+      CssBaseline, 
+      AppBar, 
+      Toolbar, 
+      Typography, 
+      Button, 
+      IconButton, 
+      Container, 
+      Grid, 
+      Paper, 
+      TextField, 
+      InputAdornment, 
+      Box, 
+      Avatar, 
+      Menu, 
+      MenuItem, 
+      Divider, 
+      CircularProgress, 
+      Dialog, 
+      DialogTitle, 
+      DialogContent, 
+      DialogContentText, 
+      DialogActions, 
+      Snackbar, 
+      Alert,
+      Tooltip,
+      Badge,
+      Table,
+      TableBody,
+      TableCell,
+      TableContainer,
+      TableHead,
+      TableRow,
+      TablePagination,
+      Chip,
+      FormControl,
+      FormControlLabel,
+      InputLabel,
+      Select,
+      Tabs,
+      Tab,
+      Collapse,
+      Card,
+      CardContent,
+      ListItemIcon,
+      ListItemText,
+      Switch,
+      Stack,
+      Link
+    } = MaterialUI;
+
+    // テーマ設定
+    const theme = MaterialUI.createTheme({
+      palette: {
+        primary: {
+          main: '#3f51b5',
+        },
+        secondary: {
+          main: '#f50057',
+        },
+        background: {
+          default: '#f5f7fa',
+        },
+      },
+      shape: {
+        borderRadius: 8,
+      },
+    });
+
+    // 会員ステータスのマッピング
+    const memberStatusMap = {
+      active: { label: '有効', color: 'success', icon: 'check_circle' },
+      trial: { label: 'お試し', color: 'warning', icon: 'timelapse' },
+      inactive: { label: '無効', color: 'error', icon: 'cancel' },
+      withdrawn: { label: '退会', color: 'default', icon: 'person_off' }
+    };
+
+    // モックデータ - 会員リスト
+    const mockMembers = [
+      {
+        id: 1,
+        name: '山田 太郎',
+        email: 'yamada@example.com',
+        status: 'active',
+        plan: 'premium',
+        registeredDate: '2023-09-01T08:30:00Z',
+        lastLoginDate: '2023-10-21T14:45:00Z',
+        lpCount: 12,
+        conversionRate: 3.8,
+        expirationDate: null,
+        notes: '積極的にLPを作成しているユーザー'
+      },
+      {
+        id: 2,
+        name: '佐藤 花子',
+        email: 'sato@example.com',
+        status: 'trial',
+        plan: 'basic',
+        registeredDate: '2023-10-15T10:20:00Z',
+        lastLoginDate: '2023-10-20T09:15:00Z',
+        lpCount: 3,
+        conversionRate: 2.1,
+        expirationDate: '2023-10-29T23:59:59Z',
+        notes: 'お試し期間中のユーザー'
+      },
+      {
+        id: 3,
+        name: '鈴木 一郎',
+        email: 'suzuki@example.com',
+        status: 'inactive',
+        plan: 'premium',
+        registeredDate: '2023-08-05T11:40:00Z',
+        lastLoginDate: '2023-09-10T16:30:00Z',
+        lpCount: 8,
+        conversionRate: 1.5,
+        expirationDate: null,
+        notes: '支払い遅延のため一時的に無効化'
+      },
+      {
+        id: 4,
+        name: '田中 美子',
+        email: 'tanaka@example.com',
+        status: 'active',
+        plan: 'basic',
+        registeredDate: '2023-07-20T09:15:00Z',
+        lastLoginDate: '2023-10-22T11:20:00Z',
+        lpCount: 5,
+        conversionRate: 4.2,
+        expirationDate: null,
+        notes: ''
+      },
+      {
+        id: 5,
+        name: '伊藤 健太',
+        email: 'ito@example.com',
+        status: 'withdrawn',
+        plan: 'basic',
+        registeredDate: '2023-06-10T14:25:00Z',
+        lastLoginDate: '2023-08-15T10:30:00Z',
+        lpCount: 2,
+        conversionRate: 0.8,
+        expirationDate: null,
+        notes: '2023/08/15に退会処理済み'
+      },
+      {
+        id: 6,
+        name: '渡辺 直人',
+        email: 'watanabe@example.com',
+        status: 'active',
+        plan: 'premium',
+        registeredDate: '2023-08-22T13:10:00Z',
+        lastLoginDate: '2023-10-21T15:45:00Z',
+        lpCount: 9,
+        conversionRate: 3.5,
+        expirationDate: null,
+        notes: ''
+      },
+      {
+        id: 7,
+        name: '小林 洋子',
+        email: 'kobayashi@example.com',
+        status: 'trial',
+        plan: 'basic',
+        registeredDate: '2023-10-18T16:20:00Z',
+        lastLoginDate: '2023-10-20T17:30:00Z',
+        lpCount: 1,
+        conversionRate: 1.2,
+        expirationDate: '2023-11-01T23:59:59Z',
+        notes: 'お試し期間中のユーザー'
+      },
+      {
+        id: 8,
+        name: '加藤 雄太',
+        email: 'kato@example.com',
+        status: 'active',
+        plan: 'premium',
+        registeredDate: '2023-09-05T10:40:00Z',
+        lastLoginDate: '2023-10-22T09:15:00Z',
+        lpCount: 15,
+        conversionRate: 5.1,
+        expirationDate: null,
+        notes: '優良ユーザー、高コンバージョン率'
+      }
+    ];
+
+    // ErrorBoundary コンポーネント
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { hasError: true };
+      }
+
+      componentDidCatch(error, errorInfo) {
+        console.error("エラーが発生しました:", error, errorInfo);
+      }
+
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="error-boundary">
+              <h3>問題が発生しました</h3>
+              <p>ページの読み込み中にエラーが発生しました。もう一度お試しいただくか、サポートにお問い合わせください。</p>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={() => this.setState({ hasError: false })}
+              >
+                再読み込み
+              </Button>
+            </div>
+          );
+        }
+
+        return this.props.children; 
+      }
+    }
+
+    // ローディングコンポーネント
+    const LoadingOverlay = ({ loading }) => {
+      return loading ? (
+        <Box className="page-loading">
+          <CircularProgress />
+        </Box>
+      ) : null;
+    };
+
+    // 日付フォーマット用のヘルパー関数
+    const formatDate = (dateString) => {
+      if (!dateString) return '-';
+      return new Date(dateString).toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    };
+
+    // 残り日数計算用のヘルパー関数
+    const getDaysRemaining = (dateString) => {
+      if (!dateString) return null;
+      const today = new Date();
+      const expDate = new Date(dateString);
+      const diffTime = expDate - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays;
+    };
+
+    // 会員詳細パネルコンポーネント
+    const MemberDetailPanel = ({ member }) => {
+      const [webhookUrl, setWebhookUrl] = React.useState('https://example.com/webhook/user123');
+      const [statusDialogOpen, setStatusDialogOpen] = React.useState(false);
+      const [selectedStatus, setSelectedStatus] = React.useState(member.status);
+
+      const handleStatusChange = (event) => {
+        setSelectedStatus(event.target.value);
+      };
+
+      const handleStatusDialogOpen = () => {
+        setStatusDialogOpen(true);
+      };
+
+      const handleStatusDialogClose = () => {
+        setStatusDialogOpen(false);
+      };
+
+      const handleStatusSubmit = () => {
+        // ここで実際のステータス変更処理を行う
+        console.log(`会員ID: ${member.id}のステータスを${selectedStatus}に変更`);
+        setStatusDialogOpen(false);
+        // 実際の実装では親コンポーネントに変更を通知する
+      };
+
+      return (
+        <Box className="detail-panel fade-in">
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    基本情報
+                  </Typography>
+                  <Box mt={2}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={4}>
+                        <Typography variant="body2" color="textSecondary">会員ID</Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">{member.id}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={4}>
+                        <Typography variant="body2" color="textSecondary">氏名</Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">{member.name}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={4}>
+                        <Typography variant="body2" color="textSecondary">メールアドレス</Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">{member.email}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={4}>
+                        <Typography variant="body2" color="textSecondary">登録日</Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">{formatDate(member.registeredDate)}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={4}>
+                        <Typography variant="body2" color="textSecondary">最終ログイン</Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">{formatDate(member.lastLoginDate)}</Typography>
+                      </Grid>
+                      
+                      <Grid item xs={4}>
+                        <Typography variant="body2" color="textSecondary">プラン</Typography>
+                      </Grid>
+                      <Grid item xs={8}>
+                        <Typography variant="body2">
+                          {member.plan === 'premium' ? 'プレミアム' : 'ベーシック'}
+                        </Typography>
+                      </Grid>
+                      
+                      {member.status === 'trial' && (
+                        <>
+                          <Grid item xs={4}>
+                            <Typography variant="body2" color="textSecondary">試用期限</Typography>
+                          </Grid>
+                          <Grid item xs={8}>
+                            <Typography variant="body2">
+                              {formatDate(member.expirationDate)} 
+                              <Chip 
+                                size="small" 
+                                color={getDaysRemaining(member.expirationDate) < 3 ? "error" : "warning"}
+                                label={`残り ${getDaysRemaining(member.expirationDate)} 日`} 
+                                sx={{ ml: 1 }}
+                              />
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              期限切れ後: 自動で無効化
+                            </Typography>
+                          </Grid>
+                        </>
+                      )}
+                    </Grid>
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
+            
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    利用状況
+                  </Typography>
+                  <Box mt={2}>
+                    <Grid container spacing={2}>
+                      <Grid item xs={6}>
+                        <Box textAlign="center" p={2} bgcolor="background.paper" borderRadius={1}>
+                          <Typography variant="h4" color="primary">
+                            {member.lpCount}
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            作成LP数
+                          </Typography>
+                        </Box>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Box textAlign="center" p={2} bgcolor="background.paper" borderRadius={1}>
+                          <Typography variant="h4" color="primary">
+                            {member.conversionRate}%
+                          </Typography>
+                          <Typography variant="body2" color="textSecondary">
+                            平均CV率
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    </Grid>
+                    
+                    <Box mt={3}>
+                      <Typography variant="body2" color="textSecondary" gutterBottom>
+                        メモ
+                      </Typography>
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={2}
+                        variant="outlined"
+                        size="small"
+                        defaultValue={member.notes}
+                      />
+                    </Box>
+                  </Box>
+                </CardContent>
+              </Card>
+              
+              <Box mt={2}>
+                <Card>
+                  <CardContent>
+                    <Typography variant="h6" gutterBottom>
+                      ウェブフック設定
+                    </Typography>
+                    <Box mt={2}>
+                      <TextField
+                        fullWidth
+                        label="ウェブフックURL"
+                        variant="outlined"
+                        size="small"
+                        value={webhookUrl}
+                        onChange={(e) => setWebhookUrl(e.target.value)}
+                        helperText="ユーザーのステータス変更時に通知を受け取るURL"
+                      />
+                      <Box mt={1}>
+                        <FormControlLabel
+                          control={<Switch size="small" defaultChecked />}
+                          label="試用期限到達時に通知"
+                        />
+                        <Box display="flex" justifyContent="flex-end" mt={1}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            startIcon={<span className="material-icons">send</span>}
+                          >
+                            テスト送信
+                          </Button>
+                        </Box>
+                      </Box>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Box>
+            </Grid>
+            
+            <Grid item xs={12}>
+              <Box mt={2} display="flex" justifyContent="flex-end" gap={2}>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={<span className="material-icons">email</span>}
+                >
+                  メール送信
+                </Button>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<span className="material-icons">edit</span>}
+                  onClick={handleStatusDialogOpen}
+                >
+                  ステータス変更
+                </Button>
+              </Box>
+            </Grid>
+          </Grid>
+          
+          {/* ステータス変更ダイアログ */}
+          <Dialog open={statusDialogOpen} onClose={handleStatusDialogClose}>
+            <DialogTitle>会員ステータス変更</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                {member.name} さんのステータスを変更します。この操作は即時に反映され、ユーザーの利用状況に影響します。
+              </DialogContentText>
+              <Box mt={2}>
+                <FormControl fullWidth>
+                  <InputLabel id="status-select-label">ステータス</InputLabel>
+                  <Select
+                    labelId="status-select-label"
+                    value={selectedStatus}
+                    label="ステータス"
+                    onChange={handleStatusChange}
+                  >
+                    <MenuItem value="active">
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#4caf50' }}>check_circle</span>
+                      </ListItemIcon>
+                      <ListItemText primary="有効" />
+                    </MenuItem>
+                    <MenuItem value="trial">
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#ff9800' }}>timelapse</span>
+                      </ListItemIcon>
+                      <ListItemText primary="お試し" />
+                    </MenuItem>
+                    <MenuItem value="inactive">
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#f44336' }}>cancel</span>
+                      </ListItemIcon>
+                      <ListItemText primary="無効" />
+                    </MenuItem>
+                    <MenuItem value="withdrawn">
+                      <ListItemIcon>
+                        <span className="material-icons" style={{ color: '#9e9e9e' }}>person_off</span>
+                      </ListItemIcon>
+                      <ListItemText primary="退会" />
+                    </MenuItem>
+                  </Select>
+                </FormControl>
+                
+                {selectedStatus === 'trial' && (
+                  <Box mt={2}>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      試用プランの期間はグローバル設定（現在: 14日）が適用されます。
+                      個別に期限を設定するには下記を変更してください。
+                    </Typography>
+                    <FormControlLabel
+                      control={<Switch size="small" />}
+                      label="個別に試用期限を設定する"
+                      sx={{ mb: 1 }}
+                    />
+                    <TextField
+                      fullWidth
+                      label="試用期限日数"
+                      type="number"
+                      defaultValue={14}
+                      disabled={true}
+                      InputProps={{
+                        endAdornment: <InputAdornment position="end">日</InputAdornment>,
+                        inputProps: { 
+                          min: 1, 
+                          max: 90,
+                          step: 1
+                        }
+                      }}
+                    />
+                  </Box>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleStatusDialogClose}>キャンセル</Button>
+              <Button onClick={handleStatusSubmit} variant="contained" color="primary">
+                変更を保存
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      );
+    };
+
+    // メインアプリケーション
+    const App = () => {
+      const [loading, setLoading] = React.useState(true);
+      const [searchQuery, setSearchQuery] = React.useState('');
+      const [currentTab, setCurrentTab] = React.useState(0);
+      const [members, setMembers] = React.useState([]);
+      const [filteredMembers, setFilteredMembers] = React.useState([]);
+      const [page, setPage] = React.useState(0);
+      const [rowsPerPage, setRowsPerPage] = React.useState(10);
+      const [expanded, setExpanded] = React.useState(false);
+      const [selectedMember, setSelectedMember] = React.useState(null);
+      const [anchorEl, setAnchorEl] = React.useState(null);
+      const [snackbar, setSnackbar] = React.useState({
+        open: false,
+        message: '',
+        severity: 'success'
+      });
+      
+      const open = Boolean(anchorEl);
+      
+      React.useEffect(() => {
+        // データのロードをシミュレート
+        setTimeout(() => {
+          setMembers(mockMembers);
+          setFilteredMembers(mockMembers);
+          setLoading(false);
+        }, 1000);
+      }, []);
+
+      React.useEffect(() => {
+        // タブとサーチクエリでフィルタリング
+        let filtered = [...members];
+        
+        // タブでフィルタリング
+        if (currentTab === 1) filtered = filtered.filter(member => member.status === 'active');
+        else if (currentTab === 2) filtered = filtered.filter(member => member.status === 'trial');
+        else if (currentTab === 3) filtered = filtered.filter(member => member.status === 'inactive' || member.status === 'withdrawn');
+        
+        // 検索クエリでフィルタリング
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filtered = filtered.filter(member => 
+            member.name.toLowerCase().includes(query) || 
+            member.email.toLowerCase().includes(query)
+          );
+        }
+        
+        setFilteredMembers(filtered);
+        setPage(0); // フィルター変更時にページをリセット
+      }, [currentTab, searchQuery, members]);
+      
+      const handleProfileMenuOpen = (event) => {
+        setAnchorEl(event.currentTarget);
+      };
+      
+      const handleMenuClose = () => {
+        setAnchorEl(null);
+      };
+      
+      const handleTabChange = (event, newValue) => {
+        setCurrentTab(newValue);
+      };
+      
+      const handleSearchChange = (event) => {
+        setSearchQuery(event.target.value);
+      };
+      
+      const handleChangePage = (event, newPage) => {
+        setPage(newPage);
+      };
+      
+      const handleChangeRowsPerPage = (event) => {
+        setRowsPerPage(parseInt(event.target.value, 10));
+        setPage(0);
+      };
+      
+      const handleRowClick = (member) => {
+        if (selectedMember && selectedMember.id === member.id) {
+          setSelectedMember(null);
+          setExpanded(false);
+        } else {
+          setSelectedMember(member);
+          setExpanded(true);
+        }
+      };
+      
+      const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+          return;
+        }
+        setSnackbar({ ...snackbar, open: false });
+      };
+      
+      const getRowClassName = (status) => {
+        if (status === 'active') return 'active-row';
+        if (status === 'trial') return 'trial-row';
+        if (status === 'inactive' || status === 'withdrawn') return 'inactive-row';
+        return '';
+      };
+      
+      // 表示するページのメンバー
+      const displayMembers = filteredMembers.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+      
+      return (
+        <MaterialUI.ThemeProvider theme={theme}>
+          <CssBaseline />
+          <div className="dashboard-container">
+            <LoadingOverlay loading={loading} />
+            
+            {/* ヘッダー */}
+            <AppBar position="sticky" color="primary" elevation={1}>
+              <Toolbar>
+                <Typography variant="h6" component="div" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+                  <span className="material-icons" style={{ marginRight: 8 }}>
+                    people
+                  </span>
+                  <span className="header-title">LPテスターPro - 会員管理</span>
+                </Typography>
+                
+                <Tooltip title="ヘルプ">
+                  <IconButton color="inherit" size="large">
+                    <span className="material-icons">help_outline</span>
+                  </IconButton>
+                </Tooltip>
+                
+                <Tooltip title="通知">
+                  <IconButton color="inherit" size="large">
+                    <Badge badgeContent={2} color="error">
+                      <span className="material-icons">notifications</span>
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+                
+                <IconButton
+                  edge="end"
+                  aria-label="account of current user"
+                  aria-controls="menu-appbar"
+                  aria-haspopup="true"
+                  onClick={handleProfileMenuOpen}
+                  color="inherit"
+                  size="large"
+                >
+                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>A</Avatar>
+                </IconButton>
+              </Toolbar>
+            </AppBar>
+            
+            {/* プロフィールメニュー */}
+            <Menu
+              id="menu-appbar"
+              anchorEl={anchorEl}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+              keepMounted
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+              open={open}
+              onClose={handleMenuClose}
+            >
+              <MenuItem onClick={handleMenuClose}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  account_circle
+                </span>
+                プロフィール
+              </MenuItem>
+              <MenuItem onClick={handleMenuClose}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  settings
+                </span>
+                設定
+              </MenuItem>
+              <Divider />
+              <MenuItem onClick={handleMenuClose}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  logout
+                </span>
+                ログアウト
+              </MenuItem>
+            </Menu>
+            
+            {/* メインコンテンツ */}
+            <Container maxWidth="lg" sx={{ py: 4, flexGrow: 1 }}>
+              <Paper elevation={0} sx={{ p: 3, mb: 4, bgcolor: 'background.paper', borderRadius: 2 }}>
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h4" component="h1" gutterBottom>
+                    会員管理
+                  </Typography>
+                  <Typography variant="body1" color="textSecondary">
+                    会員情報の表示、ステータス変更、およびその他の管理機能を提供します
+                  </Typography>
+                </Box>
+                
+                <Box 
+                  className="filters-container" 
+                  sx={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start', 
+                    mb: 3, 
+                    flexWrap: 'wrap' 
+                  }}
+                >
+                  <Box sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 } }}>
+                    <Tabs 
+                      value={currentTab} 
+                      onChange={handleTabChange}
+                      indicatorColor="primary"
+                      textColor="primary"
+                      variant="scrollable"
+                      scrollButtons="auto"
+                    >
+                      <Tab label="すべて" />
+                      <Tab label="有効" />
+                      <Tab label="お試し" />
+                      <Tab label="無効/退会" />
+                    </Tabs>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', gap: 2, width: { xs: '100%', sm: 'auto' } }}>
+                    <TextField
+                      placeholder="検索"
+                      variant="outlined"
+                      size="small"
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <span className="material-icons">search</span>
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ minWidth: 200 }}
+                    />
+                  </Box>
+                </Box>
+                
+                {/* 会員一覧テーブル */}
+                <TableContainer component={Paper} elevation={0} sx={{ mb: 2 }}>
+                  <Table sx={{ minWidth: 650 }} aria-label="会員一覧">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>ID</TableCell>
+                        <TableCell>名前</TableCell>
+                        <TableCell>メールアドレス</TableCell>
+                        <TableCell>ステータス</TableCell>
+                        <TableCell>プラン</TableCell>
+                        <TableCell>登録日</TableCell>
+                        <TableCell>最終ログイン</TableCell>
+                        <TableCell align="right">作成LP数</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {displayMembers.map((member) => (
+                        <React.Fragment key={member.id}>
+                          <TableRow
+                            hover
+                            onClick={() => handleRowClick(member)}
+                            className={getRowClassName(member.status)}
+                            sx={{ 
+                              cursor: 'pointer',
+                              '&.selected': { bgcolor: 'action.selected' },
+                              '&:hover': { bgcolor: 'action.hover' }
+                            }}
+                            selected={selectedMember && selectedMember.id === member.id}
+                          >
+                            <TableCell component="th" scope="row">
+                              {member.id}
+                            </TableCell>
+                            <TableCell>{member.name}</TableCell>
+                            <TableCell>{member.email}</TableCell>
+                            <TableCell>
+                              <Chip
+                                icon={<span className="material-icons" style={{ fontSize: '16px' }}>
+                                  {memberStatusMap[member.status].icon}
+                                </span>}
+                                label={memberStatusMap[member.status].label}
+                                color={memberStatusMap[member.status].color}
+                                size="small"
+                                variant={member.status === 'active' || member.status === 'trial' ? 'filled' : 'outlined'}
+                              />
+                              {member.status === 'trial' && member.expirationDate && (
+                                <Typography variant="caption" component="div" color="text.secondary">
+                                  残り {getDaysRemaining(member.expirationDate)} 日
+                                </Typography>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {member.plan === 'premium' ? 'プレミアム' : 'ベーシック'}
+                            </TableCell>
+                            <TableCell>{formatDate(member.registeredDate).split(' ')[0]}</TableCell>
+                            <TableCell>{formatDate(member.lastLoginDate).split(' ')[0]}</TableCell>
+                            <TableCell align="right">{member.lpCount}</TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={8}>
+                              <Collapse in={expanded && selectedMember && selectedMember.id === member.id} timeout="auto" unmountOnExit>
+                                <MemberDetailPanel member={member} />
+                              </Collapse>
+                            </TableCell>
+                          </TableRow>
+                        </React.Fragment>
+                      ))}
+                      {displayMembers.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} align="center" sx={{ py: 3 }}>
+                            <Typography variant="body1" color="textSecondary">
+                              {searchQuery ? '検索条件に一致する会員が見つかりません' : '会員が登録されていません'}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+                
+                <TablePagination
+                  rowsPerPageOptions={[5, 10, 25]}
+                  component="div"
+                  count={filteredMembers.length}
+                  rowsPerPage={rowsPerPage}
+                  page={page}
+                  onPageChange={handleChangePage}
+                  onRowsPerPageChange={handleChangeRowsPerPage}
+                  labelRowsPerPage="表示件数:"
+                  labelDisplayedRows={({ from, to, count }) => `${from}-${to} / ${count}`}
+                />
+              </Paper>
+              
+              <Box sx={{ mb: 3 }}>
+                <Paper elevation={0} sx={{ p: 3, bgcolor: 'background.paper', borderRadius: 2 }}>
+                  <Typography variant="h6" gutterBottom>
+                    ウェブフック設定
+                  </Typography>
+                  <Typography variant="body2" color="textSecondary" paragraph>
+                    会員のステータス変更時に外部システムへ通知するためのウェブフック設定です。
+                    会員ごとの個別設定も可能です。
+                  </Typography>
+                  
+                  <Box sx={{ mt: 2, mb: 3 }}>
+                    <TextField
+                      fullWidth
+                      label="グローバルウェブフックURL"
+                      variant="outlined"
+                      defaultValue="https://example.com/webhooks/members"
+                      helperText="すべての会員の変更通知を受け取るためのURL"
+                    />
+                  </Box>
+                  
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 3 }}>
+                    <FormControlLabel
+                      control={<Switch defaultChecked />}
+                      label="会員登録時"
+                    />
+                    <FormControlLabel
+                      control={<Switch defaultChecked />}
+                      label="ステータス変更時"
+                    />
+                    <FormControlLabel
+                      control={<Switch defaultChecked />}
+                      label="退会時"
+                    />
+                    <FormControlLabel
+                      control={<Switch defaultChecked />}
+                      label="試用期限到達時"
+                    />
+                  </Stack>
+                  
+                  <Box mt={2}>
+                    <Typography variant="subtitle2" gutterBottom>試用プラン設定</Typography>
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          fullWidth
+                          label="デフォルト試用期間"
+                          type="number"
+                          defaultValue={14}
+                          size="small"
+                          InputProps={{
+                            endAdornment: <InputAdornment position="end">日</InputAdornment>,
+                            inputProps: { 
+                              min: 1, 
+                              max: 90,
+                              step: 1
+                            }
+                          }}
+                          helperText="新規会員の標準試用日数"
+                        />
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <FormControl size="small" fullWidth>
+                          <InputLabel id="trial-expiry-notification-label">試用期限通知タイミング</InputLabel>
+                          <Select
+                            labelId="trial-expiry-notification-label"
+                            defaultValue={7}
+                            label="試用期限通知タイミング"
+                          >
+                            <MenuItem value={1}>期限の1日前</MenuItem>
+                            <MenuItem value={3}>期限の3日前</MenuItem>
+                            <MenuItem value={7}>期限の7日前</MenuItem>
+                            <MenuItem value={0}>期限当日のみ</MenuItem>
+                            <MenuItem value={-1}>カスタム設定</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                    </Grid>
+                    
+                    <Box mt={2}>
+                      <FormControlLabel
+                        control={<Switch defaultChecked />}
+                        label="試用期限切れ後に自動的に無効化する"
+                      />
+                    </Box>
+                    
+                    <Box mt={2}>
+                      <FormControlLabel
+                        control={<Switch defaultChecked />}
+                        label="期限切れ前にユーザーにメール通知する"
+                      />
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ mt: 3 }}>
+                    <Button
+                      variant="outlined"
+                      startIcon={<span className="material-icons">code</span>}
+                      href="#"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      API仕様書を表示
+                    </Button>
+                  </Box>
+                </Paper>
+              </Box>
+            </Container>
+            
+            {/* 通知スナックバー */}
+            <Snackbar 
+              open={snackbar.open} 
+              autoHideDuration={4000} 
+              onClose={handleCloseSnackbar}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            >
+              <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                {snackbar.message}
+              </Alert>
+            </Snackbar>
+          </div>
+        </MaterialUI.ThemeProvider>
+      );
+    };
+
+    // アプリケーションのレンダリング
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
+  </script>
+</body>
+</html>

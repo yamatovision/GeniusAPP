@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LP管理ダッシュボード - 多変量テストLP作成システム</title>
+  
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@mui/material@5.14.7/umd/material-ui.production.min.js"></script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f7fa;
+    }
+    
+    .dashboard-container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .page-loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100%;
+      background-color: rgba(255, 255, 255, 0.7);
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 1000;
+    }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      background-color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      text-align: center;
+      margin: 20px 0;
+    }
+    
+    .empty-state-icon {
+      font-size: 64px;
+      color: #9e9e9e;
+      margin-bottom: 20px;
+    }
+    
+    .empty-state-text {
+      color: #616161;
+      margin-bottom: 30px;
+    }
+    
+    .lp-card {
+      transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    }
+    
+    .lp-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    }
+    
+    .lp-card-content {
+      position: relative;
+      height: 100%;
+    }
+    
+    .lp-status-badge {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      z-index: 1;
+    }
+    
+    .lp-card-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: auto;
+    }
+    
+    .lp-card-conversion {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f5f7fa;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 15px;
+    }
+    
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+    
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 120px;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px 0;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -60px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+    }
+    
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    /* エラーバウンダリスタイル */
+    .error-boundary {
+      padding: 20px;
+      border: 1px solid #f44336;
+      border-radius: 4px;
+      background-color: #ffebee;
+      color: #d32f2f;
+      margin: 20px 0;
+    }
+    
+    /* アニメーション */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .fade-in {
+      animation: fadeIn 0.5s ease-in-out;
+    }
+    
+    /* メディアクエリ */
+    @media (max-width: 768px) {
+      .header-title {
+        display: none;
+      }
+      
+      .filters-container {
+        flex-direction: column;
+      }
+      
+      .filters-container > div {
+        margin-bottom: 10px;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const {
+      CssBaseline, 
+      AppBar, 
+      Toolbar, 
+      Typography, 
+      Button, 
+      IconButton, 
+      Container, 
+      Grid, 
+      Card, 
+      CardMedia, 
+      CardContent, 
+      CardActions, 
+      TextField, 
+      InputAdornment, 
+      Tabs, 
+      Tab, 
+      Box, 
+      Avatar, 
+      Menu, 
+      MenuItem, 
+      Chip, 
+      Divider, 
+      Fade, 
+      CircularProgress, 
+      Dialog, 
+      DialogTitle, 
+      DialogContent, 
+      DialogContentText, 
+      DialogActions, 
+      Snackbar, 
+      Alert,
+      Tooltip,
+      Badge,
+      Paper
+    } = MaterialUI;
+
+    // テーマ設定
+    const theme = MaterialUI.createTheme({
+      palette: {
+        primary: {
+          main: '#3f51b5',
+        },
+        secondary: {
+          main: '#f50057',
+        },
+        background: {
+          default: '#f5f7fa',
+        },
+      },
+      shape: {
+        borderRadius: 8,
+      },
+    });
+
+    // ステータスバッジ用の色マッピング
+    const statusColors = {
+      draft: 'default',
+      active: 'success',
+    };
+
+    // ステータスラベルマッピング
+    const statusLabels = {
+      draft: '下書き',
+      active: '公開中',
+    };
+
+    // モックデータ
+    const mockLPs = [
+      {
+        id: 1,
+        title: 'SaaS製品紹介LP',
+        description: '新しいSaaS製品の紹介ランディングページ。主な機能と価格プランを紹介。',
+        status: 'active',
+        thumbnail: 'https://images.unsplash.com/photo-1496171367470-9ed9a91ea931?q=80&w=300&h=200&auto=format&fit=crop',
+        created_at: '2023-10-15T12:30:00Z',
+        conversion_rate: 3.2,
+        views: 1250,
+        conversions: 40,
+      },
+      {
+        id: 2,
+        title: 'メルマガ登録キャンペーン',
+        description: '新規メルマガ購読者を増やすためのキャンペーンLP。無料PDFプレゼント付き。',
+        status: 'active',
+        thumbnail: 'https://images.unsplash.com/photo-1563986768609-322da13575f3?q=80&w=300&h=200&auto=format&fit=crop',
+        created_at: '2023-10-20T09:15:00Z',
+        conversion_rate: 4.7,
+        views: 850,
+        conversions: 40,
+      },
+      {
+        id: 3,
+        title: '秋の特別セール',
+        description: '期間限定の秋セールLP。すべての商品が20%オフ。',
+        status: 'draft',
+        thumbnail: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?q=80&w=300&h=200&auto=format&fit=crop',
+        created_at: '2023-10-25T15:45:00Z',
+        conversion_rate: 0,
+        views: 0,
+        conversions: 0,
+      },
+      {
+        id: 4,
+        title: 'コーチングサービス販売',
+        description: 'パーソナルコーチングサービスの販売LP。カスタマーの声を掲載。',
+        status: 'active',
+        thumbnail: 'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=300&h=200&auto=format&fit=crop',
+        created_at: '2023-09-10T10:00:00Z',
+        conversion_rate: 2.8,
+        views: 2100,
+        conversions: 59,
+      },
+    ];
+
+    // ErrorBoundary コンポーネント
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { hasError: true };
+      }
+
+      componentDidCatch(error, errorInfo) {
+        console.error("エラーが発生しました:", error, errorInfo);
+      }
+
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="error-boundary">
+              <h3>問題が発生しました</h3>
+              <p>ページの読み込み中にエラーが発生しました。もう一度お試しいただくか、サポートにお問い合わせください。</p>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                onClick={() => this.setState({ hasError: false })}
+              >
+                再読み込み
+              </Button>
+            </div>
+          );
+        }
+
+        return this.props.children; 
+      }
+    }
+
+    // ローディングコンポーネント
+    const LoadingOverlay = ({ loading }) => {
+      return loading ? (
+        <Box className="page-loading">
+          <CircularProgress />
+        </Box>
+      ) : null;
+    };
+
+    // 空の状態コンポーネント
+    const EmptyState = ({ onCreateClick }) => {
+      return (
+        <Box className="empty-state">
+          <Box className="empty-state-icon">
+            <span className="material-icons" style={{ fontSize: 80 }}>
+              article
+            </span>
+          </Box>
+          <Typography variant="h5" className="empty-state-text">
+            まだランディングページがありません
+          </Typography>
+          <Typography variant="body1" color="textSecondary" gutterBottom>
+            最初のランディングページを作成して、A/Bテストを始めましょう
+          </Typography>
+          <Button 
+            variant="contained" 
+            color="primary" 
+            startIcon={<span className="material-icons">add</span>}
+            onClick={onCreateClick}
+          >
+            新規LP作成
+          </Button>
+        </Box>
+      );
+    };
+
+    // LPカードコンポーネント
+    const LPCard = ({ lp, onEdit, onDuplicate, onDelete }) => {
+      const [anchorEl, setAnchorEl] = React.useState(null);
+      const open = Boolean(anchorEl);
+      
+      const handleClick = (event) => {
+        setAnchorEl(event.currentTarget);
+      };
+      
+      const handleClose = () => {
+        setAnchorEl(null);
+      };
+      
+      const handleEdit = () => {
+        onEdit(lp.id);
+        handleClose();
+      };
+      
+      const handleDuplicate = () => {
+        onDuplicate(lp.id);
+        handleClose();
+      };
+      
+      const handleDelete = () => {
+        onDelete(lp.id);
+        handleClose();
+      };
+      
+      const formattedDate = new Date(lp.created_at).toLocaleDateString('ja-JP', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      return (
+        <Card className="lp-card fade-in">
+          <Box sx={{ position: 'relative' }}>
+            <span className="lp-status-badge">
+              <Chip 
+                size="small" 
+                label={statusLabels[lp.status]} 
+                color={statusColors[lp.status]} 
+                variant={lp.status === 'draft' ? 'outlined' : 'filled'} 
+              />
+            </span>
+            <CardMedia
+              component="img"
+              height="140"
+              image={lp.thumbnail}
+              alt={lp.title}
+            />
+          </Box>
+          <CardContent sx={{ pb: 1 }}>
+            <Typography variant="h6" component="div" gutterBottom noWrap>
+              {lp.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ height: 40, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {lp.description}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+              作成日: {formattedDate}
+            </Typography>
+            
+            {(lp.status === 'active' || lp.status === 'testing' || lp.status === 'ended') && (
+              <Box className="lp-card-conversion">
+                <Typography variant="overline" component="div">
+                  コンバージョン率
+                </Typography>
+                <Typography variant="h5" component="div" color={lp.conversion_rate > 3 ? 'success.main' : 'text.primary'}>
+                  {lp.conversion_rate}%
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {lp.views.toLocaleString()}表示 / {lp.conversions.toLocaleString()}件
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+          <CardActions sx={{ justifyContent: 'space-between', p: 2 }}>
+            <Button 
+              variant="contained" 
+              size="small" 
+              color="primary"
+              onClick={handleEdit}
+              startIcon={<span className="material-icons">edit</span>}
+            >
+              編集
+            </Button>
+            <IconButton
+              aria-label="more"
+              aria-controls="long-menu"
+              aria-haspopup="true"
+              onClick={handleClick}
+              size="small"
+            >
+              <span className="material-icons">more_vert</span>
+            </IconButton>
+            <Menu
+              id="long-menu"
+              anchorEl={anchorEl}
+              keepMounted
+              open={open}
+              onClose={handleClose}
+            >
+              <MenuItem onClick={handleDuplicate}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  content_copy
+                </span>
+                複製
+              </MenuItem>
+              <MenuItem onClick={handleDelete} sx={{ color: 'error.main' }}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  delete
+                </span>
+                削除
+              </MenuItem>
+            </Menu>
+          </CardActions>
+        </Card>
+      );
+    };
+
+    // メインアプリケーション
+    const App = () => {
+      const [loading, setLoading] = React.useState(true);
+      const [currentTab, setCurrentTab] = React.useState(0);
+      const [searchQuery, setSearchQuery] = React.useState('');
+      const [lps, setLps] = React.useState([]);
+      const [filteredLps, setFilteredLps] = React.useState([]);
+      const [anchorEl, setAnchorEl] = React.useState(null);
+      const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+      const [lpToDelete, setLpToDelete] = React.useState(null);
+      const [snackbar, setSnackbar] = React.useState({
+        open: false,
+        message: '',
+        severity: 'success'
+      });
+      
+      const open = Boolean(anchorEl);
+      
+      React.useEffect(() => {
+        // データのロードをシミュレート
+        setTimeout(() => {
+          setLps(mockLPs);
+          setFilteredLps(mockLPs);
+          setLoading(false);
+        }, 1000);
+      }, []);
+
+      React.useEffect(() => {
+        // タブとサーチクエリでフィルタリング
+        let filtered = [...lps];
+        
+        // タブでフィルタリング
+        if (currentTab === 1) filtered = filtered.filter(lp => lp.status === 'active');
+        else if (currentTab === 2) filtered = filtered.filter(lp => lp.status === 'draft');
+        
+        // 検索クエリでフィルタリング
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          filtered = filtered.filter(lp => 
+            lp.title.toLowerCase().includes(query) || 
+            lp.description.toLowerCase().includes(query)
+          );
+        }
+        
+        setFilteredLps(filtered);
+      }, [currentTab, searchQuery, lps]);
+      
+      const handleProfileMenuOpen = (event) => {
+        setAnchorEl(event.currentTarget);
+      };
+      
+      const handleMenuClose = () => {
+        setAnchorEl(null);
+      };
+      
+      const handleTabChange = (event, newValue) => {
+        setCurrentTab(newValue);
+      };
+      
+      const handleSearchChange = (event) => {
+        setSearchQuery(event.target.value);
+      };
+      
+      const handleCreateLP = () => {
+        // 新規LP作成処理
+        console.log('新規LP作成');
+        setSnackbar({
+          open: true,
+          message: '新規LP作成ページへ移動します',
+          severity: 'info'
+        });
+      };
+      
+      const handleEditLP = (id) => {
+        // LP編集処理
+        console.log('LP編集:', id);
+        setSnackbar({
+          open: true,
+          message: 'LP編集ページへ移動します',
+          severity: 'info'
+        });
+      };
+      
+      const handleDuplicateLP = (id) => {
+        // LP複製処理
+        console.log('LP複製:', id);
+        const targetLp = lps.find(lp => lp.id === id);
+        if (targetLp) {
+          const newLp = {
+            ...targetLp,
+            id: Math.max(...lps.map(lp => lp.id)) + 1,
+            title: `${targetLp.title} (コピー)`,
+            status: 'draft',
+            created_at: new Date().toISOString(),
+            conversion_rate: 0,
+            views: 0,
+            conversions: 0
+          };
+          
+          setLps([...lps, newLp]);
+          setSnackbar({
+            open: true,
+            message: 'LPを複製しました',
+            severity: 'success'
+          });
+        }
+      };
+      
+      const handleDeleteLP = (id) => {
+        // 削除前の確認ダイアログを表示
+        setLpToDelete(id);
+        setDeleteDialogOpen(true);
+      };
+      
+      const confirmDeleteLP = () => {
+        // LP削除処理
+        console.log('LP削除:', lpToDelete);
+        setLps(lps.filter(lp => lp.id !== lpToDelete));
+        setDeleteDialogOpen(false);
+        setLpToDelete(null);
+        setSnackbar({
+          open: true,
+          message: 'LPを削除しました',
+          severity: 'success'
+        });
+      };
+      
+      const handleCloseDeleteDialog = () => {
+        setDeleteDialogOpen(false);
+        setLpToDelete(null);
+      };
+      
+      const handleCloseSnackbar = (event, reason) => {
+        if (reason === 'clickaway') {
+          return;
+        }
+        setSnackbar({ ...snackbar, open: false });
+      };
+      
+      return (
+        <MaterialUI.ThemeProvider theme={theme}>
+          <CssBaseline />
+          <div className="dashboard-container">
+            <LoadingOverlay loading={loading} />
+            
+            {/* ヘッダー */}
+            <AppBar position="sticky" color="primary" elevation={1}>
+              <Toolbar>
+                <Typography variant="h6" component="div" sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+                  <span className="material-icons" style={{ marginRight: 8 }}>
+                    web
+                  </span>
+                  <span className="header-title">多変量テストLP作成システム</span>
+                </Typography>
+                
+                <Tooltip title="ヘルプ">
+                  <IconButton color="inherit" size="large">
+                    <span className="material-icons">help_outline</span>
+                  </IconButton>
+                </Tooltip>
+                
+                <Tooltip title="通知">
+                  <IconButton color="inherit" size="large">
+                    <Badge badgeContent={3} color="error">
+                      <span className="material-icons">notifications</span>
+                    </Badge>
+                  </IconButton>
+                </Tooltip>
+                
+                <IconButton
+                  edge="end"
+                  aria-label="account of current user"
+                  aria-controls="menu-appbar"
+                  aria-haspopup="true"
+                  onClick={handleProfileMenuOpen}
+                  color="inherit"
+                  size="large"
+                >
+                  <Avatar sx={{ width: 32, height: 32, bgcolor: 'secondary.main' }}>T</Avatar>
+                </IconButton>
+              </Toolbar>
+            </AppBar>
+            
+            {/* プロフィールメニュー */}
+            <Menu
+              id="menu-appbar"
+              anchorEl={anchorEl}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+              keepMounted
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+              open={open}
+              onClose={handleMenuClose}
+            >
+              <MenuItem onClick={handleMenuClose}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  account_circle
+                </span>
+                プロフィール
+              </MenuItem>
+              <MenuItem onClick={handleMenuClose}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  settings
+                </span>
+                設定
+              </MenuItem>
+              <Divider />
+              <MenuItem onClick={handleMenuClose}>
+                <span className="material-icons" style={{ marginRight: 8 }}>
+                  logout
+                </span>
+                ログアウト
+              </MenuItem>
+            </Menu>
+            
+            {/* メインコンテンツ */}
+            <Container maxWidth="lg" sx={{ py: 4, flexGrow: 1 }}>
+              <Paper elevation={0} sx={{ p: 3, mb: 4, bgcolor: 'background.paper', borderRadius: 2 }}>
+                <Box sx={{ mb: 3 }}>
+                  <Typography variant="h4" component="h1" gutterBottom>
+                    ランディングページ管理
+                  </Typography>
+                  <Typography variant="body1" color="textSecondary">
+                    ランディングページの作成、編集、テスト設定を行います
+                  </Typography>
+                </Box>
+                
+                <Box className="filters-container" sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3, flexWrap: 'wrap' }}>
+                  <Box sx={{ width: { xs: '100%', sm: 'auto' }, mb: { xs: 2, sm: 0 } }}>
+                    <Tabs 
+                      value={currentTab} 
+                      onChange={handleTabChange}
+                      indicatorColor="primary"
+                      textColor="primary"
+                      variant="scrollable"
+                      scrollButtons="auto"
+                    >
+                      <Tab label="すべて" />
+                      <Tab label="公開中" />
+                      <Tab label="下書き" />
+                    </Tabs>
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', gap: 2, width: { xs: '100%', sm: 'auto' } }}>
+                    <TextField
+                      placeholder="検索"
+                      variant="outlined"
+                      size="small"
+                      value={searchQuery}
+                      onChange={handleSearchChange}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <span className="material-icons">search</span>
+                          </InputAdornment>
+                        ),
+                      }}
+                      sx={{ minWidth: 200 }}
+                    />
+                    
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      startIcon={<span className="material-icons">add</span>}
+                      onClick={handleCreateLP}
+                      sx={{ whiteSpace: 'nowrap' }}
+                    >
+                      新規LP作成
+                    </Button>
+                  </Box>
+                </Box>
+                
+                {/* LP一覧 */}
+                {filteredLps.length > 0 ? (
+                  <Grid container spacing={3}>
+                    {filteredLps.map((lp) => (
+                      <Grid item xs={12} sm={6} md={4} key={lp.id}>
+                        <LPCard 
+                          lp={lp}
+                          onEdit={handleEditLP}
+                          onDuplicate={handleDuplicateLP}
+                          onDelete={handleDeleteLP}
+                        />
+                      </Grid>
+                    ))}
+                  </Grid>
+                ) : (
+                  loading ? (
+                    <Box sx={{ display: 'flex', justifyContent: 'center', my: 5 }}>
+                      <CircularProgress />
+                    </Box>
+                  ) : (
+                    searchQuery ? (
+                      <Box sx={{ textAlign: 'center', py: 5 }}>
+                        <span className="material-icons" style={{ fontSize: 48, color: '#9e9e9e' }}>
+                          search_off
+                        </span>
+                        <Typography variant="h6" color="textSecondary" sx={{ mt: 2 }}>
+                          "{searchQuery}" に一致するLPは見つかりませんでした
+                        </Typography>
+                      </Box>
+                    ) : (
+                      <EmptyState onCreateClick={handleCreateLP} />
+                    )
+                  )
+                )}
+              </Paper>
+            </Container>
+            
+            {/* 削除確認ダイアログ */}
+            <Dialog
+              open={deleteDialogOpen}
+              onClose={handleCloseDeleteDialog}
+              aria-labelledby="alert-dialog-title"
+              aria-describedby="alert-dialog-description"
+            >
+              <DialogTitle id="alert-dialog-title">
+                {"LPを削除しますか？"}
+              </DialogTitle>
+              <DialogContent>
+                <DialogContentText id="alert-dialog-description">
+                  このランディングページを削除すると、すべての設定とデータが完全に削除されます。この操作は元に戻せません。
+                </DialogContentText>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={handleCloseDeleteDialog} color="primary">
+                  キャンセル
+                </Button>
+                <Button onClick={confirmDeleteLP} color="error" autoFocus>
+                  削除する
+                </Button>
+              </DialogActions>
+            </Dialog>
+            
+            {/* 通知スナックバー */}
+            <Snackbar 
+              open={snackbar.open} 
+              autoHideDuration={4000} 
+              onClose={handleCloseSnackbar}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            >
+              <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+                {snackbar.message}
+              </Alert>
+            </Snackbar>
+          </div>
+        </MaterialUI.ThemeProvider>
+      );
+    };
+
+    // アプリケーションのレンダリング
+    ReactDOM.createRoot(document.getElementById('root')).render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    );
+  </script>
+</body>
+</html>
