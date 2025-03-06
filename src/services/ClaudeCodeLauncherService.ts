@@ -109,7 +109,7 @@ export class ClaudeCodeLauncherService {
       // アイコンURIを取得
       const iconPath = platformManager.getResourceUri('media/icon.svg');
       
-      // ターミナルの作成
+      // ターミナルの作成（simpleChat.tsの成功例を参考に実装）
       const terminal = vscode.window.createTerminal({
         name: 'ClaudeCode',
         cwd: this.projectPath,
@@ -117,29 +117,40 @@ export class ClaudeCodeLauncherService {
       });
       
       // ターミナルの表示
-      terminal.show(true);
+      terminal.show();
       
-      // プロジェクトディレクトリに移動
-      terminal.sendText(`cd "${this.projectPath}"`);
+      // 最初にユーザーガイダンスを表示
+      terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+      terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
+      
+      // macOSの場合は環境変数のソースを確保（出力を非表示）
+      if (process.platform === 'darwin') {
+        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
+        terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+      }
+      
+      // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
+      const escapedProjectPath = this.projectPath.replace(/"/g, '\\"');
+      terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
+      
+      // ファイルパスをエスケープ（スペースを含む場合）
+      const escapedClaudeMdPath = claudeMdPath.replace(/ /g, '\\ ');
       
       // スコープIDが存在する場合はスコープを指定して起動
       if (scope.id) {
+        // スコープIDをエスケープする必要はないが、念のため
+        const escapedScopeId = scope.id.replace(/ /g, '\\ ');
         // Claude Codeをスコープ指定で起動
-        terminal.sendText(`claude --scope="${scope.id}" "${claudeMdPath}"`);
-        Logger.info(`ClaudeCode起動コマンド: claude --scope="${scope.id}" "${claudeMdPath}"`);
+        terminal.sendText(`echo "\n" && claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+        Logger.info(`ClaudeCode起動コマンド: claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
       } else {
         // スコープ指定なしで起動
-        terminal.sendText(`claude "${claudeMdPath}"`);
-        Logger.info(`ClaudeCode起動コマンド: claude "${claudeMdPath}"`);
+        terminal.sendText(`echo "\n" && claude ${escapedClaudeMdPath}`);
+        Logger.info(`ClaudeCode起動コマンド: claude ${escapedClaudeMdPath}`);
       }
       
-      // 自動復旧用の手動コマンドも表示
-      terminal.sendText(`if [ $? -ne 0 ]; then
-        echo ""
-        echo "※ ClaudeCodeの起動に問題が発生しました。以下の手順を試してください:"
-        echo "1. ターミナルで 'claude' をインストール (npm install -g claude-cli)"
-        echo ""
-      fi`);
+      // エラー検出のみ行い、出力は完全に抑制
+      terminal.sendText(`[ $? -ne 0 ] && { : ; } # エラー検出のみで出力なし`);
       
       // 状態更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;
@@ -203,39 +214,83 @@ export class ClaudeCodeLauncherService {
         throw new Error(`モックアップファイルが見つかりません: ${mockupFilePath}`);
       }
       
-      // CLAUDE.mdファイルパスを取得
-      const claudeMdPath = path.join(this.projectPath, 'CLAUDE.md');
-      if (!fs.existsSync(claudeMdPath)) {
-        throw new Error(`CLAUDE.mdファイルが見つかりません: ${claudeMdPath}`);
+      // テンプレートファイルのパスを取得
+      const templatePath = path.join(this.projectPath, 'docs/mockup_analysis_template.md');
+      if (!fs.existsSync(templatePath)) {
+        Logger.warn('モックアップ解析テンプレートが見つかりません。デフォルトテンプレートを使用します。');
       }
       
-      // アイコンURIを取得
+      // モックアップ名を取得
+      const mockupName = path.basename(mockupFilePath, '.html');
+      
+      // テンポラリディレクトリを取得
       const platformManager = PlatformManager.getInstance();
-      const iconPath = platformManager.getResourceUri('media/icon.svg');
+      const tempDir = platformManager.getTempDirectory('mockup-analysis');
       
-      // ターミナルの作成（simpleChat.tsの成功例を参考に実装）
-      const terminal = vscode.window.createTerminal({
-        name: 'ClaudeCode - モックアップ解析',
-        cwd: this.projectPath,
-        iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
-      });
+      // ディレクトリが存在しない場合は作成
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
       
-      // ターミナルの表示
-      terminal.show();
+      // 一時的な解析用MDファイルを作成
+      const analysisFileName = `${mockupName}-analysis-${Date.now()}.md`;
+      const analysisFilePath = path.join(tempDir, analysisFileName);
       
-      // システムメッセージを設定してClaudeCodeを起動
-      const sysMsgContent = `あなたはUIモックアップの解析と要件定義の詳細化を行うエキスパートです。
+      let analysisContent = '';
+      
+      // テンプレートが存在する場合はテンプレートを使用
+      if (fs.existsSync(templatePath)) {
+        analysisContent = fs.readFileSync(templatePath, 'utf8');
+        
+        // テンプレート内の変数を置換（確実に絶対パスを使用）
+        const absoluteMockupPath = path.isAbsolute(mockupFilePath) ? mockupFilePath : path.resolve(mockupFilePath);
+        const absoluteProjectPath = path.isAbsolute(this.projectPath) ? this.projectPath : path.resolve(this.projectPath);
+        
+        // 絶対パスをログに記録
+        Logger.info(`モックアップファイルの絶対パス: ${absoluteMockupPath}`);
+        Logger.info(`プロジェクトの絶対パス: ${absoluteProjectPath}`);
+        
+        analysisContent = analysisContent
+          .replace(/{{MOCKUP_PATH}}/g, absoluteMockupPath)
+          .replace(/{{PROJECT_PATH}}/g, absoluteProjectPath)
+          .replace(/{{MOCKUP_NAME}}/g, mockupName);
+      } else {
+        // テンプレートが存在しない場合はデフォルトテンプレートを使用
+        analysisContent = `# モックアップ解析と要件定義
 
-モックアップHTML: ${mockupFilePath}
-このモックアップを詳細に解析し、ユーザーと相談しながら以下を行ってください:
+あなたはUIモックアップの解析と要件定義の詳細化を行うエキスパートです。すべての応答は必ず日本語で行ってください。
 
-1. モックアップの詳細な分析と説明
-2. モックアップを完璧に仕上げるための改善提案
-3. ユーザーと相談しながら、実装に必要な詳細な要件定義を作成
-4. 完成した要件定義を「docs/scopes/」ディレクトリにマークダウンファイルとして保存
+モックアップHTML: ${path.isAbsolute(mockupFilePath) ? mockupFilePath : path.resolve(mockupFilePath)}
+プロジェクトパス: ${path.isAbsolute(this.projectPath) ? this.projectPath : path.resolve(this.projectPath)}
 
-保存するファイル名は「モックアップ名-requirements.md」としてください。
-要件定義には必ず以下の項目を含めてください：
+## 作業指示
+このモックアップの解析にあたっては、ユーザーとの相談を最優先してください。以下の手順で進めてください:
+
+1. **まず最初に、モックアップに関するユーザーの意図と考えを確認**
+   - モックアップの目的についてユーザーに質問する
+   - このUIで達成したいことを詳しく聞く
+   - ユーザーがイメージしている利用シーンを把握する
+
+2. **モックアップの分析と相談**
+   - UI要素の特定と役割について確認する
+   - 画面遷移とユーザーフローについて相談する
+   - 改善案をユーザーに提示し、意見を求める
+
+3. **要件定義の詳細化（ユーザーの承認を得てから進める）**
+   - ユーザーと一緒に要件を具体化する
+   - 各項目についてユーザーの確認を得る
+   - 非機能要件についても相談する
+
+4. **要件の最終承認を得てから文書化**
+   - 要件定義のドラフトをユーザーに提示
+   - フィードバックを反映して調整
+   - 最終承認を得てから文書化を完了する
+
+**必ずユーザーの最終承認を得てから**、完成した要件定義を以下の場所に保存してください:
+保存先: ${path.isAbsolute(this.projectPath) ? this.projectPath : path.resolve(this.projectPath)}/docs/scopes/${mockupName}-requirements.md
+ファイル名: ${mockupName}-requirements.md
+
+要件定義には以下の項目を含めてください：
 - 機能概要
 - UI要素の詳細
 - データ構造
@@ -244,49 +299,65 @@ export class ClaudeCodeLauncherService {
 - パフォーマンス要件
 - セキュリティ要件
 
-ユーザーの意図を正確に把握し、非技術者でも理解できる形で要件をまとめてください。`;
-      
-      // システムメッセージファイルを一時的に作成
-      const sysMsgFileName = `mockup-analysis-${Date.now()}.txt`;
-      const sysMsgPath = path.join(platformManager.getTempDirectory('messages'), sysMsgFileName);
-      
-      // ディレクトリが存在しない場合は作成
-      if (!fs.existsSync(path.dirname(sysMsgPath))) {
-        fs.mkdirSync(path.dirname(sysMsgPath), { recursive: true });
+注意: ユーザーとの議論を経ずに要件定義を自動生成しないでください。
+必ずユーザーの意図を正確に把握し、非技術者でも理解できる形で要件をまとめてください。`;
       }
       
-      // システムメッセージをファイルに書き込み
-      fs.writeFileSync(sysMsgPath, sysMsgContent, 'utf8');
+      // 解析用MDファイルを作成
+      fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
+      Logger.info(`モックアップ解析用ファイルを作成しました: ${analysisFilePath}`);
       
-      // macOSの場合は環境変数のソースを確保（simpleChat.tsの成功例から移植）
+      // アイコンURIを取得
+      const iconPath = platformManager.getResourceUri('media/icon.svg');
+      
+      // ターミナルの作成
+      const terminal = vscode.window.createTerminal({
+        name: `ClaudeCode - ${mockupName}の解析`,
+        cwd: this.projectPath,
+        iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
+      });
+      
+      // ターミナルの表示
+      terminal.show();
+      
+      // 最初にユーザーガイダンスを表示
+      terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+      terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
+      
+      // macOSの場合は環境変数のソースを確保
       if (process.platform === 'darwin') {
-        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found"');
+        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
         terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
       }
       
-      // エスケープ処理（simpleChat.tsの成功例から移植）
-      const escapedClaudeMdPath = claudeMdPath.replace(/ /g, '\\ ');
+      // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
+      const escapedProjectPath = this.projectPath.replace(/"/g, '\\"');
+      terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
       
-      // 2つのアプローチを試す - 最初にシンプルなアプローチで起動を試みる
-      terminal.sendText(`claude ${escapedClaudeMdPath}`);
-      Logger.info(`モックアップ解析用ClaudeCode起動コマンド: claude ${escapedClaudeMdPath}`);
+      // ファイルパスをエスケープ（スペースを含む場合）
+      const escapedAnalysisFilePath = analysisFilePath.replace(/ /g, '\\ ');
       
-      // 1秒後に初期メッセージを送信
-      const timerId = setTimeout(() => {
-        terminal.sendText(sysMsgContent);
-        terminal.sendText(`\nモックアップファイル ${mockupFilePath} について分析し、ユーザーと対話しながら要件定義を詳細化してください。`);
-      }, 1000);
+      // 解析用ファイルを指定してClaude CLIを起動
+      terminal.sendText(`echo "\n" && claude ${escapedAnalysisFilePath}`);
+      Logger.info(`モックアップ解析用ClaudeCode起動コマンド: claude ${escapedAnalysisFilePath}`);
+      
+      // エラー検出のみ行い、出力は完全に抑制
+      terminal.sendText(`[ $? -ne 0 ] && { : ; } # エラー検出のみで出力なし`);
       
       // 状態更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;
       this.scopeFilePath = '';
+      
+      // モックアップ解析情報をログに記録
+      Logger.info(`モックアップ分析のためClaudeCodeを起動しました: ${mockupName}`);
       
       // イベント発火
       this.eventBus.emit(
         AppGeniusEventType.CLAUDE_CODE_STARTED,
         { 
           mockupFilePath,
-          projectPath: this.projectPath
+          projectPath: this.projectPath,
+          analysisFilePath: analysisFilePath
         },
         'ClaudeCodeLauncherService'
       );
