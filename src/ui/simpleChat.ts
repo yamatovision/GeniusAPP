@@ -1642,13 +1642,20 @@ project/
    */
   private async _launchClaudeCode(filePath: string): Promise<boolean> {
     try {
-      // AppGenius2/AppGeniusが固定パスの場合、直接指定する
-      const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
-      Logger.info(`AppGenius固定パスを使用: ${appGeniusPath}`);
+      // プロジェクトパスを取得 - クラスのプロパティを使用
+      if (!this._projectPath) {
+        throw new Error('プロジェクトパスが設定されていません。アクティブなプロジェクトを選択してください。');
+      }
       
+      Logger.info(`プロジェクトパスを使用: ${this._projectPath}`);
+      
+      // ClaudeCodeLauncherServiceを使用
+      const claudeCodeLauncher = this._claudeCodeLauncherService;
+      
+      // ファイルの絶対パスを取得
       const fullPath = path.isAbsolute(filePath)
         ? filePath
-        : path.join(appGeniusPath, filePath);
+        : path.join(this._projectPath, filePath);
       
       if (!fs.existsSync(fullPath)) {
         this._panel.webview.postMessage({
@@ -1664,94 +1671,19 @@ project/
         text: `ClaudeCodeを起動しています: ${filePath}`
       });
       
-      // 最もシンプルな方法: 新しいターミナルを開き、直接コマンドを実行
-      try {
-        // ターミナルを作成
-        const terminal = vscode.window.createTerminal({
-          name: 'ClaudeCode',
-          cwd: appGeniusPath
-        });
-        
-        // ターミナルを表示
-        terminal.show();
-        
-        // macOSの場合は環境変数のソースを確保
-        if (process.platform === 'darwin') {
-          terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found"');
-          terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
-        }
-        
-        // ファイルパスをエスケープ（スペースを含む場合）
-        const escapedPath = fullPath.replace(/ /g, '\\ ');
-        
-        // ClaudeCodeを起動
-        terminal.sendText(`claude ${escapedPath}`);
-        
-        // 少し待ってから日本語メッセージを送信（ターミナル起動後に実行されるように）
-        const timerId = setTimeout(() => {
-          if (terminal) {
-            terminal.sendText(`こんにちは！要件定義ファイルを開きました。このファイルについて質問や編集の相談があれば日本語でどうぞ。`);
-          }
-        }, 2000);
-        
-        // タイマーをクリーンアップのために記録
-        this._disposables.push({ dispose: () => clearTimeout(timerId) });
-        
+      // ClaudeCodeLauncherServiceを使用してモックアップ解析モードで起動
+      // これは要件定義ファイルなどのテキストファイルにも適用可能
+      const success = await claudeCodeLauncher.launchClaudeCodeWithMockup(fullPath, this._projectPath);
+      
+      if (success) {
         // 成功メッセージを表示
         this._panel.webview.postMessage({
           command: 'showMessage',
           text: `ClaudeCodeを起動しました: ${filePath}`
         });
-        
-        return true;
-      } catch (terminalError) {
-        // ターミナル起動が失敗した場合はフォールバック
-        Logger.error('ターミナル起動エラー、別の方法を試みます', terminalError as Error);
-        
-        // VSCodeの統合ターミナルを取得し、コマンドを直接実行
-        const terminals = vscode.window.terminals;
-        if (terminals.length > 0) {
-          const activeTerminal = terminals[0]; // 最初のターミナルを使用
-          activeTerminal.show();
-          // ClaudeCodeを起動
-          activeTerminal.sendText(`claude "${fullPath}"`);
-          
-          // 少し待ってから日本語メッセージを送信
-          const timerId = setTimeout(() => {
-            activeTerminal.sendText(`こんにちは！要件定義ファイルを開きました。このファイルについて質問や編集の相談があれば日本語でどうぞ。`);
-          }, 2000);
-          
-          // タイマーをクリーンアップのために記録
-          this._disposables.push({ dispose: () => clearTimeout(timerId) });
-          
-          this._panel.webview.postMessage({
-            command: 'showMessage',
-            text: `既存のターミナルでClaudeCodeを起動しました: ${filePath}`
-          });
-          
-          return true;
-        }
-        
-        // それでも失敗した場合は外部コマンドを実行
-        const { exec } = require('child_process');
-        // 直接ClaudeCodeを起動（プロンプトなしで）
-        exec(`claude "${fullPath}"`, (error: Error | null, _stdout: string, _stderr: string) => {
-          if (error) {
-            Logger.error(`外部コマンド実行エラー: ${error.message}`);
-            this._panel.webview.postMessage({
-              command: 'showError',
-              text: `外部コマンド実行エラー: ${error.message}`
-            });
-          } else {
-            this._panel.webview.postMessage({
-              command: 'showMessage',
-              text: `外部コマンドでClaudeCodeを起動しました: ${filePath}`
-            });
-          }
-        });
-        
-        return true;
       }
+      
+      return success;
     } catch (error) {
       Logger.error(`ClaudeCode起動エラー: ${filePath}`, error as Error);
       

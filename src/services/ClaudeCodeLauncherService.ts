@@ -243,8 +243,8 @@ export class ClaudeCodeLauncherService {
         analysisContent = fs.readFileSync(templatePath, 'utf8');
         
         // テンプレート内の変数を置換（確実に絶対パスを使用）
-        const absoluteMockupPath = path.isAbsolute(mockupFilePath) ? mockupFilePath : path.resolve(mockupFilePath);
-        const absoluteProjectPath = path.isAbsolute(this.projectPath) ? this.projectPath : path.resolve(this.projectPath);
+        const absoluteMockupPath = path.isAbsolute(mockupFilePath) ? mockupFilePath : path.join(this.projectPath, mockupFilePath);
+        const absoluteProjectPath = this.projectPath; // 既にプロジェクトパスは絶対パスとして初期化されている
         
         // 絶対パスをログに記録
         Logger.info(`モックアップファイルの絶対パス: ${absoluteMockupPath}`);
@@ -260,8 +260,8 @@ export class ClaudeCodeLauncherService {
 
 あなたはUIモックアップの解析と要件定義の詳細化を行うエキスパートです。すべての応答は必ず日本語で行ってください。
 
-モックアップHTML: ${path.isAbsolute(mockupFilePath) ? mockupFilePath : path.resolve(mockupFilePath)}
-プロジェクトパス: ${path.isAbsolute(this.projectPath) ? this.projectPath : path.resolve(this.projectPath)}
+モックアップHTML: ${path.isAbsolute(mockupFilePath) ? mockupFilePath : path.join(this.projectPath, mockupFilePath)}
+プロジェクトパス: ${this.projectPath}
 
 ## 作業指示
 このモックアップの解析にあたっては、ユーザーとの相談を最優先してください。以下の手順で進めてください:
@@ -287,7 +287,7 @@ export class ClaudeCodeLauncherService {
    - 最終承認を得てから文書化を完了する
 
 **必ずユーザーの最終承認を得てから**、完成した要件定義を以下の場所に保存してください:
-保存先: ${path.isAbsolute(this.projectPath) ? this.projectPath : path.resolve(this.projectPath)}/docs/scopes/${mockupName}-requirements.md
+保存先: ${this.projectPath}/docs/scopes/${mockupName}-requirements.md
 ファイル名: ${mockupName}-requirements.md
 
 要件定義には以下の項目を含めてください：
