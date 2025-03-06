@@ -1060,6 +1060,20 @@ JWT_SECRET=your_jwt_secret_key
         
         // ファイル進捗情報は使用しない
         let fileProgress = { completed: [], total: [], percentage: 0 };
+
+        // モックアップファイルの存在チェック
+        let hasMockupFiles = false;
+        try {
+          const mockupsDir = path.join(projectPath, 'mockups');
+          if (fs.existsSync(mockupsDir)) {
+            const files = fs.readdirSync(mockupsDir);
+            hasMockupFiles = files.some(file => file.endsWith('.html'));
+            Logger.debug(`モックアップフォルダをチェック: ${mockupsDir}, HTMLファイル存在: ${hasMockupFiles}`);
+          }
+        } catch (err) {
+          Logger.warn(`モックアップフォルダのチェック中にエラー: ${(err as Error).message}`);
+          // エラーがあっても処理を継続
+        }
         
         activeProjectDetails = {
           requirements: this._projectRequirements[projectId] || {},
@@ -1068,6 +1082,9 @@ JWT_SECRET=your_jwt_secret_key
           
           // モックアップ数
           mockupCount: mockups.length || 0,
+          
+          // モックアップファイルの存在フラグを追加
+          hasMockupFiles: hasMockupFiles,
           
           // 実装項目数
           scopeItemCount: scopeItems.length || 0,

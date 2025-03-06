@@ -459,6 +459,9 @@
       // phase情報の安全な取得
       const phases = project.phases || { requirements: false, design: false, implementation: false, testing: false, deployment: false };
       
+      // モックアップファイルの存在チェック (新しい条件)
+      const hasMockupFiles = details.hasMockupFiles || false;
+      
       // 計画プロセスのステップ描画
       const planningStepsHtml = `
         <div class="process-steps-flow">
@@ -484,7 +487,7 @@
             <div class="step-action">開く</div>
           </a>
 
-          <a href="#" class="process-step ${phases.implementation ? 'completed' : (phases.design ? 'active' : '')} ${!phases.design ? 'disabled' : ''}" id="scope-step" data-command="openImplementationSelector">
+          <a href="#" class="process-step ${phases.implementation ? 'completed' : (hasMockupFiles ? 'active' : '')} ${!hasMockupFiles ? 'disabled' : ''}" id="scope-step" data-command="openImplementationSelector">
             <div class="step-number">3</div>
             <div class="step-icon">📋</div>
             <div class="step-content">
