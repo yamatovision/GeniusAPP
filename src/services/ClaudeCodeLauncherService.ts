@@ -21,6 +21,20 @@ export enum ClaudeCodeExecutionStatus {
 }
 
 /**
+ * モックアップ解析プロセス情報
+ */
+interface MockupAnalysisProcess {
+  id: string;
+  mockupName: string;
+  mockupPath: string;
+  projectPath: string;
+  analysisFilePath: string;
+  terminal: vscode.Terminal | null;
+  status: ClaudeCodeExecutionStatus;
+  startTime: number;
+}
+
+/**
  * ClaudeCodeプロセス管理サービス
  * VSCode拡張からClaudeCodeを起動し、実装スコープに基づいて開発を進める
  */
@@ -36,6 +50,11 @@ export class ClaudeCodeLauncherService {
   private projectPath: string = '';
   private scopeFilePath: string = '';
   private progressFilePath: string = '';
+  
+  // 並列処理用の設定
+  private readonly maxConcurrentProcesses: number = 3; // 最大同時実行数
+  private mockupProcesses: Map<string, MockupAnalysisProcess> = new Map();
+  private processingCount: number = 0;
   
   private constructor() {
     this.eventBus = AppGeniusEventBus.getInstance();
@@ -196,75 +215,115 @@ export class ClaudeCodeLauncherService {
    */
   public async launchClaudeCodeWithMockup(mockupFilePath: string, projectPath: string, options?: { source?: string }): Promise<boolean> {
     try {
-      // 前回の状態が残っていれば初期化
-      if (this.status === ClaudeCodeExecutionStatus.RUNNING) {
-        this.resetStatus();
-      }
+      // モックアップファイル情報を準備
+      const absoluteMockupPath = path.isAbsolute(mockupFilePath) ? mockupFilePath : path.join(projectPath, mockupFilePath);
+      const mockupName = path.basename(mockupFilePath, '.html');
+      const processId = `mockup-${mockupName}-${Date.now()}`;
       
       // プロジェクトパスの確認
-      this.projectPath = projectPath;
-      if (!fs.existsSync(this.projectPath)) {
-        throw new Error(`プロジェクトパスが存在しません: ${this.projectPath}`);
+      if (!fs.existsSync(projectPath)) {
+        throw new Error(`プロジェクトパスが存在しません: ${projectPath}`);
       }
       
       // モックアップファイルの存在確認
-      if (!fs.existsSync(mockupFilePath)) {
-        throw new Error(`モックアップファイルが見つかりません: ${mockupFilePath}`);
+      if (!fs.existsSync(absoluteMockupPath)) {
+        throw new Error(`モックアップファイルが見つかりません: ${absoluteMockupPath}`);
       }
       
-      // テンプレートファイルのパスを取得
-      const templatePath = path.join(this.projectPath, 'docs/mockup_analysis_template.md');
-      if (!fs.existsSync(templatePath)) {
-        Logger.warn('モックアップ解析テンプレートが見つかりません。デフォルトテンプレートを使用します。');
+      // 現在実行中の同時プロセス数をチェック
+      const runningProcesses = Array.from(this.mockupProcesses.values())
+        .filter(p => p.status === ClaudeCodeExecutionStatus.RUNNING);
+      
+      // 同時実行数制限のチェック
+      if (runningProcesses.length >= this.maxConcurrentProcesses) {
+        const message = `現在${runningProcesses.length}個のモックアップ解析が実行中です。完了までお待ちください。`;
+        vscode.window.showInformationMessage(message);
+        return false;
       }
       
-      // モックアップ名を取得
-      const mockupName = path.basename(mockupFilePath, '.html');
+      // 新しいプロセスを作成
+      const analysisFilePath = await this._prepareAnalysisFile(mockupName, absoluteMockupPath, projectPath, options);
       
-      // テンポラリディレクトリを取得
-      const platformManager = PlatformManager.getInstance();
-      const tempDir = platformManager.getTempDirectory('mockup-analysis');
+      // プロセス情報を保存
+      const process: MockupAnalysisProcess = {
+        id: processId,
+        mockupName,
+        mockupPath: absoluteMockupPath,
+        projectPath,
+        analysisFilePath,
+        terminal: null,
+        status: ClaudeCodeExecutionStatus.IDLE,
+        startTime: Date.now()
+      };
       
-      // ディレクトリが存在しない場合は作成
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
+      this.mockupProcesses.set(processId, process);
       
-      // 一時的な解析用MDファイルを作成
-      const analysisFileName = `${mockupName}-analysis-${Date.now()}.md`;
-      const analysisFilePath = path.join(tempDir, analysisFileName);
+      // ターミナルを起動
+      await this._startMockupAnalysisTerminal(processId);
       
-      let analysisContent = '';
+      return true;
+    } catch (error) {
+      Logger.error('モックアップ解析用ClaudeCodeの起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`モックアップ解析用ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
+      return false;
+    }
+  }
+  
+  /**
+   * モックアップ解析用のMDファイルを準備
+   */
+  private async _prepareAnalysisFile(
+    mockupName: string, 
+    mockupFilePath: string, 
+    projectPath: string,
+    options?: { source?: string }
+  ): Promise<string> {
+    // テンプレートファイルのパスを取得
+    const templatePath = path.join(projectPath, 'docs/mockup_analysis_template.md');
+    if (!fs.existsSync(templatePath)) {
+      Logger.warn('モックアップ解析テンプレートが見つかりません。デフォルトテンプレートを使用します。');
+    }
+    
+    // テンポラリディレクトリを取得
+    const platformManager = PlatformManager.getInstance();
+    const tempDir = platformManager.getTempDirectory('mockup-analysis');
+    
+    // ディレクトリが存在しない場合は作成
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // 一時的な解析用MDファイルを作成
+    const analysisFileName = `${mockupName}-analysis-${Date.now()}.md`;
+    const analysisFilePath = path.join(tempDir, analysisFileName);
+    
+    let analysisContent = '';
+    
+    // テンプレートが存在する場合はテンプレートを使用
+    if (fs.existsSync(templatePath)) {
+      analysisContent = fs.readFileSync(templatePath, 'utf8');
       
-      // テンプレートが存在する場合はテンプレートを使用
-      if (fs.existsSync(templatePath)) {
-        analysisContent = fs.readFileSync(templatePath, 'utf8');
-        
-        // テンプレート内の変数を置換（確実に絶対パスを使用）
-        const absoluteMockupPath = path.isAbsolute(mockupFilePath) ? mockupFilePath : path.join(this.projectPath, mockupFilePath);
-        const absoluteProjectPath = this.projectPath; // 既にプロジェクトパスは絶対パスとして初期化されている
-        
-        // 絶対パスをログに記録
-        Logger.info(`モックアップファイルの絶対パス: ${absoluteMockupPath}`);
-        Logger.info(`プロジェクトの絶対パス: ${absoluteProjectPath}`);
-        
-        // ソース情報をログに記録
-        const source = options?.source || 'unknown';
-        Logger.info(`起動ソース: ${source}`);
-        
-        analysisContent = analysisContent
-          .replace(/{{MOCKUP_PATH}}/g, absoluteMockupPath)
-          .replace(/{{PROJECT_PATH}}/g, absoluteProjectPath)
-          .replace(/{{MOCKUP_NAME}}/g, mockupName)
-          .replace(/{{SOURCE}}/g, source);
-      } else {
-        // テンプレートが存在しない場合はデフォルトテンプレートを使用
-        analysisContent = `# モックアップ解析と要件定義
+      // 絶対パスをログに記録
+      Logger.info(`モックアップファイルの絶対パス: ${mockupFilePath}`);
+      Logger.info(`プロジェクトの絶対パス: ${projectPath}`);
+      
+      // ソース情報をログに記録
+      const source = options?.source || 'unknown';
+      Logger.info(`起動ソース: ${source}`);
+      
+      analysisContent = analysisContent
+        .replace(/{{MOCKUP_PATH}}/g, mockupFilePath)
+        .replace(/{{PROJECT_PATH}}/g, projectPath)
+        .replace(/{{MOCKUP_NAME}}/g, mockupName)
+        .replace(/{{SOURCE}}/g, source);
+    } else {
+      // テンプレートが存在しない場合はデフォルトテンプレートを使用
+      analysisContent = `# モックアップ解析と要件定義
 
 あなたはUIモックアップの解析と要件定義の詳細化を行うエキスパートです。すべての応答は必ず日本語で行ってください。
 
-モックアップHTML: ${path.isAbsolute(mockupFilePath) ? mockupFilePath : path.join(this.projectPath, mockupFilePath)}
-プロジェクトパス: ${this.projectPath}
+モックアップHTML: ${mockupFilePath}
+プロジェクトパス: ${projectPath}
 
 ## 作業指示
 このモックアップの解析にあたっては、ユーザーとの相談を最優先してください。以下の手順で進めてください:
@@ -290,7 +349,7 @@ export class ClaudeCodeLauncherService {
    - 最終承認を得てから文書化を完了する
 
 **必ずユーザーの最終承認を得てから**、完成した要件定義を以下の場所に保存してください:
-保存先: ${this.projectPath}/docs/scopes/${mockupName}-requirements.md
+保存先: ${projectPath}/docs/scopes/${mockupName}-requirements.md
 ファイル名: ${mockupName}-requirements.md
 
 要件定義には以下の項目を含めてください：
@@ -304,21 +363,43 @@ export class ClaudeCodeLauncherService {
 
 注意: ユーザーとの議論を経ずに要件定義を自動生成しないでください。
 必ずユーザーの意図を正確に把握し、非技術者でも理解できる形で要件をまとめてください。`;
+    }
+    
+    // 解析用MDファイルを作成
+    fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
+    Logger.info(`モックアップ解析用ファイルを作成しました: ${analysisFilePath}`);
+    
+    return analysisFilePath;
+  }
+  
+  /**
+   * モックアップ解析ターミナルを起動
+   */
+  private async _startMockupAnalysisTerminal(processId: string): Promise<boolean> {
+    try {
+      const processInfo = this.mockupProcesses.get(processId);
+      if (!processInfo) {
+        throw new Error(`プロセス情報が見つかりません: ${processId}`);
       }
       
-      // 解析用MDファイルを作成
-      fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
-      Logger.info(`モックアップ解析用ファイルを作成しました: ${analysisFilePath}`);
-      
       // アイコンURIを取得
+      const platformManager = PlatformManager.getInstance();
       const iconPath = platformManager.getResourceUri('media/icon.svg');
       
       // ターミナルの作成
       const terminal = vscode.window.createTerminal({
-        name: `ClaudeCode - ${mockupName}の解析`,
-        cwd: this.projectPath,
+        name: `ClaudeCode - ${processInfo.mockupName}の解析`,
+        cwd: processInfo.projectPath,
         iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
       });
+      
+      // ターミナル情報を保存
+      processInfo.terminal = terminal;
+      processInfo.status = ClaudeCodeExecutionStatus.RUNNING;
+      this.mockupProcesses.set(processId, processInfo);
+      
+      // ターミナル終了イベントの監視を設定
+      this._watchTerminalClose(terminal, processId);
       
       // ターミナルの表示（true を渡してフォーカスする）
       terminal.show(true);
@@ -334,39 +415,47 @@ export class ClaudeCodeLauncherService {
       }
       
       // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
-      const escapedProjectPath = this.projectPath.replace(/"/g, '\\"');
+      const escapedProjectPath = processInfo.projectPath.replace(/"/g, '\\"');
       terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
       
       // ファイルパスをエスケープ（スペースを含む場合）
-      const escapedAnalysisFilePath = analysisFilePath.replace(/ /g, '\\ ');
+      const escapedAnalysisFilePath = processInfo.analysisFilePath.replace(/ /g, '\\ ');
       
       // 解析用ファイルを指定してClaude CLIを起動
       terminal.sendText(`echo "\n" && claude ${escapedAnalysisFilePath}`);
       Logger.info(`モックアップ解析用ClaudeCode起動コマンド: claude ${escapedAnalysisFilePath}`);
       
-      // 状態更新
+      // 状態は個別に管理するが、後方互換性のために全体のステータスも更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;
-      this.scopeFilePath = '';
       
-      // モックアップ解析情報をログに記録
-      Logger.info(`モックアップ分析のためClaudeCodeを起動しました: ${mockupName}`);
+      // 現在のプロセス状態をログ出力
+      const runningCount = this.getRunningMockupProcesses().length;
+      Logger.info(`現在実行中のモックアップ解析プロセス数: ${runningCount}/${this.maxConcurrentProcesses}`);
       
       // イベント発火
       this.eventBus.emit(
         AppGeniusEventType.CLAUDE_CODE_STARTED,
         { 
-          mockupFilePath,
-          projectPath: this.projectPath,
-          analysisFilePath: analysisFilePath
+          processId,
+          mockupName: processInfo.mockupName,
+          mockupFilePath: processInfo.mockupPath,
+          projectPath: processInfo.projectPath,
+          analysisFilePath: processInfo.analysisFilePath
         },
         'ClaudeCodeLauncherService'
       );
       
       return true;
     } catch (error) {
-      Logger.error('モックアップ解析用ClaudeCodeの起動に失敗しました', error as Error);
-      vscode.window.showErrorMessage(`モックアップ解析用ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
-      this.status = ClaudeCodeExecutionStatus.FAILED;
+      Logger.error(`モックアップ解析ターミナルの起動に失敗しました: ${processId}`, error as Error);
+      
+      // プロセス情報を更新
+      const processInfo = this.mockupProcesses.get(processId);
+      if (processInfo) {
+        processInfo.status = ClaudeCodeExecutionStatus.FAILED;
+        this.mockupProcesses.set(processId, processInfo);
+      }
+      
       return false;
     }
   }
@@ -554,6 +643,49 @@ export class ClaudeCodeLauncherService {
   }
   
   /**
+   * 実行中のモックアップ解析プロセス一覧を取得
+   */
+  public getRunningMockupProcesses(): MockupAnalysisProcess[] {
+    return Array.from(this.mockupProcesses.values())
+      .filter(process => process.status === ClaudeCodeExecutionStatus.RUNNING)
+      .sort((a, b) => a.startTime - b.startTime);
+  }
+  
+  /**
+   * モックアップ解析プロセスの状態を取得
+   */
+  public getMockupProcessInfo(processId: string): MockupAnalysisProcess | undefined {
+    return this.mockupProcesses.get(processId);
+  }
+  
+  /**
+   * ターミナル終了イベントを監視
+   * 新しいターミナルが作成されたときに自動的に監視を開始
+   */
+  private _watchTerminalClose(terminal: vscode.Terminal, processId: string): void {
+    // ターミナルクローズ監視のdisposableを保持する必要はない（VSCodeの寿命内）
+    vscode.window.onDidCloseTerminal(closedTerminal => {
+      if (closedTerminal === terminal) {
+        // プロセス情報を更新
+        const processInfo = this.mockupProcesses.get(processId);
+        if (processInfo) {
+          processInfo.status = ClaudeCodeExecutionStatus.COMPLETED;
+          processInfo.terminal = null;
+          this.mockupProcesses.set(processId, processInfo);
+          
+          Logger.info(`モックアップ解析プロセスのターミナルが閉じられました: ${processId}`);
+          
+          // アクティブなプロセスがなくなった場合、全体の状態も更新
+          const anyRunning = this.getRunningMockupProcesses().length > 0;
+          if (!anyRunning) {
+            this.status = ClaudeCodeExecutionStatus.IDLE;
+          }
+        }
+      }
+    });
+  }
+  
+  /**
    * リソースの解放
    */
   public dispose(): void {
@@ -561,6 +693,17 @@ export class ClaudeCodeLauncherService {
     
     if (this.codeProcess && !this.codeProcess.killed) {
       this.codeProcess.kill();
+    }
+    
+    // すべての実行中プロセスも終了させる
+    for (const processInfo of this.mockupProcesses.values()) {
+      if (processInfo.terminal && processInfo.status === ClaudeCodeExecutionStatus.RUNNING) {
+        try {
+          processInfo.terminal.dispose();
+        } catch (error) {
+          Logger.error(`ターミナル終了中にエラーが発生しました: ${processInfo.id}`, error as Error);
+        }
+      }
     }
   }
 }
