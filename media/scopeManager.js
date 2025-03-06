@@ -65,6 +65,10 @@ const vscode = acquireVsCodeApi();
     // リストをクリア
     scopeList.innerHTML = '';
     
+    // スコープが空の場合の表示と「スコープを作成する」ボタンの表示/非表示
+    const directoryButton = document.getElementById('directory-structure-button');
+    const createScopeButton = document.getElementById('create-scope-button');
+    
     if (scopes.length === 0) {
       scopeList.innerHTML = `
         <div class="scope-tree-item">
@@ -73,8 +77,16 @@ const vscode = acquireVsCodeApi();
           </div>
         </div>
       `;
+      
+      // スコープが空の場合はディレクトリボタンを隠し、スコープ作成ボタンを表示
+      if (directoryButton) directoryButton.style.display = 'none';
+      if (createScopeButton) createScopeButton.style.display = 'block';
       return;
     }
+    
+    // スコープがある場合はディレクトリボタンを表示し、スコープ作成ボタンを隠す
+    if (directoryButton) directoryButton.style.display = 'block';
+    if (createScopeButton) createScopeButton.style.display = 'none';
     
     // スコープごとにリスト項目を生成
     scopes.forEach((scope, index) => {
@@ -204,7 +216,7 @@ const vscode = acquireVsCodeApi();
       } else if (scope.status === 'in-progress') {
         implementButton.textContent = '📝 実装を再開';
       } else {
-        implementButton.textContent = '🚀 ClaudeCodeで実装';
+        implementButton.textContent = '🚀 このスコープの実装を開始する';
       }
       
       // 依存関係の警告メッセージ
@@ -380,6 +392,22 @@ const vscode = acquireVsCodeApi();
         if (editDialog) {
           editDialog.style.display = 'none';
         }
+      });
+    }
+    
+    // スコープ作成ボタン
+    const scopeCreatorButton = document.getElementById('scope-creator-button');
+    if (scopeCreatorButton) {
+      scopeCreatorButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'launchScopeCreator' });
+      });
+    }
+    
+    // サイドバーの「スコープを作成する」ボタン
+    const createScopeButton = document.getElementById('create-scope-button');
+    if (createScopeButton) {
+      createScopeButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'launchScopeCreator' });
       });
     }
     

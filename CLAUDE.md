@@ -198,17 +198,25 @@ reference/                       # 参照情報
    - 各AIプロンプトは対応するドキュメントを参照して機能を提供
    - 進捗状況はCURRENT_STATUS.mdに反映され、ダッシュボードに表示される
 ## 進捗状況
-
-## 進捗状況
 - 完成予定ファイル数: 48
-- 作成済みファイル数: 0
-- 進捗率: 0%
-- 最終更新日: 2025-03-06
+- 作成済みファイル数: 11
+- 進捗率: 23%
+- 最終更新日: 2025-03-07
 
 ## ファイル状況
 
 ### 完了済みファイル
-
+- [x] media/scopeManager.css
+- [x] media/scopeManager.js
+- [x] media/dashboard.css
+- [x] media/dashboard.js
+- [x] src/ui/scopeManager/ScopeManagerPanel.ts
+- [x] src/services/ClaudeCodeLauncherService.ts
+- [x] src/ui/mockupGallery/MockupGalleryPanel.ts
+- [x] src/ui/dashboard/DashboardPanel.ts
+- [x] CLAUDE.md
+- [x] docs/CURRENT_STATUS.md
+- [x] docs/Scope_Manager_Prompt.md
 
 ### 未完了ファイル
 - [ ] AppGenius//.vscode/                      # VSCode設定

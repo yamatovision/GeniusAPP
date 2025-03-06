@@ -125,6 +125,12 @@ export class ScopeManagerPanel {
             case 'addNewScope':
               await this._handleAddNewScope();
               break;
+            case 'launchScopeCreator':
+              await this._handleLaunchScopeCreator();
+              break;
+            case 'launchImplementationAssistant':
+              await this._handleLaunchImplementationAssistant();
+              break;
           }
         } catch (error) {
           Logger.error(`メッセージ処理エラー: ${message.command}`, error as Error);
@@ -507,13 +513,83 @@ export class ScopeManagerPanel {
   }
 
   /**
-   * 実装開始
+   * スコープ作成プロンプトでClaudeCodeを起動
    */
+  private async _handleLaunchScopeCreator(): Promise<void> {
+    try {
+      if (!this._projectPath) {
+        throw new Error('プロジェクトパスが設定されていません');
+      }
+      
+      // スコープマネージャプロンプトのパスを取得
+      const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Manager_Prompt.md');
+      
+      if (!fs.existsSync(promptFilePath)) {
+        throw new Error(`スコープマネージャプロンプトファイルが見つかりません: ${promptFilePath}`);
+      }
+      
+      // ClaudeCodeの起動
+      const launcher = ClaudeCodeLauncherService.getInstance();
+      const success = await launcher.launchClaudeCodeWithPrompt(
+        this._projectPath,
+        promptFilePath,
+        { title: 'ClaudeCode - スコープ作成' }
+      );
+      
+      if (success) {
+        vscode.window.showInformationMessage('スコープ作成のためのClaudeCodeを起動しました。');
+      } else {
+        vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+      }
+    } catch (error) {
+      Logger.error('スコープ作成の起動に失敗しました', error as Error);
+      await this._showError(`スコープ作成の起動に失敗しました: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * 実装アシスタントプロンプトでClaudeCodeを起動
+   */
+  private async _handleLaunchImplementationAssistant(): Promise<void> {
+    try {
+      if (!this._projectPath) {
+        throw new Error('プロジェクトパスが設定されていません');
+      }
+      
+      // 実装アシスタントプロンプトのパスを取得
+      const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Implementation_Assistant_Prompt.md');
+      
+      if (!fs.existsSync(promptFilePath)) {
+        throw new Error(`実装アシスタントプロンプトファイルが見つかりません: ${promptFilePath}`);
+      }
+      
+      // ClaudeCodeの起動
+      const launcher = ClaudeCodeLauncherService.getInstance();
+      const success = await launcher.launchClaudeCodeWithPrompt(
+        this._projectPath,
+        promptFilePath,
+        { title: 'ClaudeCode - 実装アシスタント' }
+      );
+      
+      if (success) {
+        vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました。');
+      } else {
+        vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+      }
+    } catch (error) {
+      Logger.error('実装アシスタントの起動に失敗しました', error as Error);
+      await this._showError(`実装アシスタントの起動に失敗しました: ${(error as Error).message}`);
+    }
+  }
+
   private async _handleStartImplementation(): Promise<void> {
     try {
       if (!this._currentScope) {
         throw new Error('スコープが選択されていません');
       }
+      
+      // 実装アシスタントプロンプトのパスを取得
+      const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Implementation_Assistant_Prompt.md');
       
       // 実装に必要な情報の準備
       const scopeInfo: IImplementationScope = {
@@ -539,9 +615,20 @@ export class ScopeManagerPanel {
         projectPath: this._projectPath
       };
       
-      // ClaudeCodeの起動
+      // ClaudeCodeの起動方法を決定
       const launcher = ClaudeCodeLauncherService.getInstance();
-      const success = await launcher.launchClaudeCode(scopeInfo);
+      let success = false;
+      
+      // 実装アシスタントプロンプトが存在する場合はそれを使用、なければ通常の方法で起動
+      if (fs.existsSync(promptFilePath)) {
+        success = await launcher.launchClaudeCodeWithPrompt(
+          this._projectPath,
+          promptFilePath,
+          { title: 'ClaudeCode - 実装アシスタント' }
+        );
+      } else {
+        success = await launcher.launchClaudeCode(scopeInfo);
+      }
       
       if (success) {
         vscode.window.showInformationMessage('ClaudeCodeを起動しました。実装が開始されます。');
@@ -1299,6 +1386,10 @@ export class ScopeManagerPanel {
             <i class="material-icons" style="margin-right: 4px;">folder</i>
             ディレクトリ構造を表示
           </button>
+          <button id="create-scope-button" class="button button-secondary" style="width: 100%; margin-top: 10px; display: none;">
+            <i class="material-icons" style="margin-right: 4px;">create_new_folder</i>
+            スコープを作成する
+          </button>
         </div>
         
         <!-- 右側：スコープ詳細 -->
@@ -1353,9 +1444,10 @@ export class ScopeManagerPanel {
                 <div class="file-item">ファイルがありません</div>
               </div>
               
+              <!-- ボタンエリア -->
               <button id="implement-button" class="button scope-action-button" style="width: 100%;">
                 <i class="material-icons" style="margin-right: 4px;">code</i>
-                ClaudeCodeで実装
+                このスコープの実装を開始する
               </button>
               <div id="scope-warn-message" style="color: var(--vscode-errorForeground); margin-top: 8px; text-align: center; display: none;">
                 このスコープを実装するには、依存するスコープをすべて完了させる必要があります。

@@ -270,6 +270,85 @@ export class ClaudeCodeLauncherService {
   }
   
   /**
+   * 指定したプロンプトファイルを使用してClaudeCodeを起動
+   * @param projectPath プロジェクトパス
+   * @param promptFilePath プロンプトファイルの絶対パス
+   * @param options 追加オプション
+   */
+  public async launchClaudeCodeWithPrompt(
+    projectPath: string,
+    promptFilePath: string,
+    options?: { title?: string }
+  ): Promise<boolean> {
+    try {
+      // プロジェクトパスの確認
+      if (!fs.existsSync(projectPath)) {
+        throw new Error(`プロジェクトパスが存在しません: ${projectPath}`);
+      }
+      
+      // プロンプトファイルの確認
+      if (!fs.existsSync(promptFilePath)) {
+        throw new Error(`プロンプトファイルが見つかりません: ${promptFilePath}`);
+      }
+      
+      // アイコンURIを取得
+      const platformManager = PlatformManager.getInstance();
+      const iconPath = platformManager.getResourceUri('media/icon.svg');
+      
+      // ターミナルの作成
+      const terminal = vscode.window.createTerminal({
+        name: options?.title || 'ClaudeCode',
+        cwd: projectPath,
+        iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
+      });
+      
+      // ターミナルの表示（true を渡してフォーカスする）
+      terminal.show(true);
+      
+      // 最初にユーザーガイダンスを表示
+      terminal.sendText('echo "\n\n*** AIがプロンプトに従って処理を開始します ***\n"');
+      terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
+      
+      // macOSの場合は環境変数のソースを確保（出力を非表示）
+      if (process.platform === 'darwin') {
+        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
+        terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+      }
+      
+      // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
+      const escapedProjectPath = projectPath.replace(/"/g, '\\"');
+      terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
+      
+      // ファイルパスをエスケープ（スペースを含む場合）
+      const escapedPromptFilePath = promptFilePath.replace(/ /g, '\\ ');
+      
+      // プロンプトファイルを指定してClaude CLIを起動
+      terminal.sendText(`echo "\n" && claude ${escapedPromptFilePath}`);
+      Logger.info(`ClaudeCode起動コマンド: claude ${escapedPromptFilePath}`);
+      
+      // 状態更新
+      this.status = ClaudeCodeExecutionStatus.RUNNING;
+      
+      // イベント発火
+      this.eventBus.emit(
+        AppGeniusEventType.CLAUDE_CODE_STARTED,
+        { 
+          projectPath: projectPath,
+          promptFilePath: promptFilePath
+        },
+        'ClaudeCodeLauncherService'
+      );
+      
+      return true;
+    } catch (error) {
+      Logger.error('プロンプトを使用したClaudeCodeの起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
+      this.status = ClaudeCodeExecutionStatus.FAILED;
+      return false;
+    }
+  }
+
+  /**
    * モックアップ解析用のMDファイルを準備
    */
   private async _prepareAnalysisFile(
