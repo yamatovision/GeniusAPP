@@ -570,23 +570,48 @@ export class MockupGalleryPanel {
         fs.mkdirSync(scopesDir, { recursive: true });
       }
       
-      // ClaudeCodeを起動して分析を依頼（モックアップギャラリーからの起動であることを指定）
-      const success = await this._claudeCodeLauncher.launchClaudeCodeWithMockup(
-        mockupFilePath, 
-        this._projectPath,
-        { source: 'mockupGallery' }
+      // テンプレートパスの構築
+      const templatePath = path.join(this._projectPath, 'docs/mockup_analysis_template.md');
+      
+      // ターミナルの作成
+      const terminal = vscode.window.createTerminal({
+        name: `ClaudeCode - ${mockup.name}の解析`,
+        cwd: this._projectPath // プロジェクトのルートディレクトリで起動
+      });
+      
+      // ターミナルの表示
+      terminal.show(true);
+      
+      // ガイダンスメッセージを表示
+      terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+      terminal.sendText('sleep 1'); // 1秒待機
+      
+      // macOSの場合は環境変数の設定（必要に応じて）
+      if (process.platform === 'darwin') {
+        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "" > /dev/null 2>&1');
+        terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+      }
+      
+      // ファイルパスをエスケープ（スペースを含む場合）
+      const escapedMockupPath = mockupFilePath.replace(/ /g, '\\ ');
+      
+      // テンプレートファイルが存在するか確認して適切なコマンドを実行
+      if (fs.existsSync(templatePath)) {
+        const escapedTemplatePath = templatePath.replace(/ /g, '\\ ');
+        terminal.sendText(`echo "テンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
+        terminal.sendText(`claude ${escapedTemplatePath} --context="${escapedMockupPath}"`);
+      } else {
+        // テンプレートがなければ直接モックアップファイルを渡す
+        terminal.sendText(`echo "モックアップファイルを直接解析します: ${path.basename(mockupFilePath)}"`);
+        terminal.sendText(`claude ${escapedMockupPath}`);
+      }
+      
+      Logger.info(`モックアップ「${mockup.name}」の分析のためターミナルを起動しました`);
+      vscode.window.showInformationMessage(
+        `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
+        `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
       );
       
-      if (success) {
-        vscode.window.showInformationMessage(
-          `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
-          `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
-        );
-        
-        Logger.info(`モックアップ分析のためClaudeCodeを起動しました: ${mockupId}`);
-      } else {
-        throw new Error('ClaudeCodeの起動に失敗しました');
-      }
     } catch (error) {
       Logger.error(`モックアップAI分析エラー: ${(error as Error).message}`);
       this._showError(`モックアップの分析に失敗しました: ${(error as Error).message}`);
