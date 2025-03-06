@@ -100,10 +100,10 @@ export class MockupGalleryPanel {
     this._requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
     this._structurePath = path.join(this._projectPath, 'docs', 'structure.md');
     
-    // ストレージサービスのパス初期化
-    if (projectPath) {
-      this._storage.initializeWithPath(projectPath);
-    }
+    // ストレージサービスを選択中のプロジェクトパスで初期化
+    this._storage.initializeWithPath(this._projectPath);
+    
+    Logger.info(`モックアップギャラリーをプロジェクトパスで初期化: ${this._projectPath}`);
 
     // WebViewの内容を設定
     this._update();
@@ -161,8 +161,8 @@ export class MockupGalleryPanel {
     this._requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
     this._structurePath = path.join(this._projectPath, 'docs', 'structure.md');
     
-    // ストレージサービスのパス初期化
-    this._storage.initializeWithPath(projectPath);
+    // ストレージサービスを選択中のプロジェクトパスだけで初期化
+    this._storage.initializeWithPath(this._projectPath);
     
     // モックアップを再読み込み
     this._handleLoadMockups();
@@ -170,27 +170,55 @@ export class MockupGalleryPanel {
     // ファイル監視を再設定
     this._setupFileWatcher();
     
-    Logger.info(`プロジェクトパスを更新しました: ${projectPath}`);
+    Logger.info(`プロジェクトパスを更新しました: ${this._projectPath}`);
   }
   
   /**
    * デフォルトのプロジェクトパスを取得
    */
   private _getDefaultProjectPath(): string {
-    // 1. VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    
-    if (workspaceFolders && workspaceFolders.length > 0) {
-      const wsPath = workspaceFolders[0].uri.fsPath;
-      Logger.info(`ワークスペースフォルダからプロジェクトパスを取得: ${wsPath}`);
-      return wsPath;
+    try {
+      // AppGeniusStateManagerからアクティブプロジェクトパスの取得を試みる
+      // これは動的importを使用するため非同期が望ましいが、現在の設計では同期的に処理する
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { AppGeniusStateManager } = require('../../services/AppGeniusStateManager');
+        const stateManager = AppGeniusStateManager.getInstance();
+        const activeProjectId = stateManager.getActiveProjectId();
+        
+        if (activeProjectId) {
+          const projectPath = stateManager.getProjectPath(activeProjectId);
+          if (projectPath) {
+            Logger.info(`AppGeniusStateManagerからプロジェクトパスを取得: ${projectPath}`);
+            return projectPath;
+          }
+        }
+      } catch (stateError) {
+        // ステートマネージャーの取得に失敗した場合は警告を出して次の方法へ
+        Logger.debug(`StateManagerからのパス取得失敗: ${(stateError as Error).message}`);
+      }
+      
+      // 1. VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const wsPath = workspaceFolders[0].uri.fsPath;
+        Logger.info(`ワークスペースフォルダからプロジェクトパスを取得: ${wsPath}`);
+        return wsPath;
+      }
+      
+      // 2. 現在のディレクトリを使用
+      const currentPath = process.cwd();
+      Logger.info(`カレントディレクトリからプロジェクトパスを取得: ${currentPath}`);
+      
+      return currentPath;
+    } catch (error) {
+      // エラーが発生した場合は現在のディレクトリをフォールバックとして使用
+      const fallbackPath = process.cwd();
+      Logger.error(`プロジェクトパスの取得中にエラー: ${(error as Error).message}`);
+      Logger.info(`フォールバックパスを使用: ${fallbackPath}`);
+      return fallbackPath;
     }
-    
-    // 2. 現在のディレクトリを使用
-    const currentPath = process.cwd();
-    Logger.info(`カレントディレクトリからプロジェクトパスを取得: ${currentPath}`);
-    
-    return currentPath;
   }
   
   /**

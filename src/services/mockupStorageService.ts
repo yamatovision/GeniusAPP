@@ -30,6 +30,8 @@ export class MockupStorageService {
   private mockups: Map<string, Mockup> = new Map();
   private storageDir: string = '';
   private _initialized: boolean = false;
+  // 最後に初期化されたパスを追跡
+  private _lastInitializedPath: string = '';
   
   /**
    * モックアップを名前で検索
@@ -54,21 +56,24 @@ export class MockupStorageService {
    * コンストラクタ
    */
   private constructor() {
-    // 初期状態ではデフォルトのワークスペースパスを使用
-    this.initializeWithDefaultPath();
+    // 初期化は外部から明示的に行うため、コンストラクタでは初期化しない
+    Logger.debug('MockupStorageService: インスタンス作成 (未初期化)');
   }
-
+  
   /**
-   * デフォルトのワークスペースパスで初期化
+   * 初期化状態を確認
+   * @returns 初期化済みかどうか
    */
-  private initializeWithDefaultPath(): void {
-    // VSCodeのワークスペースパスを取得
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    const rootPath = workspaceFolders && workspaceFolders.length > 0 
-      ? workspaceFolders[0].uri.fsPath 
-      : process.cwd();
-    
-    this.initializeWithPath(rootPath);
+  public isInitialized(): boolean {
+    return this._initialized;
+  }
+  
+  /**
+   * 現在のストレージパスを取得
+   * @returns 初期化されたストレージパス
+   */
+  public getStoragePath(): string {
+    return this.storageDir;
   }
 
   /**
@@ -76,6 +81,12 @@ export class MockupStorageService {
    * @param projectPath プロジェクトのパス
    */
   public initializeWithPath(projectPath: string): void {
+    // 同じパスで初期化済みの場合はスキップ
+    if (this._lastInitializedPath === projectPath) {
+      Logger.debug(`MockupStorageService: 既に同じパスで初期化済み: ${projectPath}`);
+      return;
+    }
+    
     // プロジェクトディレクトリ内の'mockups'ディレクトリを使用
     this.storageDir = path.join(projectPath, 'mockups');
 
@@ -86,6 +97,7 @@ export class MockupStorageService {
     this.loadMockups();
     
     this._initialized = true;
+    this._lastInitializedPath = projectPath;
     Logger.info(`MockupStorageService initialized with path: ${this.storageDir}`);
   }
 

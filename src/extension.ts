@@ -42,6 +42,11 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// AIサービスの初期化
 	const aiService = new AIService();
+	
+	// MockupStorageServiceを早期に初期化（プロジェクトパスはcommandで渡す設計に変更）
+	const { MockupStorageService } = require('./services/mockupStorageService');
+	const mockupStorageService = MockupStorageService.getInstance();
+	
 	context.subscriptions.push({
 		dispose: () => {
 			// クリーンアップが必要な場合は追加
@@ -273,21 +278,13 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		vscode.commands.registerCommand('appgenius-ai.openMockupEditor', (mockupId?: string, projectPath?: string) => {
 			try {
 				Logger.info('モックアップギャラリーを開きます');
-
-					// プロジェクトパスが指定されている場合、mockupStorageServiceを初期化
-					if (projectPath) {
-						const { MockupStorageService } = require('./services/mockupStorageService');
-						const storageService = MockupStorageService.getInstance();
-						storageService.initializeWithPath(projectPath);
-						Logger.info(`モックアップギャラリーをプロジェクトパスで初期化: ${projectPath}`);
-					}
-					
+				
 				if (mockupId) {
 					// 特定のモックアップを開く
-					MockupGalleryPanel.openWithMockup(context.extensionUri, aiService, mockupId);
+					MockupGalleryPanel.openWithMockup(context.extensionUri, aiService, mockupId, projectPath);
 				} else {
 					// 通常のモックアップギャラリーを開く
-					MockupGalleryPanel.createOrShow(context.extensionUri, aiService);
+					MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
 				}
 			} catch (error) {
 				Logger.error(`モックアップギャラリー起動エラー: ${(error as Error).message}`);
