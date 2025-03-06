@@ -195,8 +195,9 @@ export class ClaudeCodeLauncherService {
    * モックアップを解析するためにClaudeCodeを起動
    * @param mockupFilePath モックアップHTMLファイルのパス
    * @param projectPath プロジェクトパス
+   * @param options 追加オプション（ソース情報など）
    */
-  public async launchClaudeCodeWithMockup(mockupFilePath: string, projectPath: string): Promise<boolean> {
+  public async launchClaudeCodeWithMockup(mockupFilePath: string, projectPath: string, options?: { source?: string }): Promise<boolean> {
     try {
       // 前回の状態が残っていれば初期化
       if (this.status === ClaudeCodeExecutionStatus.RUNNING) {
@@ -250,10 +251,15 @@ export class ClaudeCodeLauncherService {
         Logger.info(`モックアップファイルの絶対パス: ${absoluteMockupPath}`);
         Logger.info(`プロジェクトの絶対パス: ${absoluteProjectPath}`);
         
+        // ソース情報をログに記録
+        const source = options?.source || 'unknown';
+        Logger.info(`起動ソース: ${source}`);
+        
         analysisContent = analysisContent
           .replace(/{{MOCKUP_PATH}}/g, absoluteMockupPath)
           .replace(/{{PROJECT_PATH}}/g, absoluteProjectPath)
-          .replace(/{{MOCKUP_NAME}}/g, mockupName);
+          .replace(/{{MOCKUP_NAME}}/g, mockupName)
+          .replace(/{{SOURCE}}/g, source);
       } else {
         // テンプレートが存在しない場合はデフォルトテンプレートを使用
         analysisContent = `# モックアップ解析と要件定義

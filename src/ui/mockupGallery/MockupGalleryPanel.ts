@@ -563,10 +563,11 @@ export class MockupGalleryPanel {
         fs.mkdirSync(scopesDir, { recursive: true });
       }
       
-      // ClaudeCodeを起動して分析を依頼
+      // ClaudeCodeを起動して分析を依頼（モックアップギャラリーからの起動であることを指定）
       const success = await this._claudeCodeLauncher.launchClaudeCodeWithMockup(
         mockupFilePath, 
-        this._projectPath
+        this._projectPath,
+        { source: 'mockupGallery' }
       );
       
       if (success) {

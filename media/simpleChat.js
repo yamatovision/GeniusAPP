@@ -183,7 +183,7 @@
     if (claudecodeRequirementsBtn) {
       claudecodeRequirementsBtn.addEventListener('click', () => {
         // 状態メッセージを更新
-        document.getElementById('status-message').textContent = 'ClaudeCodeを起動しています...';
+        document.getElementById('status-message').textContent = 'AIを起動しています...';
         
         // 拡張機能に要求
         vscode.postMessage({

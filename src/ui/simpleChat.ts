@@ -699,7 +699,7 @@ Phase#3：各ページの詳細モックアップ作成
               <div class="actions">
                 <button id="edit-requirements" class="action-button">編集</button>
                 <button id="save-requirements" class="action-button" disabled>保存</button>
-                <button id="claudecode-requirements" class="claudecode-button">ClaudeCodeで編集・相談</button>
+                <button id="claudecode-requirements" class="claudecode-button">AIと相談・編集</button>
               </div>
             </div>
             <div class="file-preview-content">
@@ -1652,11 +1652,14 @@ project/
       // ClaudeCodeLauncherServiceを使用
       const claudeCodeLauncher = this._claudeCodeLauncherService;
       
-      // ファイルの絶対パスを取得
+      // 要件定義ファイルの絶対パスを取得
       const fullPath = path.isAbsolute(filePath)
         ? filePath
         : path.join(this._projectPath, filePath);
       
+      // 要件定義アドバイザーファイルのパスを取得
+      const adviserPath = path.join(this._projectPath, 'docs/requirementsadvicer.md');
+
       if (!fs.existsSync(fullPath)) {
         this._panel.webview.postMessage({
           command: 'showError',
@@ -1665,31 +1668,42 @@ project/
         return false;
       }
       
+      // アドバイザーファイルの存在確認
+      if (!fs.existsSync(adviserPath)) {
+        Logger.warn(`要件定義アドバイザーファイルが見つかりません: ${adviserPath}`);
+        // 警告は表示するが、処理は続行する
+      } else {
+        Logger.info(`要件定義アドバイザーファイルを使用: ${adviserPath}`);
+      }
+      
       // WebViewに起動中メッセージを表示
       this._panel.webview.postMessage({
         command: 'showMessage',
-        text: `ClaudeCodeを起動しています: ${filePath}`
+        text: `AIを起動しています: ${filePath}`
       });
       
-      // ClaudeCodeLauncherServiceを使用してモックアップ解析モードで起動
-      // これは要件定義ファイルなどのテキストファイルにも適用可能
-      const success = await claudeCodeLauncher.launchClaudeCodeWithMockup(fullPath, this._projectPath);
+      // 要件定義ファイルのみでClaudeCodeを起動
+      const success = await claudeCodeLauncher.launchClaudeCodeWithMockup(
+        fullPath, 
+        this._projectPath,
+        { source: 'requirementsVisualizer' }
+      );
       
       if (success) {
         // 成功メッセージを表示
         this._panel.webview.postMessage({
           command: 'showMessage',
-          text: `ClaudeCodeを起動しました: ${filePath}`
+          text: `AIと相談・編集を開始しました: ${filePath}`
         });
       }
       
       return success;
     } catch (error) {
-      Logger.error(`ClaudeCode起動エラー: ${filePath}`, error as Error);
+      Logger.error(`AI起動エラー: ${filePath}`, error as Error);
       
       this._panel.webview.postMessage({
         command: 'showError',
-        text: `ClaudeCode起動エラー: ${(error as Error).message}`
+        text: `AI起動エラー: ${(error as Error).message}`
       });
       
       return false;
