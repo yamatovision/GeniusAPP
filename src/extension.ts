@@ -13,13 +13,14 @@ import { FileOperationManager } from './utils/fileOperationManager';
 import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
 import { DevelopmentAssistantPanel } from './ui/developmentAssistant/DevelopmentAssistantPanel';
 import { SimpleChatPanel } from './ui/simpleChat';
-import { ImplementationSelectorPanel } from './ui/implementationSelector/ImplementationSelectorPanel';
+// ImplementationSelectorPanel は削除済み（スコープマネージャーに統合）
 import { DashboardPanel } from './ui/dashboard/DashboardPanel';
 import { ClaudeMdEditorPanel } from './ui/claudeMd/ClaudeMdEditorPanel';
 import { ProjectManagementService } from './services/ProjectManagementService';
 import { PlatformManager } from './utils/PlatformManager';
 import { ScopeExporter } from './utils/ScopeExporter';
 import { MessageBroker } from './utils/MessageBroker';
+import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
 
 export function activate(context: vscode.ExtensionContext) {
 	// ロガーの初期化
@@ -84,6 +85,7 @@ export function activate(context: vscode.ExtensionContext) {
 						'要件定義ビジュアライザーを開く',
 						'モックアップギャラリーを開く',
 						'実装スコープ選択を開く',
+						'スコープマネージャーを開く',
 						'開発アシスタントを開く',
 						'リファレンスマネージャーを開く'
 					],
@@ -102,6 +104,8 @@ export function activate(context: vscode.ExtensionContext) {
 					vscode.commands.executeCommand('appgenius-ai.openMockupGallery');
 				} else if (selection === '実装スコープ選択を開く') {
 					vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');
+				} else if (selection === 'スコープマネージャーを開く') {
+					vscode.commands.executeCommand('appgenius-ai.openScopeManager');
 				} else if (selection === '開発アシスタントを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
 				} else if (selection === 'リファレンスマネージャーを開く') {
@@ -193,13 +197,7 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		})
 	);
 
-	// ウェルカムメッセージ表示コマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.showWelcomeMessage', () => {
-			vscode.window.showInformationMessage('AppGenius AI へようこそ！Ctrl+Shift+P を押して "AppGenius AI: コマンドを実行" を選択してください。');
-			Logger.info('ウェルカムメッセージを表示しました');
-		})
-	);
+	// ウェルカムメッセージ表示コマンド - 削除済み
 	
 	// ダッシュボードを開くコマンド
 	context.subscriptions.push(
@@ -322,21 +320,7 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		})
 	);
 	
-	// 実装スコープ選択を開くコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openImplementationSelector', (projectPath?: string) => {
-			try {
-				Logger.info('実装スコープ選択を開きます');
-				if (projectPath) {
-					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
-				}
-				ImplementationSelectorPanel.createOrShow(context.extensionUri, aiService, projectPath);
-			} catch (error) {
-				Logger.error(`実装スコープ選択起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`実装スコープ選択の起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
+	// 実装スコープ選択コマンドは削除済み（スコープマネージャーに統合）
 
 	// ディレクトリ構造取得コマンド
 	context.subscriptions.push(
@@ -380,33 +364,7 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		})
 	);
 
-	// 拡張機能起動時にウェルカムメッセージを表示
-	vscode.window.showInformationMessage(
-		'AppGenius AI が起動しました。Ctrl+Shift+P を押して "AppGenius AI: コマンドを実行" を選択して開始してください。',
-		'AppGenius ダッシュボードを開く',
-		'APIキーを設定',
-		'要件定義ビジュアライザーを開く',
-		'モックアップギャラリーを開く',
-		'実装スコープ選択を開く',
-		'開発アシスタントを開く',
-		'リファレンスマネージャーを開く'
-	).then(selection => {
-		if (selection === 'AppGenius ダッシュボードを開く') {
-			vscode.commands.executeCommand('appgenius-ai.openDashboard');
-		} else if (selection === 'APIキーを設定') {
-			vscode.commands.executeCommand('appgenius-ai.setApiKey');
-		} else if (selection === "要件定義ビジュアライザーを開く") {
-			vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
-		} else if (selection === "モックアップギャラリーを開く") {
-			vscode.commands.executeCommand('appgenius-ai.openMockupEditor');
-		} else if (selection === '実装スコープ選択を開く') {
-			vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');
-		} else if (selection === '開発アシスタントを開く') {
-			vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
-		} else if (selection === 'リファレンスマネージャーを開く') {
-			vscode.commands.executeCommand('appgenius-ai.openReferenceManager');
-		}
-	});
+	// ウェルカムメッセージは削除済み
 	
 	// リファレンスマネージャーを開くコマンド
 	context.subscriptions.push(
@@ -427,6 +385,22 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			} catch (error) {
 				Logger.error('リファレンスマネージャーの起動に失敗しました', error as Error);
 				vscode.window.showErrorMessage(`リファレンスマネージャーの起動に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// スコープマネージャーを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openScopeManager', (projectPath?: string) => {
+			try {
+				Logger.info('スコープマネージャーを開きます');
+				if (projectPath) {
+					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
+				}
+				ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
+			} catch (error) {
+				Logger.error(`スコープマネージャー起動エラー: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`スコープマネージャーの起動に失敗しました: ${(error as Error).message}`);
 			}
 		})
 	);

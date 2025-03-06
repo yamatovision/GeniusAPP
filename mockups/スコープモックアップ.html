@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppGenius - スコープマネージャー</title>
+  <!-- Material UI React -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5.14.5/umd/material-ui.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Material Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <!-- Roboto Font -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f7;
+    }
+    .scope-tree-item {
+      padding: 8px 16px;
+      border-radius: 4px;
+      margin-bottom: 2px;
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    .scope-tree-item.active {
+      background-color: #e3f2fd;
+      font-weight: 500;
+    }
+    .scope-tree-item:hover:not(.active) {
+      background-color: #f0f0f0;
+    }
+    .scope-progress {
+      height: 6px;
+      border-radius: 3px;
+      margin-top: 4px;
+    }
+    .dependency-graph {
+      width: 100%;
+      height: 200px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 16px;
+      overflow: hidden;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 4px 0;
+    }
+    .scope-action-button {
+      margin-top: 16px !important;
+    }
+    .status-chip {
+      margin-left: auto !important;
+    }
+    .progress-section {
+      margin-top: 24px;
+    }
+    .dependency-chip {
+      margin: 4px !important;
+    }
+    .scope-detail-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const {
+      Typography, Box, Paper, Grid, Divider, Button,
+      List, ListItem, ListItemIcon, ListItemText, Chip,
+      LinearProgress, IconButton, Tooltip, Card, CardContent,
+      Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+      FormControl, InputLabel, Select, MenuItem, Checkbox
+    } = MaterialUI;
+
+    const ScopeStatusEnum = {
+      PENDING: 'pending',
+      IN_PROGRESS: 'in-progress',
+      COMPLETED: 'completed',
+      BLOCKED: 'blocked'
+    };
+
+    // モックデータ
+    const MOCK_SCOPES = [
+      {
+        id: 'scope-1',
+        name: '初期セットアップ / 環境構築',
+        description: 'プロジェクトの基盤となる初期設定、共通コンポーネント、環境変数設定、データベース接続',
+        status: ScopeStatusEnum.IN_PROGRESS,
+        progress: 65,
+        priority: 'high',
+        complexity: 'medium',
+        estimatedHours: 8,
+        dependencies: [],
+        files: [
+          { path: 'src/config/db.js', status: 'completed' },
+          { path: 'src/config/env.js', status: 'completed' },
+          { path: 'src/components/common/Button.jsx', status: 'completed' },
+          { path: 'src/components/common/Input.jsx', status: 'in-progress' },
+          { path: 'src/components/layout/Header.jsx', status: 'pending' },
+          { path: 'src/components/layout/Footer.jsx', status: 'pending' },
+          { path: 'src/services/api.js', status: 'completed' },
+          { path: 'src/utils/auth.js', status: 'completed' },
+        ],
+        relatedMockups: ['共通コンポーネント', 'レイアウト']
+      },
+      {
+        id: 'scope-2',
+        name: 'ログインページ',
+        description: 'ユーザー認証のためのログイン機能（フロントエンド・バックエンド）',
+        status: ScopeStatusEnum.PENDING,
+        progress: 0,
+        priority: 'high',
+        complexity: 'low',
+        estimatedHours: 4,
+        dependencies: ['scope-1'],
+        files: [
+          { path: 'src/pages/Login.jsx', status: 'pending' },
+          { path: 'src/services/authService.js', status: 'pending' },
+          { path: 'src/controllers/authController.js', status: 'pending' },
+          { path: 'src/models/User.js', status: 'pending' },
+          { path: 'src/routes/auth.js', status: 'pending' }
+        ],
+        relatedMockups: ['ログインページ']
+      },
+      {
+        id: 'scope-3',
+        name: 'LP管理ページ',
+        description: 'ランディングページの一覧表示と管理機能',
+        status: ScopeStatusEnum.BLOCKED,
+        progress: 0,
+        priority: 'medium',
+        complexity: 'medium',
+        estimatedHours: 6,
+        dependencies: ['scope-1', 'scope-2'],
+        files: [
+          { path: 'src/pages/LPManagement.jsx', status: 'pending' },
+          { path: 'src/components/lp/LPList.jsx', status: 'pending' },
+          { path: 'src/components/lp/LPCard.jsx', status: 'pending' },
+          { path: 'src/services/lpService.js', status: 'pending' },
+          { path: 'src/controllers/lpController.js', status: 'pending' },
+          { path: 'src/models/LandingPage.js', status: 'pending' },
+          { path: 'src/routes/landingPages.js', status: 'pending' }
+        ],
+        relatedMockups: ['LP管理ページ']
+      },
+      {
+        id: 'scope-4',
+        name: 'LP作成ページ',
+        description: 'ランディングページを新規作成するための編集画面',
+        status: ScopeStatusEnum.BLOCKED,
+        progress: 0,
+        priority: 'medium',
+        complexity: 'high',
+        estimatedHours: 10,
+        dependencies: ['scope-1', 'scope-2', 'scope-3'],
+        files: [
+          { path: 'src/pages/LPEditor.jsx', status: 'pending' },
+          { path: 'src/components/lp/editor/Toolbar.jsx', status: 'pending' },
+          { path: 'src/components/lp/editor/SectionEditor.jsx', status: 'pending' },
+          { path: 'src/components/lp/editor/Preview.jsx', status: 'pending' },
+          { path: 'src/services/lpEditorService.js', status: 'pending' },
+          { path: 'src/controllers/lpEditorController.js', status: 'pending' },
+          { path: 'src/utils/lpTemplates.js', status: 'pending' }
+        ],
+        relatedMockups: ['LP作成ページ']
+      },
+      {
+        id: 'scope-5',
+        name: '会員管理ページ',
+        description: 'ユーザー一覧表示と管理機能',
+        status: ScopeStatusEnum.BLOCKED,
+        progress: 0,
+        priority: 'low',
+        complexity: 'medium',
+        estimatedHours: 5,
+        dependencies: ['scope-1', 'scope-2'],
+        files: [
+          { path: 'src/pages/UserManagement.jsx', status: 'pending' },
+          { path: 'src/components/user/UserList.jsx', status: 'pending' },
+          { path: 'src/components/user/UserDetails.jsx', status: 'pending' },
+          { path: 'src/services/userService.js', status: 'pending' },
+          { path: 'src/controllers/userController.js', status: 'pending' },
+          { path: 'src/routes/users.js', status: 'pending' }
+        ],
+        relatedMockups: ['会員管理ページ']
+      }
+    ];
+
+    function ScopeManager() {
+      const [scopes, setScopes] = React.useState(MOCK_SCOPES);
+      const [selectedScope, setSelectedScope] = React.useState(MOCK_SCOPES[0]);
+      const [showDependencyGraph, setShowDependencyGraph] = React.useState(false);
+      const [editDialogOpen, setEditDialogOpen] = React.useState(false);
+      const [implementDialogOpen, setImplementDialogOpen] = React.useState(false);
+
+      // スコープの選択
+      const handleScopeSelect = (scope) => {
+        setSelectedScope(scope);
+      };
+
+      // 依存関係グラフの表示切替
+      const toggleDependencyGraph = () => {
+        setShowDependencyGraph(!showDependencyGraph);
+      };
+
+      // 編集ダイアログの開閉
+      const handleEditDialogOpen = () => {
+        setEditDialogOpen(true);
+      };
+
+      const handleEditDialogClose = () => {
+        setEditDialogOpen(false);
+      };
+
+      // 実装ダイアログの開閉
+      const handleImplementDialogOpen = () => {
+        setImplementDialogOpen(true);
+      };
+
+      const handleImplementDialogClose = () => {
+        setImplementDialogOpen(false);
+      };
+
+      // 実装ステータスに応じたチップのスタイル
+      const getStatusChip = (status) => {
+        switch(status) {
+          case ScopeStatusEnum.COMPLETED:
+            return <Chip className="status-chip" label="完了" color="success" size="small" />;
+          case ScopeStatusEnum.IN_PROGRESS:
+            return <Chip className="status-chip" label="進行中" color="primary" size="small" />;
+          case ScopeStatusEnum.BLOCKED:
+            return <Chip className="status-chip" label="ブロック中" color="error" size="small" />;
+          default:
+            return <Chip className="status-chip" label="未着手" color="default" size="small" />;
+        }
+      };
+
+      // ファイルステータスに応じたスタイル
+      const getFileIcon = (status) => {
+        switch(status) {
+          case 'completed':
+            return <i className="material-icons" style={{ color: 'green', fontSize: '16px' }}>check_circle</i>;
+          case 'in-progress':
+            return <i className="material-icons" style={{ color: 'blue', fontSize: '16px' }}>pending</i>;
+          default:
+            return <i className="material-icons" style={{ color: 'gray', fontSize: '16px' }}>radio_button_unchecked</i>;
+        }
+      };
+
+      // 優先度を日本語で表示
+      const getPriorityText = (priority) => {
+        switch(priority) {
+          case 'high': return '高';
+          case 'medium': return '中';
+          case 'low': return '低';
+          default: return '未設定';
+        }
+      };
+
+      // 複雑度を日本語で表示
+      const getComplexityText = (complexity) => {
+        switch(complexity) {
+          case 'high': return '高';
+          case 'medium': return '中';
+          case 'low': return '低';
+          default: return '未設定';
+        }
+      };
+
+      // 依存スコープの情報を取得
+      const getDependencyScopes = (dependencies) => {
+        return scopes.filter(scope => dependencies.includes(scope.id));
+      };
+
+      // 依存スコープが完了しているかチェック
+      const areDependenciesCompleted = (dependencies) => {
+        if (dependencies.length === 0) return true;
+        
+        const dependencyScopes = getDependencyScopes(dependencies);
+        return dependencyScopes.every(scope => scope.status === ScopeStatusEnum.COMPLETED);
+      };
+
+      return (
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h4" gutterBottom>スコープマネージャー</Typography>
+          <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+            プロジェクトの実装単位を管理し、ClaudeCodeに実装を依頼します
+          </Typography>
+          
+          <Grid container spacing={3} sx={{ mt: 1 }}>
+            {/* 左側：スコープリスト */}
+            <Grid item xs={12} md={4}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" gutterBottom>実装スコープ</Typography>
+                <Divider sx={{ mb: 2 }} />
+                
+                <List sx={{ p: 0 }}>
+                  {scopes.map((scope) => (
+                    <Paper 
+                      key={scope.id} 
+                      elevation={0}
+                      className={`scope-tree-item ${selectedScope.id === scope.id ? 'active' : ''}`}
+                      onClick={() => handleScopeSelect(scope)}
+                    >
+                      <Box sx={{ flexGrow: 1 }}>
+                        <Typography variant="body1">{scope.name}</Typography>
+                        <LinearProgress 
+                          className="scope-progress"
+                          variant="determinate" 
+                          value={scope.progress} 
+                          color={
+                            scope.status === ScopeStatusEnum.BLOCKED ? "error" :
+                            scope.status === ScopeStatusEnum.COMPLETED ? "success" :
+                            scope.status === ScopeStatusEnum.IN_PROGRESS ? "primary" : "secondary"
+                          }
+                        />
+                      </Box>
+                      {getStatusChip(scope.status)}
+                    </Paper>
+                  ))}
+                </List>
+                
+                <Button
+                  variant="outlined"
+                  startIcon={<i className="material-icons">add</i>}
+                  fullWidth
+                  sx={{ mt: 2 }}
+                >
+                  新規スコープ追加
+                </Button>
+              </Paper>
+
+              <Paper sx={{ p: 2, mt: 3 }}>
+                <Typography variant="h6" gutterBottom>ディレクトリ構造</Typography>
+                <Divider sx={{ mb: 2 }} />
+                
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  プロジェクト全体のディレクトリ構造を表示します
+                </Typography>
+                
+                <Button
+                  variant="outlined"
+                  startIcon={<i className="material-icons">folder</i>}
+                  fullWidth
+                >
+                  ディレクトリ構造を表示
+                </Button>
+              </Paper>
+            </Grid>
+            
+            {/* 右側：スコープ詳細 */}
+            <Grid item xs={12} md={8}>
+              <Paper sx={{ p: 3 }}>
+                <div className="scope-detail-header">
+                  <Typography variant="h5">{selectedScope.name}</Typography>
+                  <Box>
+                    <Tooltip title="スコープを編集">
+                      <IconButton 
+                        color="primary"
+                        onClick={handleEditDialogOpen}
+                      >
+                        <i className="material-icons">edit</i>
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="依存関係を表示">
+                      <IconButton 
+                        color="primary"
+                        onClick={toggleDependencyGraph}
+                      >
+                        <i className="material-icons">share</i>
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                </div>
+                
+                <Typography variant="body1" paragraph>
+                  {selectedScope.description}
+                </Typography>
+                
+                <Grid container spacing={2} sx={{ mb: 3 }}>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">優先度</Typography>
+                    <Typography variant="body1">{getPriorityText(selectedScope.priority)}</Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">複雑度</Typography>
+                    <Typography variant="body1">{getComplexityText(selectedScope.complexity)}</Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">見積時間</Typography>
+                    <Typography variant="body1">{selectedScope.estimatedHours}時間</Typography>
+                  </Grid>
+                  <Grid item xs={6} sm={3}>
+                    <Typography variant="body2" color="text.secondary">進捗</Typography>
+                    <Typography variant="body1">{selectedScope.progress}%</Typography>
+                  </Grid>
+                </Grid>
+                
+                {/* 依存関係 */}
+                <Typography variant="h6" gutterBottom>依存関係</Typography>
+                <Box sx={{ mb: 3 }}>
+                  {selectedScope.dependencies.length === 0 ? (
+                    <Typography variant="body2" color="text.secondary">依存関係はありません</Typography>
+                  ) : (
+                    <>
+                      <Typography variant="body2" color="text.secondary" gutterBottom>
+                        このスコープは以下のスコープに依存しています：
+                      </Typography>
+                      <Box>
+                        {getDependencyScopes(selectedScope.dependencies).map(scope => (
+                          <Chip
+                            key={scope.id}
+                            className="dependency-chip"
+                            label={scope.name}
+                            variant="outlined"
+                            color={scope.status === ScopeStatusEnum.COMPLETED ? "success" : "default"}
+                            onClick={() => handleScopeSelect(scope)}
+                            icon={
+                              scope.status === ScopeStatusEnum.COMPLETED 
+                                ? <i className="material-icons" style={{ fontSize: '16px' }}>check</i>
+                                : <i className="material-icons" style={{ fontSize: '16px' }}>schedule</i>
+                            }
+                          />
+                        ))}
+                      </Box>
+                    </>
+                  )}
+                </Box>
+                
+                {/* 依存関係グラフ */}
+                {showDependencyGraph && (
+                  <div className="dependency-graph">
+                    <img src="data:image/png;base64,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" style={{ maxWidth: '90%', maxHeight: '180px' }} />
+                  </div>
+                )}
+                
+                {/* 実装対象ファイル */}
+                <Typography variant="h6" sx={{ mt: 3 }} gutterBottom>実装対象ファイル</Typography>
+                <Paper sx={{ p: 2, maxHeight: '250px', overflow: 'auto' }}>
+                  {selectedScope.files.map((file, index) => (
+                    <div key={index} className="file-item">
+                      {getFileIcon(file.status)}
+                      <Typography variant="body2" sx={{ ml: 1 }}>{file.path}</Typography>
+                    </div>
+                  ))}
+                </Paper>
+                
+                {/* 関連モックアップ */}
+                <Typography variant="h6" sx={{ mt: 3 }} gutterBottom>関連モックアップ</Typography>
+                <Box sx={{ mb: 2 }}>
+                  {selectedScope.relatedMockups.map((mockup, index) => (
+                    <Chip 
+                      key={index}
+                      className="dependency-chip"
+                      label={mockup}
+                      variant="outlined"
+                      color="primary"
+                      icon={<i className="material-icons" style={{ fontSize: '16px' }}>image</i>}
+                    />
+                  ))}
+                </Box>
+                
+                {/* 実装ボタン */}
+                <Button
+                  className="scope-action-button"
+                  variant="contained"
+                  size="large"
+                  fullWidth
+                  startIcon={<i className="material-icons">code</i>}
+                  color="primary"
+                  disabled={
+                    selectedScope.status === ScopeStatusEnum.COMPLETED || 
+                    (selectedScope.dependencies.length > 0 && !areDependenciesCompleted(selectedScope.dependencies))
+                  }
+                  onClick={handleImplementDialogOpen}
+                >
+                  ClaudeCodeで実装
+                </Button>
+                {selectedScope.dependencies.length > 0 && !areDependenciesCompleted(selectedScope.dependencies) && (
+                  <Typography variant="caption" color="error" sx={{ display: 'block', textAlign: 'center', mt: 1 }}>
+                    このスコープを実装するには、依存するスコープをすべて完了させる必要があります。
+                  </Typography>
+                )}
+              </Paper>
+            </Grid>
+          </Grid>
+          
+          {/* スコープ編集ダイアログ */}
+          <Dialog
+            open={editDialogOpen}
+            onClose={handleEditDialogClose}
+            maxWidth="md"
+            fullWidth
+          >
+            <DialogTitle>スコープを編集</DialogTitle>
+            <DialogContent dividers>
+              <TextField
+                label="スコープ名"
+                fullWidth
+                defaultValue={selectedScope.name}
+                margin="normal"
+              />
+              <TextField
+                label="説明"
+                fullWidth
+                multiline
+                rows={3}
+                defaultValue={selectedScope.description}
+                margin="normal"
+              />
+              <Grid container spacing={2} sx={{ mt: 1 }}>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth margin="normal">
+                    <InputLabel>優先度</InputLabel>
+                    <Select
+                      defaultValue={selectedScope.priority}
+                    >
+                      <MenuItem value="high">高</MenuItem>
+                      <MenuItem value="medium">中</MenuItem>
+                      <MenuItem value="low">低</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <FormControl fullWidth margin="normal">
+                    <InputLabel>複雑度</InputLabel>
+                    <Select
+                      defaultValue={selectedScope.complexity}
+                    >
+                      <MenuItem value="high">高</MenuItem>
+                      <MenuItem value="medium">中</MenuItem>
+                      <MenuItem value="low">低</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+              </Grid>
+              
+              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>依存するスコープ</Typography>
+              <Box sx={{ maxHeight: '150px', overflow: 'auto', borderBottom: '1px solid #e0e0e0', pb: 2 }}>
+                {scopes.filter(scope => scope.id !== selectedScope.id).map((scope) => (
+                  <div key={scope.id} style={{ display: 'flex', alignItems: 'center', padding: '4px 0' }}>
+                    <Checkbox
+                      checked={selectedScope.dependencies.includes(scope.id)}
+                    />
+                    <Typography variant="body2">{scope.name}</Typography>
+                    {getStatusChip(scope.status)}
+                  </div>
+                ))}
+              </Box>
+              
+              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>実装対象ファイル</Typography>
+              <TextField
+                fullWidth
+                multiline
+                rows={6}
+                placeholder="1行に1つのファイルパスを入力してください"
+                defaultValue={selectedScope.files.map(file => file.path).join('\n')}
+                margin="normal"
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleEditDialogClose}>キャンセル</Button>
+              <Button variant="contained" color="primary" onClick={handleEditDialogClose}>
+                保存
+              </Button>
+            </DialogActions>
+          </Dialog>
+          
+          {/* ClaudeCodeで実装ダイアログ */}
+          <Dialog
+            open={implementDialogOpen}
+            onClose={handleImplementDialogClose}
+            maxWidth="sm"
+            fullWidth
+          >
+            <DialogTitle>ClaudeCodeで実装</DialogTitle>
+            <DialogContent dividers>
+              <Typography variant="body1" paragraph>
+                スコープ「{selectedScope.name}」をClaudeCodeによって実装します。
+              </Typography>
+              
+              <Typography variant="body2" color="text.secondary" paragraph>
+                実装には約{selectedScope.estimatedHours}時間かかる見込みです。
+                ClaudeCodeは以下のファイルを実装します：
+              </Typography>
+              
+              <Paper sx={{ p: 2, maxHeight: '200px', overflow: 'auto', mb: 2 }}>
+                {selectedScope.files.map((file, index) => (
+                  <Typography key={index} variant="body2" sx={{ py: 0.5 }}>
+                    {file.path}
+                  </Typography>
+                ))}
+              </Paper>
+              
+              <Typography variant="body2" color="text.secondary">
+                実装が開始されると、ターミナルが起動し、実装の進捗状況がリアルタイムで表示されます。
+              </Typography>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleImplementDialogClose}>キャンセル</Button>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<i className="material-icons">play_arrow</i>}
+                onClick={handleImplementDialogClose}
+              >
+                実装開始
+              </Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      );
+    }
+
+    ReactDOM.render(
+      <ScopeManager />,
+      document.getElementById('root')
+    );
+  </script>
+</body>
+</html>

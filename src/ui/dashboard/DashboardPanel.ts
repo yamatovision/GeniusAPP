@@ -125,8 +125,9 @@ export class DashboardPanel {
           case 'openMockupEditor':
             await this._handleOpenMockupEditor();
             break;
-          case 'openImplementationSelector':
-            await this._handleOpenImplementationSelector();
+          case 'openImplementationSelector': // 古いコマンドも互換性のために残す
+          case 'openScopeManager':
+            await this._handleOpenScopeManager();
             break;
           case 'openDevelopmentAssistant':
             await this._handleOpenDevelopmentAssistant();
@@ -566,9 +567,9 @@ export class DashboardPanel {
   }
 
   /**
-   * 実装スコープ選択を開く
+   * スコープマネージャーを開く
    */
-  private async _handleOpenImplementationSelector(): Promise<void> {
+  private async _handleOpenScopeManager(): Promise<void> {
     try {
       // アクティブなプロジェクトがあるか確認
       if (!this._activeProject) {
@@ -582,13 +583,13 @@ export class DashboardPanel {
         throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
       }
       
-      Logger.info(`実装スコープ選択を開きます。プロジェクトパス: ${projectPath}`);
+      Logger.info(`スコープマネージャーを開きます。プロジェクトパス: ${projectPath}`);
 
-      // 実装スコープ選択を開く（プロジェクトパスを引数として渡す）
-      vscode.commands.executeCommand('appgenius-ai.openImplementationSelector', projectPath);
+      // スコープマネージャーを開く（プロジェクトパスを引数として渡す）
+      vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
     } catch (error) {
-      Logger.error(`実装スコープ選択起動エラー`, error as Error);
-      await this._showError(`実装スコープ選択の起動に失敗しました: ${(error as Error).message}`);
+      Logger.error(`スコープマネージャー起動エラー`, error as Error);
+      await this._showError(`スコープマネージャーの起動に失敗しました: ${(error as Error).message}`);
     }
   }
 

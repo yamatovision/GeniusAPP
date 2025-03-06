@@ -487,11 +487,11 @@
             <div class="step-action">開く</div>
           </a>
 
-          <a href="#" class="process-step ${phases.implementation ? 'completed' : (hasMockupFiles ? 'active' : '')} ${!hasMockupFiles ? 'disabled' : ''}" id="scope-step" data-command="openImplementationSelector">
+          <a href="#" class="process-step ${phases.implementation ? 'completed' : (hasMockupFiles ? 'active' : '')} ${!hasMockupFiles ? 'disabled' : ''}" id="scope-step" data-command="openScopeManager">
             <div class="step-number">3</div>
             <div class="step-icon">📋</div>
             <div class="step-content">
-              <div class="step-title">スコープ設定</div>
+              <div class="step-title">スコープマネージャー</div>
               <div class="step-instruction">実装する機能の優先順位と範囲を設定します</div>
             </div>
             ${phases.implementation && (details.implementationProgress || 0) >= 100 ? '<div class="step-check">✓</div>' : ''}
