@@ -1126,7 +1126,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // 設定からモデルとトークン数を取得
       const config = vscode.workspace.getConfiguration('appgeniusAI');
       const model = config.get<string>('model', 'claude-3-7-sonnet-20250219');
-      const maxTokens = config.get<number>('maxTokens', 32000); // デフォルト値を増やす
+      const maxTokens = config.get<number>('maxTokens', 10000); // モックアップ作成に適したサイズに調整
       
       Logger.debug(`Using AI model: ${model}`);
       

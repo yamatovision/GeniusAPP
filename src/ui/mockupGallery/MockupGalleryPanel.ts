@@ -27,6 +27,7 @@ export class MockupGalleryPanel {
   private _projectPath: string;
   private _requirementsPath: string;
   private _structurePath: string;
+  private _fileWatcher?: vscode.FileSystemWatcher; // モックアップファイル監視用
 
   // ClaudeCodeランチャーをインポート
   private _claudeCodeLauncher: any; // 型定義がない場合は any として扱う
@@ -106,6 +107,9 @@ export class MockupGalleryPanel {
 
     // WebViewの内容を設定
     this._update();
+    
+    // モックアップファイルの監視を設定
+    this._setupFileWatcher();
 
     // パネルが破棄されたときのクリーンアップ
     this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
@@ -162,6 +166,9 @@ export class MockupGalleryPanel {
     
     // モックアップを再読み込み
     this._handleLoadMockups();
+    
+    // ファイル監視を再設定
+    this._setupFileWatcher();
     
     Logger.info(`プロジェクトパスを更新しました: ${projectPath}`);
   }
@@ -801,10 +808,144 @@ export class MockupGalleryPanel {
   }
 
   /**
+   * モックアップファイルの監視を設定
+   */
+  private _setupFileWatcher(): void {
+    try {
+      // 既存のウォッチャーがあれば破棄
+      if (this._fileWatcher) {
+        this._fileWatcher.dispose();
+      }
+      
+      // プロジェクトパスが設定されていない場合は何もしない
+      if (!this._projectPath) {
+        Logger.warn('プロジェクトパスが設定されていないため、ファイル監視をスキップします');
+        return;
+      }
+      
+      // モックアップディレクトリのパス
+      const mockupsDir = path.join(this._projectPath, 'mockups');
+      
+      // ディレクトリが存在しない場合は作成
+      if (!fs.existsSync(mockupsDir)) {
+        fs.mkdirSync(mockupsDir, { recursive: true });
+        Logger.info(`モックアップディレクトリを作成しました: ${mockupsDir}`);
+      }
+      
+      // HTMLファイルのパターン
+      const htmlGlob = new vscode.RelativePattern(
+        mockupsDir,
+        '*.html'
+      );
+      
+      // ファイルウォッチャーを作成（作成、変更、削除を監視）
+      this._fileWatcher = vscode.workspace.createFileSystemWatcher(htmlGlob);
+      
+      // ファイル作成イベントをリッスン
+      this._fileWatcher.onDidCreate(async (uri) => {
+        try {
+          // 高いログレベルをdebugに変更してターミナル出力を抑制
+          Logger.debug(`新しいモックアップファイルを検出しました: ${uri.fsPath}`);
+          
+          // ストレージを更新してリロード
+          await this._storage.reloadMockups();
+          
+          // UI更新
+          await this._handleLoadMockups();
+          
+          // 通知
+          this._panel.webview.postMessage({
+            command: 'showNotification',
+            text: `新しいモックアップが追加されました: ${path.basename(uri.fsPath)}`
+          });
+          
+          Logger.debug('モックアップ一覧を更新しました');
+        } catch (error) {
+          Logger.error(`モックアップファイル作成の監視中にエラーが発生: ${(error as Error).message}`);
+        }
+      });
+      
+      // ファイル変更イベントをリッスン
+      this._fileWatcher.onDidChange(async (uri) => {
+        try {
+          // ログレベルをdebugに変更してターミナル出力を抑制
+          Logger.debug(`モックアップファイルの変更を検出しました: ${uri.fsPath}`);
+          
+          // ストレージを更新してリロード
+          await this._storage.reloadMockups();
+          
+          // UI更新
+          await this._handleLoadMockups();
+          
+          // ファイル名からモックアップIDを特定
+          const fileName = path.basename(uri.fsPath);
+          const mockupName = fileName.replace(/\.html$/, '');
+          const mockup = this._storage.getMockupByName(mockupName);
+          
+          if (mockup) {
+            // 現在選択中のモックアップを再選択（プレビュー更新）
+            this._panel.webview.postMessage({
+              command: 'selectMockup',
+              mockupId: mockup.id
+            });
+            
+            // 通知
+            this._panel.webview.postMessage({
+              command: 'showNotification',
+              text: `モックアップが更新されました: ${mockupName}`
+            });
+          }
+          
+          Logger.debug('モックアップ一覧とプレビューを更新しました');
+        } catch (error) {
+          Logger.error(`モックアップファイル更新の監視中にエラーが発生: ${(error as Error).message}`);
+        }
+      });
+      
+      // ファイル削除イベントをリッスン
+      this._fileWatcher.onDidDelete(async (uri) => {
+        try {
+          // ログレベルをdebugに変更してターミナル出力を抑制
+          Logger.debug(`モックアップファイルの削除を検出しました: ${uri.fsPath}`);
+          
+          // ストレージを更新してリロード
+          await this._storage.reloadMockups();
+          
+          // UI更新
+          await this._handleLoadMockups();
+          
+          // 通知
+          this._panel.webview.postMessage({
+            command: 'showNotification',
+            text: `モックアップが削除されました: ${path.basename(uri.fsPath)}`
+          });
+          
+          Logger.debug('モックアップ一覧を更新しました');
+        } catch (error) {
+          Logger.error(`モックアップファイル削除の監視中にエラーが発生: ${(error as Error).message}`);
+        }
+      });
+      
+      // ウォッチャーを破棄リストに追加
+      this._disposables.push(this._fileWatcher);
+      
+      Logger.info('モックアップファイルの監視を開始しました');
+    } catch (error) {
+      Logger.error(`モックアップファイル監視の設定に失敗: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * リソースの解放
    */
   public dispose(): void {
     MockupGalleryPanel.currentPanel = undefined;
+
+    // ファイルウォッチャーを解放（すでに_disposablesに追加されている場合もあるが念のため）
+    if (this._fileWatcher) {
+      this._fileWatcher.dispose();
+      this._fileWatcher = undefined;
+    }
 
     this._panel.dispose();
 
@@ -814,5 +955,7 @@ export class MockupGalleryPanel {
         disposable.dispose();
       }
     }
+    
+    Logger.info('モックアップギャラリーパネルを破棄しました');
   }
 }

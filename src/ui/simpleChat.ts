@@ -26,6 +26,7 @@ export class SimpleChatPanel implements vscode.Disposable {
   private _extractedCodeBlocks: Array<{id: number, language: string, code: string}> = [];
   private _chatHistory: Array<{role: 'user' | 'ai', content: string}> = [];
   private _projectPath?: string; // プロジェクトのパス
+  private _fileWatcher?: vscode.FileSystemWatcher; // ファイル監視用
   
   /**
    * シンプルチャットパネルを作成または表示する
@@ -526,34 +527,6 @@ Phase#3：各ページの詳細モックアップ作成
       
       // HTMLファイルを保存
       fs.writeFileSync(htmlFilePath, htmlCode);
-      
-      // メタデータファイルのパス
-      const metadataFilePath = path.join(mockupsDir, 'metadata.json');
-      
-      // 既存のメタデータを読み込むか、新しいメタデータを作成
-      let metadata: any[] = [];
-      if (fs.existsSync(metadataFilePath)) {
-        try {
-          const metadataContent = fs.readFileSync(metadataFilePath, 'utf8');
-          metadata = JSON.parse(metadataContent);
-        } catch (error) {
-          Logger.warn(`メタデータファイルの読み込みに失敗しました: ${(error as Error).message}`);
-        }
-      }
-      
-      // 新しいモックアップのメタデータを追加
-      metadata.push({
-        id: `mockup_${Date.now()}`,
-        name: mockupName,
-        filePath: htmlFilePath,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        sourceType: 'requirements',
-        description: '要件定義ビジュアライザーから生成'
-      });
-      
-      // メタデータを保存
-      fs.writeFileSync(metadataFilePath, JSON.stringify(metadata, null, 2));
       
       // 成功メッセージを表示
       vscode.window.showInformationMessage(`モックアップとして保存しました: ${mockupName}`);
@@ -1455,6 +1428,9 @@ ${projectName}/
         Logger.warn(`フェーズ更新処理でエラーが発生しました: ${(e as Error).message}`);
       }
 
+      // ファイル監視を設定
+      this._setupFileWatcher();
+
       // WebViewに初期データ送信
       this._panel.webview.postMessage({
         command: 'initialData',
@@ -1477,6 +1453,60 @@ ${projectName}/
         command: 'showError',
         text: `ファイル読み込みエラー: ${(error as Error).message}`
       });
+    }
+  }
+  
+  /**
+   * 要件定義ファイルの監視を設定
+   */
+  private _setupFileWatcher(): void {
+    try {
+      // 既存のウォッチャーがあれば破棄
+      if (this._fileWatcher) {
+        this._fileWatcher.dispose();
+      }
+      
+      // プロジェクトパスが設定されていない場合は何もしない
+      if (!this._projectPath) {
+        Logger.warn('プロジェクトパスが設定されていないため、ファイル監視をスキップします');
+        return;
+      }
+      
+      // 要件定義ファイルのパターン
+      const requirementsGlob = new vscode.RelativePattern(
+        this._projectPath,
+        'docs/requirements.md'
+      );
+      
+      // ファイルウォッチャーを作成
+      this._fileWatcher = vscode.workspace.createFileSystemWatcher(requirementsGlob);
+      
+      // ファイル変更イベントをリッスン
+      this._fileWatcher.onDidChange(async (uri) => {
+        try {
+          Logger.info(`要件定義ファイルの変更を検出しました: ${uri.fsPath}`);
+          
+          // ファイル内容を読み込む
+          const content = fs.readFileSync(uri.fsPath, 'utf8');
+          
+          // WebViewに更新通知
+          this._panel.webview.postMessage({
+            command: 'updateRequirementsContent',
+            content: content
+          });
+          
+          Logger.info('要件定義タブの内容を更新しました');
+        } catch (error) {
+          Logger.error(`要件定義ファイル更新の監視中にエラーが発生: ${(error as Error).message}`);
+        }
+      });
+      
+      // ウォッチャーを破棄リストに追加
+      this._disposables.push(this._fileWatcher);
+      
+      Logger.info('要件定義ファイルの監視を開始しました');
+    } catch (error) {
+      Logger.error(`ファイル監視の設定に失敗: ${(error as Error).message}`);
     }
   }
   
@@ -1715,6 +1745,12 @@ project/
    */
   public dispose(): void {
     SimpleChatPanel.currentPanel = undefined;
+    
+    // ファイルウォッチャーを解放（すでに_disposablesに追加されている場合もあるが念のため）
+    if (this._fileWatcher) {
+      this._fileWatcher.dispose();
+      this._fileWatcher = undefined;
+    }
     
     this._panel.dispose();
     

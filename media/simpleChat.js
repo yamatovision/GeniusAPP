@@ -941,6 +941,40 @@
         document.getElementById('status-message').textContent = '初期データを読み込みました';
         break;
 
+      case 'updateRequirementsContent':
+        // 要件定義ファイルの内容だけを更新（外部でファイルが変更された場合）
+        if (message.content) {
+          // 要件定義エディタに内容をセット
+          requirementsContent = message.content;
+          const requirementsEditor = document.getElementById('requirements-editor');
+          const requirementsPreview = document.getElementById('requirements-preview');
+          
+          if (requirementsEditor) {
+            requirementsEditor.value = message.content;
+          }
+          
+          if (requirementsPreview) {
+            requirementsPreview.innerHTML = formatMarkdown(message.content);
+          }
+          
+          // ステータス表示を更新
+          document.getElementById('status-message').textContent = '要件定義ファイルが更新されました';
+          
+          // 小さな通知を表示
+          const notification = document.createElement('div');
+          notification.className = 'save-notification';
+          notification.textContent = '要件定義ファイルが更新されました';
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            notification.classList.add('fadeout');
+            setTimeout(() => {
+              notification.remove();
+            }, 500);
+          }, 2000);
+        }
+        break;
+        
       case 'fileSaved':
         document.getElementById('status-message').textContent = message.message;
         

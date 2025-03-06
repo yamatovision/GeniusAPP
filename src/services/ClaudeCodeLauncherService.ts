@@ -116,8 +116,8 @@ export class ClaudeCodeLauncherService {
         iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
       });
       
-      // ターミナルの表示
-      terminal.show();
+      // ターミナルの表示（true を渡してフォーカスする）
+      terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
       terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
@@ -148,9 +148,6 @@ export class ClaudeCodeLauncherService {
         terminal.sendText(`echo "\n" && claude ${escapedClaudeMdPath}`);
         Logger.info(`ClaudeCode起動コマンド: claude ${escapedClaudeMdPath}`);
       }
-      
-      // エラー検出のみ行い、出力は完全に抑制
-      terminal.sendText(`[ $? -ne 0 ] && { : ; } # エラー検出のみで出力なし`);
       
       // 状態更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;
@@ -323,8 +320,8 @@ export class ClaudeCodeLauncherService {
         iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
       });
       
-      // ターミナルの表示
-      terminal.show();
+      // ターミナルの表示（true を渡してフォーカスする）
+      terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
       terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
@@ -346,9 +343,6 @@ export class ClaudeCodeLauncherService {
       // 解析用ファイルを指定してClaude CLIを起動
       terminal.sendText(`echo "\n" && claude ${escapedAnalysisFilePath}`);
       Logger.info(`モックアップ解析用ClaudeCode起動コマンド: claude ${escapedAnalysisFilePath}`);
-      
-      // エラー検出のみ行い、出力は完全に抑制
-      terminal.sendText(`[ $? -ne 0 ] && { : ; } # エラー検出のみで出力なし`);
       
       // 状態更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;

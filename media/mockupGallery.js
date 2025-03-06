@@ -4,6 +4,48 @@
   let currentMockupId = null;
   let mockupQueue = [];
   
+  // 通知を表示する関数
+  function showNotification(text) {
+    // 既存の通知があれば削除
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(notification => {
+      notification.remove();
+    });
+    
+    // 新しい通知要素を作成
+    const notification = document.createElement('div');
+    notification.className = 'notification';
+    notification.textContent = text;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.left = '50%';
+    notification.style.transform = 'translateX(-50%)';
+    notification.style.padding = '10px 20px';
+    notification.style.backgroundColor = 'rgba(50, 50, 50, 0.9)';
+    notification.style.color = 'white';
+    notification.style.borderRadius = '5px';
+    notification.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.3)';
+    notification.style.zIndex = '10000';
+    notification.style.opacity = '0';
+    notification.style.transition = 'opacity 0.3s ease';
+    
+    // 通知をドキュメントに追加
+    document.body.appendChild(notification);
+    
+    // フェードインエフェクト
+    setTimeout(() => {
+      notification.style.opacity = '1';
+    }, 10);
+    
+    // 数秒後に通知を消す
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      setTimeout(() => {
+        notification.remove();
+      }, 300);
+    }, 3000);
+  }
+  
   // VSCode API
   const vscode = acquireVsCodeApi();
   
@@ -546,6 +588,13 @@
         // エラーメッセージを表示
         if (message.text) {
           addChatMessage(`エラー: ${message.text}`, 'ai');
+        }
+        break;
+        
+      case 'showNotification':
+        // 通知を表示
+        if (message.text) {
+          showNotification(message.text);
         }
         break;
         

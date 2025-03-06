@@ -30,6 +30,15 @@ export class MockupStorageService {
   private mockups: Map<string, Mockup> = new Map();
   private storageDir: string = '';
   private _initialized: boolean = false;
+  
+  /**
+   * モックアップを名前で検索
+   */
+  public getMockupByName(name: string): Mockup | undefined {
+    return Array.from(this.mockups.values()).find(mockup => 
+      mockup.name === name || mockup.name === name.replace(/\.html$/, '')
+    );
+  }
 
   /**
    * シングルトンインスタンスを取得
@@ -352,38 +361,33 @@ export class MockupStorageService {
         for (const htmlFile of htmlFiles) {
           const htmlPath = path.join(this.storageDir, htmlFile);
           const fileNameWithoutExt = htmlFile.replace(/\.[^/.]+$/, ''); // 拡張子を削除
-          const mockupId = `mockup_${Date.now()}_${fileNameWithoutExt}`;
           
-          // ファイルが既にロードされているかチェック (同じパスのファイルがあるか)
-          const alreadyExists = Array.from(this.mockups.values()).some(
-            mockup => mockup.description === `File: ${htmlPath}`
-          );
+          // ファイル名自体をモックアップIDとして使用
+          const mockupId = fileNameWithoutExt;
           
-          if (!alreadyExists) {
-            // HTMLの内容を読み込む
-            const html = await fs.promises.readFile(htmlPath, 'utf8');
-            
-            // ファイルの状態を取得
-            const stats = fs.statSync(htmlPath);
-            const createdAt = stats.birthtimeMs;
-            const updatedAt = stats.mtimeMs;
-            
-            // モックアップオブジェクトを作成
-            const mockup: Mockup = {
-              id: mockupId,
-              name: fileNameWithoutExt,
-              html,
-              createdAt,
-              updatedAt,
-              sourceType: 'imported',
-              description: `File: ${htmlPath}`,
-              status: 'review'        // デフォルトのステータス
-            };
-            
-            // マップに追加
-            this.mockups.set(mockupId, mockup);
-            Logger.info(`Imported HTML file: ${htmlFile}`);
-          }
+          // HTMLの内容を読み込む
+          const html = await fs.promises.readFile(htmlPath, 'utf8');
+          
+          // ファイルの状態を取得
+          const stats = fs.statSync(htmlPath);
+          const createdAt = stats.birthtimeMs;
+          const updatedAt = stats.mtimeMs;
+          
+          // モックアップオブジェクトを作成
+          const mockup: Mockup = {
+            id: mockupId,
+            name: fileNameWithoutExt,
+            html,
+            createdAt,
+            updatedAt,
+            sourceType: 'imported',
+            description: `File: ${htmlPath}`,
+            status: 'review'        // デフォルトのステータス
+          };
+          
+          // マップに追加
+          this.mockups.set(mockupId, mockup);
+          Logger.info(`Imported HTML file: ${htmlFile}`);
         }
         
         Logger.info(`Loaded ${this.mockups.size} mockups from directory structure`);
@@ -531,8 +535,8 @@ export class MockupStorageService {
       const createdAt = stats.birthtimeMs;
       const updatedAt = stats.mtimeMs;
       
-      // 一意のIDを生成
-      const mockupId = `mockup_${Date.now()}_${fileNameWithoutExt}`;
+      // ファイル名自体をIDとして使用
+      const mockupId = fileNameWithoutExt;
       
       // モックアップオブジェクトを作成
       const mockup: Mockup = {
@@ -612,6 +616,28 @@ export class MockupStorageService {
       }
       
       await fs.promises.rmdir(dir);
+    }
+  }
+  
+  /**
+   * モックアップを再読み込み（ファイル変更検出時に使用）
+   */
+  public async reloadMockups(): Promise<void> {
+    try {
+      if (!this._initialized || !this.storageDir) {
+        Logger.warn('モックアップストレージが初期化されていません');
+        return;
+      }
+      
+      // HTMLファイルの再インポート
+      await this._importHtmlFiles();
+      
+      // メタデータファイルの保存
+      await this._saveMetadata();
+      
+      Logger.info('モックアップを再読み込みしました');
+    } catch (error) {
+      Logger.error(`モックアップの再読み込みに失敗: ${(error as Error).message}`);
     }
   }
 }

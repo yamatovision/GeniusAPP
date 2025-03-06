@@ -12,7 +12,7 @@ export enum LogLevel {
 
 export class Logger {
   private static outputChannel: vscode.OutputChannel;
-  private static logLevel: LogLevel = LogLevel.DEBUG; // デバッグレベルを有効化
+  private static logLevel: LogLevel = LogLevel.INFO; // INFO以上のレベルのみ出力するように設定
   private static logFilePath: string | undefined;
 
   public static initialize(extensionName: string, level: LogLevel = LogLevel.INFO): void {
