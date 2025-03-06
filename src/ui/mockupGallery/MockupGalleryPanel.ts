@@ -567,8 +567,7 @@ export class MockupGalleryPanel {
       
       const mockupFilePath = path.join(mockupDir, mockupFileName);
       
-      // モックアップHTMLをファイルに保存
-      fs.writeFileSync(mockupFilePath, mockup.html, 'utf8');
+      // モックアップHTMLの保存は不要なため削除
       
       // スコープディレクトリが存在しない場合は作成
       const scopesDir = path.join(this._projectPath, 'docs', 'scopes');
