@@ -573,14 +573,52 @@ export class MockupGalleryPanel {
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedMockupPath = mockupFilePath.replace(/ /g, '\\ ');
       
-      // テンプレートファイルが存在するか確認して適切なコマンドを実行
+      // テンプレートファイルが存在するか確認
       if (fs.existsSync(templatePath)) {
-        const escapedTemplatePath = templatePath.replace(/ /g, '\\ ');
-        terminal.sendText(`echo "テンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
-        terminal.sendText(`claude ${escapedTemplatePath} --context="${escapedMockupPath}"`);
+        // テンプレートファイルを一時的に修正してモックアップパスを埋め込む
+        try {
+          const tempDir = path.join(this._projectPath, 'temp');
+          // tempディレクトリが存在しない場合は作成
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+          
+          // 一時的なテンプレートファイルパス
+          const tempTemplatePath = path.join(tempDir, `mockup_analysis_${mockup.name}_${Date.now()}.md`);
+          
+          // テンプレートファイルの内容を読み込む
+          let templateContent = fs.readFileSync(templatePath, 'utf8');
+          
+          // モックアップパスと変数を置換
+          templateContent = templateContent
+            .replace(/{{MOCKUP_PATH}}/g, mockupFilePath)
+            .replace(/{{PROJECT_PATH}}/g, this._projectPath)
+            .replace(/{{MOCKUP_NAME}}/g, mockup.name)
+            .replace(/{{SOURCE}}/g, 'mockupGallery');
+          
+          // 一時的なテンプレートファイルを作成
+          fs.writeFileSync(tempTemplatePath, templateContent, 'utf8');
+          
+          // エスケープされたパス
+          const escapedTempTemplatePath = tempTemplatePath.replace(/ /g, '\\ ');
+          
+          // コマンド実行
+          terminal.sendText(`echo "テンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
+          terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
+          terminal.sendText(`claude ${escapedTempTemplatePath}`);
+          
+          Logger.info(`一時的なテンプレートファイルを作成しました: ${tempTemplatePath}`);
+        } catch (err) {
+          Logger.error(`テンプレート処理中にエラー: ${(err as Error).message}`);
+          
+          // エラー時は直接ファイルを渡す
+          terminal.sendText(`echo "エラーが発生したため、モックアップファイルを直接解析します"`);
+          terminal.sendText(`claude ${escapedMockupPath}`);
+        }
       } else {
         // テンプレートがなければ直接モックアップファイルを渡す
         terminal.sendText(`echo "モックアップファイルを直接解析します: ${path.basename(mockupFilePath)}"`);
+        terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
         terminal.sendText(`claude ${escapedMockupPath}`);
       }
       
