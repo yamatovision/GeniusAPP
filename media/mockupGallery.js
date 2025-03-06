@@ -486,16 +486,27 @@
             mockups[index] = message.mockup;
           }
           
-          // 現在表示中のモックアップが更新された場合、再描画
+          // 現在表示中のモックアップが更新された場合、強制的に再描画
           if (currentMockupId === message.mockup.id) {
-            renderMockupPreview(message.mockup);
+            // 強制的に再読み込み
+            const mockupFrame = document.getElementById('mockup-frame');
+            if (mockupFrame) {
+              try {
+                const doc = mockupFrame.contentDocument || (mockupFrame.contentWindow && mockupFrame.contentWindow.document);
+                if (doc) {
+                  doc.open();
+                  doc.write(message.mockup.html);
+                  doc.close();
+                }
+              } catch (error) {
+                console.error('Error rendering updated mockup:', error);
+              }
+            }
           }
           
-          // AIからの応答を追加
+          // AIからの応答を追加 (テキストがある場合のみ)
           if (message.text) {
             addChatMessage(message.text, 'ai');
-          } else {
-            addChatMessage('モックアップを更新しました。他に修正が必要な箇所はありますか？', 'ai');
           }
         }
         break;

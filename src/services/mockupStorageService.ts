@@ -641,13 +641,10 @@ export class MockupStorageService {
         return;
       }
       
-      // HTMLファイルの再インポート
-      await this._importHtmlFiles();
+      // 既存のモックアップを再読み込み
+      await this.loadMockups();
       
-      // メタデータファイルの保存
-      await this._saveMetadata();
-      
-      Logger.info('モックアップを再読み込みしました');
+      Logger.debug('モックアップを再読み込みしました');
     } catch (error) {
       Logger.error(`モックアップの再読み込みに失敗: ${(error as Error).message}`);
     }

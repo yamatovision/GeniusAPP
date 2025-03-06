@@ -121,8 +121,7 @@
       Divider, Switch, FormControlLabel, Select, MenuItem,
       Stepper, Step, StepLabel, StepContent, Card, CardContent,
       Dialog, DialogTitle, DialogContent, DialogActions, Alert, Collapse,
-      Accordion, AccordionSummary, AccordionDetails, Tooltip, Badge,ButtonGroup
-
+      Accordion, AccordionSummary, AccordionDetails, Tooltip, Badge, ButtonGroup
     } = MaterialUI;
     
     // テーマの作成
@@ -283,39 +282,40 @@
       }
     ];
     
-    // モックデータ - フレームワーク分析結果
-    const mockFrameworkAnalysis = {
-      framework: 'AIDA',
-      stages: [
-        {
-          name: 'Attention（注目）',
-          description: 'ターゲットの関心を引く見出しと視覚的要素',
-          components: ['ヒーローセクション', '課題認識セクション'],
-          goals: ['ターゲットの痛点に共感を示す', '注目を集める魅力的な見出し']
-        },
-        {
-          name: 'Interest（興味）',
-          description: 'プログラムの価値と解決できる問題の詳細説明',
-          components: ['解決策セクション', 'ベネフィットセクション'],
-          goals: ['具体的な成果物を示す', 'ユニークな価値提案を強調']
-        },
-        {
-          name: 'Desire（欲求）',
-          description: '受講によって得られる具体的なメリットと変化',
-          components: ['プログラム構成セクション', '受講者の声セクション', '講師プロフィールセクション'],
-          goals: ['信頼性の構築', '受講後のビジョンを明確に示す']
-        },
-        {
-          name: 'Action（行動）',
-          description: '申し込みへの明確な導線と障壁の排除',
-          components: ['料金・申込セクション', 'FAQ'],
-          goals: ['明確なCTAの設置', '申込みプロセスの簡素化', '不安要素の解消']
-        }
-      ]
-    };
+    // モックデータ - デザインスタイル選択肢
+    const mockDesignStyles = [
+      {
+        id: 'modern',
+        name: 'モダン',
+        description: 'クリーンで洗練されたデザイン。余白を活かした広々としたレイアウト。',
+        colors: 'グレー、ホワイト、アクセントカラー',
+        image: 'https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      },
+      {
+        id: 'corporate',
+        name: 'コーポレート',
+        description: 'ビジネス向けの堅実なデザイン。信頼感と専門性を強調。',
+        colors: 'ブルー、グレー、ネイビー',
+        image: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      },
+      {
+        id: 'vibrant',
+        name: '活気あるデザイン',
+        description: '明るい色と動きのあるデザイン。エネルギッシュで魅力的。',
+        colors: 'オレンジ、ブルー、グリーン',
+        image: 'https://images.unsplash.com/photo-1557804506-669a67965ba0?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      },
+      {
+        id: 'minimal',
+        name: 'ミニマル',
+        description: 'シンプルで必要最小限のデザイン。情報を明確に伝える。',
+        colors: 'モノクロ + 1色のアクセント',
+        image: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
+      }
+    ];
     
-    // モックデータ - コンポーネント構造
-    const mockComponentStructure = [
+    // モックデータ - セクション構造
+    const mockSections = [
       {
         id: 'hero',
         name: 'ヒーローセクション',
@@ -333,51 +333,51 @@
       {
         id: 'solution',
         name: '解決策セクション',
-        status: 'in_progress',
+        status: 'completed',
         variants: ['A'],
         active: 'A'
       },
       {
         id: 'benefits',
         name: 'ベネフィットセクション',
-        status: 'pending',
-        variants: [],
-        active: null
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
       },
       {
         id: 'program',
         name: 'プログラム構成セクション',
-        status: 'pending',
-        variants: [],
-        active: null
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
       },
       {
         id: 'testimonials',
         name: '受講者の声セクション',
-        status: 'pending',
-        variants: [],
-        active: null
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
       },
       {
         id: 'profile',
         name: '講師プロフィールセクション',
-        status: 'pending',
-        variants: [],
-        active: null
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
       },
       {
         id: 'pricing',
         name: '料金・申込セクション',
-        status: 'pending',
-        variants: [],
-        active: null
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
       },
       {
         id: 'faq',
         name: 'FAQセクション',
-        status: 'pending',
-        variants: [],
-        active: null
+        status: 'completed',
+        variants: ['A'],
+        active: 'A'
       }
     ];
     
@@ -699,6 +699,42 @@
       </html>
     `;
     
+    // タイピングインジケーター
+    const TypingIndicator = () => (
+      <Box 
+        sx={{ 
+          display: 'flex',
+          mb: 2,
+        }}
+      >
+        <Avatar 
+          sx={{ 
+            bgcolor: 'primary.main',
+            width: 36,
+            height: 36,
+            mr: 1.5
+          }}
+        >
+          AI
+        </Avatar>
+        <Paper 
+          sx={{ 
+            p: 2, 
+            maxWidth: '75%',
+            borderRadius: '12px',
+            borderTopLeftRadius: 0,
+          }}
+          elevation={1}
+        >
+          <Box className="typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
+          </Box>
+        </Paper>
+      </Box>
+    );
+    
     // チャットメッセージコンポーネント
     const ChatMessage = ({ message }) => {
       const isSystem = message.role === 'system';
@@ -741,42 +777,6 @@
         </Box>
       );
     };
-    
-    // タイピングインジケーター
-    const TypingIndicator = () => (
-      <Box 
-        sx={{ 
-          display: 'flex',
-          mb: 2,
-        }}
-      >
-        <Avatar 
-          sx={{ 
-            bgcolor: 'primary.main',
-            width: 36,
-            height: 36,
-            mr: 1.5
-          }}
-        >
-          AI
-        </Avatar>
-        <Paper 
-          sx={{ 
-            p: 2, 
-            maxWidth: '75%',
-            borderRadius: '12px',
-            borderTopLeftRadius: 0,
-          }}
-          elevation={1}
-        >
-          <Box className="typing-indicator">
-            <span></span>
-            <span></span>
-            <span></span>
-          </Box>
-        </Paper>
-      </Box>
-    );
     
     // プレビューコンポーネント
     const PreviewComponent = ({ html, title, variant }) => {
@@ -858,55 +858,68 @@
       );
     };
     
-    // フレームワークステージカード
-    const FrameworkStageCard = ({ stage, isActive }) => {
+    // デザインスタイルカード
+    const DesignStyleCard = ({ style, selected, onSelect }) => {
       return (
         <Card 
           sx={{ 
-            mb: 2,
-            boxShadow: isActive ? '0 0 0 2px #4299e1' : 'none',
+            cursor: 'pointer',
             transition: 'all 0.2s',
-            backgroundColor: isActive ? 'rgba(66, 153, 225, 0.08)' : 'white'
+            border: selected ? '2px solid #4299e1' : '1px solid #e2e8f0',
+            boxShadow: selected ? '0 0 0 4px rgba(66, 153, 225, 0.2)' : 'none',
+            '&:hover': {
+              boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
+            }
           }}
+          onClick={() => onSelect(style.id)}
         >
+          <Box sx={{ position: 'relative', height: 160, overflow: 'hidden' }}>
+            <Box 
+              component="img" 
+              src={style.image}
+              alt={style.name}
+              sx={{ 
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+            {selected && (
+              <Box 
+                sx={{ 
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  backgroundColor: 'rgba(66, 153, 225, 0.9)',
+                  borderRadius: '50%',
+                  width: 28,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <span className="material-icons" style={{ color: 'white', fontSize: 18 }}>
+                  check
+                </span>
+              </Box>
+            )}
+          </Box>
           <CardContent>
-            <Typography variant="h6" gutterBottom>{stage.name}</Typography>
-            <Typography variant="body2" color="textSecondary" gutterBottom>{stage.description}</Typography>
-            
-            <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>対象コンポーネント:</Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
-              {stage.components.map((component, idx) => (
-                <Chip 
-                  key={idx} 
-                  label={component} 
-                  size="small" 
-                  sx={{ 
-                    fontSize: '0.7rem',
-                    backgroundColor: isActive ? 'rgba(66, 153, 225, 0.2)' : '#f0f4f8'
-                  }}
-                />
-              ))}
-            </Box>
-            
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>目標:</Typography>
-            <List dense disablePadding>
-              {stage.goals.map((goal, idx) => (
-                <ListItem key={idx} sx={{ px: 0, py: 0.25 }}>
-                  <ListItemIcon sx={{ minWidth: 24 }}>
-                    <span className="material-icons" style={{ fontSize: 16, color: '#4299e1' }}>
-                      arrow_right
-                    </span>
-                  </ListItemIcon>
-                  <ListItemText 
-                    primary={goal} 
-                    primaryTypographyProps={{ 
-                      variant: 'body2',
-                      fontSize: '0.8rem'
-                    }}
-                  />
-                </ListItem>
-              ))}
-            </List>
+            <Typography variant="h6" gutterBottom>
+              {style.name}
+            </Typography>
+            <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+              {style.description}
+            </Typography>
+            <Chip 
+              size="small" 
+              label={style.colors} 
+              sx={{ 
+                backgroundColor: '#f0f4f8',
+                fontSize: '0.7rem'
+              }}
+            />
           </CardContent>
         </Card>
       );
@@ -914,6 +927,7 @@
     
     // LP作成・編集画面
     const LPEditor = () => {
+      const [activeTab, setActiveTab] = React.useState(0);
       const [loading, setLoading] = React.useState(false);
       const [isTyping, setIsTyping] = React.useState(false);
       const [chatMessages, setChatMessages] = React.useState(mockChatHistory);
@@ -923,6 +937,8 @@
       const [previewMode, setPreviewMode] = React.useState('desktop');
       const [templateDialogOpen, setTemplateDialogOpen] = React.useState(false);
       const [selectedTemplate, setSelectedTemplate] = React.useState(null);
+      const [selectedDesignStyle, setSelectedDesignStyle] = React.useState('corporate');
+      const [generatingPreview, setGeneratingPreview] = React.useState(false);
       
       const chatContainerRef = React.useRef(null);
       
@@ -967,6 +983,40 @@
         setTemplateDialogOpen(false);
       };
       
+      // デザイン生成処理
+      const handleGenerateDesign = () => {
+        setGeneratingPreview(true);
+        // 生成完了をシミュレート
+        setTimeout(() => {
+          setGeneratingPreview(false);
+          setActiveTab(1); // デザインタブに切り替え
+        }, 3000);
+      };
+      
+      // バリアントB追加
+      const handleAddVariantB = () => {
+        // 元々バリアントBがある場合は何もしない
+        if (mockSections.find(s => s.id === selectedComponent).variants.includes('B')) {
+          return;
+        }
+        
+        setLoading(true);
+        // 生成完了をシミュレート
+        setTimeout(() => {
+          // セクションのバリアントを更新
+          const updatedSections = mockSections.map(section => {
+            if (section.id === selectedComponent) {
+              return { ...section, variants: [...section.variants, 'B'] };
+            }
+            return section;
+          });
+          
+          // 状態を更新
+          setActiveVariant('B');
+          setLoading(false);
+        }, 2000);
+      };
+      
       return (
         <ThemeProvider theme={theme}>
           <CssBaseline />
@@ -980,6 +1030,16 @@
               <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 ビジネスマネジメントコーチングLP
               </Typography>
+              <Tabs 
+                value={activeTab}
+                onChange={(e, val) => setActiveTab(val)}
+                sx={{ mx: 2 }}
+                indicatorColor="primary"
+                textColor="primary"
+              >
+                <Tab label="1. 文章作成" sx={{ minWidth: 140 }} />
+                <Tab label="2. デザイン調整" sx={{ minWidth: 140 }} />
+              </Tabs>
               <Button 
                 variant="outlined" 
                 color="primary" 
@@ -998,226 +1058,419 @@
             </Toolbar>
           </AppBar>
           
-          {/* メインコンテンツ */}
-          <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)' }}>
-            {/* 左サイドバー - コンポーネント構造 */}
-            <Paper 
-              sx={{ 
-                width: 300, 
-                p: 2, 
-                overflowY: 'auto',
-                borderRight: '1px solid #e2e8f0',
-                display: { xs: 'none', md: 'block' }
-              }}
-              className="custom-scrollbar"
-              elevation={0}
-            >
-              <Typography variant="h6" gutterBottom>構成コンポーネント</Typography>
-              <List disablePadding>
-                {mockComponentStructure.map((component) => (
-                  <ComponentTreeItem 
-                    key={component.id} 
-                    component={component} 
-                    onSelect={setSelectedComponent}
-                    activeComponent={selectedComponent}
-                  />
-                ))}
-              </List>
-              
-              <Divider sx={{ my: 3 }} />
-              
-              <Typography variant="h6" gutterBottom>フレームワーク分析</Typography>
-              <Typography variant="subtitle2" color="primary" sx={{ mb: 2 }}>
-                {mockFrameworkAnalysis.framework} フレームワーク
-              </Typography>
-              
-              {mockFrameworkAnalysis.stages.map((stage, idx) => (
-                <FrameworkStageCard 
-                  key={idx} 
-                  stage={stage} 
-                  isActive={stage.components.includes(
-                    mockComponentStructure.find(c => c.id === selectedComponent)?.name
-                  )}
-                />
-              ))}
-            </Paper>
-            
-            {/* 中央 - AIチャットセクション */}
-            <Box 
-              sx={{ 
-                flex: 1, 
-                display: 'flex', 
-                flexDirection: 'column',
-                borderRight: '1px solid #e2e8f0'
-              }}
-            >
-              <Box
-                ref={chatContainerRef}
+          {/* フェーズ1: 文章作成 */}
+          {activeTab === 0 && (
+            <Box sx={{ display: 'flex', height: 'calc(100vh - 64px)' }}>
+              {/* 左サイドバー - LP基本情報 */}
+              <Paper 
                 sx={{ 
-                  flex: 1, 
+                  width: 300, 
                   p: 2, 
-                  overflowY: 'auto', 
-                  backgroundColor: '#f8fafc' 
+                  overflowY: 'auto',
+                  borderRight: '1px solid #e2e8f0',
+                  display: { xs: 'none', md: 'block' }
                 }}
                 className="custom-scrollbar"
+                elevation={0}
               >
-                {chatMessages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                {isTyping && <TypingIndicator />}
-              </Box>
+                <Typography variant="h6" gutterBottom>LP基本情報</Typography>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
+                    LP名称
+                  </Typography>
+                  <TextField 
+                    size="small" 
+                    fullWidth 
+                    placeholder="LP名称を入力"
+                    value="ビジネスマネジメントコーチングLP"
+                  />
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
+                    ターゲット層
+                  </Typography>
+                  <TextField 
+                    size="small" 
+                    fullWidth 
+                    multiline
+                    rows={2}
+                    placeholder="ターゲット層を入力"
+                    value="30代〜40代の会社員や管理職。リーダーシップやマネジメントスキルの向上を求めている人。"
+                  />
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
+                    LP目的
+                  </Typography>
+                  <Select
+                    size="small"
+                    fullWidth
+                    value="application"
+                  >
+                    <MenuItem value="application">コーチングプログラムへの申込促進</MenuItem>
+                    <MenuItem value="email">メール登録獲得</MenuItem>
+                    <MenuItem value="sales">製品販売</MenuItem>
+                    <MenuItem value="intro">サービス紹介</MenuItem>
+                  </Select>
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
+                    キーメッセージ
+                  </Typography>
+                  <TextField 
+                    size="small" 
+                    fullWidth 
+                    multiline
+                    rows={2}
+                    placeholder="キーメッセージを入力"
+                    value="実践的なマネジメントスキルを3ヶ月で習得し、職場で即活用できる"
+                  />
+                </Box>
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
+                    提供価値
+                  </Typography>
+                  <TextField 
+                    size="small" 
+                    fullWidth 
+                    multiline
+                    rows={3}
+                    placeholder="提供価値を入力"
+                    value="・15年の経験を持つ元人事責任者による実践的コーチング
+・すぐに職場で使えるフレームワークとツール
+・グループと個別コーチングの組み合わせ
+・3ヶ月間で確実なスキル向上"
+                  />
+                </Box>
+                
+                <Divider sx={{ my: 2 }} />
+                
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="medium" gutterBottom>
+                    デザインスタイル
+                  </Typography>
+                  <Select
+                    size="small"
+                    fullWidth
+                    value={selectedDesignStyle}
+                    onChange={e => setSelectedDesignStyle(e.target.value)}
+                  >
+                    {mockDesignStyles.map(style => (
+                      <MenuItem key={style.id} value={style.id}>{style.name}</MenuItem>
+                    ))}
+                  </Select>
+                </Box>
+                
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  fullWidth
+                  onClick={handleGenerateDesign}
+                  disabled={generatingPreview}
+                  sx={{ mt: 2 }}
+                >
+                  {generatingPreview ? (
+                    <React.Fragment>
+                      <CircularProgress size={24} color="inherit" sx={{ mr: 1 }} />
+                      デザイン生成中...
+                    </React.Fragment>
+                  ) : (
+                    <React.Fragment>
+                      <span className="material-icons" style={{ marginRight: 8 }}>auto_awesome</span>
+                      デザイン生成
+                    </React.Fragment>
+                  )}
+                </Button>
+              </Paper>
               
+              {/* 中央 - AIチャットセクション */}
               <Box 
                 sx={{ 
-                  p: 2, 
-                  backgroundColor: 'white',
-                  borderTop: '1px solid #e2e8f0'
+                  flex: 1, 
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  borderRight: '1px solid #e2e8f0'
                 }}
               >
-                <Box sx={{ display: 'flex', mb: 1.5 }}>
-                  <Button 
-                    size="small" 
-                    variant="outlined" 
-                    startIcon={<span className="material-icons">article</span>}
-                    sx={{ mr: 1 }}
-                    onClick={() => setTemplateDialogOpen(true)}
-                  >
-                    テンプレート
-                  </Button>
-                  <Button 
-                    size="small" 
-                    variant="outlined" 
-                    startIcon={<span className="material-icons">upload_file</span>}
-                  >
-                    画像アップロード
-                  </Button>
+                <Box
+                  ref={chatContainerRef}
+                  sx={{ 
+                    flex: 1, 
+                    p: 2, 
+                    overflowY: 'auto', 
+                    backgroundColor: '#f8fafc' 
+                  }}
+                  className="custom-scrollbar"
+                >
+                  <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+                    <Typography variant="h5" sx={{ mb: 3, textAlign: 'center' }}>
+                      LP内容の作成
+                    </Typography>
+                    <Typography variant="body1" color="textSecondary" sx={{ mb: 4, textAlign: 'center' }}>
+                      AIと対話しながらLP用の文章を作成します。まだ構造やデザインは考えず、内容に集中しましょう。
+                    </Typography>
+                    
+                    {chatMessages.map((message) => (
+                      <ChatMessage key={message.id} message={message} />
+                    ))}
+                    {isTyping && <TypingIndicator />}
+                  </Box>
+                </Box>
+                
+                <Box 
+                  sx={{ 
+                    p: 2, 
+                    backgroundColor: 'white',
+                    borderTop: '1px solid #e2e8f0'
+                  }}
+                >
+                  <Box sx={{ maxWidth: 800, mx: 'auto' }}>
+                    <Box sx={{ display: 'flex', mb: 1.5 }}>
+                      <Button 
+                        size="small" 
+                        variant="outlined" 
+                        startIcon={<span className="material-icons">article</span>}
+                        sx={{ mr: 1 }}
+                        onClick={() => setTemplateDialogOpen(true)}
+                      >
+                        テンプレート
+                      </Button>
+                      <Button 
+                        size="small" 
+                        variant="outlined" 
+                        startIcon={<span className="material-icons">upload_file</span>}
+                      >
+                        画像アップロード
+                      </Button>
+                      <Box sx={{ flex: 1 }} />
+                      <Button 
+                        size="small" 
+                        color="primary"
+                        startIcon={<span className="material-icons">history</span>}
+                      >
+                        履歴
+                      </Button>
+                    </Box>
+                    
+                    <Box sx={{ display: 'flex' }}>
+                      <TextField
+                        fullWidth
+                        variant="outlined"
+                        placeholder="AIに指示を送信..."
+                        multiline
+                        rows={2}
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                        InputProps={{
+                          sx: { 
+                            borderRadius: 2, 
+                            backgroundColor: '#f8fafc',
+                            '&.Mui-focused': {
+                              boxShadow: '0 0 0 3px rgba(66, 153, 225, 0.2)',
+                            }
+                          }
+                        }}
+                      />
+                      <IconButton 
+                        color="primary" 
+                        sx={{ ml: 1, alignSelf: 'flex-end' }}
+                        onClick={handleSendMessage}
+                        disabled={!inputMessage.trim()}
+                      >
+                        <span className="material-icons">send</span>
+                      </IconButton>
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          )}
+          
+          {/* フェーズ2: デザイン調整 */}
+          {activeTab === 1 && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px)' }}>
+              <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {/* 左サイドバー - セクション一覧 */}
+                <Paper 
+                  sx={{ 
+                    width: 250, 
+                    p: 2, 
+                    overflowY: 'auto',
+                    borderRight: '1px solid #e2e8f0'
+                  }}
+                  className="custom-scrollbar"
+                  elevation={0}
+                >
+                  <Typography variant="h6" gutterBottom>セクション一覧</Typography>
+                  <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+                    調整したいセクションを選択してください
+                  </Typography>
+                  
+                  <List disablePadding>
+                    {mockSections.map((section) => (
+                      <ComponentTreeItem 
+                        key={section.id} 
+                        component={section} 
+                        onSelect={setSelectedComponent}
+                        activeComponent={selectedComponent}
+                      />
+                    ))}
+                  </List>
+                </Paper>
+                
+                {/* 中央 - プレビュー */}
+                <Box 
+                  sx={{ 
+                    flex: 1, 
+                    display: 'flex', 
+                    flexDirection: 'column',
+                    bgcolor: '#f1f5f9',
+                    overflow: 'hidden'
+                  }}
+                >
+                  <Box sx={{ 
+                    p: 2, 
+                    backgroundColor: 'white', 
+                    borderBottom: '1px solid #e2e8f0',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <Typography variant="subtitle1" fontWeight="medium">
+                      {mockSections.find(s => s.id === selectedComponent)?.name || 'セクション'} プレビュー
+                    </Typography>
+                    <Box>
+                      <ButtonGroup size="small">
+                        <Button 
+                          variant={previewMode === 'mobile' ? 'contained' : 'outlined'}
+                          startIcon={<span className="material-icons">smartphone</span>}
+                          onClick={() => setPreviewMode('mobile')}
+                        >
+                          モバイル
+                        </Button>
+                        <Button 
+                          variant={previewMode === 'desktop' ? 'contained' : 'outlined'}
+                          startIcon={<span className="material-icons">desktop_windows</span>}
+                          onClick={() => setPreviewMode('desktop')}
+                        >
+                          デスクトップ
+                        </Button>
+                      </ButtonGroup>
+                    </Box>
+                  </Box>
+                  
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flex: 1, 
+                    p: 2, 
+                    overflow: 'auto',
+                    alignItems: 'stretch'
+                  }}>
+                    <Box 
+                      sx={{ 
+                        flex: 1, 
+                        borderRadius: 2,
+                        overflow: 'hidden',
+                        transition: 'all 0.3s',
+                        mx: previewMode === 'mobile' ? 'auto' : 0,
+                        maxWidth: previewMode === 'mobile' ? 375 : '100%',
+                      }}
+                    >
+                      <PreviewComponent 
+                        html={activeVariant === 'A' ? mockPreviewHTML : mockPreviewHTMLVariantB} 
+                        title={mockSections.find(s => s.id === selectedComponent)?.name || 'セクション'} 
+                        variant={activeVariant}
+                      />
+                    </Box>
+                  </Box>
+                </Box>
+              </Box>
+              
+              {/* 下部 - 操作パネル */}
+              <Box sx={{ 
+                backgroundColor: 'white', 
+                borderTop: '1px solid #e2e8f0',
+                p: 2
+              }}>
+                {/* タブ・バリアント選択 */}
+                <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="subtitle1" fontWeight="medium" sx={{ mr: 2 }}>
+                    バリアント:
+                  </Typography>
+                  <ButtonGroup>
+                    <Button 
+                      variant={activeVariant === 'A' ? 'contained' : 'outlined'}
+                      onClick={() => setActiveVariant('A')}
+                    >
+                      バリアントA
+                    </Button>
+                    {mockSections.find(s => s.id === selectedComponent)?.variants.includes('B') ? (
+                      <Button 
+                        variant={activeVariant === 'B' ? 'contained' : 'outlined'}
+                        onClick={() => setActiveVariant('B')}
+                      >
+                        バリアントB
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outlined"
+                        startIcon={<span className="material-icons">add</span>}
+                        onClick={handleAddVariantB}
+                        disabled={loading}
+                      >
+                        {loading ? '生成中...' : 'バリアントB追加'}
+                      </Button>
+                    )}
+                  </ButtonGroup>
+                  
                   <Box sx={{ flex: 1 }} />
+                  
                   <Button 
-                    size="small" 
+                    variant="outlined" 
                     color="primary"
-                    startIcon={<span className="material-icons">history</span>}
+                    startIcon={<span className="material-icons">preview</span>}
                   >
-                    履歴
+                    全体プレビュー
                   </Button>
                 </Box>
                 
+                {/* プロンプト入力 */}
                 <Box sx={{ display: 'flex' }}>
                   <TextField
                     fullWidth
                     variant="outlined"
-                    placeholder="AIに指示を送信..."
-                    multiline
-                    rows={2}
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
-                      }
-                    }}
+                    size="small"
+                    placeholder="AIにデザイン指示を送信... (例: 「より明るいトーンにして」「フォントを大きくして」など)"
                     InputProps={{
-                      sx: { 
-                        borderRadius: 2, 
-                        backgroundColor: '#f8fafc',
-                        '&.Mui-focused': {
-                          boxShadow: '0 0 0 3px rgba(66, 153, 225, 0.2)',
-                        }
-                      }
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <span className="material-icons" style={{ color: '#4a5568' }}>brush</span>
+                        </InputAdornment>
+                      ),
                     }}
                   />
-                  <IconButton 
-                    color="primary" 
-                    sx={{ ml: 1, alignSelf: 'flex-end' }}
-                    onClick={handleSendMessage}
-                    disabled={!inputMessage.trim()}
+                  <Button 
+                    variant="contained" 
+                    color="secondary"
+                    sx={{ ml: 1, whiteSpace: 'nowrap' }}
                   >
-                    <span className="material-icons">send</span>
-                  </IconButton>
+                    調整を適用
+                  </Button>
                 </Box>
               </Box>
             </Box>
-            
-            {/* 右サイドバー - プレビュー */}
-            <Box 
-              sx={{ 
-                width: 400, 
-                display: 'flex', 
-                flexDirection: 'column',
-                bgcolor: '#f0f4f8' 
-              }}
-            >
-              <Box sx={{ 
-                p: 2, 
-                backgroundColor: 'white', 
-                borderBottom: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <Typography variant="subtitle1" fontWeight="medium">プレビュー</Typography>
-                <Box>
-                  <Tabs 
-                    value={activeVariant} 
-                    onChange={(e, val) => setActiveVariant(val)}
-                    sx={{ 
-                      minHeight: 36,
-                      '.MuiTab-root': { minHeight: 36, py: 0.5 }
-                    }}
-                  >
-                    <Tab label="バリアントA" value="A" />
-                    <Tab label="バリアントB" value="B" />
-                  </Tabs>
-                </Box>
-              </Box>
-              
-              <Box sx={{ 
-                p: 1.5, 
-                backgroundColor: 'white',
-                borderBottom: '1px solid #e2e8f0',
-                display: 'flex',
-                justifyContent: 'center'
-              }}>
-                <ButtonGroup size="small">
-                  <Button 
-                    variant={previewMode === 'mobile' ? 'contained' : 'outlined'}
-                    startIcon={<span className="material-icons">smartphone</span>}
-                    onClick={() => setPreviewMode('mobile')}
-                  >
-                    モバイル
-                  </Button>
-                  <Button 
-                    variant={previewMode === 'desktop' ? 'contained' : 'outlined'}
-                    startIcon={<span className="material-icons">desktop_windows</span>}
-                    onClick={() => setPreviewMode('desktop')}
-                  >
-                    デスクトップ
-                  </Button>
-                </ButtonGroup>
-              </Box>
-              
-              <Box sx={{ flex: 1, p: 2, overflow: 'hidden' }}>
-                <Paper 
-                  sx={{ 
-                    height: '100%', 
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                    ...previewMode === 'mobile' ? { 
-                      maxWidth: 375, 
-                      mx: 'auto'
-                    } : {}
-                  }}
-                  elevation={3}
-                >
-                  <PreviewComponent 
-                    html={activeVariant === 'A' ? mockPreviewHTML : mockPreviewHTMLVariantB} 
-                    title={mockComponentStructure.find(c => c.id === selectedComponent)?.name || 'ランディングページ'} 
-                    variant={activeVariant}
-                  />
-                </Paper>
-              </Box>
-            </Box>
-          </Box>
+          )}
           
           {/* プロンプトテンプレートダイアログ */}
           <Dialog 

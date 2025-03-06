@@ -912,22 +912,11 @@ export class MockupGalleryPanel {
       // ファイル作成イベントをリッスン
       this._fileWatcher.onDidCreate(async (uri) => {
         try {
-          // 高いログレベルをdebugに変更してターミナル出力を抑制
-          Logger.debug(`新しいモックアップファイルを検出しました: ${uri.fsPath}`);
-          
           // ストレージを更新してリロード
           await this._storage.reloadMockups();
           
           // UI更新
           await this._handleLoadMockups();
-          
-          // 通知
-          this._panel.webview.postMessage({
-            command: 'showNotification',
-            text: `新しいモックアップが追加されました: ${path.basename(uri.fsPath)}`
-          });
-          
-          Logger.debug('モックアップ一覧を更新しました');
         } catch (error) {
           Logger.error(`モックアップファイル作成の監視中にエラーが発生: ${(error as Error).message}`);
         }
@@ -936,9 +925,6 @@ export class MockupGalleryPanel {
       // ファイル変更イベントをリッスン
       this._fileWatcher.onDidChange(async (uri) => {
         try {
-          // ログレベルをdebugに変更してターミナル出力を抑制
-          Logger.debug(`モックアップファイルの変更を検出しました: ${uri.fsPath}`);
-          
           // ストレージを更新してリロード
           await this._storage.reloadMockups();
           
@@ -951,20 +937,12 @@ export class MockupGalleryPanel {
           const mockup = this._storage.getMockupByName(mockupName);
           
           if (mockup) {
-            // 現在選択中のモックアップを再選択（プレビュー更新）
+            // モックアップが更新された場合、mockupUpdatedコマンドを送信して強制的に内容を更新
             this._panel.webview.postMessage({
-              command: 'selectMockup',
-              mockupId: mockup.id
-            });
-            
-            // 通知
-            this._panel.webview.postMessage({
-              command: 'showNotification',
-              text: `モックアップが更新されました: ${mockupName}`
+              command: 'mockupUpdated',
+              mockup: mockup
             });
           }
-          
-          Logger.debug('モックアップ一覧とプレビューを更新しました');
         } catch (error) {
           Logger.error(`モックアップファイル更新の監視中にエラーが発生: ${(error as Error).message}`);
         }
@@ -973,22 +951,11 @@ export class MockupGalleryPanel {
       // ファイル削除イベントをリッスン
       this._fileWatcher.onDidDelete(async (uri) => {
         try {
-          // ログレベルをdebugに変更してターミナル出力を抑制
-          Logger.debug(`モックアップファイルの削除を検出しました: ${uri.fsPath}`);
-          
           // ストレージを更新してリロード
           await this._storage.reloadMockups();
           
           // UI更新
           await this._handleLoadMockups();
-          
-          // 通知
-          this._panel.webview.postMessage({
-            command: 'showNotification',
-            text: `モックアップが削除されました: ${path.basename(uri.fsPath)}`
-          });
-          
-          Logger.debug('モックアップ一覧を更新しました');
         } catch (error) {
           Logger.error(`モックアップファイル削除の監視中にエラーが発生: ${(error as Error).message}`);
         }
