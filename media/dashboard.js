@@ -85,6 +85,10 @@
       case 'refreshData':
         refreshData();
         break;
+      case 'refreshComplete':
+        // プロジェクト一覧の更新が完了したことを通知
+        updateLoadingState(false);
+        break;
     }
   });
   
@@ -1064,17 +1068,18 @@
    * プロジェクトを削除
    */
   function deleteProject(id) {
-    // 確認ダイアログを表示
+    // 確認ダイアログはconfirm()を使わずにVSCode APIで処理
     const projectName = state.projects.find(p => p.id === id)?.name || 'プロジェクト';
     
-    if (confirm(`${projectName} を削除します。この操作は元に戻せません。\n\n削除しますか？`)) {
-      vscode.postMessage({
-        command: 'deleteProject',
-        id
-      });
-      
-      updateLoadingState(true);
-    }
+    // 確認メッセージをバックエンドに送信
+    vscode.postMessage({
+      command: 'confirmDeleteProject',
+      id,
+      projectName
+    });
+    
+    // バックエンド側で確認ダイアログを表示し、結果に応じて削除処理を行う
+    // メッセージハンドラはextension.tsで処理
   }
   
   /**

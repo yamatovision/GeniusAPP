@@ -113,6 +113,9 @@ export class DashboardPanel {
           case 'deleteProject':
             await this._handleDeleteProject(message.id);
             break;
+          case 'confirmDeleteProject':
+            await this._handleConfirmDeleteProject(message.id, message.projectName);
+            break;
           case 'updateProject':
             await this._handleUpdateProject(message.id, message.updates);
             break;
@@ -265,113 +268,96 @@ export class DashboardPanel {
   }
 
   /**
-   * プロジェクト一覧を更新
+   * プロジェクト一覧を更新（簡略化版）
    */
   private async _refreshProjects(): Promise<void> {
     try {
+      // 基本プロジェクト情報のみ取得して画面を更新（重い処理は避ける）
       this._currentProjects = this._projectService.getAllProjects();
       this._activeProject = this._projectService.getActiveProject();
       
-      // アクティブなプロジェクトのデータをロード
+      // 最低限のデータだけすぐに画面に表示
+      await this._updateWebview();
+      
+      // ローディング状態を終了
+      await this._panel.webview.postMessage({
+        command: 'refreshComplete'
+      });
+      
+      // 必要に応じて詳細データを別途バックグラウンドでロード
       if (this._activeProject) {
-        const projectId = this._activeProject.id;
-        const projectPath = this._activeProject.path;
-        
-        // 要件定義データのロード
+        // このメソッドは非同期だがawaitしない（UIをブロックしないため）
+        this._loadProjectDetails(this._activeProject.id);
+      }
+    } catch (error) {
+      Logger.error(`プロジェクト一覧更新エラー`, error as Error);
+      await this._showError(`プロジェクト一覧の更新中にエラーが発生しました: ${(error as Error).message}`);
+      
+      // エラー時にもローディング状態を解除
+      await this._panel.webview.postMessage({
+        command: 'refreshComplete'
+      });
+    }
+  }
+  
+  /**
+   * プロジェクト詳細情報を非同期でバックグラウンドロード
+   * UI応答性を維持するため、メインのレンダリング後に実行
+   */
+  private async _loadProjectDetails(projectId: string): Promise<void> {
+    try {
+      const project = this._projectService.getProject(projectId);
+      if (!project) return;
+      
+      const projectPath = project.path;
+      
+      // 最低限必要なデータだけロード
+      if (!(projectId in this._projectRequirements)) {
         try {
           const requirements = await this._stateManager.getRequirements(projectId);
           if (requirements) {
             this._projectRequirements[projectId] = requirements;
-          }
-          
-          // プロジェクトパスが設定されている場合、ファイルからも直接読み込み
-          if (projectPath) {
-            const fs = require('fs');
-            const path = require('path');
-            
-            // 要件定義ファイルのパス
-            const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
-            const structurePath = path.join(projectPath, 'docs', 'structure.md');
-            
-            // 要件定義ファイルの存在確認と内容チェック
-            if (fs.existsSync(requirementsPath)) {
-              try {
-                const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
-                
-                // 初期テンプレートからの変更を検出
-                // ここでは AppGeniusStateManager のメソッドは直接使えないので、簡易的な検出を実装
-                const isRequirementsChanged = this._isFileChangedFromTemplate(
-                  requirementsContent, 
-                  'requirements'
-                );
-                
-                if (isRequirementsChanged) {
-                  // フェーズを更新
-                  await this._projectService.updateProjectPhase(projectId, 'requirements', true);
-                  Logger.info(`要件定義ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
-                }
-              } catch (fileError) {
-                Logger.warn(`要件定義ファイルの読み込みに失敗: ${(fileError as Error).message}`);
-              }
-            }
-            
-            // ディレクトリ構造ファイルの存在確認と内容チェック
-            if (fs.existsSync(structurePath)) {
-              try {
-                const structureContent = fs.readFileSync(structurePath, 'utf8');
-                
-                // 初期テンプレートからの変更を検出
-                const isStructureChanged = this._isFileChangedFromTemplate(
-                  structureContent, 
-                  'structure'
-                );
-                
-                if (isStructureChanged) {
-                  // directoryStructureは直接のフェーズではないため、設計(design)フェーズとして扱う
-                  await this._projectService.updateProjectPhase(projectId, 'design', true);
-                  Logger.info(`構造ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
-                }
-              } catch (fileError) {
-                Logger.warn(`構造ファイルの読み込みに失敗: ${(fileError as Error).message}`);
-              }
-            }
+          } else {
+            // 空のオブジェクトで初期化
+            this._projectRequirements[projectId] = { 
+              document: '', 
+              sections: [], 
+              extractedItems: [], 
+              chatHistory: [] 
+            };
           }
         } catch (e) {
           Logger.debug(`No requirements found for project: ${projectId}`);
-          // 空のオブジェクトで初期化
-          this._projectRequirements[projectId] = { 
-            document: '', 
-            sections: [], 
-            extractedItems: [], 
-            chatHistory: [] 
-          };
         }
-        
-        // スコープデータのロード
+      }
+      
+      // スコープ情報がまだない場合のみロード
+      if (!(projectId in this._projectScopes)) {
         try {
           const scope = await this._stateManager.getImplementationScope(projectId);
           if (scope) {
             this._projectScopes[projectId] = scope;
+          } else {
+            // 基本スコープデータで初期化
+            this._projectScopes[projectId] = {
+              items: [],
+              selectedIds: [],
+              estimatedTime: '',
+              totalProgress: 0,
+              startDate: new Date().toISOString().split('T')[0],
+              targetDate: '',
+              projectPath: projectPath || ''
+            };
           }
         } catch (e) {
           Logger.debug(`No implementation scope found for project: ${projectId}`);
-          // 基本スコープデータで初期化
-          this._projectScopes[projectId] = {
-            items: [],
-            selectedIds: [],
-            estimatedTime: '',
-            totalProgress: 0,
-            startDate: new Date().toISOString().split('T')[0],
-            targetDate: '',
-            projectPath: this._activeProject.path || ''
-          };
         }
       }
       
+      // 詳細情報が読み込まれた後、UI更新（ロードインジケータは表示せずに更新）
       await this._updateWebview();
     } catch (error) {
-      Logger.error(`プロジェクト一覧更新エラー`, error as Error);
-      await this._showError(`プロジェクト一覧の更新中にエラーが発生しました: ${(error as Error).message}`);
+      Logger.error(`プロジェクト詳細情報読み込みエラー: ${projectId}`, error as Error);
     }
   }
 
@@ -384,13 +370,22 @@ export class DashboardPanel {
         throw new Error('プロジェクト名を入力してください');
       }
 
-      // ワークスペースのルートパスを取得
-      let projectPath = '';
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (workspaceFolders && workspaceFolders.length > 0) {
-        projectPath = workspaceFolders[0].uri.fsPath;
+      // 常にフォルダ選択ダイアログを表示して保存先を選択させる
+      const options: vscode.OpenDialogOptions = {
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: `プロジェクト「${name}」の保存先を選択`
+      };
+      
+      const folderUri = await vscode.window.showOpenDialog(options);
+      if (!folderUri || folderUri.length === 0) {
+        throw new Error('プロジェクトの保存先が選択されていません');
       }
-
+      
+      // 選択されたフォルダに、プロジェクト名のサブフォルダを作成
+      const projectPath = path.join(folderUri[0].fsPath, name);
+      
       // プロジェクトを作成
       const projectId = await this._projectService.createProject({
         name,
@@ -405,7 +400,7 @@ export class DashboardPanel {
       await this._refreshProjects();
 
       // 成功メッセージを表示
-      vscode.window.showInformationMessage(`プロジェクト「${name}」が作成されました`);
+      vscode.window.showInformationMessage(`プロジェクト「${name}」が作成されました: ${projectPath}`);
     } catch (error) {
       Logger.error(`プロジェクト作成エラー`, error as Error);
       await this._showError(`プロジェクトの作成に失敗しました: ${(error as Error).message}`);
@@ -438,6 +433,30 @@ export class DashboardPanel {
   }
 
   /**
+   * プロジェクト削除確認処理
+   * WebViewから送信されたconfirmDeleteProjectメッセージを処理
+   */
+  private async _handleConfirmDeleteProject(id: string, projectName: string): Promise<void> {
+    try {
+      // VSCodeのネイティブな確認ダイアログを表示
+      const answer = await vscode.window.showWarningMessage(
+        `プロジェクト「${projectName}」を削除しますか？この操作は元に戻せません。`,
+        { modal: true },
+        'はい',
+        'いいえ'
+      );
+
+      // ユーザーが「はい」を選択した場合のみ削除処理を実行
+      if (answer === 'はい') {
+        await this._handleDeleteProject(id);
+      }
+    } catch (error) {
+      Logger.error(`プロジェクト削除確認エラー: ${id}`, error as Error);
+      await this._showError(`プロジェクト削除確認中にエラーが発生しました: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * プロジェクト削除処理
    */
   private async _handleDeleteProject(id: string): Promise<void> {
@@ -446,18 +465,6 @@ export class DashboardPanel {
       const project = this._projectService.getProject(id);
       if (!project) {
         throw new Error(`プロジェクトが見つかりません: ${id}`);
-      }
-
-      // 確認ダイアログを表示
-      const answer = await vscode.window.showWarningMessage(
-        `プロジェクト「${project.name}」を削除しますか？この操作は元に戻せません。`,
-        { modal: true },
-        'はい',
-        'いいえ'
-      );
-
-      if (answer !== 'はい') {
-        return;
       }
 
       // プロジェクトを削除
@@ -520,8 +527,17 @@ export class DashboardPanel {
         throw new Error('開いているプロジェクトがありません。まずプロジェクトを作成または選択してください。');
       }
 
-      // 要件定義エディタを開く
-      vscode.commands.executeCommand('appgenius-ai.openSimpleChat');
+      // プロジェクトのパスを取得
+      const projectPath = this._activeProject.path;
+      
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
+      }
+      
+      Logger.info(`要件定義エディタを開きます。プロジェクトパス: ${projectPath}`);
+
+      // 要件定義エディタを開く（プロジェクトパスを引数として渡す）
+      vscode.commands.executeCommand('appgenius-ai.openSimpleChat', projectPath);
     } catch (error) {
       Logger.error(`要件定義エディタ起動エラー`, error as Error);
       await this._showError(`要件定義エディタの起動に失敗しました: ${(error as Error).message}`);

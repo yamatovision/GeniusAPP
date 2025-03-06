@@ -62,6 +62,41 @@ npm run watch  # 開発モード
 npm run package  # パッケージング
 ```
 
+## プロジェクトパスの取り扱い
+
+AppGeniusの各コンポーネントはプロジェクトごとに独立したファイルを管理します。以下の点に注意してください：
+
+1. **パスの受け渡し**: UI要素間で必ずプロジェクトパスを引数として渡すこと
+   ```typescript
+   // 正しいパスの渡し方
+   vscode.commands.executeCommand('appgenius-ai.openXXX', projectPath);
+   ```
+
+2. **パス参照の優先順位**:
+   - コマンド引数で渡されたパス
+   - アクティブプロジェクトのパス
+   - ワークスペースのルートパス
+
+3. **固定パスの禁止**: ハードコードされたパスを使用しないこと
+   ```typescript
+   // 悪い例
+   const appGeniusPath = '/Users/xxx/AppGenius';
+   
+   // 良い例
+   const basePath = this._projectPath || '';
+   ```
+
+4. **パス情報のログ出力**: デバッグのため使用しているパスの情報をログに残すこと
+   ```typescript
+   Logger.info(`プロジェクトパスを使用: ${basePath}`);
+   ```
+
+現在、以下のコンポーネントはプロジェクトパスを適切に扱うよう修正されています：
+- ダッシュボード (DashboardPanel)
+- 要件定義エディタ (SimpleChatPanel)
+- モックアップギャラリー (MockupGalleryPanel)
+- 実装スコープ選択 (ImplementationSelectorPanel)
+
 ## コーディング規約
 - クラス名: PascalCase
 - メソッド名: camelCase

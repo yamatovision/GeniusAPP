@@ -25,11 +25,12 @@ export class SimpleChatPanel implements vscode.Disposable {
   private readonly _claudeCodeLauncherService = ClaudeCodeLauncherService.getInstance();
   private _extractedCodeBlocks: Array<{id: number, language: string, code: string}> = [];
   private _chatHistory: Array<{role: 'user' | 'ai', content: string}> = [];
+  private _projectPath?: string; // プロジェクトのパス
   
   /**
    * シンプルチャットパネルを作成または表示する
    */
-  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService) {
+  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -37,6 +38,12 @@ export class SimpleChatPanel implements vscode.Disposable {
     // すでにパネルがある場合は表示する
     if (SimpleChatPanel.currentPanel) {
       SimpleChatPanel.currentPanel._panel.reveal(column);
+      
+      // プロジェクトパスが変更された場合は再読み込み
+      if (projectPath && SimpleChatPanel.currentPanel._projectPath !== projectPath) {
+        SimpleChatPanel.currentPanel._projectPath = projectPath;
+        SimpleChatPanel.currentPanel._loadInitialData();
+      }
       return;
     }
     
@@ -54,16 +61,17 @@ export class SimpleChatPanel implements vscode.Disposable {
       }
     );
     
-    SimpleChatPanel.currentPanel = new SimpleChatPanel(panel, extensionUri, aiService);
+    SimpleChatPanel.currentPanel = new SimpleChatPanel(panel, extensionUri, aiService, projectPath);
   }
   
   /**
    * コンストラクタ
    */
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._aiService = aiService;
+    this._projectPath = projectPath;
     
     // WebViewのHTMLをセット
     this._update();
@@ -116,6 +124,9 @@ export class SimpleChatPanel implements vscode.Disposable {
     
     // ログ出力
     Logger.info('シンプルAIチャットパネルを作成しました');
+    if (this._projectPath) {
+      Logger.info(`プロジェクトパス: ${this._projectPath}`);
+    }
   }
   
   /**
@@ -132,32 +143,32 @@ export class SimpleChatPanel implements vscode.Disposable {
       const useStreaming = vscode.workspace.getConfiguration('appgeniusAI').get<boolean>('useStreaming', true);
       
       // 要件定義ビジュアライザー用のシステムメッセージを追加
+      // docs/mockup_designer_system_prompt.mdから読み込む
       const systemMessage = {
         role: 'system' as 'system',
         content: `あなたはUI/UX設計のエキスパートビジュアライザーです。
 非技術者の要望を具体的な形にし、技術者が実装できる明確なモックアップと仕様に変換する役割を担います。
 
 目的：
-非技術者の要望を視覚的に具現化し、具体的な要件定義の土台を作成し、それを動作するのに必要なページを洗い出して完璧なモックアップを形成し、その後ディレクトリ構造を提案する。
+非技術者の要望を視覚的に具現化し、ページや機能を洗い出して完璧なモックアップを形成します。
 ＊モックアップはモックデータを使い、この時点でかなり精密につくりあげておくこと。
-＊また、ディレクトリ構造はわかりやすくするためにフロントエンドはページ別、バックエンドは機能別のフォルダ分けの構造をつくる。(絶対に1つのファイルで拡張する予定もないのに馬鹿みたいにディレクトリを作ることは避けること)
 
-Phase#1： 基本要件の把握
-ヒアリング項目:
-  目的:
-    - 解決したい課題
-    - 実現したい状態
-  ユーザー:
-    - 主な利用者
-    - 利用シーン
-  機能:
-    - 必須機能
-    - あったら嬉しい機能
+Phase#1： プロジェクト情報の収集
+まず以下の情報を収集することから始めてください：
+  - 業界や分野（ECサイト、SNS、情報サイト、管理ツールなど）
+  - ターゲットユーザー（年齢層、技術レベルなど）
+  - 競合他社やインスピレーションとなる既存サービス
+  - デザインテイスト（モダン、シンプル、カラフルなど）
+このフェーズは会話形式で進め、ユーザーの回答を深掘りしてください。
 
-Phase#2： 要件を満たす効果的なフロントエンドのページ数とその機能の策定。
-・ユーザーにヒアリングをしながら抜け漏れはないかを固める。
+Phase#2： 必要なページと機能の策定
+収集した情報をもとに、以下を明確にします：
+  - 必要なページ一覧とその役割
+  - 各ページの主要コンポーネント
+  - ユーザーフロー
+  - データ構造
 
-Phase#3：Phase#2で満たしたページを1つずつHTMLの1枚モックアップを作る。
+Phase#3：各ページの詳細モックアップ作成
 
 【生成規則】
 ・必ず以下の要素を含む完全なHTMLファイルを一括生成すること:
@@ -182,27 +193,13 @@ Phase#3：Phase#2で満たしたページを1つずつHTMLの1枚モックアッ
 ・視覚的要素が即座に表示されること
 ・コンソールエラーが発生しないこと
 
-各モックアップ作成後、そのページに必要なバックエンドの項目を自然言語で提出し、ロジックの擦り合わせを行う。
-
-Phase#4：ディレクトリ構造の作成
-フロントエンド：ページ別構造
-バックエンド：機能別構造
-※不要なディレクトリは作成しない
-
-Phase#5：要件定義書のまとめ
-他のAIが実装可能な形での明確な仕様書作成
-
 鉄の掟：
 ・常に1問1答を心がける
-・ユーザーの承認がなければ絶対に次のPhaseにすすまない
-・ユーザーとのフィードバックループを継続的に回し、精度の高い成果物を作り上げる
+・具体的で詳細な質問を通じて、ユーザーの真のニーズを引き出す
+・モックアップは常に実際のユースケースを想定した実用的なものにする
+・会話の流れを優先し、必要な情報を柔軟に収集する
 
-各フェーズでの成果物：
-Phase#1：要件定義シート
-Phase#2：ページ一覧と機能一覧
-Phase#3：動作確認済みモックアップ一式
-Phase#4：ディレクトリ構造図
-Phase#5：実装用要件定義書`
+重要：モックアップを作成したら、それに対して即時に詳細なフィードバックを提供してください。ブラウザでの表示方法を案内し、モックアップの主要な機能や特徴を説明してください。`
       };
       
       // 会話履歴をAPI形式に変換
@@ -484,82 +481,15 @@ Phase#5：実装用要件定義書`
         throw new Error('指定されたコードブロックが見つかりません');
       }
       
-      // HTML形式のコードブロックかチェック
+      // HTML形式のコードブロックの場合のみモックアップとして保存
       const isHtmlBlock = codeBlock.language === 'html';
       
-      // ダイアログのオプションを設定
-      const saveOptions = ['ファイルとして保存'];
       if (isHtmlBlock) {
-        saveOptions.push('モックアップとして保存');
-      }
-      
-      // 保存方法を選択するダイアログを表示
-      const saveMethod = await vscode.window.showQuickPick(saveOptions, {
-        placeHolder: '保存方法を選択してください'
-      });
-      
-      if (!saveMethod) {
-        // ユーザーがキャンセルした場合
-        return;
-      }
-      
-      if (saveMethod === 'モックアップとして保存') {
         // モックアップとして保存
         await this._saveAsNewMockup(codeBlock.code);
-        return;
-      }
-      
-      // 通常の保存処理
-      // ファイル名を入力するダイアログを表示
-      const defaultExtension = this._getExtensionForLanguage(codeBlock.language);
-      const fileName = await vscode.window.showInputBox({
-        prompt: 'ファイル名を入力してください',
-        placeHolder: `example.${defaultExtension}`,
-        value: `code.${defaultExtension}`
-      });
-      
-      if (!fileName) {
-        // ユーザーがキャンセルした場合
-        return;
-      }
-      
-      // 保存場所を選択するダイアログを表示
-      let saveLocation: vscode.Uri[] | undefined;
-      if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-        // ワークスペースがある場合はその中から選択
-        saveLocation = [vscode.workspace.workspaceFolders[0].uri];
       } else {
-        // ワークスペースがない場合はファイル選択ダイアログを表示
-        saveLocation = await vscode.window.showOpenDialog({
-          canSelectFolders: true,
-          canSelectFiles: false,
-          canSelectMany: false,
-          openLabel: '保存先を選択'
-        });
-      }
-      
-      if (!saveLocation || saveLocation.length === 0) {
-        // ユーザーがキャンセルした場合
-        return;
-      }
-      
-      // ファイルパスを作成
-      const filePath = path.join(saveLocation[0].fsPath, fileName);
-      
-      // ファイル操作マネージャーを使用してファイルを保存
-      const fileManager = FileOperationManager.getInstance();
-      const success = await fileManager.createFile(filePath, codeBlock.code);
-      
-      if (success) {
-        // 成功メッセージを表示
-        vscode.window.showInformationMessage(`コードを保存しました: ${filePath}`);
-        
-        // WebViewに成功メッセージを送信
-        await this._panel.webview.postMessage({
-          command: 'codeSaved',
-          blockId,
-          fileName
-        });
+        // HTMLでない場合は通知
+        vscode.window.showInformationMessage('HTMLコードブロックのみモックアップとして保存できます');
       }
     } catch (error) {
       Logger.error(`コードブロック保存エラー: ${(error as Error).message}`);
@@ -572,49 +502,62 @@ Phase#5：実装用要件定義書`
    */
   private async _saveAsNewMockup(htmlCode: string): Promise<void> {
     try {
-      // モックアップ名を入力するダイアログを表示
-      const mockupName = await vscode.window.showInputBox({
-        prompt: 'モックアップ名を入力してください',
-        placeHolder: 'モックアップ名',
-        value: `Mockup ${new Date().toLocaleString()}`
+      // 現在の日付を取得してフォーマット
+      const now = new Date();
+      const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+      const mockupName = `モックアップ_${formattedDate}`;
+      
+      // プロジェクトパスの確認
+      if (!this._projectPath) {
+        // プロジェクトパスが設定されていない場合はエラー
+        throw new Error('プロジェクトパスが設定されていません');
+      }
+      
+      // HTMLファイルを直接保存
+      const mockupsDir = path.join(this._projectPath, 'mockups');
+      
+      // mockupsディレクトリが存在しない場合は作成
+      if (!fs.existsSync(mockupsDir)) {
+        fs.mkdirSync(mockupsDir, { recursive: true });
+      }
+      
+      // HTMLファイルのパス
+      const htmlFilePath = path.join(mockupsDir, `${mockupName}.html`);
+      
+      // HTMLファイルを保存
+      fs.writeFileSync(htmlFilePath, htmlCode);
+      
+      // メタデータファイルのパス
+      const metadataFilePath = path.join(mockupsDir, 'metadata.json');
+      
+      // 既存のメタデータを読み込むか、新しいメタデータを作成
+      let metadata: any[] = [];
+      if (fs.existsSync(metadataFilePath)) {
+        try {
+          const metadataContent = fs.readFileSync(metadataFilePath, 'utf8');
+          metadata = JSON.parse(metadataContent);
+        } catch (error) {
+          Logger.warn(`メタデータファイルの読み込みに失敗しました: ${(error as Error).message}`);
+        }
+      }
+      
+      // 新しいモックアップのメタデータを追加
+      metadata.push({
+        id: `mockup_${Date.now()}`,
+        name: mockupName,
+        filePath: htmlFilePath,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        sourceType: 'requirements',
+        description: '要件定義ビジュアライザーから生成'
       });
       
-      if (!mockupName) {
-        // ユーザーがキャンセルした場合
-        return;
-      }
+      // メタデータを保存
+      fs.writeFileSync(metadataFilePath, JSON.stringify(metadata, null, 2));
       
-      // モックアップストレージサービスをロード
-      // 動的インポートを使用して循環参照を避ける
-      const { MockupStorageService } = require('../services/mockupStorageService');
-      const storageService = MockupStorageService.getInstance();
+      // 成功メッセージを表示
+      vscode.window.showInformationMessage(`モックアップとして保存しました: ${mockupName}`);
       
-      // モックアップを保存
-      const mockupId = await storageService.saveMockup(
-        { html: htmlCode },
-        {
-          name: mockupName,
-          sourceType: 'requirements',
-          description: '要件定義ビジュアライザーから生成'
-        }
-      );
-      
-      if (mockupId) {
-        // 成功メッセージを表示
-        vscode.window.showInformationMessage(`モックアップとして保存しました: ${mockupName}`);
-        
-        // モックアップエディターを開くか確認
-        const openEditor = await vscode.window.showInformationMessage(
-          'モックアップエディターで開きますか？',
-          'はい',
-          'いいえ'
-        );
-        
-        if (openEditor === 'はい') {
-          // モックアップエディターを開く
-          vscode.commands.executeCommand('appgenius-ai.openMockupEditor', mockupId);
-        }
-      }
     } catch (error) {
       Logger.error(`モックアップ保存エラー: ${(error as Error).message}`);
       vscode.window.showErrorMessage(`モックアップの保存に失敗しました: ${(error as Error).message}`);
@@ -723,7 +666,6 @@ Phase#5：実装用要件定義書`
         <div class="tabs">
           <button id="tab-chat" class="tab-button active">AIチャット</button>
           <button id="tab-requirements" class="tab-button">要件定義</button>
-          <button id="tab-structure" class="tab-button">ディレクトリ構造</button>
         </div>
         
         <div id="content-chat" class="tab-content active">
@@ -763,23 +705,6 @@ Phase#5：実装用要件定義書`
             <div class="file-preview-content">
               <div id="requirements-preview" class="preview-mode"></div>
               <textarea id="requirements-editor" class="edit-mode hidden"></textarea>
-            </div>
-          </div>
-        </div>
-        
-        <div id="content-structure" class="tab-content">
-          <div class="file-preview">
-            <div class="file-preview-header">
-              <h3>ディレクトリ構造</h3>
-              <div class="actions">
-                <button id="edit-structure" class="action-button">編集</button>
-                <button id="save-structure" class="action-button" disabled>保存</button>
-                <button id="claudecode-structure" class="claudecode-button">ClaudeCodeで編集・相談</button>
-              </div>
-            </div>
-            <div class="file-preview-content">
-              <div id="structure-preview" class="preview-mode"></div>
-              <textarea id="structure-editor" class="edit-mode hidden"></textarea>
             </div>
           </div>
         </div>
@@ -1461,16 +1386,32 @@ ${projectName}/
    */
   private async _loadInitialData(): Promise<void> {
     try {
-      // AppGenius2/AppGeniusが固定パスの場合、直接指定する
-      const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
-      Logger.info(`AppGenius固定パスを使用: ${appGeniusPath}`);
+      // プロジェクトパスが設定されているか確認
+      const projectPath = this._projectPath;
+      if (!projectPath) {
+        Logger.warn('プロジェクトパスが設定されていません。デフォルト値を使用します。');
+        
+        // アクティブなプロジェクトからパスを取得
+        try {
+          const projectService = ProjectManagementService.getInstance();
+          const activeProject = projectService.getActiveProject();
+          if (activeProject && activeProject.path) {
+            this._projectPath = activeProject.path;
+            Logger.info(`アクティブプロジェクトからパスを取得しました: ${this._projectPath}`);
+          }
+        } catch (e) {
+          Logger.warn(`アクティブプロジェクト取得エラー: ${(e as Error).message}`);
+        }
+      }
       
-      // 要件定義と構造ファイルのパスを構成
-      const requirementsPath = path.join(appGeniusPath, 'docs', 'requirements.md');
-      const structurePath = path.join(appGeniusPath, 'docs', 'structure.md');
+      // プロジェクトパスを使用
+      const basePath = this._projectPath || '';
+      Logger.info(`プロジェクトパスを使用: ${basePath}`);
+      
+      // 要件定義ファイルのパスを構成
+      const requirementsPath = path.join(basePath, 'docs', 'requirements.md');
       
       Logger.info(`要件定義ファイルパス: ${requirementsPath}`);
-      Logger.info(`構造ファイルパス: ${structurePath}`);
       
       // 要件定義ファイルの読み込み
       let requirementsContent = '';
@@ -1480,16 +1421,6 @@ ${projectName}/
         Logger.info(`要件定義ファイルを読み込みました (${requirementsContent.length} 文字)`);
       } else {
         Logger.warn(`要件定義ファイルが見つかりません: ${requirementsPath}`);
-      }
-      
-      // ディレクトリ構造ファイルの読み込み
-      let structureContent = '';
-      if (fs.existsSync(structurePath)) {
-        Logger.info('構造ファイルが見つかりました、読み込みを開始します');
-        structureContent = fs.readFileSync(structurePath, 'utf8');
-        Logger.info(`構造ファイルを読み込みました (${structureContent.length} 文字)`);
-      } else {
-        Logger.warn(`構造ファイルが見つかりません: ${structurePath}`);
       }
       
       // 初期テンプレートからの変更を検出し、フェーズを更新
@@ -1519,20 +1450,6 @@ ${projectName}/
               Logger.info(`要件定義ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
             }
           }
-          
-          // 構造ファイルの変更を検出
-          if (structureContent) {
-            const isStructureChanged = await this._isFileChangedFromTemplate(
-              structureContent, 
-              'structure'
-            );
-            
-            if (isStructureChanged) {
-              // directoryStructureは直接のフェーズではないため、設計(design)フェーズとして扱う
-              await projectService.updateProjectPhase(projectId, 'design', true);
-              Logger.info(`構造ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
-            }
-          }
         }
       } catch (e) {
         Logger.warn(`フェーズ更新処理でエラーが発生しました: ${(e as Error).message}`);
@@ -1542,8 +1459,7 @@ ${projectName}/
       this._panel.webview.postMessage({
         command: 'initialData',
         requirementsContent,
-        structureContent,
-        projectRoot: appGeniusPath
+        projectRoot: basePath
       });
       
       Logger.info('WebViewに初期データを送信しました');
@@ -1551,7 +1467,7 @@ ${projectName}/
       // デバッグ用にパネルに直接メッセージを表示
       this._panel.webview.postMessage({
         command: 'showMessage',
-        text: `ファイル読み込み: 要件定義(${requirementsContent.length}文字), 構造(${structureContent.length}文字)`
+        text: `ファイル読み込み: 要件定義(${requirementsContent.length}文字)`
       });
     } catch (error) {
       Logger.error('初期データ読み込みエラー', error as Error);
@@ -1569,13 +1485,13 @@ ${projectName}/
    */
   private async _handleFileUpdate(filePath: string, content: string): Promise<void> {
     try {
-      // AppGenius2/AppGeniusが固定パスの場合、直接指定する
-      const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
-      Logger.info(`AppGenius固定パスを使用: ${appGeniusPath}`);
+      // プロジェクトパスを使用
+      const basePath = this._projectPath || '';
+      Logger.info(`プロジェクトパスを使用: ${basePath}`);
       
       const fullPath = path.isAbsolute(filePath)
         ? filePath
-        : path.join(appGeniusPath, filePath);
+        : path.join(basePath, filePath);
       
       // ディレクトリが存在しない場合、作成
       const dirPath = path.dirname(fullPath);
@@ -1588,68 +1504,42 @@ ${projectName}/
       
       // CLAUDE.md進捗状況も更新
       const isRequirements = filePath.includes('requirements.md');
-      const isStructure = filePath.includes('structure.md');
       
-      if (isRequirements || isStructure) {
-        const updates: { [key: string]: boolean } = {};
+      if (isRequirements) {
+        const updates: { [key: string]: boolean } = {
+          'requirements': true
+        };
         
-        if (isRequirements) {
-          updates['requirements'] = true;
+        // AppGeniusStateManagerを通して要件定義フェーズを更新
+        try {
+          const { AppGeniusStateManager } = await import('../services/AppGeniusStateManager');
+          const { ProjectManagementService } = await import('../services/ProjectManagementService');
           
-          // AppGeniusStateManagerを通して要件定義フェーズを更新
-          try {
-            const { AppGeniusStateManager } = await import('../services/AppGeniusStateManager');
-            const { ProjectManagementService } = await import('../services/ProjectManagementService');
-            
-            const stateManager = AppGeniusStateManager.getInstance();
-            const projectService = ProjectManagementService.getInstance();
-            
-            // アクティブなプロジェクトを取得
-            const activeProject = projectService.getActiveProject();
-            if (activeProject) {
-              // 要件定義ファイルの内容をStateManagerに保存し、フェーズを更新
-              await stateManager.saveRequirements(activeProject.id, {
-                document: content,
-                sections: [],
-                extractedItems: [],
-                chatHistory: []
-              });
-            }
-          } catch (e) {
-            Logger.warn(`プロジェクトフェーズの更新に失敗しました: ${(e as Error).message}`);
+          const stateManager = AppGeniusStateManager.getInstance();
+          const projectService = ProjectManagementService.getInstance();
+          
+          // アクティブなプロジェクトを取得
+          const activeProject = projectService.getActiveProject();
+          if (activeProject) {
+            // 要件定義ファイルの内容をStateManagerに保存し、フェーズを更新
+            await stateManager.saveRequirements(activeProject.id, {
+              document: content,
+              sections: [],
+              extractedItems: [],
+              chatHistory: []
+            });
           }
+        } catch (e) {
+          Logger.warn(`プロジェクトフェーズの更新に失敗しました: ${(e as Error).message}`);
         }
         
-        if (isStructure) {
-          updates['directoryStructure'] = true;
-          
-          // AppGeniusStateManagerを通して構造フェーズを更新
-          try {
-            const { AppGeniusStateManager } = await import('../services/AppGeniusStateManager');
-            const { ProjectManagementService } = await import('../services/ProjectManagementService');
-            
-            const stateManager = AppGeniusStateManager.getInstance();
-            const projectService = ProjectManagementService.getInstance();
-            
-            // アクティブなプロジェクトを取得
-            const activeProject = projectService.getActiveProject();
-            if (activeProject) {
-              // 構造ファイルの内容をStateManagerに保存し、フェーズを更新
-              await stateManager.saveStructure(activeProject.id, content);
-            }
-          } catch (e) {
-            Logger.warn(`プロジェクトフェーズの更新に失敗しました: ${(e as Error).message}`);
-          }
-        }
+        // プロジェクトパスを使用
+        const basePath = this._projectPath || '';
         
-        // AppGenius固定パスを使用
-        const appGeniusPath = '/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius';
-        
-        await this._claudeMdService.updateMultipleProgressStatus(appGeniusPath, updates);
-        
-        // 構造ファイルが更新された場合、ファイル一覧も抽出
-        if (isStructure) {
-          await this._claudeMdService.extractFileListFromStructure(appGeniusPath);
+        if (basePath) {
+          await this._claudeMdService.updateMultipleProgressStatus(basePath, updates);
+        } else {
+          Logger.warn('プロジェクトパスが設定されていないため、CLAUDE.md更新をスキップします');
         }
       }
       

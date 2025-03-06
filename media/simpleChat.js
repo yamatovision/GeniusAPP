@@ -3,7 +3,6 @@
   let isWaitingForResponse = false;
   let activeTab = 'chat'; // Default active tab
   let requirementsContent = '';
-  let structureContent = '';
 
   // 初期化時に実行
   document.addEventListener('DOMContentLoaded', () => {
@@ -119,7 +118,6 @@
   function addFileEditorFunctionality() {
     // State for editing
     let isEditingRequirements = false;
-    let isEditingStructure = false;
     
     // Requirements editor
     const requirementsPreview = document.getElementById('requirements-preview');
@@ -194,91 +192,6 @@
         });
       });
     }
-    
-    // Structure editor
-    const structurePreview = document.getElementById('structure-preview');
-    const structureEditor = document.getElementById('structure-editor');
-    const editStructureBtn = document.getElementById('edit-structure');
-    const saveStructureBtn = document.getElementById('save-structure');
-    const claudecodeStructureBtn = document.getElementById('claudecode-structure');
-    
-    if (editStructureBtn) {
-      editStructureBtn.addEventListener('click', () => {
-        if (isEditingStructure) {
-          // Switch to preview mode
-          structurePreview.classList.remove('hidden');
-          structureEditor.classList.add('hidden');
-          editStructureBtn.textContent = '編集';
-          isEditingStructure = false;
-          saveStructureBtn.disabled = true;
-        } else {
-          // Switch to edit mode
-          structurePreview.classList.add('hidden');
-          structureEditor.classList.remove('hidden');
-          structureEditor.value = structureContent || structurePreview.innerHTML;
-          editStructureBtn.textContent = 'プレビュー';
-          isEditingStructure = true;
-          saveStructureBtn.disabled = false;
-        }
-      });
-    }
-    
-    if (saveStructureBtn) {
-      saveStructureBtn.addEventListener('click', () => {
-        // Get content from editor
-        structureContent = structureEditor.value;
-        
-        // Update the preview with HTML
-        structurePreview.innerHTML = formatMarkdown(structureContent);
-        
-        // Switch to preview mode
-        structurePreview.classList.remove('hidden');
-        structureEditor.classList.add('hidden');
-        editStructureBtn.textContent = '編集';
-        isEditingStructure = false;
-        saveStructureBtn.disabled = true;
-        
-        // Send to extension
-        vscode.postMessage({
-          command: 'updateFile',
-          filePath: 'docs/structure.md',
-          content: structureContent
-        });
-        
-        // Update status
-        document.getElementById('status-message').textContent = 'ディレクトリ構造を保存しました';
-        
-        // Reset after 3 seconds
-        setTimeout(() => {
-          document.getElementById('status-message').textContent = '準備完了';
-        }, 3000);
-      });
-    }
-    
-    // Add generate structure button functionality
-    const generateStructureButton = document.querySelector('.header-actions button:nth-child(2)');
-    if (generateStructureButton) {
-      generateStructureButton.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'generateProjectStructure'
-        });
-        document.getElementById('status-message').textContent = 'ディレクトリ構造を生成中...';
-      });
-    }
-    
-    // ClaudeCode起動ボタン
-    if (claudecodeStructureBtn) {
-      claudecodeStructureBtn.addEventListener('click', () => {
-        // 状態メッセージを更新
-        document.getElementById('status-message').textContent = 'ClaudeCodeを起動しています...';
-        
-        // 拡張機能に要求
-        vscode.postMessage({
-          command: 'launchClaudeCode',
-          filePath: 'docs/structure.md'
-        });
-      });
-    }
   }
 
   // Tab switching function
@@ -344,26 +257,13 @@
           contentLength: requirementsContent ? requirementsContent.length : 0 
         });
       }
-    } else if (tabId === 'structure') {
-      // 構造タブが選択された場合、コンテンツを再表示
-      const structurePreview = document.getElementById('structure-preview');
-      if (structurePreview && structureContent) {
-        console.log('構造コンテンツを再表示します', structureContent.length);
-        structurePreview.innerHTML = formatMarkdown(structureContent);
-      } else {
-        console.log('構造コンテンツを表示できません', { 
-          previewElement: !!structurePreview, 
-          contentLength: structureContent ? structureContent.length : 0 
-        });
-      }
     }
     
     // ステータスメッセージの更新
     document.getElementById('status-message').textContent = `${tabId}タブを表示しています`;
     
     // 初期データリクエストの送信（必要に応じて）
-    if ((tabId === 'requirements' || tabId === 'structure') && 
-        (!requirementsContent && !structureContent)) {
+    if (tabId === 'requirements' && !requirementsContent) {
       console.log('初期データの再リクエスト');
       vscode.postMessage({ command: 'initialize' });
     }
@@ -654,49 +554,7 @@
       });
     });
     
-    // コピーボタンにイベントリスナーを追加
-    const copyButtons = messageElement.querySelectorAll('.copy-code-btn');
-    copyButtons.forEach(button => {
-      button.addEventListener('click', function() {
-        const blockId = parseInt(this.getAttribute('data-block-id'));
-        const codeBlock = messageElement.querySelector(`.code-block[data-block-id="${blockId}"]`);
-        if (codeBlock) {
-          const codeElement = codeBlock.querySelector('code');
-          if (codeElement) {
-            // HTMLエンティティをデコードしてからクリップボードにコピー
-            const codeText = decodeHtmlEntities(codeElement.textContent);
-            navigator.clipboard.writeText(codeText).then(() => {
-              // 成功通知
-              const successNotification = document.createElement('div');
-              successNotification.className = 'save-notification';
-              successNotification.textContent = 'コードをクリップボードにコピーしました';
-              document.body.appendChild(successNotification);
-              
-              // 数秒後に通知を消す
-              setTimeout(() => {
-                successNotification.classList.add('fadeout');
-                setTimeout(() => {
-                  successNotification.remove();
-                }, 500);
-              }, 2000);
-            }).catch(() => {
-              // エラー通知
-              const errorNotification = document.createElement('div');
-              errorNotification.className = 'save-notification';
-              errorNotification.textContent = 'コピーに失敗しました';
-              document.body.appendChild(errorNotification);
-              
-              setTimeout(() => {
-                errorNotification.classList.add('fadeout');
-                setTimeout(() => {
-                  errorNotification.remove();
-                }, 500);
-              }, 2000);
-            });
-          }
-        }
-      });
-    });
+    // コピーボタンの処理は削除
     
     // HTMLプレビューボタンにイベントリスナーを追加
     const previewButtons = messageElement.querySelectorAll('.preview-code-btn');
@@ -735,7 +593,6 @@
           <div class="code-actions">
             ${isHtml ? `<button class="preview-code-btn" data-block-id="${currentBlockId}">プレビュー</button>` : ''}
             <button class="save-code-btn" data-block-id="${currentBlockId}">保存</button>
-            <button class="copy-code-btn" data-block-id="${currentBlockId}">コピー</button>
           </div>
         </div>
         <pre><code>${escapeHtml(code)}</code></pre>
@@ -806,29 +663,8 @@
         // AIメッセージとして表示
         addAIMessage(message.text, message.codeBlocks);
         
-        // Update structure tab content
-        if (message.text.includes('```')) {
-          const codeBlock = message.text.match(/```[\s\S]*?([\s\S]*?)```/);
-          if (codeBlock && codeBlock[1]) {
-            // Update structure preview
-            const structurePreview = document.getElementById('structure-preview');
-            structureContent = `# プロジェクト構造\n\n\`\`\`\n${codeBlock[1].trim()}\n\`\`\``;
-            structurePreview.innerHTML = formatMarkdown(structureContent);
-            
-            // Update status and switch to structure tab
-            document.getElementById('status-message').textContent = 'ディレクトリ構造を生成しました';
-            
-            // 保存コマンドを送信
-            vscode.postMessage({
-              command: 'updateFile',
-              filePath: 'docs/structure.md',
-              content: structureContent
-            });
-            
-            // タブ切り替え
-            switchTab('structure');
-          }
-        }
+        // 生成完了通知
+        document.getElementById('status-message').textContent = 'プロジェクト構造を生成しました';
         break;
         
       case 'projectCreated':
@@ -984,57 +820,8 @@
             }, 2000);
           });
           
-          // ディレクトリ構造として保存ボタン
-          const saveAsStructureBtn = document.createElement('button');
-          saveAsStructureBtn.className = 'message-action-btn structure-btn';
-          saveAsStructureBtn.innerHTML = 'ディレクトリ構造として保存';
-          saveAsStructureBtn.addEventListener('click', function() {
-            // メッセージからコードブロックを抽出
-            const structureMatch = message.text.match(/```[a-z]*\n([\s\S]*?)```/);
-            
-            let structureContent = '';
-            if (structureMatch && structureMatch[1]) {
-              // コードブロックが見つかった場合
-              structureContent = '# ディレクトリ構造\n\n```\n' + structureMatch[1] + '```';
-            } else {
-              // コードブロックが見つからない場合は全体を保存
-              structureContent = '# ディレクトリ構造\n\n```\n' + message.text + '\n```';
-            }
-            
-            // ディレクトリ構造タブを表示
-            switchTab('structure');
-            
-            // 構造エディタに内容をセット
-            const structureEditor = document.getElementById('structure-editor');
-            const structurePreview = document.getElementById('structure-preview');
-            structureContent = structureContent;
-            structureEditor.value = structureContent;
-            structurePreview.innerHTML = formatMarkdown(structureContent);
-            
-            // 保存コマンドを送信
-            vscode.postMessage({
-              command: 'updateFile',
-              filePath: 'docs/structure.md',
-              content: structureContent
-            });
-            
-            // 通知
-            const notification = document.createElement('div');
-            notification.className = 'save-notification';
-            notification.textContent = 'ディレクトリ構造として保存しました';
-            document.body.appendChild(notification);
-            
-            setTimeout(() => {
-              notification.classList.add('fadeout');
-              setTimeout(() => {
-                notification.remove();
-              }, 500);
-            }, 2000);
-          });
-          
           // ボタンをアクションコンテナに追加
           actionsContainer.appendChild(saveAsRequirementsBtn);
-          actionsContainer.appendChild(saveAsStructureBtn);
           
           // アクションコンテナをメッセージに追加
           streamingElement.appendChild(actionsContainer);
@@ -1051,49 +838,7 @@
             });
           });
           
-          // コピーボタンにイベントリスナーを追加
-          const copyButtons = streamingElement.querySelectorAll('.copy-code-btn');
-          copyButtons.forEach(button => {
-            button.addEventListener('click', function() {
-              const blockId = parseInt(this.getAttribute('data-block-id'));
-              const codeBlock = streamingElement.querySelector(`.code-block[data-block-id="${blockId}"]`);
-              if (codeBlock) {
-                const codeElement = codeBlock.querySelector('code');
-                if (codeElement) {
-                  // HTMLエンティティをデコードしてからクリップボードにコピー
-                  const codeText = decodeHtmlEntities(codeElement.textContent);
-                  navigator.clipboard.writeText(codeText).then(() => {
-                    // 成功通知
-                    const successNotification2 = document.createElement('div');
-                    successNotification2.className = 'save-notification';
-                    successNotification2.textContent = 'コードをクリップボードにコピーしました';
-                    document.body.appendChild(successNotification2);
-                    
-                    // 数秒後に通知を消す
-                    setTimeout(() => {
-                      successNotification2.classList.add('fadeout');
-                      setTimeout(() => {
-                        successNotification2.remove();
-                      }, 500);
-                    }, 2000);
-                  }).catch(() => {
-                    // エラー通知
-                    const errorNotification2 = document.createElement('div');
-                    errorNotification2.className = 'save-notification';
-                    errorNotification2.textContent = 'コピーに失敗しました';
-                    document.body.appendChild(errorNotification2);
-                    
-                    setTimeout(() => {
-                      errorNotification2.classList.add('fadeout');
-                      setTimeout(() => {
-                        errorNotification2.remove();
-                      }, 500);
-                    }, 2000);
-                  });
-                }
-              }
-            });
-          });
+          // コピーボタンの処理は削除
           
           // HTMLプレビューボタンにイベントリスナーを追加
           const previewButtons = streamingElement.querySelectorAll('.preview-code-btn');
@@ -1193,10 +938,6 @@
           requirementsContent = message.requirementsContent;
           document.getElementById('requirements-preview').innerHTML = formatMarkdown(message.requirementsContent);
         }
-        if (message.structureContent) {
-          structureContent = message.structureContent;
-          document.getElementById('structure-preview').innerHTML = formatMarkdown(message.structureContent);
-        }
         document.getElementById('status-message').textContent = '初期データを読み込みました';
         break;
 
@@ -1206,13 +947,8 @@
         // ファイルパスに応じた処理
         if (message.filePath.includes('requirements.md')) {
           // 保存したコンテンツを変数に保持
-          if (requirementsEditor.value) {
+          if (requirementsEditor && requirementsEditor.value) {
             requirementsContent = requirementsEditor.value;
-          }
-        } else if (message.filePath.includes('structure.md')) {
-          // 保存したコンテンツを変数に保持
-          if (structureEditor.value) {
-            structureContent = structureEditor.value;
           }
         }
         break;

@@ -311,10 +311,13 @@ ${Object.entries(analysis.stats.languageBreakdown)
 
 	// 要件定義ビジュアライザーを開くコマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openSimpleChat', () => {
+		vscode.commands.registerCommand('appgenius-ai.openSimpleChat', (projectPath?: string) => {
 			try {
 				Logger.info('要件定義ビジュアライザーを開きます');
-				SimpleChatPanel.createOrShow(context.extensionUri, aiService);
+				if (projectPath) {
+					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
+				}
+				SimpleChatPanel.createOrShow(context.extensionUri, aiService, projectPath);
 			} catch (error) {
 				Logger.error(`要件定義ビジュアライザー起動エラー: ${(error as Error).message}`);
 				vscode.window.showErrorMessage(`要件定義ビジュアライザーの起動に失敗しました: ${(error as Error).message}`);

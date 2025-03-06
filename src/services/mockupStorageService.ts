@@ -29,7 +29,6 @@ export class MockupStorageService {
   private static instance: MockupStorageService;
   private mockups: Map<string, Mockup> = new Map();
   private storageDir: string = '';
-  private metadataFile: string = '';
   private _initialized: boolean = false;
 
   /**
@@ -70,7 +69,6 @@ export class MockupStorageService {
   public initializeWithPath(projectPath: string): void {
     // プロジェクトディレクトリ内の'mockups'ディレクトリを使用
     this.storageDir = path.join(projectPath, 'mockups');
-    this.metadataFile = path.join(this.storageDir, 'metadata.json');
 
     // ディレクトリの作成
     this.ensureDirectoryExists(this.storageDir);
@@ -146,9 +144,6 @@ export class MockupStorageService {
       // メモリ上のマップに保存
       this.mockups.set(id, mockup);
       
-      // メタデータファイルの更新
-      await this.saveMetadata();
-      
       Logger.info(`Mockup saved: ${id}`);
       
       return id;
@@ -219,9 +214,6 @@ export class MockupStorageService {
       // 更新日時を設定
       mockup.updatedAt = Date.now();
       
-      // メタデータファイルの更新
-      await this.saveMetadata();
-      
       Logger.info(`Mockup updated: ${id}`);
       
       return mockup;
@@ -283,9 +275,6 @@ export class MockupStorageService {
         await this.deleteDirectory(mockupDir);
       }
       
-      // メタデータの更新
-      await this.saveMetadata();
-      
       Logger.info(`Mockup deleted: ${id}`);
       
       return true;
@@ -302,24 +291,6 @@ export class MockupStorageService {
     try {
       this.mockups.clear(); // 既存のモックアップをクリア
       
-      // メタデータファイルが存在するか確認
-      if (fs.existsSync(this.metadataFile)) {
-        // メタデータファイルを読み込む
-        const metadata = await fs.promises.readFile(this.metadataFile, 'utf8');
-        const mockupList = JSON.parse(metadata) as Mockup[];
-        
-        // メタデータをマップに設定
-        mockupList.forEach(mockup => {
-          // ステータスが未設定の場合はデフォルト値を設定
-          if (!mockup.status) {
-            mockup.status = 'review';
-          }
-          this.mockups.set(mockup.id, mockup);
-        });
-        
-        Logger.info(`Loaded ${mockupList.length} mockups from metadata`);
-      }
-      
       // ディレクトリ内のモックアップをロード
       if (fs.existsSync(this.storageDir)) {
         // 1. まずstructured mockupをロード (mockup_ディレクトリ)
@@ -328,8 +299,6 @@ export class MockupStorageService {
           .map(dirent => dirent.name);
         
         for (const dir of directories) {
-          if (this.mockups.has(dir)) continue; // メタデータから既にロードされている場合はスキップ
-          
           const mockupDir = path.join(this.storageDir, dir);
           const htmlPath = path.join(mockupDir, 'index.html');
           const cssPath = path.join(mockupDir, 'style.css');
@@ -377,6 +346,7 @@ export class MockupStorageService {
         // 2. 次にルートディレクトリのHTMLファイルをインポート
         const htmlFiles = fs.readdirSync(this.storageDir, { withFileTypes: true })
           .filter(dirent => dirent.isFile() && (dirent.name.endsWith('.html') || dirent.name.endsWith('.htm')))
+          .filter(dirent => dirent.name !== 'metadata.json') // metadata.jsonを除外
           .map(dirent => dirent.name);
         
         for (const htmlFile of htmlFiles) {
@@ -416,9 +386,6 @@ export class MockupStorageService {
           }
         }
         
-        // 新しいメタデータファイルを作成
-        await this.saveMetadata();
-        
         Logger.info(`Loaded ${this.mockups.size} mockups from directory structure`);
       }
     } catch (error) {
@@ -444,9 +411,6 @@ export class MockupStorageService {
       // ステータスを更新
       mockup.status = status as 'pending' | 'generating' | 'review' | 'approved';
       mockup.updatedAt = Date.now();
-      
-      // メタデータの更新
-      await this.saveMetadata();
       
       Logger.info(`Mockup status updated: ${id} -> ${status}`);
       
@@ -481,9 +445,6 @@ export class MockupStorageService {
       mockup.feedback.push(feedback);
       mockup.updatedAt = Date.now();
       
-      // メタデータの更新
-      await this.saveMetadata();
-      
       Logger.info(`Feedback added to mockup: ${id}`);
       
       return mockup;
@@ -511,9 +472,6 @@ export class MockupStorageService {
       // 実装メモを保存
       mockup.implementationNotes = notes;
       mockup.updatedAt = Date.now();
-      
-      // メタデータの更新
-      await this.saveMetadata();
       
       Logger.info(`Implementation notes saved for mockup: ${id}`);
       
@@ -588,9 +546,8 @@ export class MockupStorageService {
         status: 'review'
       };
       
-      // マップに追加して保存
+      // マップに追加
       this.mockups.set(mockupId, mockup);
-      await this.saveMetadata();
       
       Logger.info(`Created mockup from file: ${filePath}`);
       return mockup;
@@ -620,18 +577,6 @@ export class MockupStorageService {
     }
   }
 
-  /**
-   * メタデータをファイルに保存
-   */
-  private async saveMetadata(): Promise<void> {
-    try {
-      const mockupList = Array.from(this.mockups.values());
-      await fs.promises.writeFile(this.metadataFile, JSON.stringify(mockupList, null, 2), 'utf8');
-      Logger.debug(`Saved metadata for ${mockupList.length} mockups`);
-    } catch (error) {
-      Logger.error(`Failed to save metadata: ${(error as Error).message}`);
-    }
-  }
 
   /**
    * ディレクトリが存在することを確認し、なければ作成
