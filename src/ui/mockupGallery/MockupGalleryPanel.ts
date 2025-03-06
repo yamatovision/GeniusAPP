@@ -177,40 +177,18 @@ export class MockupGalleryPanel {
    * デフォルトのプロジェクトパスを取得
    */
   private _getDefaultProjectPath(): string {
-    // 現在の実行ディレクトリとワークスペースフォルダを取得
+    // 1. VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
     const workspaceFolders = vscode.workspace.workspaceFolders;
-    const extensionPath = vscode.extensions.getExtension('appgenius.appgenius')?.extensionPath 
-      || vscode.extensions.all.find(ext => ext.extensionPath.includes('AppGenius'))?.extensionPath;
     
-    // 1. 拡張機能のパスがあればそれを優先
-    if (extensionPath && extensionPath.includes('AppGenius')) {
-      Logger.info(`拡張機能のパスからプロジェクトパスを取得: ${extensionPath}`);
-      return extensionPath;
-    }
-    
-    // 2. ワークスペースフォルダがあればそれを使用
     if (workspaceFolders && workspaceFolders.length > 0) {
       const wsPath = workspaceFolders[0].uri.fsPath;
       Logger.info(`ワークスペースフォルダからプロジェクトパスを取得: ${wsPath}`);
       return wsPath;
     }
     
-    // 3. 最終手段として現在のディレクトリを使用
+    // 2. 現在のディレクトリを使用
     const currentPath = process.cwd();
     Logger.info(`カレントディレクトリからプロジェクトパスを取得: ${currentPath}`);
-    
-    // パスの妥当性チェック - "AppGenius"が含まれているかを確認
-    if (!currentPath.includes('AppGenius')) {
-      // エラーログを出力
-      Logger.error(`プロジェクトパスの取得に問題があります: 現在のパス "${currentPath}" にAppGeniusが含まれていません`);
-      Logger.error(`期待されるパスの例: "/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius"`);
-      Logger.error(`原因: VSCodeの起動コンテキストが異なる可能性があります`);
-      
-      // 警告ダイアログを表示（非同期だが、このメソッドの実行は続行）
-      vscode.window.showWarningMessage(
-        `プロジェクトパスの検出に問題があります。現在のパス: ${currentPath}`
-      );
-    }
     
     return currentPath;
   }
