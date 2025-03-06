@@ -4,37 +4,17 @@ import { v4 as uuidv4 } from 'uuid';
 import { PlatformManager } from './PlatformManager';
 import { Logger } from './logger';
 import { MessageBroker, MessageType } from './MessageBroker';
+import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../types';
 
 /**
  * 実装項目インターフェース
  */
-export interface ImplementationItem {
-  id: string;
-  title: string;
-  description: string;
-  completed?: boolean;
-  estimatedHours?: number;
-  relatedFiles?: string[]; // 関連ファイル一覧
-  relatedMockups?: string[]; // 関連モックアップ
-  relatedRequirements?: string[]; // 関連要件
-}
+export type ImplementationItem = IImplementationItem;
 
 /**
  * スコープデータインターフェース
  */
-export interface ScopeData {
-  id: string;
-  name: string;
-  description: string;
-  projectPath: string;
-  requirements?: string[];
-  selectedItems?: ImplementationItem[];
-  estimatedTime?: number;
-  startDate?: string;
-  targetDate?: string;
-  created: number;
-  updated: number;
-}
+export type ScopeData = IImplementationScope;
 
 /**
  * スコープエクスポータークラス
@@ -81,14 +61,16 @@ export class ScopeExporter {
       const scopeId = scope.id || `scope-${Date.now()}-${uuidv4().substring(0, 8)}`;
       
       // スコープデータを標準化
-      const standardizedScope: ScopeData = {
+      const standardizedScope: IImplementationScope = {
         id: scopeId,
         name: scope.name || `スコープ ${scopeId.substring(0, 8)}`,
         description: scope.description || '',
         projectPath: scope.projectPath || '',
         requirements: Array.isArray(scope.requirements) ? scope.requirements : [],
-        selectedItems: this.standardizeSelectedItems(scope),
-        estimatedTime: scope.estimatedTime || 0,
+        items: this.standardizeSelectedItems(scope),
+        selectedIds: Array.isArray(scope.selectedIds) ? scope.selectedIds : [],
+        estimatedTime: scope.estimatedTime || "0",
+        totalProgress: scope.totalProgress || 0,
         startDate: scope.startDate || new Date().toISOString().split('T')[0],
         targetDate: scope.targetDate || '',
         created: Date.now(),
@@ -124,20 +106,43 @@ export class ScopeExporter {
   /**
    * 選択された項目を標準化
    */
-  private standardizeSelectedItems(scope: any): ImplementationItem[] {
+  private standardizeSelectedItems(scope: any): IImplementationItem[] {
     // 選択された項目がない場合は空配列を返す
-    if (!scope.selectedItems && !scope.items) {
+    if (!scope.items && !scope.selectedItems) {
       return [];
     }
     
-    // 選択された項目が既に標準化されている場合はそのまま返す
+    // 通常のitems形式を優先
+    if (Array.isArray(scope.items)) {
+      return scope.items.map((item: any) => ({
+        id: item.id || uuidv4(),
+        title: item.title || 'タイトルなし',
+        description: item.description || '',
+        completed: !!item.completed,
+        status: item.status || (item.completed ? ScopeItemStatus.COMPLETED : ScopeItemStatus.PENDING),
+        progress: item.progress || (item.completed ? 100 : 0),
+        priority: item.priority || 'medium',
+        complexity: item.complexity || 'medium',
+        dependencies: item.dependencies || [],
+        estimatedHours: item.estimatedHours || 0,
+        relatedFiles: item.relatedFiles || []
+      }));
+    }
+    
+    // 後方互換性のためselectedItemsもサポート
     if (Array.isArray(scope.selectedItems)) {
       return scope.selectedItems.map((item: any) => ({
         id: item.id || uuidv4(),
         title: item.title || 'タイトルなし',
         description: item.description || '',
         completed: !!item.completed,
-        estimatedHours: item.estimatedHours || 0
+        status: item.completed ? ScopeItemStatus.COMPLETED : ScopeItemStatus.PENDING,
+        progress: item.completed ? 100 : 0,
+        priority: item.priority || 'medium',
+        complexity: item.complexity || 'medium',
+        dependencies: item.dependencies || [],
+        estimatedHours: item.estimatedHours || 0,
+        relatedFiles: item.relatedFiles || []
       }));
     }
     
@@ -150,7 +155,13 @@ export class ScopeExporter {
           title: item.title || 'タイトルなし',
           description: item.description || '',
           completed: !!item.completed,
-          estimatedHours: item.estimatedHours || 0
+          status: item.status || (item.completed ? ScopeItemStatus.COMPLETED : ScopeItemStatus.PENDING),
+          progress: item.progress || (item.completed ? 100 : 0),
+          priority: item.priority || 'medium',
+          complexity: item.complexity || 'medium',
+          dependencies: item.dependencies || [],
+          estimatedHours: item.estimatedHours || 0,
+          relatedFiles: item.relatedFiles || []
         }));
     }
     

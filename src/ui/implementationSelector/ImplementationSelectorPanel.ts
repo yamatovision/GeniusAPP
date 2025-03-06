@@ -4,7 +4,8 @@ import * as fs from 'fs';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
 import { ImplementationPhaseManager, ImplementationPhase } from '../../modes/implementationMode/implementationPhases';
-import { ScopeSelector, ImplementationItem } from '../../modes/implementationMode/scopeSelector';
+import { ScopeSelector } from '../../modes/implementationMode/scopeSelector';
+import { IImplementationItem, IImplementationScope } from '../../types';
 import { FileOperationManager } from '../../utils/fileOperationManager';
 
 /**
@@ -25,14 +26,14 @@ export class ImplementationSelectorPanel {
 
   // 現在の作業状態
   private _requirementsDocument: string = '';
-  private _implementationItems: ImplementationItem[] = [];
+  private _implementationItems: IImplementationItem[] = [];
   private _selectedMockupHtml: string = '';
   private _selectedFramework: string = 'react';
 
   /**
    * パネルを作成または表示
    */
-  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService): ImplementationSelectorPanel {
+  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): ImplementationSelectorPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -40,6 +41,13 @@ export class ImplementationSelectorPanel {
     // すでにパネルが存在する場合は、それを表示
     if (ImplementationSelectorPanel.currentPanel) {
       ImplementationSelectorPanel.currentPanel._panel.reveal(column);
+      
+      // プロジェクトパスが指定されている場合は更新
+      if (projectPath) {
+        ImplementationSelectorPanel.currentPanel._scopeSelector.setProjectPath(projectPath);
+        Logger.info(`既存パネルのプロジェクトパスを更新: ${projectPath}`);
+      }
+      
       return ImplementationSelectorPanel.currentPanel;
     }
 
@@ -59,14 +67,14 @@ export class ImplementationSelectorPanel {
       }
     );
 
-    ImplementationSelectorPanel.currentPanel = new ImplementationSelectorPanel(panel, extensionUri, aiService);
+    ImplementationSelectorPanel.currentPanel = new ImplementationSelectorPanel(panel, extensionUri, aiService, projectPath);
     return ImplementationSelectorPanel.currentPanel;
   }
 
   /**
    * コンストラクタ
    */
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
     this._panel = panel;
     this._extensionUri = extensionUri;
     
@@ -74,6 +82,12 @@ export class ImplementationSelectorPanel {
     this._phaseManager = new ImplementationPhaseManager();
     this._scopeSelector = new ScopeSelector(aiService);
     this._fileManager = FileOperationManager.getInstance();
+    
+    // プロジェクトパスが指定されている場合は設定
+    if (projectPath) {
+      Logger.info(`コンストラクタでプロジェクトパスを設定: ${projectPath}`);
+      this._scopeSelector.setProjectPath(projectPath);
+    }
 
     // WebViewの内容を設定
     this._update();
@@ -144,6 +158,66 @@ export class ImplementationSelectorPanel {
   private async _handleInitialize(): Promise<void> {
     try {
       Logger.info('実装スコープ選択パネルを初期化しています');
+      
+      // ScopeSelectorのプロジェクトパスを使用する
+      const projectPath = this._scopeSelector.getProjectPath();
+      
+      if (!projectPath) {
+        // プロジェクトパスが設定されていない場合はワークスペースフォルダを使用
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        
+        if (workspaceFolders && workspaceFolders.length > 0) {
+          const wsPath = workspaceFolders[0].uri.fsPath;
+          this._scopeSelector.setProjectPath(wsPath);
+          Logger.info(`プロジェクトパスが未設定のためワークスペースパスを使用: ${wsPath}`);
+        }
+      }
+      
+      // 現在のプロジェクトパスを取得（上書きした可能性があるため再取得）
+      const currentProjectPath = this._scopeSelector.getProjectPath();
+      
+      if (currentProjectPath) {
+        // 要件定義ファイルを自動的に読み込む
+        try {
+          const requirementsPath = path.join(currentProjectPath, 'docs', 'requirements.md');
+          
+          if (fs.existsSync(requirementsPath)) {
+            Logger.info(`要件定義ファイルを自動読み込みします: ${requirementsPath}`);
+            const content = fs.readFileSync(requirementsPath, 'utf8');
+            
+            // 要件定義を設定
+            this._requirementsDocument = content;
+            this._scopeSelector.setRequirementsDocument(content);
+            
+            // 初期化時にマークダウンマネージャーのスコープセクションも初期化
+            const { MarkdownManager } = await import('../../utils/MarkdownManager');
+            const markdownManager = MarkdownManager.getInstance();
+            markdownManager.initializeScopeSection(currentProjectPath);
+            
+            // UI上の要件定義を自動的に設定
+            await this._panel.webview.postMessage({
+              command: 'updateState',
+              requirementsDocument: content
+            });
+            
+            vscode.window.showInformationMessage('要件定義ファイルを自動読み込みしました');
+            
+            // 要件定義を読み込んだら自動的に実装項目を抽出
+            setTimeout(async () => {
+              try {
+                await this._handleExtractItems();
+              } catch (extractError) {
+                Logger.warn(`実装項目の自動抽出に失敗: ${(extractError as Error).message}`);
+              }
+            }, 1000); // UIの更新が完了してから抽出を開始するために少し遅延
+          } else {
+            Logger.info('要件定義ファイルが見つかりません: ' + requirementsPath);
+          }
+        } catch (fileError) {
+          Logger.warn(`要件定義ファイルの自動読み込みに失敗: ${(fileError as Error).message}`);
+        }
+      }
+      
       await this._updateWebview();
     } catch (error) {
       Logger.error('パネル初期化エラー', error as Error);
@@ -156,6 +230,17 @@ export class ImplementationSelectorPanel {
   private async _handleSetRequirementsDocument(text: string): Promise<void> {
     try {
       this._requirementsDocument = text;
+      
+      // プロジェクトパスを設定
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      let projectPath = '';
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        projectPath = workspaceFolders[0].uri.fsPath;
+      }
+      
+      // ScopeSelectorにプロジェクトパスと要件定義書を設定
+      this._scopeSelector.setProjectPath(projectPath);
       this._scopeSelector.setRequirementsDocument(text);
       
       // UIを更新
@@ -193,9 +278,20 @@ export class ImplementationSelectorPanel {
       const filePath = fileUris[0].fsPath;
       const content = await this._fileManager.readFileAsString(filePath);
       
-      // 要件定義書を設定
-      this._requirementsDocument = content;
+      // プロジェクトパスを設定
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      let projectPath = '';
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        projectPath = workspaceFolders[0].uri.fsPath;
+      }
+      
+      // ScopeSelectorにプロジェクトパスと要件定義書を設定
+      this._scopeSelector.setProjectPath(projectPath);
       this._scopeSelector.setRequirementsDocument(content);
+      
+      // 内部状態も更新
+      this._requirementsDocument = content;
       
       // UIを更新
       await this._updateWebview();
@@ -216,6 +312,11 @@ export class ImplementationSelectorPanel {
         throw new Error('要件定義書が設定されていません');
       }
 
+      // 抽出中のローディング表示を開始
+      await this._panel.webview.postMessage({
+        command: 'startExtraction'
+      });
+
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
@@ -225,13 +326,56 @@ export class ImplementationSelectorPanel {
         async (progress) => {
           progress.report({ increment: 0 });
           
+          // 進捗表示のアップデート
+          await this._panel.webview.postMessage({
+            command: 'updateExtractionProgress',
+            progress: 10
+          });
+          
           // 実装項目を抽出
           this._implementationItems = await this._scopeSelector.extractImplementationItems();
           
-          progress.report({ increment: 100 });
+          // 進捗表示のアップデート
+          await this._panel.webview.postMessage({
+            command: 'updateExtractionProgress',
+            progress: 50
+          });
+          
+          progress.report({ increment: 50 });
           
           // UIを更新
           await this._updateWebview();
+          
+          // タブを実装項目タブに切り替え
+          await this._panel.webview.postMessage({
+            command: 'switchToItemsTab'
+          });
+          
+          // 進捗表示のアップデート
+          await this._panel.webview.postMessage({
+            command: 'updateExtractionProgress',
+            progress: 75
+          });
+          
+          // 自動的に見積もりも実行
+          try {
+            await this._handleEstimateScope();
+            
+            // 進捗表示のアップデート
+            await this._panel.webview.postMessage({
+              command: 'updateExtractionProgress',
+              progress: 100
+            });
+          } catch (estimateError) {
+            Logger.warn(`自動見積もりに失敗: ${(estimateError as Error).message}`);
+          }
+          
+          progress.report({ increment: 100 });
+          
+          // 処理完了後にローディング表示を終了
+          await this._panel.webview.postMessage({
+            command: 'completeExtraction'
+          });
         }
       );
 
@@ -445,134 +589,138 @@ export class ImplementationSelectorPanel {
           projectPath = defaultProjectPath;
         }
         
-        // スコープ情報を取得
-        const currentScope = await this._scopeSelector.getCurrentScope();
+        // プロジェクトパスをScopeSelectorに設定
+        this._scopeSelector.setProjectPath(projectPath);
         
-        // インプリメンテーションスコープを作成
-        const implementationScope = {
-          id: `scope-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`, // CLI連携用のIDを追加
-          items: selectedItems,
-          selectedIds: selectedItems.map(item => item.id),
-          estimatedTime: currentScope.estimatedTime,
-          totalProgress: 0, // 初期進捗は0
-          startDate: new Date().toISOString(),
-          targetDate: currentScope.targetDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // デフォルトは1週間後
-          projectPath
-        };
+        // 選択完了の通知
+        const notified = await this._scopeSelector.completeSelection();
         
-        // スコープ情報をAppGeniusStateManagerに保存
-        try {
-          // AppGeniusStateManagerのインポート
-          const { AppGeniusStateManager } = await import('../../services/AppGeniusStateManager');
-          const stateManager = AppGeniusStateManager.getInstance();
-          
-          // 現在のプロジェクトIDを取得
-          const projectId = vscode.workspace.getConfiguration('appgeniusAI').get<string>('currentProjectId');
-          
-          if (projectId) {
-            // プロジェクトに実装スコープを保存
-            await stateManager.saveImplementationScope(projectId, implementationScope);
-            Logger.info(`プロジェクト ${projectId} に実装スコープを保存しました`);
+        if (notified) {
+          // スコープ情報を取得
+          const currentScope = await this._scopeSelector.getCurrentScope();
+        
+          // CLAUDE.mdを参照するCLIの起動
+          try {
+            vscode.window.showInformationMessage('ClaudeCodeを起動しています...');
             
-            // 直接CLIを起動する
-            try {
-              vscode.window.showInformationMessage('AppGenius CLIを起動しています...');
-              
-              // CLILauncherServiceのインポート
-              const { CLILauncherService } = await import('../../services/cli/CLILauncherService');
-              const cliLauncher = CLILauncherService.getInstance();
-              
-              // CLIを起動
-              const launchSuccess = await cliLauncher.launchCLI(implementationScope);
-              
-              if (launchSuccess) {
-                vscode.window.showInformationMessage('AppGenius CLIを起動しました。実装が開始されます。');
-                
-                // スコープファイルとプロジェクトパスの使用方法を表示
-                vscode.window.showInformationMessage(
-                  'CLIが起動したら、以下のコマンドでヘルプを表示できます: /help',
-                  { detail: 'スコープとプロジェクトの設定方法も表示されます' }
-                );
-              } else {
-                // CLIの起動に失敗した場合は開発アシスタントを代わりに開く
-                vscode.window.showWarningMessage('CLIの起動に失敗しました。代わりに開発アシスタントを開きます。');
-                vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
-              }
-            } catch (error) {
-              // エラーが発生した場合のフォールバック
-              Logger.error('CLI起動中にエラーが発生:', error as Error);
-              vscode.window.showErrorMessage(`CLI起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
+            // CLILauncherServiceのインポート
+            const { ClaudeCodeLauncherService } = await import('../../services/ClaudeCodeLauncherService');
+            const launcherService = ClaudeCodeLauncherService.getInstance();
+            
+            // ClaudeCodeを起動（CLAUDE.mdに保存されたスコープを使用）
+            const scopeForLaunch: IImplementationScope = {
+              id: currentScope.id || '',
+              items: currentScope.items,
+              selectedIds: currentScope.selectedIds || [],
+              estimatedTime: currentScope.estimatedTime || '',
+              totalProgress: currentScope.totalProgress || 0,
+              startDate: currentScope.startDate,
+              targetDate: currentScope.targetDate,
+              projectPath: projectPath
+            };
+            const launchSuccess = await launcherService.launchClaudeCode(scopeForLaunch);
+            
+            if (launchSuccess) {
+              vscode.window.showInformationMessage('ClaudeCodeを起動しました。実装が開始されます。');
+            } else {
+              // 起動に失敗した場合は開発アシスタントで代替
+              vscode.window.showWarningMessage('ClaudeCodeの起動に失敗しました。代わりに開発アシスタントを開きます。');
               vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
             }
-          } else {
-            // プロジェクトIDがない場合は従来の方法でVSCode設定に保存
-            await this.saveToVSCodeSettings(implementationScope);
+          } catch (error) {
+            // 新しいランチャーでエラーが発生した場合は従来のランチャーを使用
+            Logger.error('ClaudeCode起動中にエラーが発生:', error as Error);
             
-            // 直接CLIを起動する
             try {
-              vscode.window.showInformationMessage('AppGenius CLIを起動しています...');
+              // 従来のCLI起動方法の代わりにClaudeCodeを試す
+              vscode.window.showInformationMessage('ClaudeCodeを起動しています...');
               
-              // CLILauncherServiceのインポート
-              const { CLILauncherService } = await import('../../services/cli/CLILauncherService');
-              const cliLauncher = CLILauncherService.getInstance();
+              const { ClaudeCodeLauncherService } = await import('../../services/ClaudeCodeLauncherService');
+              const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
               
-              // CLIを起動
-              const launchSuccess = await cliLauncher.launchCLI(implementationScope);
+              // 従来の方法でVSCode設定に保存
+              await this.saveToVSCodeSettings({
+                id: currentScope.id,
+                items: currentScope.items,
+                selectedIds: currentScope.selectedIds,
+                estimatedTime: currentScope.estimatedTime,
+                totalProgress: currentScope.totalProgress,
+                startDate: currentScope.startDate,
+                targetDate: currentScope.targetDate,
+                projectPath
+              });
+              
+              // ClaudeCodeを起動
+              const scopeForLaunch: IImplementationScope = {
+                id: currentScope.id || '',
+                items: currentScope.items,
+                selectedIds: currentScope.selectedIds || [],
+                estimatedTime: currentScope.estimatedTime || '',
+                totalProgress: currentScope.totalProgress || 0,
+                startDate: currentScope.startDate,
+                targetDate: currentScope.targetDate,
+                projectPath: projectPath
+              };
+              const launchSuccess = await claudeCodeLauncher.launchClaudeCode(scopeForLaunch);
               
               if (launchSuccess) {
                 vscode.window.showInformationMessage('AppGenius CLIを起動しました。実装が開始されます。');
-                
-                // スコープファイルとプロジェクトパスの使用方法を表示
-                vscode.window.showInformationMessage(
-                  'CLIが起動したら、以下のコマンドでヘルプを表示できます: /help',
-                  { detail: 'スコープとプロジェクトの設定方法も表示されます' }
-                );
               } else {
                 // CLIの起動に失敗した場合は開発アシスタントを代わりに開く
                 vscode.window.showWarningMessage('CLIの起動に失敗しました。代わりに開発アシスタントを開きます。');
                 vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
               }
-            } catch (error) {
-              // エラーが発生した場合のフォールバック
-              Logger.error('CLI起動中にエラーが発生:', error as Error);
-              vscode.window.showErrorMessage(`CLI起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
+            } catch (fallbackError) {
+              // すべての方法が失敗した場合
+              Logger.error('すべてのCLI起動方法に失敗:', fallbackError as Error);
+              vscode.window.showErrorMessage(`CLI起動エラー: ${(fallbackError as Error).message}。開発アシスタントを開きます。`);
               vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
             }
           }
-        } catch (error) {
-          Logger.error('StateManager経由の保存に失敗しました。VSCode設定に保存します:', error as Error);
+        } else {
+          // スコープ完了の通知に失敗した場合は、従来の方法を使用
+          vscode.window.showWarningMessage('スコープ通知に失敗しました。従来の方法を使用します。');
+          
+          // スコープ情報を取得
+          const currentScope = await this._scopeSelector.getCurrentScope();
+          
+          // インプリメンテーションスコープを作成
+          const implementationScope = {
+            id: currentScope.id || `scope-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            items: selectedItems,
+            selectedIds: selectedItems.map(item => item.id),
+            estimatedTime: currentScope.estimatedTime,
+            totalProgress: 0, // 初期進捗は0
+            startDate: new Date().toISOString(),
+            targetDate: currentScope.targetDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // デフォルトは1週間後
+            projectPath
+          };
           
           // 従来の方法でVSCode設定に保存
           await this.saveToVSCodeSettings(implementationScope);
           
-          // 直接CLIを起動する
+          // 従来の方法でCLIを起動
           try {
             vscode.window.showInformationMessage('AppGenius CLIを起動しています...');
             
-            // CLILauncherServiceのインポート
-            const { CLILauncherService } = await import('../../services/cli/CLILauncherService');
-            const cliLauncher = CLILauncherService.getInstance();
+            // ClaudeCodeLauncherServiceのインポート
+            const { ClaudeCodeLauncherService } = await import('../../services/ClaudeCodeLauncherService');
+            const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
             
-            // CLIを起動
-            const launchSuccess = await cliLauncher.launchCLI(implementationScope);
+            // ClaudeCodeを起動
+            const launchSuccess = await claudeCodeLauncher.launchClaudeCode(implementationScope);
             
             if (launchSuccess) {
-              vscode.window.showInformationMessage('AppGenius CLIを起動しました。実装が開始されます。');
-              
-              // スコープファイルとプロジェクトパスの使用方法を表示
-              vscode.window.showInformationMessage(
-                'CLIが起動したら、以下のコマンドでヘルプを表示できます: /help',
-                { detail: 'スコープとプロジェクトの設定方法も表示されます' }
-              );
+              vscode.window.showInformationMessage('ClaudeCodeを起動しました。実装が開始されます。');
             } else {
-              // CLIの起動に失敗した場合は開発アシスタントを代わりに開く
-              vscode.window.showWarningMessage('CLIの起動に失敗しました。代わりに開発アシスタントを開きます。');
+              // ClaudeCodeの起動に失敗した場合は開発アシスタントを代わりに開く
+              vscode.window.showWarningMessage('ClaudeCodeの起動に失敗しました。代わりに開発アシスタントを開きます。');
               vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
             }
           } catch (error) {
             // エラーが発生した場合のフォールバック
-            Logger.error('CLI起動中にエラーが発生:', error as Error);
-            vscode.window.showErrorMessage(`CLI起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
+            Logger.error('ClaudeCode起動中にエラーが発生:', error as Error);
+            vscode.window.showErrorMessage(`ClaudeCode起動エラー: ${(error as Error).message}。開発アシスタントを開きます。`);
             vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
           }
         }
@@ -949,6 +1097,46 @@ export class ImplementationSelectorPanel {
       margin-top: 10px;
       border-radius: 2px;
     }
+    
+    .loading-message {
+      display: flex;
+      align-items: center;
+      margin: 20px 0;
+      padding: 10px;
+      background-color: var(--vscode-editorWidget-background);
+      border-radius: 4px;
+      border: 1px solid var(--vscode-panel-border);
+    }
+    
+    .loading-spinner {
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+      border: 3px solid rgba(120, 120, 120, 0.2);
+      border-radius: 50%;
+      border-top-color: var(--vscode-button-background);
+      animation: spin 1s ease-in-out infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .progress-container {
+      width: 100%;
+      height: 6px;
+      background-color: var(--vscode-input-background);
+      border-radius: 3px;
+      margin: 10px 0;
+      overflow: hidden;
+    }
+    
+    .progress-bar {
+      height: 100%;
+      background-color: var(--vscode-button-background);
+      width: 0%;
+      transition: width 0.3s ease;
+    }
   </style>
 </head>
 <body>
@@ -965,10 +1153,15 @@ export class ImplementationSelectorPanel {
       
       <div id="tab-content-requirements" class="tab-content active">
         <h2>要件定義書</h2>
-        <textarea id="requirements-document" placeholder="要件定義書の内容をここに入力してください..."></textarea>
+        <div id="requirements-loading" class="loading-message" style="display: none;">
+          <div class="loading-spinner"></div>
+          <div>要件定義を処理中...</div>
+          <div class="progress-container">
+            <div id="requirements-progress" class="progress-bar" style="width: 0%;"></div>
+          </div>
+        </div>
+        <textarea id="requirements-document" placeholder="要件定義書の内容をここに入力してください..." readonly></textarea>
         <div class="button-container">
-          <button id="set-requirements" class="button">設定</button>
-          <button id="load-requirements" class="button button-secondary">ファイルから読み込む</button>
           <button id="extract-items" class="button">実装項目を抽出</button>
         </div>
       </div>
@@ -985,7 +1178,6 @@ export class ImplementationSelectorPanel {
           <div id="selected-count">選択済み: 0 / 0 項目</div>
           <div id="estimate">推定工数: --</div>
           <div class="button-container" style="margin-top: 15px;">
-            <button id="estimate-button" class="button">見積もり計算</button>
             <button id="complete-selection" class="button">スコープ選択を完了</button>
           </div>
         </div>

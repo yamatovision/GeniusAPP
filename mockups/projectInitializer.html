@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AppGenius - プロジェクト初期化</title>
+    <link rel="stylesheet" href="../media/reset.css">
+    <link rel="stylesheet" href="../media/vscode.css">
+    <style>
+        :root {
+            --primary-color: #0078d7;
+            --secondary-color: #2b88d8;
+            --success-color: #107c10;
+            --warning-color: #ff8c00;
+            --error-color: #e81123;
+            --text-color: #333;
+            --background-color: #f5f5f5;
+            --card-background: #fff;
+            --border-color: #e0e0e0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--background-color);
+            padding: 0;
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .setup-progress {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .setup-progress::before {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background-color: var(--border-color);
+            z-index: 1;
+        }
+
+        .setup-progress::after {
+            content: '';
+            position: absolute;
+            top: 15px;
+            left: 0;
+            width: 40%; /* 進捗に応じて変更 */
+            height: 4px;
+            background-color: var(--primary-color);
+            z-index: 2;
+        }
+
+        .progress-step {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: var(--border-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            z-index: 3;
+            position: relative;
+        }
+
+        .progress-step.active {
+            background-color: var(--primary-color);
+        }
+
+        .progress-step.completed {
+            background-color: var(--success-color);
+        }
+
+        .progress-step-label {
+            position: absolute;
+            top: 35px;
+            left: 50%;
+            transform: translateX(-50%);
+            white-space: nowrap;
+            font-size: 12px;
+            color: var(--text-color);
+        }
+
+        .main-content {
+            display: flex;
+            gap: 20px;
+        }
+
+        .sidebar {
+            width: 250px;
+            background-color: var(--card-background);
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav li {
+            padding: 10px 15px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .sidebar-nav li:hover {
+            background-color: rgba(0, 120, 215, 0.1);
+        }
+
+        .sidebar-nav li.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .sidebar-nav li .status-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .content {
+            flex: 1;
+            background-color: var(--card-background);
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+
+        .setup-screen {
+            display: none;
+        }
+
+        .setup-screen.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
+        }
+
+        select.form-control {
+            background-color: white;
+            height: 40px;
+        }
+
+        .checkbox-group {
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .btn-secondary {
+            background-color: #f0f0f0;
+            color: var(--text-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: #e0e0e0;
+        }
+
+        .navigation-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+        }
+
+        .dependency-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .dependency-name {
+            font-weight: 500;
+        }
+
+        .dependency-version {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .environment-variable {
+            display: flex;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+        }
+
+        .env-name {
+            width: 30%;
+            font-weight: 500;
+        }
+
+        .env-value {
+            width: 50%;
+        }
+
+        .env-required {
+            width: 20%;
+            text-align: right;
+            color: var(--error-color);
+        }
+
+        .directory-structure {
+            font-family: monospace;
+            margin-top: 15px;
+        }
+
+        .dir-item {
+            padding-left: 20px;
+        }
+
+        .dir-name {
+            font-weight: bold;
+        }
+
+        .file-item {
+            color: #333;
+        }
+
+        .summary-section {
+            margin-bottom: 20px;
+        }
+
+        .summary-section h3 {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+
+        .generated-files-list {
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        .status-badge.pending {
+            background-color: #f0f0f0;
+            color: #666;
+        }
+
+        .status-badge.in-progress {
+            background-color: #fff4e5;
+            color: var(--warning-color);
+        }
+
+        .status-badge.completed {
+            background-color: #e6f7e6;
+            color: var(--success-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>プロジェクト初期化</h1>
+            <div>
+                <span>プロジェクト:</span>
+                <strong>AppGenius</strong>
+            </div>
+        </div>
+
+        <div class="setup-progress">
+            <div class="progress-step completed">
+                <span>1</span>
+                <div class="progress-step-label">プロジェクト設定</div>
+            </div>
+            <div class="progress-step active">
+                <span>2</span>
+                <div class="progress-step-label">依存関係</div>
+            </div>
+            <div class="progress-step">
+                <span>3</span>
+                <div class="progress-step-label">構造設定</div>
+            </div>
+            <div class="progress-step">
+                <span>4</span>
+                <div class="progress-step-label">環境変数</div>
+            </div>
+            <div class="progress-step">
+                <span>5</span>
+                <div class="progress-step-label">生成と確認</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="sidebar">
+                <ul class="sidebar-nav">
+                    <li>
+                        <span class="status-icon">✓</span>
+                        プロジェクト設定
+                    </li>
+                    <li class="active">
+                        <span class="status-icon">○</span>
+                        依存関係
+                    </li>
+                    <li>
+                        <span class="status-icon">○</span>
+                        ディレクトリ構造
+                    </li>
+                    <li>
+                        <span class="status-icon">○</span>
+                        環境変数設定
+                    </li>
+                    <li>
+                        <span class="status-icon">○</span>
+                        生成と確認
+                    </li>
+                </ul>
+            </div>
+
+            <div class="content">
+                <!-- プロジェクト設定画面 -->
+                <div class="setup-screen" id="project-setup">
+                    <h2>プロジェクト基本設定</h2>
+                    <p>プロジェクトの基本設定を行います。これらの設定は後からでも変更可能です。</p>
+                    
+                    <div class="form-group">
+                        <label for="project-name">プロジェクト名</label>
+                        <input type="text" id="project-name" class="form-control" value="AppGenius" placeholder="プロジェクト名を入力">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="project-description">プロジェクト説明</label>
+                        <textarea id="project-description" class="form-control" rows="3" placeholder="プロジェクトの簡単な説明を入力">非技術者がClaudeCodeを活用してアプリケーション開発を行えるようにするVSCode拡張機能</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="frontend-framework">フロントエンドフレームワーク</label>
+                        <select id="frontend-framework" class="form-control">
+                            <option value="react">React</option>
+                            <option value="vue">Vue.js</option>
+                            <option value="angular">Angular</option>
+                            <option value="svelte">Svelte</option>
+                            <option value="none">なし（バニラJS）</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="backend-framework">バックエンドフレームワーク</label>
+                        <select id="backend-framework" class="form-control">
+                            <option value="express">Express.js</option>
+                            <option value="nestjs">NestJS</option>
+                            <option value="fastify">Fastify</option>
+                            <option value="koa">Koa</option>
+                            <option value="none">なし</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="database">データベース</label>
+                        <select id="database" class="form-control">
+                            <option value="mongodb">MongoDB</option>
+                            <option value="postgres">PostgreSQL</option>
+                            <option value="mysql">MySQL</option>
+                            <option value="sqlite">SQLite</option>
+                            <option value="none">なし</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>追加機能</label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="feature-authentication" checked>
+                                <label for="feature-authentication">認証機能</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="feature-testing">
+                                <label for="feature-testing">テスト環境セットアップ</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="feature-docker">
+                                <label for="feature-docker">Docker設定</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="feature-cicd">
+                                <label for="feature-cicd">CI/CD設定</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary" disabled>前へ</button>
+                        <button class="btn">次へ</button>
+                    </div>
+                </div>
+                
+                <!-- 依存関係画面 -->
+                <div class="setup-screen active" id="dependencies">
+                    <h2>依存関係設定</h2>
+                    <p>プロジェクトに必要なライブラリやフレームワークの依存関係を設定します。</p>
+                    
+                    <div class="form-group">
+                        <label>フロントエンド依存関係</label>
+                        <div class="dependency-item">
+                            <span class="dependency-name">react</span>
+                            <span class="dependency-version">^18.2.0</span>
+                        </div>
+                        <div class="dependency-item">
+                            <span class="dependency-name">react-dom</span>
+                            <span class="dependency-version">^18.2.0</span>
+                        </div>
+                        <div class="dependency-item">
+                            <span class="dependency-name">react-router-dom</span>
+                            <span class="dependency-version">^6.10.0</span>
+                        </div>
+                        <button class="btn btn-secondary" style="margin-top: 10px;">依存関係を追加</button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>バックエンド依存関係</label>
+                        <div class="dependency-item">
+                            <span class="dependency-name">express</span>
+                            <span class="dependency-version">^4.18.2</span>
+                        </div>
+                        <div class="dependency-item">
+                            <span class="dependency-name">mongoose</span>
+                            <span class="dependency-version">^7.0.3</span>
+                        </div>
+                        <div class="dependency-item">
+                            <span class="dependency-name">jsonwebtoken</span>
+                            <span class="dependency-version">^9.0.0</span>
+                        </div>
+                        <button class="btn btn-secondary" style="margin-top: 10px;">依存関係を追加</button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>開発依存関係</label>
+                        <div class="dependency-item">
+                            <span class="dependency-name">typescript</span>
+                            <span class="dependency-version">^5.0.4</span>
+                        </div>
+                        <div class="dependency-item">
+                            <span class="dependency-name">eslint</span>
+                            <span class="dependency-version">^8.38.0</span>
+                        </div>
+                        <div class="dependency-item">
+                            <span class="dependency-name">prettier</span>
+                            <span class="dependency-version">^2.8.7</span>
+                        </div>
+                        <button class="btn btn-secondary" style="margin-top: 10px;">依存関係を追加</button>
+                    </div>
+                    
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary">前へ</button>
+                        <button class="btn">次へ</button>
+                    </div>
+                </div>
+                
+                <!-- ディレクトリ構造画面 -->
+                <div class="setup-screen" id="directory-structure">
+                    <h2>ディレクトリ構造設定</h2>
+                    <p>プロジェクトのディレクトリ構造を確認・編集します。</p>
+                    
+                    <div class="form-group">
+                        <label>基本ディレクトリ構造</label>
+                        <div class="directory-structure">
+                            <div class="dir-name">AppGenius/</div>
+                            <div class="dir-item">
+                                <div class="dir-name">client/</div>
+                                <div class="dir-item">
+                                    <div class="dir-name">public/</div>
+                                    <div class="dir-item">
+                                        <div class="file-item">index.html</div>
+                                        <div class="file-item">favicon.ico</div>
+                                    </div>
+                                    <div class="dir-name">src/</div>
+                                    <div class="dir-item">
+                                        <div class="dir-name">components/</div>
+                                        <div class="dir-name">pages/</div>
+                                        <div class="dir-name">services/</div>
+                                        <div class="dir-name">utils/</div>
+                                        <div class="file-item">App.tsx</div>
+                                        <div class="file-item">index.tsx</div>
+                                    </div>
+                                    <div class="file-item">package.json</div>
+                                    <div class="file-item">tsconfig.json</div>
+                                </div>
+                            </div>
+                            <div class="dir-item">
+                                <div class="dir-name">server/</div>
+                                <div class="dir-item">
+                                    <div class="dir-name">src/</div>
+                                    <div class="dir-item">
+                                        <div class="dir-name">controllers/</div>
+                                        <div class="dir-name">models/</div>
+                                        <div class="dir-name">routes/</div>
+                                        <div class="dir-name">middleware/</div>
+                                        <div class="dir-name">services/</div>
+                                        <div class="dir-name">utils/</div>
+                                        <div class="file-item">app.ts</div>
+                                        <div class="file-item">server.ts</div>
+                                    </div>
+                                    <div class="file-item">package.json</div>
+                                    <div class="file-item">tsconfig.json</div>
+                                </div>
+                            </div>
+                            <div class="file-item">.env.example</div>
+                            <div class="file-item">.gitignore</div>
+                            <div class="file-item">README.md</div>
+                            <div class="file-item">CLAUDE.md</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button class="btn btn-secondary">構造をカスタマイズ</button>
+                    </div>
+                    
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary">前へ</button>
+                        <button class="btn">次へ</button>
+                    </div>
+                </div>
+                
+                <!-- 環境変数設定画面 -->
+                <div class="setup-screen" id="environment-variables">
+                    <h2>環境変数設定</h2>
+                    <p>プロジェクトに必要な環境変数を設定します。これらは.envファイルに保存されます。</p>
+                    
+                    <div class="form-group">
+                        <label>環境変数</label>
+                        
+                        <div class="environment-variable">
+                            <div class="env-name">PORT</div>
+                            <div class="env-value">
+                                <input type="text" class="form-control" value="3000">
+                            </div>
+                            <div class="env-required">必須</div>
+                        </div>
+                        
+                        <div class="environment-variable">
+                            <div class="env-name">MONGODB_URI</div>
+                            <div class="env-value">
+                                <input type="text" class="form-control" value="mongodb://localhost:27017/appgenius">
+                            </div>
+                            <div class="env-required">必須</div>
+                        </div>
+                        
+                        <div class="environment-variable">
+                            <div class="env-name">JWT_SECRET</div>
+                            <div class="env-value">
+                                <input type="text" class="form-control" value="your_jwt_secret_key">
+                            </div>
+                            <div class="env-required">必須</div>
+                        </div>
+                        
+                        <div class="environment-variable">
+                            <div class="env-name">NODE_ENV</div>
+                            <div class="env-value">
+                                <input type="text" class="form-control" value="development">
+                            </div>
+                            <div class="env-required"></div>
+                        </div>
+                        
+                        <button class="btn btn-secondary" style="margin-top: 10px;">環境変数を追加</button>
+                    </div>
+                    
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary">前へ</button>
+                        <button class="btn">次へ</button>
+                    </div>
+                </div>
+                
+                <!-- 生成と確認画面 -->
+                <div class="setup-screen" id="generate-confirm">
+                    <h2>プロジェクト生成の確認</h2>
+                    <p>以下の設定でプロジェクトの初期化を行います。内容を確認してください。</p>
+                    
+                    <div class="summary-section">
+                        <h3>プロジェクト情報</h3>
+                        <p><strong>名前:</strong> AppGenius</p>
+                        <p><strong>説明:</strong> 非技術者がClaudeCodeを活用してアプリケーション開発を行えるようにするVSCode拡張機能</p>
+                        <p><strong>フロントエンド:</strong> React</p>
+                        <p><strong>バックエンド:</strong> Express.js</p>
+                        <p><strong>データベース:</strong> MongoDB</p>
+                        <p><strong>追加機能:</strong> 認証機能</p>
+                    </div>
+                    
+                    <div class="summary-section">
+                        <h3>生成されるファイル</h3>
+                        <div class="generated-files-list">
+                            <div>Creating AppGenius/client/public/index.html</div>
+                            <div>Creating AppGenius/client/public/favicon.ico</div>
+                            <div>Creating AppGenius/client/src/components/README.md</div>
+                            <div>Creating AppGenius/client/src/pages/README.md</div>
+                            <div>Creating AppGenius/client/src/services/README.md</div>
+                            <div>Creating AppGenius/client/src/utils/README.md</div>
+                            <div>Creating AppGenius/client/src/App.tsx</div>
+                            <div>Creating AppGenius/client/src/index.tsx</div>
+                            <div>Creating AppGenius/client/package.json</div>
+                            <div>Creating AppGenius/client/tsconfig.json</div>
+                            <div>Creating AppGenius/server/src/controllers/README.md</div>
+                            <div>Creating AppGenius/server/src/models/README.md</div>
+                            <div>Creating AppGenius/server/src/routes/README.md</div>
+                            <div>Creating AppGenius/server/src/middleware/README.md</div>
+                            <div>Creating AppGenius/server/src/services/README.md</div>
+                            <div>Creating AppGenius/server/src/utils/README.md</div>
+                            <div>Creating AppGenius/server/src/app.ts</div>
+                            <div>Creating AppGenius/server/src/server.ts</div>
+                            <div>Creating AppGenius/server/package.json</div>
+                            <div>Creating AppGenius/server/tsconfig.json</div>
+                            <div>Creating AppGenius/.env.example</div>
+                            <div>Creating AppGenius/.gitignore</div>
+                            <div>Creating AppGenius/README.md</div>
+                            <div>Creating AppGenius/CLAUDE.md</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button class="btn" style="background-color: var(--success-color);">プロジェクトを初期化</button>
+                        <span style="margin-left: 15px; font-size: 14px;">この操作には数分かかる場合があります</span>
+                    </div>
+                    
+                    <div class="navigation-buttons">
+                        <button class="btn btn-secondary">前へ</button>
+                        <button class="btn" disabled>完了</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // タブ切り替え機能
+        document.addEventListener('DOMContentLoaded', () => {
+            const sidebarItems = document.querySelectorAll('.sidebar-nav li');
+            const setupScreens = document.querySelectorAll('.setup-screen');
+            const progressSteps = document.querySelectorAll('.progress-step');
+            
+            // 前へ/次へボタンのイベント設定
+            const prevButtons = document.querySelectorAll('.btn-secondary:not([disabled])');
+            const nextButtons = document.querySelectorAll('.btn:not(.btn-secondary):not([disabled])');
+            
+            // 画面遷移の関数
+            function showScreen(screenIndex) {
+                // 現在のアクティブなタブを非アクティブに
+                setupScreens.forEach(screen => screen.classList.remove('active'));
+                sidebarItems.forEach(item => item.classList.remove('active'));
+                progressSteps.forEach(step => step.classList.remove('active'));
+                
+                // 新しいタブをアクティブに
+                setupScreens[screenIndex].classList.add('active');
+                sidebarItems[screenIndex].classList.add('active');
+                progressSteps[screenIndex].classList.add('active');
+                
+                // 前のステップを完了状態に
+                for (let i = 0; i < screenIndex; i++) {
+                    progressSteps[i].classList.add('completed');
+                }
+                
+                // 進捗バーを更新
+                const progressBar = document.querySelector('.setup-progress::after');
+                if (progressBar) {
+                    progressBar.style.width = `${(screenIndex + 1) * 20}%`;
+                }
+            }
+            
+            // サイドバー項目のクリックイベント
+            sidebarItems.forEach((item, index) => {
+                item.addEventListener('click', () => {
+                    showScreen(index);
+                });
+            });
+            
+            // 次へボタンのクリックイベント
+            nextButtons.forEach((button, index) => {
+                button.addEventListener('click', () => {
+                    if (index < setupScreens.length - 1) {
+                        showScreen(index + 1);
+                    }
+                });
+            });
+            
+            // 前へボタンのクリックイベント
+            prevButtons.forEach((button, index) => {
+                button.addEventListener('click', () => {
+                    if (index > 0) {
+                        showScreen(index - 1);
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

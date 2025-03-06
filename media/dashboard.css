@@ -990,6 +990,62 @@
   font-size: 0.75rem;
 }
 
+/* ファイル進捗パネル */
+.file-progress-panel {
+  margin: 1.5rem 0;
+  padding: 1.2rem;
+  background-color: #f8faff;
+  border: 1px solid #e1e8f5;
+  border-radius: var(--border-radius);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.file-progress-panel h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #2d3748;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-progress-panel h3 i {
+  color: #4a69bd;
+}
+
+.progress-bar-container.overall {
+  height: 12px;
+  background-color: #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.progress-bar-container.overall .progress-bar {
+  height: 100%;
+  background-color: #4a69bd;
+  background-image: linear-gradient(45deg, #4a69bd, #5c7cfa);
+  border-radius: 6px;
+}
+
+.progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  color: #4a5568;
+}
+
+.progress-percentage {
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.progress-files {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  color: #4a5568;
+}
+
 /* プロジェクト進捗サマリー */
 .overall-progress {
   background-color: var(--vscode-editor-background);
@@ -1025,15 +1081,6 @@
   font-size: 1.8rem;
   font-weight: 700;
   color: var(--secondary-color);
-}
-
-.progress-bar-container.overall {
-  height: 10px;
-  margin-bottom: 1rem;
-}
-
-.progress-bar-container.overall .progress-bar {
-  background-color: var(--secondary-color);
 }
 
 .progress-stats {

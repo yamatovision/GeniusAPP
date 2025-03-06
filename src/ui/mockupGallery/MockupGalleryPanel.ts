@@ -6,6 +6,7 @@ import { Logger } from '../../utils/logger';
 import { MockupStorageService, Mockup } from '../../services/mockupStorageService';
 import { RequirementsParser, PageInfo } from '../../core/requirementsParser';
 import { MockupQueueManager } from './MockupQueueManager';
+import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 
 /**
  * モックアップギャラリーパネル
@@ -26,6 +27,9 @@ export class MockupGalleryPanel {
   private _projectPath: string;
   private _requirementsPath: string;
   private _structurePath: string;
+
+  // ClaudeCodeランチャーをインポート
+  private _claudeCodeLauncher: any; // 型定義がない場合は any として扱う
 
   /**
    * パネルを作成または表示
@@ -58,7 +62,9 @@ export class MockupGalleryPanel {
         localResourceRoots: [
           vscode.Uri.joinPath(extensionUri, 'media'),
           vscode.Uri.joinPath(extensionUri, 'dist')
-        ]
+        ],
+        // モーダルダイアログを許可
+        enableCommandUris: true
       }
     );
 
@@ -85,6 +91,9 @@ export class MockupGalleryPanel {
     this._storage = MockupStorageService.getInstance();
     this._queueManager = new MockupQueueManager(aiService);
     
+    // ClaudeCodeランチャーの初期化
+    this._claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
+    
     // プロジェクトパスの設定
     this._projectPath = projectPath || this._getDefaultProjectPath();
     this._requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
@@ -94,22 +103,6 @@ export class MockupGalleryPanel {
     if (projectPath) {
       this._storage.initializeWithPath(projectPath);
     }
-    
-    // キューマネージャーのコールバック設定
-    this._queueManager.setOnProgressCallback((queued, processing, completed, total) => {
-      this._panel.webview.postMessage({
-        command: 'updateQueueStatus',
-        status: { queued, processing, completed, total }
-      });
-    });
-    
-    this._queueManager.setOnCompletedCallback((mockupId, pageInfo) => {
-      this._panel.webview.postMessage({
-        command: 'mockupGenerated',
-        mockupId,
-        pageName: pageInfo.name
-      });
-    });
 
     // WebViewの内容を設定
     this._update();
@@ -135,9 +128,6 @@ export class MockupGalleryPanel {
           case 'loadMockups':
             await this._handleLoadMockups();
             break;
-          case 'updateMockup':
-            await this._handleUpdateMockup(message.mockupId, message.text);
-            break;
           case 'openInBrowser':
             await this._handleOpenInBrowser(message.mockupId);
             break;
@@ -147,18 +137,8 @@ export class MockupGalleryPanel {
           case 'importMockup':
             await this._handleImportMockup();
             break;
-          // 追加コマンド
-          case 'generateAllMockups':
-            await this._handleGenerateAllMockups();
-            break;
-          case 'updateMockupStatus':
-            await this._handleUpdateMockupStatus(message.mockupId, message.status);
-            break;
-          case 'saveImplementationNotes':
-            await this._handleSaveImplementationNotes(message.mockupId, message.notes);
-            break;
-          case 'addFeedback':
-            await this._handleAddFeedback(message.mockupId, message.feedback);
+          case 'analyzeWithAI':
+            await this._handleAnalyzeWithAI(message.mockupId);
             break;
         }
       },
@@ -346,15 +326,51 @@ export class MockupGalleryPanel {
    */
   private async _handleDeleteMockup(mockupId: string): Promise<void> {
     try {
+      // 削除前にモックアップ情報を取得
+      const mockup = this._storage.getMockup(mockupId);
+      
+      if (!mockup) {
+        throw new Error(`モックアップが見つかりません: ${mockupId}`);
+      }
+      
+      // VSCodeの確認ダイアログを表示
+      const answer = await vscode.window.showWarningMessage(
+        `モックアップ「${mockup.name}」を削除しますか？`,
+        { modal: true },
+        '削除する'
+      );
+      
+      // キャンセルされた場合
+      if (answer !== '削除する') {
+        return;
+      }
+      
+      // HTMLファイルのパスを構築
+      const mockupFileName = `${mockup.name}.html`;
+      const mockupFilePath = path.join(this._projectPath, 'mockups', mockupFileName);
+      
+      // ストレージからモックアップを削除
       const success = await this._storage.deleteMockup(mockupId);
       
       if (success) {
-        // 削除成功をWebViewに通知（awaitを使用しない）
+        // 対応するHTMLファイルが存在する場合は削除
+        if (fs.existsSync(mockupFilePath)) {
+          try {
+            fs.unlinkSync(mockupFilePath);
+            Logger.info(`モックアップファイルを削除しました: ${mockupFilePath}`);
+          } catch (fileError) {
+            Logger.warn(`モックアップファイルの削除に失敗しました: ${mockupFilePath}`, fileError as Error);
+            // ファイル削除の失敗は通知するが、全体のエラーにはしない
+          }
+        }
+        
+        // 削除成功をWebViewに通知
         this._panel.webview.postMessage({
           command: 'mockupDeleted',
           mockupId
         });
         
+        vscode.window.showInformationMessage(`モックアップ「${mockup.name}」を削除しました`);
         Logger.info(`モックアップを削除しました: ${mockupId}`);
       } else {
         throw new Error('モックアップの削除に失敗しました');
@@ -362,6 +378,7 @@ export class MockupGalleryPanel {
     } catch (error) {
       Logger.error(`モックアップ削除エラー: ${(error as Error).message}`);
       this._showError(`モックアップの削除に失敗しました: ${(error as Error).message}`);
+      vscode.window.showErrorMessage(`モックアップの削除に失敗しました: ${(error as Error).message}`);
     }
   }
   
@@ -481,6 +498,60 @@ export class MockupGalleryPanel {
       command: 'showError',
       text: message
     });
+  }
+  
+  /**
+   * AIと詳細を詰める処理
+   */
+  private async _handleAnalyzeWithAI(mockupId: string): Promise<void> {
+    try {
+      // モックアップを取得
+      const mockup = this._storage.getMockup(mockupId);
+      if (!mockup) {
+        throw new Error(`モックアップが見つかりません: ${mockupId}`);
+      }
+      
+      // モックアップのHTMLファイルパスを取得
+      const mockupFileName = `${mockup.name}.html`;
+      const mockupDir = path.join(this._projectPath, 'mockups');
+      
+      // ディレクトリが存在しない場合は作成
+      if (!fs.existsSync(mockupDir)) {
+        fs.mkdirSync(mockupDir, { recursive: true });
+      }
+      
+      const mockupFilePath = path.join(mockupDir, mockupFileName);
+      
+      // モックアップHTMLをファイルに保存
+      fs.writeFileSync(mockupFilePath, mockup.html, 'utf8');
+      
+      // スコープディレクトリが存在しない場合は作成
+      const scopesDir = path.join(this._projectPath, 'docs', 'scopes');
+      if (!fs.existsSync(scopesDir)) {
+        fs.mkdirSync(scopesDir, { recursive: true });
+      }
+      
+      // ClaudeCodeを起動して分析を依頼
+      const success = await this._claudeCodeLauncher.launchClaudeCodeWithMockup(
+        mockupFilePath, 
+        this._projectPath
+      );
+      
+      if (success) {
+        vscode.window.showInformationMessage(
+          `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
+          `詳細な要件定義書は docs/scopes/${mockup.name}-requirements.md に保存されます。`
+        );
+        
+        Logger.info(`モックアップ分析のためClaudeCodeを起動しました: ${mockupId}`);
+      } else {
+        throw new Error('ClaudeCodeの起動に失敗しました');
+      }
+    } catch (error) {
+      Logger.error(`モックアップAI分析エラー: ${(error as Error).message}`);
+      this._showError(`モックアップの分析に失敗しました: ${(error as Error).message}`);
+      vscode.window.showErrorMessage(`モックアップの分析に失敗しました: ${(error as Error).message}`);
+    }
   }
 
   /**
@@ -654,7 +725,6 @@ export class MockupGalleryPanel {
     <div class="pages-panel">
       <div class="panel-header">
         <h2 class="panel-title">モックアップ一覧</h2>
-        <button id="generate-all-button" class="action-button">一括生成</button>
       </div>
       
       <div id="mockups-container" class="mockups-container">
@@ -662,11 +732,6 @@ export class MockupGalleryPanel {
         <div class="empty-state">
           <p>モックアップを読み込み中...</p>
         </div>
-      </div>
-      
-      <div class="queue-info">
-        <p><strong>処理状況:</strong> 0件生成中 / 0件待機中</p>
-        <p><strong>完了:</strong> 0/0 ページ</p>
       </div>
       
       <div class="panel-footer">
@@ -682,52 +747,17 @@ export class MockupGalleryPanel {
       <div class="mockup-toolbar">
         <div class="toolbar-left">
           <h3 class="mockup-title" id="preview-title">モックアップ</h3>
-          <span class="page-status status-pending">未選択</span>
         </div>
         <div class="toolbar-right">
+          <button id="delete-mockup-button" class="danger-button" title="このモックアップを削除">削除</button>
           <button id="open-in-browser-button" class="secondary-button">ブラウザで開く</button>
-          <button id="show-html-button" class="secondary-button">HTML表示</button>
+          <button id="analyze-with-ai-button" class="action-button">AIと詳細を詰める</button>
         </div>
       </div>
       
       <div class="mockup-display">
         <iframe id="mockup-frame" class="mockup-frame"></iframe>
         <pre id="html-code-display" style="display: none; width: 100%; height: 100%; overflow: auto; background: #f5f5f5; padding: 10px;"></pre>
-      </div>
-    </div>
-    
-    <!-- 右側パネル - チャット -->
-    <div class="chat-panel">
-      <div class="panel-header">
-        <h2 class="panel-title">フィードバック</h2>
-      </div>
-      
-      <div id="chat-history" class="chat-history">
-        <!-- チャット履歴がここに表示されます -->
-      </div>
-      
-      <div class="quick-commands">
-        <div class="command-chip">ヘッダーの色を変更</div>
-        <div class="command-chip">ボタンを右寄せに</div>
-        <div class="command-chip">フォントサイズを大きく</div>
-        <div class="command-chip">入力欄にバリデーション追加</div>
-      </div>
-      
-      <div class="chat-input-container">
-        <textarea id="chat-input" class="chat-input" placeholder="フィードバックを入力..."></textarea>
-        <button id="send-button" class="send-button">
-          <span class="codicon codicon-send"></span>
-        </button>
-      </div>
-      
-      <!-- 承認フロー -->
-      <div class="approval-container">
-        <h3 class="approval-title">実装メモ</h3>
-        <textarea id="implementation-notes" class="implementation-notes" placeholder="実装時の注意点やポイントを記録..."></textarea>
-        <div class="approval-actions">
-          <button id="update-request-button" class="secondary-button">更新依頼</button>
-          <button id="approve-button" class="action-button success-button">このモックアップを承認</button>
-        </div>
       </div>
     </div>
   </div>

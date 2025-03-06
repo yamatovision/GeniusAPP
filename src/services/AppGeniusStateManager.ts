@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { Logger } from '../utils/logger';
 import { AppGeniusEventBus, AppGeniusEventType } from './AppGeniusEventBus';
 import { ProjectManagementService, Project } from './ProjectManagementService';
+import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../types';
 
 /**
  * 要件定義情報
@@ -92,37 +93,12 @@ export interface PageDefinition {
 /**
  * 実装スコープ
  */
-export interface ImplementationScope {
-  id?: string;  // IDを追加（省略可能）
-  items: ImplementationItem[];
-  selectedIds: string[];
-  estimatedTime: string;
-  totalProgress: number;
-  startDate: string;
-  targetDate: string;
-  projectPath: string;
-}
+export type ImplementationScope = IImplementationScope;
 
 /**
  * 実装項目
  */
-export interface ImplementationItem {
-  id: string;
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  complexity: 'high' | 'medium' | 'low';
-  isSelected: boolean;
-  dependencies: string[];
-  status: 'pending' | 'in-progress' | 'completed' | 'blocked';
-  progress: number;
-  notes?: string;
-  assignee?: string;
-  estimatedHours?: number;
-  relatedMockups?: string[];
-  relatedRequirements?: string[];
-  relatedFiles?: string[]; // 関連ファイル一覧
-}
+export type ImplementationItem = IImplementationItem;
 
 /**
  * フェーズステータス

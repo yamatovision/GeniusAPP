@@ -457,8 +457,8 @@ export class DevelopmentAssistantPanel {
         return;
       }
       
-      // 項目のステータスを更新
-      this._scopeSelector.updateItemStatus(itemId, status);
+      // 項目のステータスを更新（型を明示的に変換）
+      this._scopeSelector.updateItemStatus(itemId, status as any);
       
       // 該当の項目を_selectedItemsからも更新
       const itemIndex = this._selectedItems.findIndex(item => item.id === itemId);

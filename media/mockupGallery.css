@@ -26,7 +26,7 @@ body {
 
 .app-container {
   display: grid;
-  grid-template-columns: 240px 1fr 320px;
+  grid-template-columns: 240px 1fr;
   height: 100vh;
   overflow: hidden;
 }
@@ -87,6 +87,21 @@ body {
   background-color: #35a573;
 }
 
+.danger-button {
+  background-color: #e53935;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.danger-button:hover {
+  background-color: #c62828;
+}
+
 .page-list {
   list-style: none;
 }
@@ -105,6 +120,30 @@ body {
   text-decoration: none;
   color: var(--text-color);
   border-radius: 4px;
+}
+
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.delete-button {
+  cursor: pointer;
+  color: #888;
+  background: none;
+  border: none;
+  padding: 5px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-button:hover {
+  color: var(--accent-color);
+  background-color: rgba(255, 112, 67, 0.1);
 }
 
 .page-item:hover {

@@ -378,6 +378,42 @@
         renderItemList();
         break;
         
+      case 'startExtraction':
+        // 抽出処理の開始
+        const loadingElement = document.getElementById('requirements-loading');
+        if (loadingElement) {
+          loadingElement.style.display = 'flex';
+        }
+        const progressBar = document.getElementById('requirements-progress');
+        if (progressBar) {
+          progressBar.style.width = '0%';
+        }
+        break;
+        
+      case 'updateExtractionProgress':
+        // 抽出進捗の更新
+        const progress = message.progress || 0;
+        const progressElement = document.getElementById('requirements-progress');
+        if (progressElement) {
+          progressElement.style.width = `${progress}%`;
+        }
+        break;
+        
+      case 'completeExtraction':
+        // 抽出処理の完了
+        const completeLoadingElement = document.getElementById('requirements-loading');
+        if (completeLoadingElement) {
+          setTimeout(() => {
+            completeLoadingElement.style.display = 'none';
+          }, 1000); // 少し待ってから非表示に
+        }
+        break;
+        
+      case 'switchToItemsTab':
+        // 実装項目タブに切り替え
+        switchTab(1);
+        break;
+        
       case 'updateEstimate':
         state.estimatedTime = message.estimatedTime;
         if (estimate) estimate.textContent = `推定工数: ${message.estimatedTime}`;

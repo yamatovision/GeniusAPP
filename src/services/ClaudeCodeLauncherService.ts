@@ -2,12 +2,12 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as childProcess from 'child_process';
-import { Logger } from '../../utils/logger';
-import { AppGeniusEventBus, AppGeniusEventType } from '../AppGeniusEventBus';
-import { ImplementationScope, ImplementationItem } from '../AppGeniusStateManager';
-import { PlatformManager } from '../../utils/PlatformManager';
-import { ScopeExporter } from '../../utils/ScopeExporter';
-import { MessageBroker, MessageType } from '../../utils/MessageBroker';
+import { Logger } from '../utils/logger';
+import { AppGeniusEventBus, AppGeniusEventType } from './AppGeniusEventBus';
+import { ImplementationScope, ImplementationItem } from './AppGeniusStateManager';
+import { PlatformManager } from '../utils/PlatformManager';
+import { ScopeExporter } from '../utils/ScopeExporter';
+import { MessageBroker, MessageType } from '../utils/MessageBroker';
 
 /**
  * ClaudeCode実行状態
@@ -58,6 +58,7 @@ export class ClaudeCodeLauncherService {
   
   /**
    * スコープ情報を基にClaudeCodeを起動
+   * @param scope スコープ情報（CLAUDE.md内のスコープIDでも対応可能）
    */
   public async launchClaudeCode(scope: ImplementationScope): Promise<boolean> {
     try {
@@ -86,17 +87,18 @@ export class ClaudeCodeLauncherService {
         throw new Error(`プロジェクトパスが存在しません: ${this.projectPath}`);
       }
       
-      // PlatformManagerとScopeExporterを使用してスコープを標準化して保存
-      const scopeExporter = ScopeExporter.getInstance();
-      this.scopeFilePath = scopeExporter.exportScope(scope);
-      
-      // スコープIDを取得
-      const scopeData = scopeExporter.importScope(this.scopeFilePath);
-      if (!scopeData) {
-        throw new Error('スコープ情報の保存に失敗しました');
+      // CLAUDE.mdファイルパスを取得
+      const claudeMdPath = path.join(this.projectPath, 'CLAUDE.md');
+      if (!fs.existsSync(claudeMdPath)) {
+        throw new Error(`CLAUDE.mdファイルが見つかりません: ${claudeMdPath}`);
       }
       
-      const scopeId = scopeData.id;
+      // スコープID（CLAUDE.md内で使用）
+      const scopeId = scope.id || `scope-${Date.now()}`;
+      
+      // スコープ情報もJSONとして保存（バックアップと既存システムとの互換性のため）
+      const scopeExporter = ScopeExporter.getInstance();
+      this.scopeFilePath = scopeExporter.exportScope(scope);
       
       // 進捗ファイルパスの設定
       const platformManager = PlatformManager.getInstance();
@@ -115,38 +117,21 @@ export class ClaudeCodeLauncherService {
       });
       
       // ターミナルの表示
-      terminal.show();
-      
-      // ファイルパスを取得
-      const filePath = scopeData.items && scopeData.items.length > 0 ? scopeData.items[0].path : '';
-      
-      // CLAUDE.mdファイルパスを取得
-      const claudeMdPath = path.join(this.projectPath, 'CLAUDE.md');
-      let openFilePath = '';
-      
-      if (fs.existsSync(claudeMdPath)) {
-        openFilePath = claudeMdPath;
-        Logger.info(`CLAUDE.mdファイルを指定して起動します: ${openFilePath}`);
-      } else if (filePath && fs.existsSync(filePath)) {
-        openFilePath = path.resolve(filePath);
-        Logger.info(`スコープ内のファイルを指定して起動します: ${openFilePath}`);
-      } else {
-        // プロジェクトディレクトリを指定して起動
-        openFilePath = this.projectPath;
-        Logger.info(`プロジェクトディレクトリを指定して起動します: ${openFilePath}`);
-      }
-      
-      // terminalを強制的に表示し、シェルを完全に初期化
       terminal.show(true);
       
-      // VSCode内のターミナル実行に最適な方法
+      // プロジェクトディレクトリに移動
       terminal.sendText(`cd "${this.projectPath}"`);
       
-      // Claude Codeを起動
-      terminal.sendText(`claude "${openFilePath}"`);
-      
-      // 実行完了ログを出力
-      Logger.info(`ClaudeCode起動コマンド: claude "${openFilePath}"`);
+      // スコープIDが存在する場合はスコープを指定して起動
+      if (scope.id) {
+        // Claude Codeをスコープ指定で起動
+        terminal.sendText(`claude --scope="${scope.id}" "${claudeMdPath}"`);
+        Logger.info(`ClaudeCode起動コマンド: claude --scope="${scope.id}" "${claudeMdPath}"`);
+      } else {
+        // スコープ指定なしで起動
+        terminal.sendText(`claude "${claudeMdPath}"`);
+        Logger.info(`ClaudeCode起動コマンド: claude "${claudeMdPath}"`);
+      }
       
       // 自動復旧用の手動コマンドも表示
       terminal.sendText(`if [ $? -ne 0 ]; then
@@ -190,6 +175,126 @@ export class ClaudeCodeLauncherService {
     } catch (error) {
       Logger.error('ClaudeCodeの起動に失敗しました', error as Error);
       vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
+      this.status = ClaudeCodeExecutionStatus.FAILED;
+      return false;
+    }
+  }
+  
+  /**
+   * モックアップを解析するためにClaudeCodeを起動
+   * @param mockupFilePath モックアップHTMLファイルのパス
+   * @param projectPath プロジェクトパス
+   */
+  public async launchClaudeCodeWithMockup(mockupFilePath: string, projectPath: string): Promise<boolean> {
+    try {
+      // 前回の状態が残っていれば初期化
+      if (this.status === ClaudeCodeExecutionStatus.RUNNING) {
+        this.resetStatus();
+      }
+      
+      // プロジェクトパスの確認
+      this.projectPath = projectPath;
+      if (!fs.existsSync(this.projectPath)) {
+        throw new Error(`プロジェクトパスが存在しません: ${this.projectPath}`);
+      }
+      
+      // モックアップファイルの存在確認
+      if (!fs.existsSync(mockupFilePath)) {
+        throw new Error(`モックアップファイルが見つかりません: ${mockupFilePath}`);
+      }
+      
+      // CLAUDE.mdファイルパスを取得
+      const claudeMdPath = path.join(this.projectPath, 'CLAUDE.md');
+      if (!fs.existsSync(claudeMdPath)) {
+        throw new Error(`CLAUDE.mdファイルが見つかりません: ${claudeMdPath}`);
+      }
+      
+      // アイコンURIを取得
+      const platformManager = PlatformManager.getInstance();
+      const iconPath = platformManager.getResourceUri('media/icon.svg');
+      
+      // ターミナルの作成（simpleChat.tsの成功例を参考に実装）
+      const terminal = vscode.window.createTerminal({
+        name: 'ClaudeCode - モックアップ解析',
+        cwd: this.projectPath,
+        iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
+      });
+      
+      // ターミナルの表示
+      terminal.show();
+      
+      // システムメッセージを設定してClaudeCodeを起動
+      const sysMsgContent = `あなたはUIモックアップの解析と要件定義の詳細化を行うエキスパートです。
+
+モックアップHTML: ${mockupFilePath}
+このモックアップを詳細に解析し、ユーザーと相談しながら以下を行ってください:
+
+1. モックアップの詳細な分析と説明
+2. モックアップを完璧に仕上げるための改善提案
+3. ユーザーと相談しながら、実装に必要な詳細な要件定義を作成
+4. 完成した要件定義を「docs/scopes/」ディレクトリにマークダウンファイルとして保存
+
+保存するファイル名は「モックアップ名-requirements.md」としてください。
+要件定義には必ず以下の項目を含めてください：
+- 機能概要
+- UI要素の詳細
+- データ構造
+- API・バックエンド連携
+- エラー処理
+- パフォーマンス要件
+- セキュリティ要件
+
+ユーザーの意図を正確に把握し、非技術者でも理解できる形で要件をまとめてください。`;
+      
+      // システムメッセージファイルを一時的に作成
+      const sysMsgFileName = `mockup-analysis-${Date.now()}.txt`;
+      const sysMsgPath = path.join(platformManager.getTempDirectory('messages'), sysMsgFileName);
+      
+      // ディレクトリが存在しない場合は作成
+      if (!fs.existsSync(path.dirname(sysMsgPath))) {
+        fs.mkdirSync(path.dirname(sysMsgPath), { recursive: true });
+      }
+      
+      // システムメッセージをファイルに書き込み
+      fs.writeFileSync(sysMsgPath, sysMsgContent, 'utf8');
+      
+      // macOSの場合は環境変数のソースを確保（simpleChat.tsの成功例から移植）
+      if (process.platform === 'darwin') {
+        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found"');
+        terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+      }
+      
+      // エスケープ処理（simpleChat.tsの成功例から移植）
+      const escapedClaudeMdPath = claudeMdPath.replace(/ /g, '\\ ');
+      
+      // 2つのアプローチを試す - 最初にシンプルなアプローチで起動を試みる
+      terminal.sendText(`claude ${escapedClaudeMdPath}`);
+      Logger.info(`モックアップ解析用ClaudeCode起動コマンド: claude ${escapedClaudeMdPath}`);
+      
+      // 1秒後に初期メッセージを送信
+      const timerId = setTimeout(() => {
+        terminal.sendText(sysMsgContent);
+        terminal.sendText(`\nモックアップファイル ${mockupFilePath} について分析し、ユーザーと対話しながら要件定義を詳細化してください。`);
+      }, 1000);
+      
+      // 状態更新
+      this.status = ClaudeCodeExecutionStatus.RUNNING;
+      this.scopeFilePath = '';
+      
+      // イベント発火
+      this.eventBus.emit(
+        AppGeniusEventType.CLAUDE_CODE_STARTED,
+        { 
+          mockupFilePath,
+          projectPath: this.projectPath
+        },
+        'ClaudeCodeLauncherService'
+      );
+      
+      return true;
+    } catch (error) {
+      Logger.error('モックアップ解析用ClaudeCodeの起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`モックアップ解析用ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
       this.status = ClaudeCodeExecutionStatus.FAILED;
       return false;
     }

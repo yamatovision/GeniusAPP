@@ -22,6 +22,20 @@ AppGeniusは非技術者がClaudeCodeを活用してアプリケーション開�
 3. **フェーズ3**: 実装支援、デバッグサポート
 4. **フェーズ4**: API連携・環境設定、デプロイ支援
 
+## 開発ワークフロー
+
+AppGeniusでは以下のような開発ワークフローを推奨しています：
+
+1. **要件定義**: VSCodeでの要件定義をAIとの対話で作成
+2. **モックアップ作成**: 要件に基づいたモックアップHTMLを生成
+3. **モックアップの反復的改善**: AIとの対話でモックアップを視覚的に改善
+4. **バックエンド要件抽出**: モックアップからAPI・データ要件を抽出
+5. **スコープ設定**: 20万トークン以内の適切な実装単位に分割
+6. **ClaudeCodeでの実装**: スコープ単位での実装（VSCodeから起動）
+7. **進捗の可視化**: CLAUDE.mdでの自動チェックリスト更新
+
+特に、モックアップはユーザーが視覚的に確認できるため、要件の具体化に役立ちます。また、ClaudeCodeはCLAUDE.mdの情報を自動的に読み込み、実装を効率的に進めます。
+
 ## ドキュメントリンク
 
 ### 設計情報
@@ -52,63 +66,323 @@ npm run package  # パッケージング
 - 定数: UPPER_CASE
 - インターフェース名: IPascalCase
 - 型名: TPascalCase
+## 進捗状況
 
 ## 進捗状況
-- 要件定義: 完了
-- モックアップ: 未完了
-- ディレクトリ構造: 未完了
-- 実装スコープ: 未完了
-- CLAUDE.md管理システム: 完了
-- チャットUI: 完了
-- ダッシュボード: 完了
-- リファレンスマネージャー: 完了
-
-## 開発達成率
-- 作成済みファイル: 32
-- 計画済みファイル: 50
-- 達成率: 64%
-
-## 最近の実装
-- 要件定義とディレクトリ構造ファイルの自動変更検出機能
-- ダッシュボードの進行状況表示とチェックマーク機能
-- リファレンスマネージャーのUI統合
-- 要件定義エディタのタブ化と日本語表示の改善
-
-## 実装対象ファイル
-- src/modes/developmentMode/* - 開発モードの機能拡張
-- src/modes/implementationMode/* - 実装モードの機能拡張
-- src/ui/mockupGallery/* - モックアップギャラリーの完成
-- src/ui/scopeManager/* - スコープマネージャーの実装
-- src/ui/requirementManager/* - 要件マネージャーの強化
-- src/ui/components/* - 共通コンポーネントの整理
-
-## チェックリスト - フェーズ1
-- [x] 要件定義の完了
-- [x] CLAUDE.md管理システムの実装
-- [x] チャットUIの実装
-- [x] ダッシュボードの実装
-- [x] VSCode-ClaudeCode連携の基盤設計
-
-## チェックリスト - フェーズ2 (進行中)
-- [x] 要件定義・構造マネージャーの自動変更検出
-- [ ] モックアップギャラリーの実装
-- [ ] スコープ計画機能の拡張
-- [ ] リファレンス管理機能の拡張
-- [ ] ClaudeCode実装連携の最適化
-
-## プロジェクト情報
-- 作成日: 2025-03-05
+- 完成予定ファイル数: 48
+- 作成済みファイル数: 0
+- 進捗率: 0%
 - 最終更新日: 2025-03-06
-- ステータス: 開発中（フェーズ2）
 
-## ClaudeCode連携メモ
-- CLAUDE.mdを中央情報源として活用し、VSCodeで生成・編集したデータをClaudeCodeが読み取る
-- 要件定義、ディレクトリ構造、モックアップは全てVSCode拡張で生成・管理
-- スコープ単位でClaudeCodeに実装を依頼
-- ファイル作成状況はVSCode拡張側で検出してCLAUDE.mdに記録
-- ClaudeCodeでの実装時に参照すべき情報：
-  1. `docs/requirements.md` - 要件定義（実装方針）
-  2. `docs/structure.md` - ディレクトリ構造（ファイル配置）
-  3. `docs/scope.md` - 実装スコープ（優先順位と依存関係）
-  4. `mockups/` - モックアップ（UIとデータフロー）
-  5. `docs/api.md` - API設計（データモデルとエンドポイント）
+## ファイル状況
+
+### 完了済みファイル
+
+
+### 未完了ファイル
+- [ ] AppGenius//.vscode/                      # VSCode設定
+- [ ] AppGenius//launch.json               # デバッグ設定
+- [ ] AppGenius//tasks.json                # タスク設定
+- [ ] AppGenius//docs/                         # ドキュメント/requirements.md           # 要件定義
+- [ ] AppGenius//docs/                         # ドキュメント/structure.md              # ディレクトリ構造
+- [ ] AppGenius//docs/                         # ドキュメント/scope.md                  # 実装スコープ
+- [ ] AppGenius//docs/                         # ドキュメント/api.md                    # API設計
+- [ ] AppGenius//docs/                         # ドキュメント/env.example               # 環境変数例
+- [ ] AppGenius//docs/                         # ドキュメント/CURRENT_STATUS.md         # 現在の開発状況
+- [ ] AppGenius//mockups/                      # モックアップと生成物/metadata.json             # モックアップ管理情報
+- [ ] AppGenius//mockups/                      # モックアップと生成物/*.html                    # 各モックアップファイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.css                     # 各UI要素のスタイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.js                      # フロントエンドスクリプト
+- [ ] AppGenius//media/                        # アセットとスタイル/icon.svg                  # アイコン等
+- [ ] AppGenius//src/                          # VSCode拡張ソース/extension.ts              # エントリーポイント
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/aiService.ts          # AI連携
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/codeGenerator.ts      # コード生成
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/gitManager.ts         # Git操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/projectAnalyzer.ts    # プロジェクト分析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/requirementsParser.ts # 要件解析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusEventBus.ts  # イベント管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusStateManager.ts # 状態管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/ProjectManagementService.ts # プロジェクト管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/mockupStorageService.ts  # モックアップ保存
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/referenceStorageService.ts # リファレンス管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/dashboard/            # ダッシュボード/DashboardPanel.ts # ダッシュボードパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/requirementManager/   # 要件定義マネージャー/RequirementManagerPanel.ts # 要件パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupGallery/        # モックアップギャラリー/MockupGalleryPanel.ts # モックアップパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupEditor/         # モックアップエディタ/SimpleMockupEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/scopeManager/         # スコープマネージャー/ScopeManagerPanel.ts # スコープパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/developmentAssistant/ # 開発アシスタント/DevelopmentAssistantPanel.ts # 開発パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/referenceManager/     # リファレンスマネージャー/ReferenceManagerPanel.ts # リファレンスパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/claudeMd/             # CLAUDE.mdエディタ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/ClaudeMdEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/sidebarProvider.ts    # サイドバープロバイダ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/statusBar.ts          # ステータスバー
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/CommandHandler.ts     # コマンドハンドラ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ClaudeMdService.ts    # CLAUDE.md管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/MessageBroker.ts      # メッセージ処理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ScopeExporter.ts      # スコープエクスポート
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/configManager.ts      # 設定管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/fileManager.ts        # ファイル操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/logger.ts             # ロギング
+- [ ] AppGenius//CLAUDE.md                     # プロジェクト中心ドキュメント
+- [ ] AppGenius//package.json                  # パッケージ設定
+- [ ] AppGenius//tsconfig.json                 # TypeScript設定
+- [ ] AppGenius//webpack.config.js             # Webpack設定
+- [ ] AppGenius//README.md                     # プロジェクト概要
+
+
+
+
+## 進捗状況
+- 完成予定ファイル数: 48
+- 作成済みファイル数: 0
+- 進捗率: 0%
+- 最終更新日: 2025-03-06
+
+## ファイル状況
+
+### 完了済みファイル
+
+
+### 未完了ファイル
+- [ ] AppGenius//.vscode/                      # VSCode設定
+- [ ] AppGenius//launch.json               # デバッグ設定
+- [ ] AppGenius//tasks.json                # タスク設定
+- [ ] AppGenius//docs/                         # ドキュメント/requirements.md           # 要件定義
+- [ ] AppGenius//docs/                         # ドキュメント/structure.md              # ディレクトリ構造
+- [ ] AppGenius//docs/                         # ドキュメント/scope.md                  # 実装スコープ
+- [ ] AppGenius//docs/                         # ドキュメント/api.md                    # API設計
+- [ ] AppGenius//docs/                         # ドキュメント/env.example               # 環境変数例
+- [ ] AppGenius//docs/                         # ドキュメント/CURRENT_STATUS.md         # 現在の開発状況
+- [ ] AppGenius//mockups/                      # モックアップと生成物/metadata.json             # モックアップ管理情報
+- [ ] AppGenius//mockups/                      # モックアップと生成物/*.html                    # 各モックアップファイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.css                     # 各UI要素のスタイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.js                      # フロントエンドスクリプト
+- [ ] AppGenius//media/                        # アセットとスタイル/icon.svg                  # アイコン等
+- [ ] AppGenius//src/                          # VSCode拡張ソース/extension.ts              # エントリーポイント
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/aiService.ts          # AI連携
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/codeGenerator.ts      # コード生成
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/gitManager.ts         # Git操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/projectAnalyzer.ts    # プロジェクト分析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/requirementsParser.ts # 要件解析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusEventBus.ts  # イベント管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusStateManager.ts # 状態管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/ProjectManagementService.ts # プロジェクト管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/mockupStorageService.ts  # モックアップ保存
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/referenceStorageService.ts # リファレンス管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/dashboard/            # ダッシュボード/DashboardPanel.ts # ダッシュボードパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/requirementManager/   # 要件定義マネージャー/RequirementManagerPanel.ts # 要件パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupGallery/        # モックアップギャラリー/MockupGalleryPanel.ts # モックアップパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupEditor/         # モックアップエディタ/SimpleMockupEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/scopeManager/         # スコープマネージャー/ScopeManagerPanel.ts # スコープパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/developmentAssistant/ # 開発アシスタント/DevelopmentAssistantPanel.ts # 開発パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/referenceManager/     # リファレンスマネージャー/ReferenceManagerPanel.ts # リファレンスパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/claudeMd/             # CLAUDE.mdエディタ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/ClaudeMdEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/sidebarProvider.ts    # サイドバープロバイダ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/statusBar.ts          # ステータスバー
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/CommandHandler.ts     # コマンドハンドラ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ClaudeMdService.ts    # CLAUDE.md管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/MessageBroker.ts      # メッセージ処理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ScopeExporter.ts      # スコープエクスポート
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/configManager.ts      # 設定管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/fileManager.ts        # ファイル操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/logger.ts             # ロギング
+- [ ] AppGenius//CLAUDE.md                     # プロジェクト中心ドキュメント
+- [ ] AppGenius//package.json                  # パッケージ設定
+- [ ] AppGenius//tsconfig.json                 # TypeScript設定
+- [ ] AppGenius//webpack.config.js             # Webpack設定
+- [ ] AppGenius//README.md                     # プロジェクト概要
+
+
+
+
+## 進捗状況
+- 完成予定ファイル数: 48
+- 作成済みファイル数: 0
+- 進捗率: 0%
+- 最終更新日: 2025-03-06
+
+## ファイル状況
+
+### 完了済みファイル
+
+
+### 未完了ファイル
+- [ ] AppGenius//.vscode/                      # VSCode設定
+- [ ] AppGenius//launch.json               # デバッグ設定
+- [ ] AppGenius//tasks.json                # タスク設定
+- [ ] AppGenius//docs/                         # ドキュメント/requirements.md           # 要件定義
+- [ ] AppGenius//docs/                         # ドキュメント/structure.md              # ディレクトリ構造
+- [ ] AppGenius//docs/                         # ドキュメント/scope.md                  # 実装スコープ
+- [ ] AppGenius//docs/                         # ドキュメント/api.md                    # API設計
+- [ ] AppGenius//docs/                         # ドキュメント/env.example               # 環境変数例
+- [ ] AppGenius//docs/                         # ドキュメント/CURRENT_STATUS.md         # 現在の開発状況
+- [ ] AppGenius//mockups/                      # モックアップと生成物/metadata.json             # モックアップ管理情報
+- [ ] AppGenius//mockups/                      # モックアップと生成物/*.html                    # 各モックアップファイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.css                     # 各UI要素のスタイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.js                      # フロントエンドスクリプト
+- [ ] AppGenius//media/                        # アセットとスタイル/icon.svg                  # アイコン等
+- [ ] AppGenius//src/                          # VSCode拡張ソース/extension.ts              # エントリーポイント
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/aiService.ts          # AI連携
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/codeGenerator.ts      # コード生成
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/gitManager.ts         # Git操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/projectAnalyzer.ts    # プロジェクト分析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/requirementsParser.ts # 要件解析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusEventBus.ts  # イベント管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusStateManager.ts # 状態管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/ProjectManagementService.ts # プロジェクト管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/mockupStorageService.ts  # モックアップ保存
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/referenceStorageService.ts # リファレンス管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/dashboard/            # ダッシュボード/DashboardPanel.ts # ダッシュボードパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/requirementManager/   # 要件定義マネージャー/RequirementManagerPanel.ts # 要件パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupGallery/        # モックアップギャラリー/MockupGalleryPanel.ts # モックアップパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupEditor/         # モックアップエディタ/SimpleMockupEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/scopeManager/         # スコープマネージャー/ScopeManagerPanel.ts # スコープパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/developmentAssistant/ # 開発アシスタント/DevelopmentAssistantPanel.ts # 開発パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/referenceManager/     # リファレンスマネージャー/ReferenceManagerPanel.ts # リファレンスパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/claudeMd/             # CLAUDE.mdエディタ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/ClaudeMdEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/sidebarProvider.ts    # サイドバープロバイダ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/statusBar.ts          # ステータスバー
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/CommandHandler.ts     # コマンドハンドラ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ClaudeMdService.ts    # CLAUDE.md管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/MessageBroker.ts      # メッセージ処理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ScopeExporter.ts      # スコープエクスポート
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/configManager.ts      # 設定管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/fileManager.ts        # ファイル操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/logger.ts             # ロギング
+- [ ] AppGenius//CLAUDE.md                     # プロジェクト中心ドキュメント
+- [ ] AppGenius//package.json                  # パッケージ設定
+- [ ] AppGenius//tsconfig.json                 # TypeScript設定
+- [ ] AppGenius//webpack.config.js             # Webpack設定
+- [ ] AppGenius//README.md                     # プロジェクト概要
+
+
+
+
+## 進捗状況
+- 完成予定ファイル数: 48
+- 作成済みファイル数: 0
+- 進捗率: 0%
+- 最終更新日: 2025-03-06
+
+## ファイル状況
+
+### 完了済みファイル
+
+
+### 未完了ファイル
+- [ ] AppGenius//.vscode/                      # VSCode設定
+- [ ] AppGenius//launch.json               # デバッグ設定
+- [ ] AppGenius//tasks.json                # タスク設定
+- [ ] AppGenius//docs/                         # ドキュメント/requirements.md           # 要件定義
+- [ ] AppGenius//docs/                         # ドキュメント/structure.md              # ディレクトリ構造
+- [ ] AppGenius//docs/                         # ドキュメント/scope.md                  # 実装スコープ
+- [ ] AppGenius//docs/                         # ドキュメント/api.md                    # API設計
+- [ ] AppGenius//docs/                         # ドキュメント/env.example               # 環境変数例
+- [ ] AppGenius//docs/                         # ドキュメント/CURRENT_STATUS.md         # 現在の開発状況
+- [ ] AppGenius//mockups/                      # モックアップと生成物/metadata.json             # モックアップ管理情報
+- [ ] AppGenius//mockups/                      # モックアップと生成物/*.html                    # 各モックアップファイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.css                     # 各UI要素のスタイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.js                      # フロントエンドスクリプト
+- [ ] AppGenius//media/                        # アセットとスタイル/icon.svg                  # アイコン等
+- [ ] AppGenius//src/                          # VSCode拡張ソース/extension.ts              # エントリーポイント
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/aiService.ts          # AI連携
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/codeGenerator.ts      # コード生成
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/gitManager.ts         # Git操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/projectAnalyzer.ts    # プロジェクト分析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/requirementsParser.ts # 要件解析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusEventBus.ts  # イベント管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusStateManager.ts # 状態管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/ProjectManagementService.ts # プロジェクト管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/mockupStorageService.ts  # モックアップ保存
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/referenceStorageService.ts # リファレンス管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/dashboard/            # ダッシュボード/DashboardPanel.ts # ダッシュボードパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/requirementManager/   # 要件定義マネージャー/RequirementManagerPanel.ts # 要件パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupGallery/        # モックアップギャラリー/MockupGalleryPanel.ts # モックアップパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupEditor/         # モックアップエディタ/SimpleMockupEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/scopeManager/         # スコープマネージャー/ScopeManagerPanel.ts # スコープパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/developmentAssistant/ # 開発アシスタント/DevelopmentAssistantPanel.ts # 開発パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/referenceManager/     # リファレンスマネージャー/ReferenceManagerPanel.ts # リファレンスパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/claudeMd/             # CLAUDE.mdエディタ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/ClaudeMdEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/sidebarProvider.ts    # サイドバープロバイダ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/statusBar.ts          # ステータスバー
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/CommandHandler.ts     # コマンドハンドラ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ClaudeMdService.ts    # CLAUDE.md管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/MessageBroker.ts      # メッセージ処理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ScopeExporter.ts      # スコープエクスポート
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/configManager.ts      # 設定管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/fileManager.ts        # ファイル操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/logger.ts             # ロギング
+- [ ] AppGenius//CLAUDE.md                     # プロジェクト中心ドキュメント
+- [ ] AppGenius//package.json                  # パッケージ設定
+- [ ] AppGenius//tsconfig.json                 # TypeScript設定
+- [ ] AppGenius//webpack.config.js             # Webpack設定
+- [ ] AppGenius//README.md                     # プロジェクト概要
+
+
+
+
+## 進捗状況
+- 完成予定ファイル数: 48
+- 作成済みファイル数: 0
+- 進捗率: 0%
+- 最終更新日: 2025-03-06
+
+## ファイル状況
+
+### 完了済みファイル
+
+
+### 未完了ファイル
+- [ ] AppGenius//.vscode/                      # VSCode設定
+- [ ] AppGenius//launch.json               # デバッグ設定
+- [ ] AppGenius//tasks.json                # タスク設定
+- [ ] AppGenius//docs/                         # ドキュメント/requirements.md           # 要件定義
+- [ ] AppGenius//docs/                         # ドキュメント/structure.md              # ディレクトリ構造
+- [ ] AppGenius//docs/                         # ドキュメント/scope.md                  # 実装スコープ
+- [ ] AppGenius//docs/                         # ドキュメント/api.md                    # API設計
+- [ ] AppGenius//docs/                         # ドキュメント/env.example               # 環境変数例
+- [ ] AppGenius//docs/                         # ドキュメント/CURRENT_STATUS.md         # 現在の開発状況
+- [ ] AppGenius//mockups/                      # モックアップと生成物/metadata.json             # モックアップ管理情報
+- [ ] AppGenius//mockups/                      # モックアップと生成物/*.html                    # 各モックアップファイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.css                     # 各UI要素のスタイル
+- [ ] AppGenius//media/                        # アセットとスタイル/*.js                      # フロントエンドスクリプト
+- [ ] AppGenius//media/                        # アセットとスタイル/icon.svg                  # アイコン等
+- [ ] AppGenius//src/                          # VSCode拡張ソース/extension.ts              # エントリーポイント
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/aiService.ts          # AI連携
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/codeGenerator.ts      # コード生成
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/gitManager.ts         # Git操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/projectAnalyzer.ts    # プロジェクト分析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/core/                     # コアロジック/requirementsParser.ts # 要件解析
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusEventBus.ts  # イベント管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/AppGeniusStateManager.ts # 状態管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/ProjectManagementService.ts # プロジェクト管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/mockupStorageService.ts  # モックアップ保存
+- [ ] AppGenius//src/                          # VSCode拡張ソース/services/                 # サービス層/referenceStorageService.ts # リファレンス管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/dashboard/            # ダッシュボード/DashboardPanel.ts # ダッシュボードパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/requirementManager/   # 要件定義マネージャー/RequirementManagerPanel.ts # 要件パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupGallery/        # モックアップギャラリー/MockupGalleryPanel.ts # モックアップパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/mockupEditor/         # モックアップエディタ/SimpleMockupEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/scopeManager/         # スコープマネージャー/ScopeManagerPanel.ts # スコープパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/developmentAssistant/ # 開発アシスタント/DevelopmentAssistantPanel.ts # 開発パネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/referenceManager/     # リファレンスマネージャー/ReferenceManagerPanel.ts # リファレンスパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/claudeMd/             # CLAUDE.mdエディタ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/ClaudeMdEditorPanel.ts # エディタパネル
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/sidebarProvider.ts    # サイドバープロバイダ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/statusBar.ts          # ステータスバー
+- [ ] AppGenius//src/                          # VSCode拡張ソース/ui/                       # UI関連/CommandHandler.ts     # コマンドハンドラ
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ClaudeMdService.ts    # CLAUDE.md管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/MessageBroker.ts      # メッセージ処理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/ScopeExporter.ts      # スコープエクスポート
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/configManager.ts      # 設定管理
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/fileManager.ts        # ファイル操作
+- [ ] AppGenius//src/                          # VSCode拡張ソース/utils/                    # ユーティリティ/logger.ts             # ロギング
+- [ ] AppGenius//CLAUDE.md                     # プロジェクト中心ドキュメント
+- [ ] AppGenius//package.json                  # パッケージ設定
+- [ ] AppGenius//tsconfig.json                 # TypeScript設定
+- [ ] AppGenius//webpack.config.js             # Webpack設定
+- [ ] AppGenius//README.md                     # プロジェクト概要
+
+

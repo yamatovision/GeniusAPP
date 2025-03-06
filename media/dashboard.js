@@ -380,8 +380,12 @@
     
     try {
       const project = state.activeProject;
+      const details = state.activeProjectDetails || {};
       const createdDate = new Date(project.createdAt || Date.now()).toLocaleDateString();
       const updatedDate = new Date(project.updatedAt || Date.now()).toLocaleDateString();
+      
+      // ファイル進捗情報の表示コンテンツを生成
+      const fileProgressHtml = renderFileProgressSection(details.fileProgress);
       
       activeProjectPanel.innerHTML = `
         <div class="project-details">
@@ -395,6 +399,8 @@
               <i class="icon">🔄</i> 更新日: ${updatedDate}
             </div>
           </div>
+          
+          ${fileProgressHtml}
           
           <div class="project-description-panel">
             <h3><i class="icon">📝</i> プロジェクト説明</h3>
@@ -426,7 +432,12 @@
     }
   }
   
-  // renderOverallProgress関数を削除
+  /**
+   * ファイル進捗表示セクションを生成
+   */
+  function renderFileProgressSection(progressData) {
+    return '';
+  }
   
   /**
    * 開発プロセスステップの描画

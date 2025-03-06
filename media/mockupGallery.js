@@ -11,20 +11,18 @@
   document.addEventListener('DOMContentLoaded', () => {
     initEventListeners();
     
+    // 初期状態では削除ボタンを無効化
+    const deleteMockupButton = document.getElementById('delete-mockup-button');
+    if (deleteMockupButton) {
+      deleteMockupButton.disabled = true;
+    }
+    
     // モックアップのロードを要求
     vscode.postMessage({ command: 'loadMockups' });
   });
   
   // イベントリスナーの初期化
   function initEventListeners() {
-    // 一括生成ボタン
-    const generateAllButton = document.getElementById('generate-all-button');
-    if (generateAllButton) {
-      generateAllButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'generateAllMockups' });
-      });
-    }
-    
     // 更新ボタン
     const refreshButton = document.getElementById('refresh-button');
     if (refreshButton) {
@@ -46,32 +44,32 @@
       });
     }
     
-    // HTMLを表示ボタン
-    const showHtmlButton = document.getElementById('show-html-button');
-    if (showHtmlButton) {
-      showHtmlButton.addEventListener('click', () => {
+    // モックアップ削除ボタン
+    const deleteMockupButton = document.getElementById('delete-mockup-button');
+    if (deleteMockupButton) {
+      deleteMockupButton.addEventListener('click', () => {
         if (currentMockupId) {
-          // HTMLの表示/非表示を切り替え
-          const mockupFrame = document.getElementById('mockup-frame');
-          const htmlDisplay = document.getElementById('html-code-display');
-          
-          if (mockupFrame && htmlDisplay) {
-            if (htmlDisplay.style.display === 'none') {
-              // HTMLコードを表示
-              const currentMockup = mockups.find(m => m.id === currentMockupId);
-              if (currentMockup) {
-                htmlDisplay.textContent = currentMockup.html;
-                htmlDisplay.style.display = 'block';
-                mockupFrame.style.display = 'none';
-                showHtmlButton.textContent = 'プレビュー表示';
-              }
-            } else {
-              // プレビューに戻す
-              htmlDisplay.style.display = 'none';
-              mockupFrame.style.display = 'block';
-              showHtmlButton.textContent = 'HTML表示';
-            }
+          const currentMockup = mockups.find(m => m.id === currentMockupId);
+          if (currentMockup) {
+            // サンドボックスの制限でconfirm()が使えないため、直接削除コマンドを送信
+            vscode.postMessage({
+              command: 'deleteMockup',
+              mockupId: currentMockupId
+            });
           }
+        }
+      });
+    }
+    
+    // AIと詳細を詰めるボタン
+    const analyzeWithAiButton = document.getElementById('analyze-with-ai-button');
+    if (analyzeWithAiButton) {
+      analyzeWithAiButton.addEventListener('click', () => {
+        if (currentMockupId) {
+          vscode.postMessage({
+            command: 'analyzeWithAI',
+            mockupId: currentMockupId
+          });
         }
       });
     }
@@ -206,7 +204,7 @@
       container.innerHTML = `
         <div class="empty-state">
           <p>モックアップがありません。</p>
-          <p>要件定義やディレクトリ構造からモックアップを作成しましょう。</p>
+          <p>HTMLファイルをインポートしてモックアップを作成しましょう。</p>
         </div>
       `;
       return;
@@ -225,16 +223,15 @@
         li.classList.add('active');
       }
       
-      const status = mockup.status || 'pending';
-      
       li.innerHTML = `
         <a href="#">
           <span>${mockup.name}</span>
-          <span class="page-status status-${status}">${getStatusLabel(status)}</span>
         </a>
       `;
       
-      li.addEventListener('click', () => {
+      // モックアップ選択のイベントリスナー
+      li.querySelector('a').addEventListener('click', (e) => {
+        e.preventDefault();
         selectMockup(mockup.id);
       });
       
@@ -242,9 +239,6 @@
     });
     
     container.appendChild(ul);
-    
-    // キュー情報を更新
-    updateQueueInfo();
   }
   
   // モックアップの選択
@@ -268,8 +262,12 @@
     const mockup = mockups.find(m => m.id === mockupId);
     if (mockup) {
       renderMockupPreview(mockup);
-      loadMockupChatHistory(mockup);
-      updateApprovalUI(mockup);
+      
+      // 削除ボタンを有効化
+      const deleteMockupButton = document.getElementById('delete-mockup-button');
+      if (deleteMockupButton) {
+        deleteMockupButton.disabled = false;
+      }
     }
   }
   
@@ -278,7 +276,6 @@
     // mockupFrameがiframeであることを確認
     const mockupFrame = document.getElementById('mockup-frame');
     const previewTitle = document.getElementById('preview-title');
-    const statusBadge = document.querySelector('.toolbar-left .page-status');
     
     if (!mockupFrame) {
       console.error('mockup-frame element not found');
@@ -294,12 +291,6 @@
     // タイトルを更新
     if (previewTitle) {
       previewTitle.textContent = mockup.name;
-    }
-    
-    // ステータスバッジを更新
-    if (statusBadge) {
-      statusBadge.className = `page-status status-${mockup.status || 'pending'}`;
-      statusBadge.textContent = getStatusLabel(mockup.status || 'pending');
     }
     
     // HTMLを描画 - 処理前にHTML表示を非表示にして、iframeを表示状態にする
@@ -408,22 +399,7 @@
     }
   }
   
-  // キュー情報の更新
-  function updateQueueInfo() {
-    const queueInfo = document.querySelector('.queue-info');
-    if (!queueInfo) return;
-    
-    // ステータス集計
-    const pending = mockups.filter(m => m.status === 'pending').length;
-    const generating = mockups.filter(m => m.status === 'generating').length;
-    const completed = mockups.filter(m => ['review', 'approved'].includes(m.status)).length;
-    const total = mockups.length;
-    
-    queueInfo.innerHTML = `
-      <p><strong>処理状況:</strong> ${generating}件生成中 / ${pending}件待機中</p>
-      <p><strong>完了:</strong> ${completed}/${total} ページ</p>
-    `;
-  }
+  // 削除されたメソッド（使用されなくなった）
   
   // ステータスラベルの取得
   function getStatusLabel(status) {

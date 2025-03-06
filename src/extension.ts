@@ -324,10 +324,13 @@ ${Object.entries(analysis.stats.languageBreakdown)
 	
 	// 実装スコープ選択を開くコマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openImplementationSelector', () => {
+		vscode.commands.registerCommand('appgenius-ai.openImplementationSelector', (projectPath?: string) => {
 			try {
 				Logger.info('実装スコープ選択を開きます');
-				ImplementationSelectorPanel.createOrShow(context.extensionUri, aiService);
+				if (projectPath) {
+					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
+				}
+				ImplementationSelectorPanel.createOrShow(context.extensionUri, aiService, projectPath);
 			} catch (error) {
 				Logger.error(`実装スコープ選択起動エラー: ${(error as Error).message}`);
 				vscode.window.showErrorMessage(`実装スコープ選択の起動に失敗しました: ${(error as Error).message}`);
@@ -442,22 +445,16 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			Logger.info('AppGeniusStateManager initialized successfully');
 		});
 		
-		// CLI関連サービスの初期化
-		const isCliEnabled = vscode.workspace.getConfiguration('appgeniusAI').get<boolean>('enableCli', true);
-		if (isCliEnabled) {
-			// CLILauncherServiceを初期化
-			import('./services/cli/CLILauncherService').then(({ CLILauncherService }) => {
-				CLILauncherService.getInstance();
-				Logger.info('CLILauncherService initialized successfully');
+		// ClaudeCode関連サービスの初期化
+		const isClaudeCodeEnabled = vscode.workspace.getConfiguration('appgeniusAI').get<boolean>('enableClaudeCode', true);
+		if (isClaudeCodeEnabled) {
+			// ClaudeCodeLauncherServiceを初期化
+			import('./services/ClaudeCodeLauncherService').then(({ ClaudeCodeLauncherService }) => {
+				ClaudeCodeLauncherService.getInstance();
+				Logger.info('ClaudeCodeLauncherService initialized successfully');
 			});
 			
-			// CLIProgressServiceを初期化
-			import('./services/cli/CLIProgressService').then(({ CLIProgressService }) => {
-				CLIProgressService.getInstance();
-				Logger.info('CLIProgressService initialized successfully');
-			});
-			
-			// CLI起動コマンドを登録
+			// CLI起動コマンドを登録（ClaudeCodeを起動）
 			context.subscriptions.push(
 				vscode.commands.registerCommand('appgenius-ai.launchCli', async () => {
 					try {
@@ -469,12 +466,12 @@ ${Object.entries(analysis.stats.languageBreakdown)
 							return;
 						}
 						
-						// ステートマネージャーとCLIランチャーを動的にロード
+						// ステートマネージャーとClaudeCodeランチャーを動的にロード
 						const { AppGeniusStateManager } = await import('./services/AppGeniusStateManager');
-						const { CLILauncherService } = await import('./services/cli/CLILauncherService');
+						const { ClaudeCodeLauncherService } = await import('./services/ClaudeCodeLauncherService');
 						
 						const stateManager = AppGeniusStateManager.getInstance();
-						const cliLauncher = CLILauncherService.getInstance();
+						const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
 						
 						// 実装スコープを取得
 						const scope = await stateManager.getImplementationScope(projectId);
@@ -484,51 +481,51 @@ ${Object.entries(analysis.stats.languageBreakdown)
 							return;
 						}
 						
-						// CLIを起動
-						const success = await cliLauncher.launchCLI(scope);
+						// ClaudeCodeを起動
+						const success = await claudeCodeLauncher.launchClaudeCode(scope);
 						
 						if (success) {
-							vscode.window.showInformationMessage('AppGenius CLIを起動しました');
+							vscode.window.showInformationMessage('ClaudeCodeを起動しました');
 						}
 					} catch (error) {
-						Logger.error('CLIの起動に失敗しました', error as Error);
-						vscode.window.showErrorMessage(`CLIの起動に失敗しました: ${(error as Error).message}`);
+						Logger.error('ClaudeCodeの起動に失敗しました', error as Error);
+						vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
 					}
 				})
 			);
 			
-			// CLI停止コマンドを登録
+			// CLI停止コマンドを登録（ClaudeCodeをリセット）
 			context.subscriptions.push(
 				vscode.commands.registerCommand('appgenius-ai.stopCli', async () => {
 					try {
-						const { CLILauncherService } = await import('./services/cli/CLILauncherService');
-						const cliLauncher = CLILauncherService.getInstance();
+						const { ClaudeCodeLauncherService } = await import('./services/ClaudeCodeLauncherService');
+						const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
 						
-						const success = await cliLauncher.stopCLI();
-						
-						if (success) {
-							vscode.window.showInformationMessage('AppGenius CLIを停止しました');
-						} else {
-							vscode.window.showInformationMessage('実行中のCLIプロセスがありません');
-						}
+						// resetStatusメソッドを使用
+						claudeCodeLauncher.resetStatus();
+						vscode.window.showInformationMessage('ClaudeCodeの状態をリセットしました');
 					} catch (error) {
-						Logger.error('CLIの停止に失敗しました', error as Error);
-						vscode.window.showErrorMessage(`CLIの停止に失敗しました: ${(error as Error).message}`);
+						Logger.error('ClaudeCodeの停止に失敗しました', error as Error);
+						vscode.window.showErrorMessage(`ClaudeCodeの停止に失敗しました: ${(error as Error).message}`);
 					}
 				})
 			);
 			
-			// CLI進捗表示コマンドを登録
+			// CLI進捗表示コマンドを登録（ClaudeCodeの進捗表示）
 			context.subscriptions.push(
 				vscode.commands.registerCommand('appgenius-ai.showCliProgress', async () => {
 					try {
-						const { CLIProgressService } = await import('./services/cli/CLIProgressService');
-						const cliProgressService = CLIProgressService.getInstance();
+						vscode.window.showInformationMessage('ClaudeCodeの進捗状況をVSCode上で表示します');
 						
-						await cliProgressService.showProgressDialog();
+						// ステータスの取得
+						const { ClaudeCodeLauncherService } = await import('./services/ClaudeCodeLauncherService');
+						const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
+						
+						const status = claudeCodeLauncher.getStatus();
+						vscode.window.showInformationMessage(`現在のClaudeCode状態: ${status}`);
 					} catch (error) {
-						Logger.error('CLI進捗表示に失敗しました', error as Error);
-						vscode.window.showErrorMessage(`CLI進捗表示に失敗しました: ${(error as Error).message}`);
+						Logger.error('ClaudeCode進捗表示に失敗しました', error as Error);
+						vscode.window.showErrorMessage(`ClaudeCode進捗表示に失敗しました: ${(error as Error).message}`);
 					}
 				})
 			);
@@ -570,23 +567,12 @@ ${Object.entries(analysis.stats.languageBreakdown)
 export function deactivate() {
 	Logger.info('AppGenius AI が停止しました');
 	
-	// CLI関連サービスの停止
+	// ClaudeCode関連サービスの停止
 	try {
-		import('./services/cli/CLILauncherService').then(({ CLILauncherService }) => {
+		import('./services/ClaudeCodeLauncherService').then(({ ClaudeCodeLauncherService }) => {
 			try {
-				CLILauncherService.getInstance().dispose();
-				Logger.info('CLILauncherService disposed successfully');
-			} catch (e) {
-				// 既に破棄されている可能性があるため、エラーは無視
-			}
-		}).catch(() => {
-			// モジュールロードエラーは無視
-		});
-		
-		import('./services/cli/CLIProgressService').then(({ CLIProgressService }) => {
-			try {
-				CLIProgressService.getInstance().dispose();
-				Logger.info('CLIProgressService disposed successfully');
+				ClaudeCodeLauncherService.getInstance().dispose();
+				Logger.info('ClaudeCodeLauncherService disposed successfully');
 			} catch (e) {
 				// 既に破棄されている可能性があるため、エラーは無視
 			}

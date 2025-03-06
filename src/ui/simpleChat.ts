@@ -8,7 +8,7 @@ import { FileOperationManager } from '../utils/fileOperationManager';
 import { ProjectManagementService } from '../services/ProjectManagementService';
 import { AppGeniusStateManager, Requirements } from '../services/AppGeniusStateManager';
 import { ClaudeMdService } from '../utils/ClaudeMdService';
-import { CLILauncherService } from '../services/cli/CLILauncherService';
+import { ClaudeCodeLauncherService } from '../services/ClaudeCodeLauncherService';
 
 /**
  * シンプルなチャットパネルを管理するクラス
@@ -22,7 +22,7 @@ export class SimpleChatPanel implements vscode.Disposable {
   private readonly _disposables: vscode.Disposable[] = [];
   private readonly _aiService: AIService;
   private readonly _claudeMdService = ClaudeMdService.getInstance();
-  private readonly _cliLauncherService = CLILauncherService.getInstance();
+  private readonly _claudeCodeLauncherService = ClaudeCodeLauncherService.getInstance();
   private _extractedCodeBlocks: Array<{id: number, language: string, code: string}> = [];
   private _chatHistory: Array<{role: 'user' | 'ai', content: string}> = [];
   

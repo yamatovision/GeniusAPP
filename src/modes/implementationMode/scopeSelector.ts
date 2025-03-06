@@ -1,38 +1,25 @@
 import * as vscode from 'vscode';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
+import { MarkdownManager } from '../../utils/MarkdownManager';
+import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../../types';
 
 /**
- * 実装項目の型定義
- */
-export interface ImplementationItem {
-  id: string;
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  complexity: 'high' | 'medium' | 'low';
-  isSelected: boolean;
-  dependencies: string[];
-  status: 'pending' | 'in-progress' | 'completed' | 'blocked';
-  progress: number; // 0-100 の進捗率
-  notes?: string; // 実装メモ
-  relatedFiles?: string[]; // 関連ファイル一覧
-  relatedMockups?: string[]; // 関連モックアップ
-  relatedRequirements?: string[]; // 関連要件
-}
-
-/**
- * スコープの型定義
+ * スコープの型定義（互換性維持のため）
  */
 export interface ImplementationScope {
-  id?: string; // スコープID（CLI連携用）
-  items: ImplementationItem[];
+  id?: string | null; // スコープID（CLI連携用）
+  items: IImplementationItem[];
   selectedIds: string[];
   estimatedTime: string;
   totalProgress: number; // 全体の進捗率
   startDate?: string; // プロジェクト開始日
   targetDate?: string; // 目標完了日
+  projectPath?: string; // プロジェクトパス
 }
+
+// 既存のコードとの互換性のため
+export type ImplementationItem = IImplementationItem;
 
 /**
  * スコープ選択クラス
@@ -40,11 +27,30 @@ export interface ImplementationScope {
 export class ScopeSelector {
   private _aiService: AIService;
   private _requirementsDocument: string = '';
-  private _items: ImplementationItem[] = [];
+  private _items: IImplementationItem[] = [];
   private _selectedIds: string[] = [];
+  private _markdownManager: MarkdownManager;
+  private _projectPath: string = '';
+  private _currentScopeId: string | null = null;
 
   constructor(aiService: AIService) {
     this._aiService = aiService;
+    this._markdownManager = MarkdownManager.getInstance();
+  }
+
+  /**
+   * プロジェクトパスを設定
+   */
+  public setProjectPath(projectPath: string): void {
+    this._projectPath = projectPath;
+    Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
+  }
+  
+  /**
+   * 現在のプロジェクトパスを取得
+   */
+  public getProjectPath(): string {
+    return this._projectPath;
   }
 
   /**
@@ -58,53 +64,60 @@ export class ScopeSelector {
   /**
    * 要件定義書から実装項目を抽出
    */
-  public async extractImplementationItems(): Promise<ImplementationItem[]> {
+  public async extractImplementationItems(): Promise<IImplementationItem[]> {
     try {
       if (!this._requirementsDocument) {
         throw new Error('要件定義書が設定されていません');
       }
 
+      if (!this._projectPath) {
+        throw new Error('プロジェクトパスが設定されていません');
+      }
+
       Logger.info('要件定義書から実装項目を抽出します');
 
-      // AIに要件定義書から実装項目を抽出させる
-      const prompt = `以下の要件定義書から実装項目を抽出し、ID、タイトル、説明、優先度、複雑度、依存関係を付けてJSONフォーマットで返してください。
-JSONの形式は以下のようにしてください:
-\`\`\`json
-[
-  {
-    "id": "ITEM-001",
-    "title": "ユーザー登録機能",
-    "description": "新規ユーザーを登録できる機能。氏名、メールアドレス、パスワードを入力する。",
-    "priority": "high", // high, medium, lowのいずれか
-    "complexity": "medium", // high, medium, lowのいずれか
-    "dependencies": [] // 依存する他の項目のIDの配列
-  },
-  ...
-]
-\`\`\`
+      // 要件定義からスコープを作成
+      const scopeId = await this._markdownManager.createScopeFromRequirements(
+        this._projectPath,
+        this._requirementsDocument,
+        this._aiService
+      );
 
-要件定義書:
-${this._requirementsDocument}`;
-      
-      const response = await this._aiService.sendMessage(prompt, 'implementation');
-      
-      // レスポンスからJSON部分を抽出
-      const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
-      if (!jsonMatch || !jsonMatch[1]) {
-        throw new Error('AIからの応答をパースできませんでした');
+      if (!scopeId) {
+        throw new Error('スコープの作成に失敗しました');
       }
+
+      // 読み込み前に少し待機（ファイル操作のタイミングの問題を軽減）
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 作成されたスコープを読み込む
+      const scope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, scopeId);
       
-      const items = JSON.parse(jsonMatch[1]) as ImplementationItem[];
-      
-      // 進捗管理用のプロパティを追加
-      this._items = items.map(item => ({
-        ...item,
-        isSelected: false,
-        status: 'pending',
-        progress: 0,
-        notes: ''
-      }));
-      
+      if (!scope) {
+        // ファイルシステムを調べるための追加ログ
+        Logger.debug(`スコープ ${scopeId} の読み込みを再試行します`);
+        
+        // 再試行
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        const retryScope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, scopeId);
+        
+        if (!retryScope) {
+          throw new Error('作成されたスコープの読み込みに失敗しました');
+        }
+        
+        // 再試行で成功した場合はそれを使用
+        this._currentScopeId = scopeId;
+        this._items = retryScope.items;
+        this._selectedIds = retryScope.selectedIds;
+      } else {
+        // 現在のスコープIDを保存
+        this._currentScopeId = scopeId;
+        
+        // アイテムとIDを更新
+        this._items = scope.items;
+        this._selectedIds = scope.selectedIds;
+      }
+
       Logger.info(`${this._items.length}件の実装項目を抽出しました`);
       return this._items;
     } catch (error) {
@@ -117,15 +130,37 @@ ${this._requirementsDocument}`;
    * 項目の選択状態を更新
    */
   public toggleItemSelection(id: string): void {
+    if (!this._projectPath || !this._currentScopeId) {
+      Logger.error('プロジェクトパスまたはスコープIDが設定されていません');
+      return;
+    }
+
     const item = this._items.find(item => item.id === id);
-    if (item) {
-      item.isSelected = !item.isSelected;
+    if (!item) {
+      Logger.error(`項目が見つかりません: ${id}`);
+      return;
+    }
+
+    const isSelected = !item.isSelected;
+    
+    // アイテム選択状態を更新
+    const result = this._markdownManager.toggleScopeItemSelection(
+      this._projectPath,
+      this._currentScopeId,
+      id,
+      isSelected
+    );
+
+    if (result) {
+      // 成功したら内部状態も更新
+      item.isSelected = isSelected;
       
-      if (item.isSelected) {
+      if (isSelected) {
         this._selectedIds.push(id);
+        
         // 新しく選択された項目はpending状態で初期化
         if (!item.status) {
-          item.status = 'pending';
+          item.status = ScopeItemStatus.PENDING;
           item.progress = 0;
         }
       } else {
@@ -133,27 +168,53 @@ ${this._requirementsDocument}`;
       }
 
       Logger.debug(`項目「${item.title}」の選択状態を変更: ${item.isSelected}`);
+    } else {
+      Logger.error(`項目「${item.title}」の選択状態の更新に失敗しました`);
     }
   }
   
   /**
    * 実装項目のステータスを更新
    */
-  public updateItemStatus(id: string, status: 'pending' | 'in-progress' | 'completed' | 'blocked'): void {
+  public updateItemStatus(id: string, status: ScopeItemStatus): void {
+    if (!this._projectPath || !this._currentScopeId) {
+      Logger.error('プロジェクトパスまたはスコープIDが設定されていません');
+      return;
+    }
+
     const item = this._items.find(item => item.id === id);
-    if (item) {
+    if (!item) {
+      Logger.error(`項目が見つかりません: ${id}`);
+      return;
+    }
+
+    // ステータスを更新
+    const result = this._markdownManager.updateScopeItemStatus(
+      this._projectPath,
+      this._currentScopeId,
+      id,
+      status
+    );
+
+    if (result) {
+      // 成功したら内部状態も更新
       item.status = status;
       
       // ステータスに応じて進捗率を自動調整
-      if (status === 'completed') {
+      if (status === ScopeItemStatus.COMPLETED) {
         item.progress = 100;
-      } else if (status === 'pending' && item.progress === 0) {
+      } else if (status === ScopeItemStatus.PENDING && item.progress === 0) {
         // 既に設定されている場合は変更しない
-      } else if (status === 'in-progress' && item.progress === 0) {
+      } else if (status === ScopeItemStatus.IN_PROGRESS && item.progress === 0) {
         item.progress = 10; // 開始時は10%程度
       }
       
+      // スコープを再読み込み
+      this.reloadCurrentScope();
+      
       Logger.debug(`項目「${item.title}」のステータスを更新: ${status}`);
+    } else {
+      Logger.error(`項目「${item.title}」のステータス更新に失敗しました`);
     }
   }
   
@@ -161,18 +222,46 @@ ${this._requirementsDocument}`;
    * 実装項目の進捗率を更新
    */
   public updateItemProgress(id: string, progress: number): void {
+    if (!this._projectPath || !this._currentScopeId) {
+      Logger.error('プロジェクトパスまたはスコープIDが設定されていません');
+      return;
+    }
+
     const item = this._items.find(item => item.id === id);
-    if (item) {
+    if (!item) {
+      Logger.error(`項目が見つかりません: ${id}`);
+      return;
+    }
+
+    // 進捗率に応じてステータスを自動調整
+    let status = item.status || ScopeItemStatus.PENDING;
+    
+    if (progress >= 100) {
+      status = ScopeItemStatus.COMPLETED;
+    } else if (progress > 0 && progress < 100 && status === ScopeItemStatus.PENDING) {
+      status = ScopeItemStatus.IN_PROGRESS;
+    }
+
+    // ステータスを更新（進捗率も同時に更新される）
+    const result = this._markdownManager.updateScopeItemStatus(
+      this._projectPath,
+      this._currentScopeId,
+      id,
+      status,
+      progress
+    );
+
+    if (result) {
+      // 成功したら内部状態も更新
       item.progress = Math.max(0, Math.min(100, progress)); // 0-100の範囲に制限
+      item.status = status;
       
-      // 進捗率に応じてステータスを自動調整
-      if (progress >= 100 && item.status !== 'completed') {
-        item.status = 'completed';
-      } else if (progress > 0 && progress < 100 && item.status === 'pending') {
-        item.status = 'in-progress';
-      }
+      // スコープを再読み込み
+      this.reloadCurrentScope();
       
       Logger.debug(`項目「${item.title}」の進捗率を更新: ${progress}%`);
+    } else {
+      Logger.error(`項目「${item.title}」の進捗率更新に失敗しました`);
     }
   }
   
@@ -180,17 +269,38 @@ ${this._requirementsDocument}`;
    * 実装項目にメモを追加
    */
   public updateItemNotes(id: string, notes: string): void {
+    if (!this._projectPath || !this._currentScopeId) {
+      Logger.error('プロジェクトパスまたはスコープIDが設定されていません');
+      return;
+    }
+
     const item = this._items.find(item => item.id === id);
-    if (item) {
+    if (!item) {
+      Logger.error(`項目が見つかりません: ${id}`);
+      return;
+    }
+
+    // メモを更新
+    const result = this._markdownManager.updateScopeItemNotes(
+      this._projectPath,
+      this._currentScopeId,
+      id,
+      notes
+    );
+
+    if (result) {
+      // 成功したら内部状態も更新
       item.notes = notes;
       Logger.debug(`項目「${item.title}」のメモを更新`);
+    } else {
+      Logger.error(`項目「${item.title}」のメモ更新に失敗しました`);
     }
   }
 
   /**
    * 選択された項目の一覧を取得
    */
-  public getSelectedItems(): ImplementationItem[] {
+  public getSelectedItems(): IImplementationItem[] {
     return this._items.filter(item => item.isSelected);
   }
 
@@ -220,6 +330,16 @@ ${JSON.stringify(selectedItems, null, 2)}`;
       const timeMatch = response.match(/(\d+[\-～]?\d*)\s*(時間|日|週間)/);
       const estimatedTime = timeMatch ? timeMatch[0] : '見積り不明';
       
+      // 現在のスコープが存在する場合、推定時間を更新
+      if (this._projectPath && this._currentScopeId) {
+        const scope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, this._currentScopeId);
+        
+        if (scope) {
+          scope.estimatedTime = estimatedTime;
+          this._markdownManager.saveScopeToClaudeMd(this._projectPath, scope);
+        }
+      }
+      
       Logger.info(`工数見積り結果: ${estimatedTime}`);
       return estimatedTime;
     } catch (error) {
@@ -247,6 +367,29 @@ ${JSON.stringify(selectedItems, null, 2)}`;
    * 現在のスコープを取得
    */
   public async getCurrentScope(): Promise<ImplementationScope> {
+    // 現在のスコープがすでにCLAUDE.mdに保存されている場合はそれを読み込む
+    if (this._projectPath && this._currentScopeId) {
+      const savedScope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, this._currentScopeId);
+      
+      if (savedScope) {
+        // 内部状態を更新
+        this._items = savedScope.items;
+        this._selectedIds = savedScope.selectedIds;
+        
+        return {
+          id: savedScope.id,
+          items: savedScope.items,
+          selectedIds: savedScope.selectedIds,
+          estimatedTime: savedScope.estimatedTime,
+          totalProgress: savedScope.totalProgress,
+          startDate: savedScope.startDate,
+          targetDate: savedScope.targetDate,
+          projectPath: this._projectPath
+        };
+      }
+    }
+    
+    // 保存されたスコープがない場合は従来の方法で生成
     const estimatedTime = await this.estimateScope();
     const totalProgress = this.calculateTotalProgress();
     
@@ -295,14 +438,55 @@ ${JSON.stringify(selectedItems, null, 2)}`;
       targetDate = targetDateObj.toISOString().split('T')[0];
     }
     
+    // 現在のスコープが存在しない場合は新規作成
+    if (this._projectPath && !this._currentScopeId && this._items.length > 0) {
+      // スコープを作成
+      const scopeData: IImplementationScope = {
+        id: `scope-${Date.now()}`,
+        name: `スコープ ${new Date().toISOString().split('T')[0]}`,
+        description: '手動作成されたスコープ',
+        items: this._items,
+        selectedIds: this._selectedIds,
+        estimatedTime,
+        totalProgress,
+        startDate,
+        targetDate,
+        projectPath: this._projectPath
+      };
+      
+      // CLAUDE.mdに保存
+      if (this._markdownManager.saveScopeToClaudeMd(this._projectPath, scopeData)) {
+        this._currentScopeId = scopeData.id;
+        Logger.info(`新規スコープをCLAUDE.mdに保存しました: ${scopeData.id}`);
+      }
+    }
+    
     return {
+      id: this._currentScopeId || null,
       items: this._items,
       selectedIds: this._selectedIds,
       estimatedTime,
       totalProgress,
       startDate,
-      targetDate
+      targetDate,
+      projectPath: this._projectPath
     };
+  }
+
+  /**
+   * 現在のスコープを再読み込み
+   */
+  private reloadCurrentScope(): void {
+    if (!this._projectPath || !this._currentScopeId) {
+      return;
+    }
+    
+    const scope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, this._currentScopeId);
+    
+    if (scope) {
+      this._items = scope.items;
+      this._selectedIds = scope.selectedIds;
+    }
   }
 
   /**
@@ -338,6 +522,40 @@ ${mockupHtml}
       }
 
       const files = JSON.parse(jsonMatch[1]) as string[];
+      
+      // 現在のスコープの選択済みアイテムに関連ファイルを追加
+      if (this._projectPath && this._currentScopeId) {
+        const scope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, this._currentScopeId);
+        
+        if (scope) {
+          let modified = false;
+          
+          // 選択されている項目に関連ファイルを追加
+          for (const item of scope.items) {
+            if (scope.selectedIds.includes(item.id)) {
+              if (!item.relatedFiles) {
+                item.relatedFiles = [];
+              }
+              
+              // 新しいファイルのみ追加
+              for (const file of files) {
+                if (!item.relatedFiles.includes(file)) {
+                  item.relatedFiles.push(file);
+                  modified = true;
+                }
+              }
+            }
+          }
+          
+          // 変更があればスコープを保存
+          if (modified) {
+            this._markdownManager.saveScopeToClaudeMd(this._projectPath, scope);
+            // 内部状態を更新
+            this._items = scope.items;
+          }
+        }
+      }
+      
       Logger.info(`${files.length}個のファイルを抽出しました`);
       return files;
     } catch (error) {
@@ -371,12 +589,87 @@ ${mockupHtml}
 ${JSON.stringify(selectedItems, null, 2)}`;
       
       const response = await this._aiService.sendMessage(prompt, 'implementation');
-      Logger.info('実装計画の生成が完了しました');
       
+      // 生成された計画をスコープのノートに保存
+      if (this._projectPath && this._currentScopeId) {
+        const scope = this._markdownManager.getScopeFromClaudeMd(this._projectPath, this._currentScopeId);
+        
+        if (scope) {
+          // 選択されている最初の項目のメモに計画を保存
+          const firstSelected = scope.items.find(item => scope.selectedIds.includes(item.id));
+          
+          if (firstSelected) {
+            firstSelected.notes = `## 実装計画\n\n${response}`;
+            this._markdownManager.saveScopeToClaudeMd(this._projectPath, scope);
+            
+            // 内部状態を更新
+            this._items = scope.items;
+          }
+        }
+      }
+      
+      Logger.info('実装計画の生成が完了しました');
       return response;
     } catch (error) {
       Logger.error('実装計画の生成に失敗しました', error as Error);
       throw error;
+    }
+  }
+  
+  /**
+   * CLAUDE.mdに保存を完了し、ClaudeCodeに通知
+   */
+  public async completeSelection(): Promise<boolean> {
+    // 現在のスコープを取得
+    const scope = await this.getCurrentScope();
+    
+    if (!this._projectPath || !this._currentScopeId) {
+      Logger.error('プロジェクトパスまたはスコープIDが設定されていません');
+      return false;
+    }
+    
+    try {
+      // スコープに完了通知
+      this._markdownManager.notifyClaudeCodeOfScopeUpdate(this._projectPath, this._currentScopeId);
+      return true;
+    } catch (error) {
+      Logger.error('スコープ選択の完了通知に失敗しました', error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * VSCode設定からスコープをインポート
+   */
+  public async importFromVSCodeSettings(): Promise<boolean> {
+    if (!this._projectPath) {
+      Logger.error('プロジェクトパスが設定されていません');
+      return false;
+    }
+    
+    try {
+      const result = this._markdownManager.importScopeFromVSCodeSettings(this._projectPath);
+      
+      if (result) {
+        // 現在のスコープを再読み込み
+        const scopes = this._markdownManager.getScopesFromClaudeMd(this._projectPath);
+        
+        if (scopes.length > 0) {
+          // 最後に追加されたスコープを使用
+          const latestScope = scopes[scopes.length - 1];
+          this._currentScopeId = latestScope.id;
+          this._items = latestScope.items;
+          this._selectedIds = latestScope.selectedIds;
+          
+          Logger.info(`VSCode設定からスコープをインポートしました: ${latestScope.id}`);
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      Logger.error('VSCode設定からのスコープインポートに失敗しました', error as Error);
+      return false;
     }
   }
 }

@@ -559,8 +559,17 @@ export class DashboardPanel {
         throw new Error('開いているプロジェクトがありません。まずプロジェクトを作成または選択してください。');
       }
 
-      // 実装スコープ選択を開く
-      vscode.commands.executeCommand('appgenius-ai.openImplementationSelector');
+      // プロジェクトパスを取得
+      const projectPath = this._activeProject.path;
+      
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
+      }
+      
+      Logger.info(`実装スコープ選択を開きます。プロジェクトパス: ${projectPath}`);
+
+      // 実装スコープ選択を開く（プロジェクトパスを引数として渡す）
+      vscode.commands.executeCommand('appgenius-ai.openImplementationSelector', projectPath);
     } catch (error) {
       Logger.error(`実装スコープ選択起動エラー`, error as Error);
       await this._showError(`実装スコープ選択の起動に失敗しました: ${(error as Error).message}`);
@@ -1026,11 +1035,15 @@ JWT_SECRET=your_jwt_secret_key
       
       if (this._activeProject) {
         const projectId = this._activeProject.id;
+        const projectPath = this._activeProject.path || '';
         
         // データがなくてもクラッシュしないように、安全にアクセス
         const mockups = this._projectMockups[projectId] || [];
         const scope = this._projectScopes[projectId] || { items: [], totalProgress: 0 };
         const scopeItems = scope.items || [];
+        
+        // ファイル進捗情報は使用しない
+        let fileProgress = { completed: [], total: [], percentage: 0 };
         
         activeProjectDetails = {
           requirements: this._projectRequirements[projectId] || {},
@@ -1052,7 +1065,14 @@ JWT_SECRET=your_jwt_secret_key
             
           // 完了した項目数
           completedItems: scopeItems.filter((item: any) => 
-            item && item.status === 'completed').length || 0
+            item && item.status === 'completed').length || 0,
+            
+          // ファイル進捗情報
+          fileProgress: {
+            completed: fileProgress.completed,
+            total: fileProgress.total,
+            percentage: fileProgress.percentage
+          }
         };
       }
       
