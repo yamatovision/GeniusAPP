@@ -144,6 +144,59 @@ AppGeniusの各コンポーネントはプロジェクトごとに独立した�
 - 定数: UPPER_CASE
 - インターフェース名: IPascalCase
 - 型名: TPascalCase
+
+## プロジェクトテンプレートキットの管理
+
+### テンプレートキット概要
+
+新規プロジェクト作成時に自動生成される以下のテンプレートキットは、開発ワークフローの土台となる重要な要素です：
+
+```
+CLAUDE.md                        # プロジェクト中心情報
+docs/
+  api.md                         # API定義
+  CURRENT_STATUS.md              # 進捗状況
+  env.example                    # 環境変数例
+  requirements.md                # 要件定義
+  requirementsadvicer.md         # 要件定義アドバイザー
+  Scope_Manager_Prompt.md        # スコープ設計AIプロンプト
+  Scope_Implementation_Assistant_Prompt.md # 実装アシスタントAIプロンプト
+  scope.md                       # 実装スコープ定義
+  scopes/                        # 個別ページの要件
+  structure.md                   # ディレクトリ構造
+mockups/                         # モックアップファイル
+reference/                       # 参照情報
+```
+
+### テンプレート更新方法
+
+テンプレートキットを更新する場合は、以下の手順に従ってください：
+
+1. **テンプレート定義の更新**
+   - `src/utils/ClaudeMdService.ts`の`getDefaultTemplate()`メソッドでCLAUDE.mdテンプレートを更新
+   - `src/services/ProjectManagementService.ts`の`createInitialDocuments()`メソッドで各ドキュメントテンプレートを更新
+
+2. **テスト方法**
+   - ダッシュボードから新規プロジェクト作成を行い、生成されるファイルを確認
+   - すべてのテンプレートが正しく生成されていることを確認
+
+3. **更新時の注意点**
+   - 既存プロジェクトへの影響を最小限に抑えるために、互換性を維持する
+   - 大きな変更がある場合は、マイグレーションツールやガイダンスを提供する
+   - プロンプトの変更は、AI応答の一貫性に影響するため慎重に行う
+
+### テンプレート連携の仕組み
+
+1. **プロジェクト作成時の流れ**
+   - ダッシュボードパネルが`_handleCreateProject`メソッドを呼び出し
+   - `ProjectManagementService`の`createProject`メソッドでプロジェクト構造作成
+   - `createInitialDocuments`メソッドで各テンプレートファイルを生成
+   - `ClaudeMdService`の`generateClaudeMd`でCLAUDE.mdを生成
+
+2. **テンプレート間の連携**
+   - CLAUDE.mdが中心となり、他のドキュメントへの参照を提供
+   - 各AIプロンプトは対応するドキュメントを参照して機能を提供
+   - 進捗状況はCURRENT_STATUS.mdに反映され、ダッシュボードに表示される
 ## 進捗状況
 
 ## 進捗状況
