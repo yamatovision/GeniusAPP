@@ -84,6 +84,119 @@ body {
   padding-right: 10px;
 }
 
+/* 環境変数セクション */
+.env-section {
+  background: var(--vscode-sideBar-background);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--vscode-panel-border);
+}
+
+.env-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.env-section-header h3 {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--vscode-editor-foreground);
+}
+
+.section-status {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-badge-background);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.claude-info-section {
+  background: var(--primary-light);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--primary);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.section-header h2 {
+  font-size: 18px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.section-description {
+  font-size: 14px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 10px;
+}
+
+.env-summary-section {
+  background: var(--vscode-sideBar-background);
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 20px;
+  border: 1px solid var(--vscode-panel-border);
+}
+
+.summary-header {
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.summary-header h3 {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.summary-content {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.summary-item {
+  text-align: center;
+  flex: 1;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+}
+
+.summary-value {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.summary-value.completed {
+  color: var(--success);
+}
+
+.summary-value.warning {
+  color: var(--warning);
+}
+
+.summary-action {
+  display: flex;
+  justify-content: center;
+}
+
 .guide-panel {
   flex: 2;
   background: var(--vscode-sideBar-background);
@@ -123,6 +236,11 @@ body {
 .env-card.completed {
   border-left: 4px solid var(--success);
   background-color: var(--primary-light);
+}
+
+.env-card.needs-config {
+  border-left: 4px solid var(--warning);
+  background-color: rgba(249, 168, 37, 0.1);
 }
 
 .env-card-header {
@@ -176,6 +294,11 @@ body {
   position: relative;
 }
 
+.status-icon.warning {
+  background-color: var(--warning);
+  position: relative;
+}
+
 .status-icon.completed::after {
   content: "✓";
   color: white;
@@ -184,6 +307,17 @@ body {
   left: 50%;
   transform: translate(-50%, -50%);
   font-size: 12px;
+}
+
+.status-icon.warning::after {
+  content: "!";
+  color: white;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 12px;
+  font-weight: bold;
 }
 
 .env-description {

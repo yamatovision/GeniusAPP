@@ -258,29 +258,29 @@ export class EnvironmentVariablesAssistantPanel {
       </div>
       
       <div class="guide-panel">
-        <div class="guide-panel-title">ガイド</div>
+        <div class="guide-panel-title">環境変数設定ガイド</div>
         <div class="guide-steps">
           <div class="guide-step">
             <span class="step-number">1</span>
-            左側のリストから設定したい環境変数を選択してください。
+            「AIアシスタントを起動」ボタンをクリックして、ClaudeCodeを起動します。
           </div>
           <div class="guide-step">
             <span class="step-number">2</span>
-            必要な情報を入力し、「保存」ボタンをクリックします。
+            AIが必要な環境変数を分析し、設定方法を提案します。
           </div>
           <div class="guide-step">
             <span class="step-number">3</span>
-            「接続テスト」ボタンで設定が正しいか確認できます。
+            AIの指示に従って環境変数を設定します。
           </div>
           <div class="guide-step">
             <span class="step-number">4</span>
-            すべての必須環境変数を設定したら「すべての環境変数を保存」をクリックします。
+            設定情報をCLAUDE.mdに追加して、プロジェクト情報を一元管理します。
           </div>
         </div>
         
         <div class="ai-suggestion">
           <div id="ai-suggestion-text">
-            AIアシスタントを起動して環境変数の設定をサポートしてもらいましょう。
+            ClaudeCodeと連携して、プロジェクトに必要な環境変数を分析・設定しましょう。AIがプロジェクトコードを分析し、必要な環境変数を特定して適切な設定方法を提案します。
           </div>
           <button id="launch-claude-assistant" class="button button-primary">AIアシスタントを起動</button>
         </div>
@@ -288,8 +288,8 @@ export class EnvironmentVariablesAssistantPanel {
     </div>
     
     <div class="footer">
-      <button id="auto-detect-variables" class="button button-secondary">必要な環境変数を自動検出</button>
-      <button id="save-all-variables" class="button button-success">すべての環境変数を.envファイルに保存</button>
+      <button id="auto-detect-variables" class="button button-secondary">プロジェクト分析を開始</button>
+      <button id="save-all-variables" class="button button-success">CLAUDE.mdに環境変数情報を追加</button>
     </div>
   </div>
   
@@ -484,36 +484,81 @@ export class EnvironmentVariablesAssistantPanel {
   }
   
   /**
-   * 接続テストを処理
+   * 値の検証を処理
    */
   private async _handleTestConnection(connectionType: string, config: any): Promise<void> {
     try {
-      // 接続テストの結果
+      // 検証結果の初期化
       let success = false;
       let message = '';
+      const { name, value } = config;
       
-      // 接続タイプに応じたテスト
+      // 値が空の場合はチェック失敗
+      if (!value || value.trim() === '') {
+        message = '値が設定されていません。適切な値を入力してください。';
+        
+        // 結果をWebViewに送信
+        await this._panel.webview.postMessage({
+          command: 'connectionTestResult',
+          connectionType,
+          success: false,
+          message
+        });
+        
+        vscode.window.showWarningMessage(message);
+        return;
+      }
+      
+      // 接続タイプに応じた形式の検証（実際の接続テストではなく形式チェック）
       switch (connectionType) {
         case 'database':
-          // ここではモックテストのみ（実際の実装では適切なDB接続コードを実装）
-          success = Math.random() > 0.3; // 70%の確率で成功とする例
-          message = success ? 'データベース接続に成功しました' : 'データベース接続に失敗しました';
+          // データベース接続文字列の形式を簡易チェック
+          if (value.includes('://') && (
+              value.includes('mongodb') || 
+              value.includes('postgres') || 
+              value.includes('mysql') || 
+              value.includes('sqlite')
+            )) {
+            success = true;
+            message = 'データベース接続文字列の形式が有効です。アプリケーション実行時に実際の接続を確認してください。';
+          } else {
+            success = false;
+            message = 'データベース接続文字列の形式が一般的ではありません。「mongodb://user:password@host:port/db」のような形式を確認してください。';
+          }
           break;
           
         case 'api':
-          // ここではモックテストのみ
-          success = Math.random() > 0.2; // 80%の確率で成功とする例
-          message = success ? 'API接続に成功しました' : 'API接続に失敗しました';
+          // APIキーまたはURLの形式を簡易チェック
+          if ((name.toLowerCase().includes('key') && value.length > 10) || 
+              (name.toLowerCase().includes('url') && value.includes('://'))) {
+            success = true;
+            message = 'API設定の形式が有効です。アプリケーション実行時に実際の接続を確認してください。';
+          } else {
+            success = false;
+            message = 'API設定の形式が一般的ではありません。URLの場合は「https://」で始まる完全なURLを、APIキーの場合は発行元から提供された完全なキーを入力してください。';
+          }
           break;
           
         case 'smtp':
-          // ここではモックテストのみ
-          success = Math.random() > 0.1; // 90%の確率で成功とする例
-          message = success ? 'SMTPサーバー接続に成功しました' : 'SMTPサーバー接続に失敗しました';
+          // SMTPサーバーの形式を簡易チェック
+          if (value.includes('.') && !value.includes('://') && !value.includes(' ')) {
+            success = true;
+            message = 'SMTPサーバー設定の形式が有効です。アプリケーション実行時に実際の接続を確認してください。';
+          } else {
+            success = false;
+            message = 'SMTPサーバー設定の形式が一般的ではありません。「smtp.example.com」のようなホスト名を入力してください。';
+          }
           break;
           
         default:
-          throw new Error(`不明な接続タイプ: ${connectionType}`);
+          // その他の一般的な環境変数
+          if (value.length > 0) {
+            success = true;
+            message = '値が設定されています。アプリケーション実行時に機能を確認してください。';
+          } else {
+            success = false;
+            message = '値が設定されていません。';
+          }
       }
       
       // 結果をWebViewに送信
@@ -524,15 +569,15 @@ export class EnvironmentVariablesAssistantPanel {
         message
       });
       
-      // 成功時はメッセージを表示
+      // 結果メッセージを表示
       if (success) {
         vscode.window.showInformationMessage(message);
       } else {
-        vscode.window.showErrorMessage(message);
+        vscode.window.showWarningMessage(message);
       }
     } catch (error) {
-      Logger.error(`接続テストエラー:`, error as Error);
-      await this._showError(`接続テストに失敗しました: ${(error as Error).message}`);
+      Logger.error(`値の検証エラー:`, error as Error);
+      await this._showError(`値の検証に失敗しました: ${(error as Error).message}`);
     }
   }
   
@@ -1048,78 +1093,114 @@ export class EnvironmentVariablesAssistantPanel {
     // プロジェクトパスと環境変数ファイルパスを取得
     const projectPath = this._projectPath;
     const envFilePath = this._activeEnvFile || path.join(projectPath, '.env');
-    const uiDataDirPath = this._claudeUiDataDir;
     
     // プロンプトを生成
     return `# 環境変数設定アシスタント
 
-あなたは環境変数の設定をサポートするAIアシスタントです。ユーザーのアプリケーション開発をサポートするため、環境変数の設定や検証を行います。
+あなたは、アプリケーション開発を助ける環境変数設定の専門家です。スコープ実装アシスタントと連携して、プロジェクトが必要とする環境変数の設定と管理を支援します。
 
 ## プロジェクト情報
 
 - プロジェクトパス: ${projectPath}
 - 環境変数ファイル: ${envFilePath}
-- UI情報ディレクトリ: ${uiDataDirPath}
 
-## 基本指示
+## CLAUDE.mdとの連携
 
-1. このプロジェクトで必要な環境変数を特定し、設定するサポートを行ってください。
-2. 環境変数アシスタントのUIを確認し、ユーザーと対話しながら環境変数の設定を進めてください。
-3. UI情報ディレクトリ内のファイルから現在の状態を把握してください。
+CLAUDE.mdファイルには、既に設定済みの環境変数や追加すべき環境変数の情報が記載されている場合があります。この情報を参照し、以下を行ってください：
 
-## リアルタイムUI操作
+1. 既存のCLAUDE.mdファイルの内容から環境変数関連情報を探し出す
+2. 「環境変数」「API設定」「接続情報」などのセクションがあれば特に注意深く確認
+3. 見つかった情報をもとに、設定すべき環境変数のリストを作成
 
-\`.claude_ui_data/\`ディレクトリには以下のファイルがあります：
+## プロジェクト分析
 
-- \`dom_structure.json\`: 現在のUIのDOM構造
-- \`env_variables.json\`: 現在の環境変数情報
-- \`actions.json\`: UIを操作するためのアクション指示（あなたがここに書き込む）
-- \`action_results.json\`: アクション実行結果（UIから返される）
-- \`screenshots/\`: UI状態のスクリーンショット
+プロジェクトのコードを分析して、必要な環境変数を特定してください：
 
-UI操作が必要な場合は、\`actions.json\`に以下のような構造で指示を書き込んでください：
+1. package.jsonなどの依存関係から使用技術を特定
+2. 主要なフレームワークやライブラリが必要とする一般的な環境変数を確認
+3. コード内で'process.env'、'env('などの環境変数参照を探す
+4. データベース接続設定、API設定、認証情報などの重要設定を確認
 
-\`\`\`json
-{
-  "requestId": "request123",
-  "timestamp": 1648756123456,
-  "actions": [
-    {
-      "type": "click",
-      "targetElementId": "button-save",
-      "description": "保存ボタンをクリック"
-    },
-    {
-      "type": "input",
-      "targetElementId": "input-api-key",
-      "value": "your-api-key",
-      "description": "APIキーを入力"
-    }
-  ]
-}
+## 環境変数設定ガイド
+
+以下のような環境変数カテゴリ別に設定ガイドを提供してください：
+
+### 1. 開発環境設定
+- NODE_ENV, DEBUG等の基本設定
+- ポート番号、ホスト設定
+
+### 2. データベース接続設定
+- データベースURL/接続文字列
+- 認証情報（ユーザー名、パスワード）
+- データベース名、ポート等
+
+### 3. API連携設定
+- APIキー、シークレット
+- エンドポイントURL
+- 認証トークン
+
+### 4. 認証・セキュリティ設定
+- JWTシークレット
+- セッション設定
+- 暗号化キー
+
+### 5. サードパーティサービス設定
+- クラウドサービス認証情報
+- 外部APIキー
+
+## ファイル生成と管理
+
+以下のファイル生成と管理方針に従ってください：
+
+1. `.env`ファイル - 実際の値を含む（ローカル開発用）
+2. `.env.example`ファイル - サンプル値やプレースホルダーを含む（共有・バージョン管理用）
+3. `.gitignore`にこれらのファイルが含まれていることを確認
+
+## CLAUDE.mdへの情報追加
+
+次の形式で環境変数情報をCLAUDE.mdに追加することを提案してください：
+
+\`\`\`markdown
+## 環境変数設定
+
+以下の環境変数が必要です：
+
+### 開発環境設定
+- NODE_ENV=development - 実行環境設定
+- PORT=3000 - サーバーポート番号
+
+### データベース設定
+- DB_HOST=localhost - データベースホスト
+- DB_PORT=5432 - データベースポート
+- DB_USER=pguser - データベースユーザー名
+- DB_PASSWORD=******** - データベースパスワード（実際の値で置き換え）
+- DB_NAME=myappdb - データベース名
+
+### API設定
+- API_KEY=******** - APIキー（実際の値で置き換え）
+- API_URL=https://api.example.com - APIエンドポイント
+
+### セキュリティ設定
+- JWT_SECRET=******** - JWTシークレットキー（実際の値で置き換え）
+- SESSION_SECRET=******** - セッションシークレット（実際の値で置き換え）
 \`\`\`
-
-## 操作シナリオ例
-
-1. 必要な環境変数の検出と説明
-2. 安全な値の生成サポート（API鍵、シークレットなど）
-3. データベース接続情報の設定支援
-4. 接続テストと検証
-5. .envファイルの生成
-
-## プロジェクト分析のヒント
-
-- パッケージ依存関係を確認して、必要な環境変数を特定
-- データベース設定ファイルを調査
-- APIクライアントコードを分析
 
 ## セキュリティガイドライン
 
-- 機密情報（APIキー、パスワードなど）はマスクして表示
-- 機密値は自動生成オプションを提案
-- .gitignoreに.envファイルが含まれていることを確認
+1. 実際の値を含む環境変数ファイルはバージョン管理システムにコミットしないこと
+2. 機密情報（パスワード、APIキーなど）はランダムで強力な値を使用すること
+3. 開発環境と本番環境の設定は分けて管理すること
+4. 環境変数の値はアプリケーション起動時に適切にバリデーションすること
 
-ユーザーの質問に応じて環境変数の設定をサポートし、必要に応じてUIを操作してください。`;
+## 具体的な支援内容
+
+1. プロジェクトが必要とする環境変数のリストを作成
+2. 各環境変数の目的と適切な値の例を説明
+3. 安全な値の生成方法（特に機密情報）を提案
+4. 環境変数ファイルの作成と管理方法を案内
+5. スコープ実装アシスタントとの連携方法を説明
+
+プロジェクトの種類や使用技術に応じて、適切な環境変数の設定をサポートしてください。ユーザーの質問に対しては明確で具体的な説明と例を提供してください。`;
   }
   
   /**
@@ -1235,12 +1316,26 @@ UI操作が必要な場合は、\`actions.json\`に以下のような構造で�
   private async _saveEnvExampleFile(filePath: string, variables: Record<string, string>): Promise<void> {
     try {
       // 環境変数を文字列に変換（値はプレースホルダーに）
-      let content = '';
+      let content = '# 環境変数の設定例\n';
+      content += '# このファイルをコピーして .env ファイルを作成し、実際の値を設定してください\n';
+      content += '# 機密情報（パスワード、APIキーなど）は実際の値に置き換えてください\n\n';
+      
       Object.entries(variables).forEach(([key, value]) => {
-        // 値をプレースホルダーに置き換え
-        const placeholderValue = this._getPlaceholderValue(key, value);
-        content += `${key}=${placeholderValue}\n`;
+        // 値が「要設定」マーカーを含む場合はそのまま使用（すでに説明的）
+        if (typeof value === 'string' && value.includes('【要設定】')) {
+          content += `# ${this._getVariableDescription(key, this._detectVariableCategory(key))}\n`;
+          content += `${key}=${value}\n\n`;
+        } else {
+          // 値をプレースホルダーに置き換え
+          const placeholderValue = this._getPlaceholderValue(key, value);
+          content += `# ${this._getVariableDescription(key, this._detectVariableCategory(key))}\n`;
+          content += `${key}=${placeholderValue}\n\n`;
+        }
       });
+      
+      // ファイルの最後に注意書きを追加
+      content += '\n# 注意: このファイルを直接使用せず、.envファイルにコピーして使用してください\n';
+      content += '# .envファイルは.gitignoreに追加して、リポジトリにコミットされないようにしてください\n';
       
       // ファイルに書き込む
       await fs.promises.writeFile(filePath, content, 'utf8');
@@ -1352,24 +1447,24 @@ UI操作が必要な場合は、\`actions.json\`に以下のような構造で�
         return {
           'NODE_ENV': 'development',
           'PORT': '3000',
-          'DATABASE_URL': 'mongodb://localhost:27017/myapp',
-          'API_KEY': 'your-api-key',
-          'JWT_SECRET': 'your-jwt-secret'
+          'DATABASE_URL': '【要設定】例: mongodb://localhost:27017/myapp',
+          'API_KEY': '【要設定】実際のAPIキーに置き換えてください',
+          'JWT_SECRET': '【要設定】セキュアなランダム文字列を生成してください'
         };
         
       case 'django':
         return {
           'DEBUG': 'True',
-          'SECRET_KEY': 'your-secret-key',
-          'DATABASE_URL': 'postgresql://user:password@localhost:5432/myapp',
+          'SECRET_KEY': '【要設定】セキュアなランダム文字列を生成してください',
+          'DATABASE_URL': '【要設定】例: postgresql://user:password@localhost:5432/myapp',
           'ALLOWED_HOSTS': 'localhost,127.0.0.1'
         };
         
       case 'rails':
         return {
           'RAILS_ENV': 'development',
-          'DATABASE_URL': 'postgresql://user:password@localhost:5432/myapp',
-          'SECRET_KEY_BASE': 'your-secret-key-base'
+          'DATABASE_URL': '【要設定】例: postgresql://user:password@localhost:5432/myapp',
+          'SECRET_KEY_BASE': '【要設定】セキュアなランダム文字列を生成してください'
         };
         
       case 'generic':
@@ -1380,10 +1475,10 @@ UI操作が必要な場合は、\`actions.json\`に以下のような構造で�
           'APP_PORT': '8080',
           'DB_HOST': 'localhost',
           'DB_PORT': '5432',
-          'DB_USER': 'dbuser',
-          'DB_PASSWORD': 'dbpassword',
+          'DB_USER': '【要設定】データベースユーザー名',
+          'DB_PASSWORD': '【要設定】データベースパスワード',
           'DB_NAME': 'myapp',
-          'API_KEY': 'your-api-key'
+          'API_KEY': '【要設定】実際のAPIキーに置き換えてください'
         };
     }
   }
@@ -1441,6 +1536,17 @@ UI操作が必要な場合は、\`actions.json\`に以下のような構造で�
       const isRequired = this._isRequiredVariable(name, category);
       const isSensitive = this._isSensitiveVariable(name);
       
+      // 値に要設定マーカーが含まれているかチェック
+      const needsConfiguration = typeof value === 'string' && value.includes('【要設定】');
+      // 自動生成されたデフォルト値かチェック
+      const isDefaultValue = typeof value === 'string' && (
+        value === 'your-api-key' || 
+        value === 'your-secret-key' || 
+        value === 'your-secret-key-base' ||
+        value.includes('your-') || 
+        value.includes('dbpassword')
+      );
+      
       // 変数情報を作成
       variables.push({
         name,
@@ -1452,10 +1558,11 @@ UI操作が必要な場合は、\`actions.json\`に以下のような構造で�
         // 自動化情報
         autoDetected: true,
         autoConfigurable: this._isAutoConfigurable(name, category),
-        autoConfigured: value !== 'your-api-key' && value !== 'your-secret-key',
+        autoConfigured: !needsConfiguration && !isDefaultValue,
         
         // 検証情報
-        validationStatus: value ? 'valid' : 'unknown',
+        validationStatus: needsConfiguration || isDefaultValue ? 'warning' : value ? 'valid' : 'unknown',
+        validationMessage: needsConfiguration ? '設定が必要です' : isDefaultValue ? 'デフォルト値から変更してください' : '',
         
         // セキュリティ設定
         isSensitive,

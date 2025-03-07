@@ -394,7 +394,7 @@
     if (!state.activeEnvFile) {
       const message = document.createElement('div');
       message.className = 'no-file-message';
-      message.textContent = '環境変数ファイルがありません。自動検出ボタンをクリックして環境変数を検出してください。';
+      message.textContent = 'CLAUDE.mdからの環境変数情報を読み込み中です。「AIアシスタントを起動」をクリックして、必要な環境変数を分析してください。';
       elements.envList.appendChild(message);
       return;
     }
@@ -404,67 +404,202 @@
     if (!activeVars || Object.keys(activeVars).length === 0) {
       const message = document.createElement('div');
       message.className = 'no-variables-message';
-      message.textContent = '環境変数が見つかりません。自動検出ボタンをクリックして環境変数を検出してください。';
+      message.textContent = 'CLAUDE.mdからの環境変数情報が見つかりません。「プロジェクト分析を開始」をクリックしてプロジェクトに必要な環境変数を特定してください。';
       elements.envList.appendChild(message);
       return;
     }
     
-    // 環境変数をカードとして表示
+    // カテゴリセクションを作成
+    const categories = {
+      'database': { title: 'データベース設定', items: [] },
+      'api': { title: 'API設定', items: [] },
+      'security': { title: 'セキュリティ設定', items: [] },
+      'server': { title: 'サーバー設定', items: [] },
+      'other': { title: 'その他の設定', items: [] }
+    };
+    
+    // 環境変数をカテゴリごとに分類
     Object.entries(activeVars).forEach(([name, value]) => {
-      // 変数の種類を判定
       const category = detectVariableCategory(name);
+      
+      // 変数情報を作成
       const isRequired = isRequiredVariable(name, category);
       const isSensitive = isSensitiveVariable(name);
-      const isConfigured = value && value !== 'your-api-key' && value !== 'your-secret-key';
       
-      // カードの作成
-      const card = document.createElement('div');
-      card.className = `env-card ${isRequired ? 'required' : 'optional'} ${isConfigured ? 'completed' : ''}`;
-      card.setAttribute('data-name', name);
-      card.setAttribute('data-category', category);
-      card.setAttribute('data-claude-id', `env-card-${name}`);
+      // 設定状態を判定
+      const needsConfiguration = typeof value === 'string' && (
+        value.includes('【要設定】') || 
+        value.includes('your-') || 
+        value === 'dbpassword' ||
+        value.includes('実際の値で置き換え')
+      );
+      const isConfigured = value && !needsConfiguration;
       
-      // カードの内容を構築
-      card.innerHTML = `
-        <div class="env-card-header">
-          <div class="env-name">
-            ${name}
-            <span class="badge ${isRequired ? 'required' : 'optional'}">${isRequired ? '必須' : '任意'}</span>
-          </div>
-          <div class="env-status">
-            <div class="status-icon ${isConfigured ? 'completed' : ''}"></div>
-            ${isConfigured ? '設定済み' : '未設定'}
-          </div>
-        </div>
-        <div class="env-description">
-          ${getVariableDescription(name, category)}
-        </div>
-        <div class="env-input-group">
-          <input type="text" class="env-input" value="${isSensitive && value ? '********' : value || ''}" 
-                 placeholder="${getPlaceholder(name, category)}" 
-                 data-name="${name}" 
-                 data-mask="${isSensitive}"
-                 data-claude-id="input-${name}">
-        </div>
-        <div class="env-actions">
-          ${getActionButtons(name, category, isSensitive)}
-        </div>
-      `;
-      
-      // カードを追加
-      elements.envList.appendChild(card);
-      
-      // 入力フィールドのイベントリスナーを設定
-      const input = card.querySelector('.env-input');
-      if (input) {
-        input.addEventListener('change', () => {
-          saveEnvironmentVariable(name, input.value);
+      // 変数情報をカテゴリに追加
+      if (categories[category]) {
+        categories[category].items.push({
+          name,
+          value,
+          isRequired,
+          isSensitive,
+          isConfigured,
+          needsConfiguration
+        });
+      } else {
+        categories['other'].items.push({
+          name,
+          value,
+          isRequired,
+          isSensitive,
+          isConfigured,
+          needsConfiguration
         });
       }
-      
-      // ボタンのイベントリスナーを設定
-      setupCardButtonListeners(card, name, category);
     });
+    
+    // CLAUDE.md情報セクションを追加
+    const claudeInfoSection = document.createElement('div');
+    claudeInfoSection.className = 'claude-info-section';
+    claudeInfoSection.innerHTML = `
+      <div class="section-header">
+        <h2>CLAUDE.md環境変数情報</h2>
+        <div class="section-actions">
+          <button id="sync-claude-md" class="button button-secondary">CLAUDE.mdから同期</button>
+        </div>
+      </div>
+      <div class="section-description">
+        これらの環境変数はプロジェクト分析に基づいて特定されました。設定が必要な項目は赤色でマークされています。
+      </div>
+    `;
+    elements.envList.appendChild(claudeInfoSection);
+    
+    // イベントリスナーを設定
+    const syncButton = document.getElementById('sync-claude-md');
+    if (syncButton) {
+      syncButton.addEventListener('click', () => {
+        vscode.postMessage({
+          command: 'autoDetectVariables'
+        });
+      });
+    }
+    
+    // 各カテゴリのセクションを作成し追加
+    Object.entries(categories).forEach(([categoryId, categoryData]) => {
+      // 項目がないカテゴリはスキップ
+      if (categoryData.items.length === 0) {
+        return;
+      }
+      
+      // カテゴリセクションを作成
+      const section = document.createElement('div');
+      section.className = `env-section ${categoryId}-section`;
+      
+      // カテゴリヘッダーを追加
+      const header = document.createElement('div');
+      header.className = 'env-section-header';
+      header.innerHTML = `
+        <h3>${categoryData.title}</h3>
+        <div class="section-status">
+          設定済み: ${categoryData.items.filter(item => item.isConfigured).length}/${categoryData.items.length}
+        </div>
+      `;
+      section.appendChild(header);
+      
+      // 各環境変数カードを追加
+      categoryData.items.forEach(item => {
+        // カードの作成
+        const card = document.createElement('div');
+        card.className = `env-card ${item.isRequired ? 'required' : 'optional'} ${item.isConfigured ? 'completed' : ''} ${item.needsConfiguration ? 'needs-config' : ''}`;
+        card.setAttribute('data-name', item.name);
+        card.setAttribute('data-category', categoryId);
+        card.setAttribute('data-claude-id', `env-card-${item.name}`);
+        
+        // カードの内容を構築
+        card.innerHTML = `
+          <div class="env-card-header">
+            <div class="env-name">
+              ${item.name}
+              <span class="badge ${item.isRequired ? 'required' : 'optional'}">${item.isRequired ? '必須' : '任意'}</span>
+            </div>
+            <div class="env-status">
+              <div class="status-icon ${item.isConfigured ? 'completed' : (item.needsConfiguration ? 'warning' : '')}"></div>
+              ${item.isConfigured ? '設定済み' : (item.needsConfiguration ? '要設定' : '未設定')}
+            </div>
+          </div>
+          <div class="env-description">
+            ${getVariableDescription(item.name, categoryId)}
+          </div>
+          <div class="env-input-group">
+            <input type="text" class="env-input" value="${item.isSensitive && item.value ? '********' : item.value || ''}" 
+                   placeholder="${getPlaceholder(item.name, categoryId)}" 
+                   data-name="${item.name}" 
+                   data-mask="${item.isSensitive}"
+                   data-claude-id="input-${item.name}">
+          </div>
+          <div class="env-actions">
+            ${getActionButtons(item.name, categoryId, item.isSensitive)}
+          </div>
+        `;
+        
+        // カードを追加
+        section.appendChild(card);
+        
+        // 入力フィールドのイベントリスナーを設定
+        const input = card.querySelector('.env-input');
+        if (input) {
+          input.addEventListener('change', () => {
+            saveEnvironmentVariable(item.name, input.value);
+          });
+        }
+        
+        // ボタンのイベントリスナーを設定
+        setupCardButtonListeners(card, item.name, categoryId);
+      });
+      
+      // セクションをリストに追加
+      elements.envList.appendChild(section);
+    });
+    
+    // サマリー情報を作成
+    const totalVars = Object.keys(activeVars).length;
+    const configuredVars = Object.values(categories).reduce((sum, cat) => sum + cat.items.filter(item => item.isConfigured).length, 0);
+    const needsConfigVars = Object.values(categories).reduce((sum, cat) => sum + cat.items.filter(item => item.needsConfiguration).length, 0);
+    
+    const summarySection = document.createElement('div');
+    summarySection.className = 'env-summary-section';
+    summarySection.innerHTML = `
+      <div class="summary-header">
+        <h3>環境変数設定状況</h3>
+      </div>
+      <div class="summary-content">
+        <div class="summary-item">
+          <div class="summary-label">合計</div>
+          <div class="summary-value">${totalVars}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">設定済み</div>
+          <div class="summary-value ${configuredVars === totalVars ? 'completed' : ''}">${configuredVars}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">要設定</div>
+          <div class="summary-value ${needsConfigVars > 0 ? 'warning' : ''}">${needsConfigVars}</div>
+        </div>
+      </div>
+      <div class="summary-action">
+        <button id="add-to-claude-md" class="button button-primary">CLAUDE.mdに環境変数情報を追加</button>
+      </div>
+    `;
+    elements.envList.appendChild(summarySection);
+    
+    // CLAUDE.mdに追加ボタンのイベントリスナー
+    const addToClaudeButton = document.getElementById('add-to-claude-md');
+    if (addToClaudeButton) {
+      addToClaudeButton.addEventListener('click', () => {
+        vscode.postMessage({
+          command: 'saveAllVariables'
+        });
+      });
+    }
   }
   
   // 環境変数カードのボタンリスナーを設定
@@ -717,9 +852,9 @@
       buttons += `<button class="button button-secondary button-generate" data-claude-id="button-generate-${name}">安全な値を生成</button>`;
     }
     
-    // 接続テスト可能なカテゴリの場合はテストボタンを追加
+    // 接続テスト可能なカテゴリの場合は検証ボタンを追加
     if (category === 'database' || category === 'api' || name.toLowerCase().includes('smtp')) {
-      buttons += `<button class="button button-secondary button-test" data-claude-id="button-test-${name}">接続テスト</button>`;
+      buttons += `<button class="button button-secondary button-test" data-claude-id="button-test-${name}">CLAUDE.mdに追加</button>`;
     }
     
     return buttons;
