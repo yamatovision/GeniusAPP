@@ -505,30 +505,29 @@
       
       const implementationStepsHtml = `
         <div class="process-steps-flow">
-          <a href="#" class="process-step ${implementationProgress > 0 ? 'active' : ''} ${!phases.design ? 'disabled' : ''}" id="implementation-step" data-command="openDevelopmentAssistant">
+          <a href="#" class="process-step active" id="testing-step" data-command="openDebugDetective">
             <div class="step-number">4</div>
-            <div class="step-icon">💻</div>
+            <div class="step-icon">🔍</div>
             <div class="step-content">
-              <div class="step-title">実装</div>
-              <div class="step-instruction">AIとチャットしながらコードを生成します</div>
-            </div>
-            ${implementationProgress >= 100 ? '<div class="step-check">✓</div>' : ''}
-            <div class="step-action">開く</div>
-          </a>
-
-          <a href="#" class="process-step ${phases.testing ? 'completed' : (implementationProgress >= 80 ? 'active' : '')} ${implementationProgress < 50 ? 'disabled' : ''}" id="testing-step" data-command="openApiManager">
-            <div class="step-number">5</div>
-            <div class="step-icon">🧪</div>
-            <div class="step-content">
-              <div class="step-title">テスト</div>
-              <div class="step-instruction">テストスクリプトを作成し、動作を確認します</div>
+              <div class="step-title">デバッグ探偵</div>
+              <div class="step-instruction">エラーを検出し解決します。シャーロックホームズがお手伝いします</div>
             </div>
             ${phases.testing ? '<div class="step-check">✓</div>' : ''}
             <div class="step-action">開く</div>
           </a>
 
-          <a href="#" class="process-step ${phases.deployment ? 'completed' : (phases.testing ? 'active' : '')} ${!phases.testing ? 'disabled' : ''}" id="deploy-step" data-command="openDeployManager">
+          <a href="#" class="process-step active" id="env-vars-step" data-command="openEnvironmentVariablesAssistant">
             <div class="step-number">6</div>
+            <div class="step-icon">🔑</div>
+            <div class="step-content">
+              <div class="step-title">環境変数アシスタント</div>
+              <div class="step-instruction">APIキーや接続設定など、環境変数の設定をサポートします</div>
+            </div>
+            <div class="step-action">開く</div>
+          </a>
+
+          <a href="#" class="process-step active" id="deploy-step" data-command="openDeployManager">
+            <div class="step-number">7</div>
             <div class="step-icon">🚀</div>
             <div class="step-content">
               <div class="step-title">デプロイ</div>
@@ -553,6 +552,9 @@
         existingImplementationFlow.remove();
       }
       implementationProcess.insertAdjacentHTML('beforeend', implementationStepsHtml);
+      
+      // イベントリスナーを設定
+      setupProcessStepHandlers();
     } catch (error) {
       console.error('プロセスステップの表示中にエラーが発生しました:', error);
       
@@ -996,11 +998,32 @@
         
         const command = step.getAttribute('data-command');
         if (command) {
+          console.log(`コマンドを実行します: ${command}`);
+          
+          // コマンドがデバッグ探偵の場合は特別に処理
+          if (command === 'openDebugDetective') {
+            showInfo('デバッグ探偵を開いています...');
+          }
+          
+          // VSCodeにメッセージを送信
           vscode.postMessage({
             command: command
           });
         }
       });
+    });
+  }
+  
+  /**
+   * 情報メッセージを表示する簡易関数
+   */
+  function showInfo(message) {
+    console.log(`Info: ${message}`);
+    // VSCodeに通知を送信
+    vscode.postMessage({
+      command: 'showVSCodeMessage',
+      type: 'info',
+      message
     });
   }
   

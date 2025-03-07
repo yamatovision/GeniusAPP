@@ -129,8 +129,12 @@ export class DashboardPanel {
           case 'openScopeManager':
             await this._handleOpenScopeManager();
             break;
-          case 'openDevelopmentAssistant':
-            await this._handleOpenDevelopmentAssistant();
+          // 開発アシスタントは削除済み
+          case 'openDebugDetective':
+            await this._handleOpenDebugDetective();
+            break;
+          case 'openEnvironmentVariablesAssistant':
+            await this._handleOpenEnvironmentVariablesAssistant();
             break;
           case 'openReferenceManager':
             await this._handleOpenReferenceManager();
@@ -143,6 +147,9 @@ export class DashboardPanel {
             break;
           case 'refreshProjects':
             await this._refreshProjects();
+            break;
+          case 'showVSCodeMessage':
+            await this._handleShowVSCodeMessage(message.type, message.message);
             break;
         }
       },
@@ -594,20 +601,48 @@ export class DashboardPanel {
   }
 
   /**
-   * 開発アシスタントを開く
+   * 開発アシスタント機能は削除済み
    */
-  private async _handleOpenDevelopmentAssistant(): Promise<void> {
+  
+  /**
+   * デバッグ探偵を開く
+   */
+  private async _handleOpenDebugDetective(): Promise<void> {
     try {
       // アクティブなプロジェクトがあるか確認
       if (!this._activeProject) {
         throw new Error('開いているプロジェクトがありません。まずプロジェクトを作成または選択してください。');
       }
 
-      // 開発アシスタントを開く
-      vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+      // プロジェクトパスを取得
+      const projectPath = this._activeProject.path;
+      
+      // デバッグ探偵を開く
+      vscode.commands.executeCommand('appgenius-ai.openDebugDetective', projectPath);
     } catch (error) {
-      Logger.error(`開発アシスタント起動エラー`, error as Error);
-      await this._showError(`開発アシスタントの起動に失敗しました: ${(error as Error).message}`);
+      Logger.error(`デバッグ探偵起動エラー`, error as Error);
+      await this._showError(`デバッグ探偵の起動に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 環境変数アシスタントを開く
+   */
+  private async _handleOpenEnvironmentVariablesAssistant(): Promise<void> {
+    try {
+      // アクティブなプロジェクトがあるか確認
+      if (!this._activeProject) {
+        throw new Error('開いているプロジェクトがありません。まずプロジェクトを作成または選択してください。');
+      }
+
+      // プロジェクトパスを取得
+      const projectPath = this._activeProject.path;
+      
+      // 環境変数アシスタントを開く
+      vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', projectPath);
+    } catch (error) {
+      Logger.error(`環境変数アシスタント起動エラー`, error as Error);
+      await this._showError(`環境変数アシスタントの起動に失敗しました: ${(error as Error).message}`);
     }
   }
   
@@ -871,6 +906,25 @@ project/
       command: 'showError', 
       message 
     });
+  }
+  
+  /**
+   * VSCodeメッセージ表示処理
+   */
+  private async _handleShowVSCodeMessage(type: string, message: string): Promise<void> {
+    switch (type) {
+      case 'info':
+        vscode.window.showInformationMessage(message);
+        break;
+      case 'warning':
+        vscode.window.showWarningMessage(message);
+        break;
+      case 'error':
+        vscode.window.showErrorMessage(message);
+        break;
+      default:
+        vscode.window.showInformationMessage(message);
+    }
   }
   
   /**

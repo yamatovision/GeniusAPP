@@ -11,7 +11,7 @@ import { CommandHandler } from './ui/CommandHandler';
 import { FileOperationManager } from './utils/fileOperationManager';
 // import { MockupDesignerPanel } from './ui/mockupDesigner/MockupDesignerPanel'; // 廃止予定
 import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
-import { DevelopmentAssistantPanel } from './ui/developmentAssistant/DevelopmentAssistantPanel';
+// 開発アシスタントは削除済み
 import { SimpleChatPanel } from './ui/simpleChat';
 // ImplementationSelectorPanel は削除済み（スコープマネージャーに統合）
 import { DashboardPanel } from './ui/dashboard/DashboardPanel';
@@ -21,6 +21,8 @@ import { PlatformManager } from './utils/PlatformManager';
 import { ScopeExporter } from './utils/ScopeExporter';
 import { MessageBroker } from './utils/MessageBroker';
 import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
+import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
+import { EnvironmentVariablesAssistantPanel } from './ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel';
 
 export function activate(context: vscode.ExtensionContext) {
 	// ロガーの初期化
@@ -86,7 +88,8 @@ export function activate(context: vscode.ExtensionContext) {
 						'モックアップギャラリーを開く',
 						'実装スコープ選択を開く',
 						'スコープマネージャーを開く',
-						'開発アシスタントを開く',
+												'デバッグ探偵を開く',
+						'環境変数アシスタントを開く',
 						'リファレンスマネージャーを開く'
 					],
 					{
@@ -108,6 +111,10 @@ export function activate(context: vscode.ExtensionContext) {
 					vscode.commands.executeCommand('appgenius-ai.openScopeManager');
 				} else if (selection === '開発アシスタントを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant');
+				} else if (selection === 'デバッグ探偵を開く') {
+					vscode.commands.executeCommand('appgenius-ai.openDebugDetective');
+				} else if (selection === '環境変数アシスタントを開く') {
+					vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant');
 				} else if (selection === 'リファレンスマネージャーを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openReferenceManager');
 				}
@@ -291,18 +298,6 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		})
 	);
 
-	// 開発アシスタントを開くコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openDevelopmentAssistant', () => {
-			try {
-				Logger.info('開発アシスタントを開きます');
-				DevelopmentAssistantPanel.createOrShow(context.extensionUri, aiService);
-			} catch (error) {
-				Logger.error(`開発アシスタント起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`開発アシスタントの起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
 
 	// 要件定義ビジュアライザーを開くコマンド
 	context.subscriptions.push(
@@ -401,6 +396,82 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			} catch (error) {
 				Logger.error(`スコープマネージャー起動エラー: ${(error as Error).message}`);
 				vscode.window.showErrorMessage(`スコープマネージャーの起動に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// デバッグ探偵を開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openDebugDetective', (projectPath?: string) => {
+			try {
+				Logger.info('デバッグ探偵を開きます');
+				
+				// プロジェクトパスの取得
+				if (!projectPath) {
+					// アクティブなプロジェクトを確認
+					const projectService = ProjectManagementService.getInstance();
+					const activeProject = projectService.getActiveProject();
+					
+					if (activeProject && activeProject.path) {
+						projectPath = activeProject.path;
+						Logger.info(`アクティブプロジェクトのパスを使用: ${projectPath}`);
+					} else {
+						// ワークスペースのパスを使用
+						const workspaceFolders = vscode.workspace.workspaceFolders;
+						if (workspaceFolders && workspaceFolders.length > 0) {
+							projectPath = workspaceFolders[0].uri.fsPath;
+							Logger.info(`ワークスペースのパスを使用: ${projectPath}`);
+						} else {
+							throw new Error('プロジェクトパスが指定されていません。ダッシュボードからプロジェクトを選択してください。');
+						}
+					}
+				} else {
+					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
+				}
+				
+				// デバッグ探偵パネルを表示
+				DebugDetectivePanel.createOrShow(context.extensionUri, projectPath);
+			} catch (error) {
+				Logger.error(`デバッグ探偵起動エラー: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`デバッグ探偵の起動に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+
+	// 環境変数アシスタントを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openEnvironmentVariablesAssistant', (projectPath?: string) => {
+			try {
+				Logger.info('環境変数アシスタントを開きます');
+				
+				// プロジェクトパスの取得
+				if (!projectPath) {
+					// アクティブなプロジェクトを確認
+					const projectService = ProjectManagementService.getInstance();
+					const activeProject = projectService.getActiveProject();
+					
+					if (activeProject && activeProject.path) {
+						projectPath = activeProject.path;
+						Logger.info(`アクティブプロジェクトのパスを使用: ${projectPath}`);
+					} else {
+						// ワークスペースのパスを使用
+						const workspaceFolders = vscode.workspace.workspaceFolders;
+						if (workspaceFolders && workspaceFolders.length > 0) {
+							projectPath = workspaceFolders[0].uri.fsPath;
+							Logger.info(`ワークスペースのパスを使用: ${projectPath}`);
+						} else {
+							throw new Error('プロジェクトパスが指定されていません。ダッシュボードからプロジェクトを選択してください。');
+						}
+					}
+				} else {
+					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
+				}
+				
+				// 環境変数アシスタントパネルを表示
+				EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
+			} catch (error) {
+				Logger.error(`環境変数アシスタント起動エラー: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`環境変数アシスタントの起動に失敗しました: ${(error as Error).message}`);
 			}
 		})
 	);

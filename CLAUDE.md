@@ -18,12 +18,12 @@ AppGeniusは非技術者がClaudeCodeを活用してアプリケーション開�
 
 ## 開発フェーズ
 
-現在は**フェーズ2: 設計フェーズツール**段階です。
+現在は**フェーズ3-4: 実装・デバッグフェーズおよびAPI連携・環境設定フェーズ**段階です。
 
 1. **フェーズ1**: CLAUDE.md管理システム、チャットUI、ダッシュボード（完了）
-2. **フェーズ2**: 要件定義・構造マネージャー、モックアップギャラリー、スコープ計画（進行中）
-3. **フェーズ3**: スコープ実装アシスタント、デバッグサポート（予定）
-4. **フェーズ4**: API連携・環境設定、デプロイ支援（予定）
+2. **フェーズ2**: 要件定義・構造マネージャー、モックアップギャラリー、スコープ計画（完了）
+3. **フェーズ3**: スコープ実装アシスタント、デバッグサポート（完了）
+4. **フェーズ4**: API連携・環境設定、デプロイ支援（進行中）
 
 ## 開発ワークフロー
 
@@ -50,9 +50,23 @@ AppGeniusでは以下のような開発ワークフローを推奨していま�
    - 各スコープを優先順位に沿って順番に実装
    - 実装状況を`CURRENT_STATUS.md`に自動反映
 
-6. **デバッグ・デプロイ**: 完成したアプリケーションのテストとデプロイ
-   - エラー検出と修正支援
-   - デプロイガイダンス
+6. **環境変数設定フェーズ**: 環境変数アシスタントで設定を構成
+   - プロジェクトタイプに基づく必要な環境変数の自動検出
+   - 環境変数の設定とテスト
+   - セキュリティに配慮した.envファイル生成
+   - .gitignoreへの自動追加
+
+7. **デバッグフェーズ**: デバッグ探偵でエラー検出と解決
+   - エラーセッションの作成と管理
+   - エラーログの収集と分析
+   - AIを活用した問題診断と解決策の提案
+   - 知見データベースによる共通問題の解決
+   - 修正適用後の確認テスト実行
+
+8. **デプロイフェーズ**: 完成したアプリケーションのデプロイ
+   - デプロイ環境の設定支援
+   - デプロイスクリプト生成
+   - 本番環境での動作確認ガイダンス
 
 特に、モックアップはユーザーが視覚的に確認できるため、要件の具体化に役立ちます。また、ClaudeCodeはCLAUDE.mdの情報を自動的に読み込み、実装を効率的に進めます。
 
@@ -70,6 +84,8 @@ AppGeniusでは以下のような開発ワークフローを推奨していま�
 - [開発状況](./docs/CURRENT_STATUS.md) - 現在の開発状況と進捗
 - [スコープマネージャープロンプト](./docs/Scope_Manager_Prompt.md) - スコープ設計AIプロンプト
 - [スコープ実装アシスタントプロンプト](./docs/Scope_Implementation_Assistant_Prompt.md) - 実装アシスタントAIプロンプト
+- [デバッグ探偵プロンプト](./docs/DebagDetector.md) - デバッグ支援AIプロンプト
+- [環境変数アシスタント要件](./docs/scopes/environmentVariablesAssistant-requirements.md) - 環境変数管理アシスタント
 - [個別スコープ要件](./docs/scopes/) - 各ページ/機能ごとの詳細要件
 
 ## プロジェクト構造
@@ -261,8 +277,8 @@ reference/                       # 参照情報
    - 進捗状況はCURRENT_STATUS.mdに反映され、ダッシュボードに表示される
 ## 進捗状況
 - 完成予定ファイル数: 48
-- 作成済みファイル数: 11
-- 進捗率: 23%
+- 作成済みファイル数: 18
+- 進捗率: 37.5%
 - 最終更新日: 2025-03-07
 
 ## ファイル状況
@@ -272,13 +288,20 @@ reference/                       # 参照情報
 - [x] media/scopeManager.js
 - [x] media/dashboard.css
 - [x] media/dashboard.js
+- [x] media/developmentAssistant.css
+- [x] media/developmentAssistant.js
 - [x] src/ui/scopeManager/ScopeManagerPanel.ts
 - [x] src/services/ClaudeCodeLauncherService.ts
 - [x] src/ui/mockupGallery/MockupGalleryPanel.ts
 - [x] src/ui/dashboard/DashboardPanel.ts
+- [x] src/ui/developmentAssistant/DevelopmentAssistantPanel.ts
+- [x] src/modes/developmentMode/developmentAssistant.ts
+- [x] src/modes/implementationMode/scopeSelector.ts
+- [x] src/modes/implementationMode/scopeSelector/
 - [x] CLAUDE.md
 - [x] docs/CURRENT_STATUS.md
 - [x] docs/Scope_Manager_Prompt.md
+- [x] docs/Scope_Implementation_Assistant_Prompt.md
 
 ### 未完了ファイル
 - [ ] AppGenius//.vscode/                      # VSCode設定
