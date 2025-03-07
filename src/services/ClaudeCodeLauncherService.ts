@@ -278,7 +278,7 @@ export class ClaudeCodeLauncherService {
   public async launchClaudeCodeWithPrompt(
     projectPath: string,
     promptFilePath: string,
-    options?: { title?: string }
+    options?: { title?: string, additionalParams?: string }
   ): Promise<boolean> {
     try {
       // プロジェクトパスの確認
@@ -322,9 +322,12 @@ export class ClaudeCodeLauncherService {
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedPromptFilePath = promptFilePath.replace(/ /g, '\\ ');
       
+      // 追加のコマンドラインパラメータがあれば追加 (--fileオプションはサポートされていないので使用しない)
+      const additionalParams = options?.additionalParams ? ` ${options.additionalParams}` : '';
+      
       // プロンプトファイルを指定してClaude CLIを起動
-      terminal.sendText(`echo "\n" && claude ${escapedPromptFilePath}`);
-      Logger.info(`ClaudeCode起動コマンド: claude ${escapedPromptFilePath}`);
+      terminal.sendText(`echo "\n" && claude ${escapedPromptFilePath}${additionalParams}`);
+      Logger.info(`ClaudeCode起動コマンド: claude ${escapedPromptFilePath}${additionalParams}`);
       
       // 状態更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;
@@ -334,7 +337,8 @@ export class ClaudeCodeLauncherService {
         AppGeniusEventType.CLAUDE_CODE_STARTED,
         { 
           projectPath: projectPath,
-          promptFilePath: promptFilePath
+          promptFilePath: promptFilePath,
+          additionalParams: options?.additionalParams
         },
         'ClaudeCodeLauncherService'
       );

@@ -192,6 +192,7 @@ export class ScopeManagerPanel {
       let directoryStructure = '';
       let completedFiles: string[] = [];
       let inProgressFiles: string[] = [];
+      let nextScope: any = null;
       
       // 行ごとに処理
       const lines = content.split(/\r?\n/);
@@ -300,8 +301,6 @@ export class ScopeManagerPanel {
             const scopeName = line.substring('### 現在のスコープ:'.length).trim();
             let scopeId = '';
             let description = '';
-            let priority = '';
-            let estimatedTime = '';
             let features = [];
             let files = [];
             
@@ -313,10 +312,6 @@ export class ScopeManagerPanel {
                 scopeId = currentLine.substring('**スコープID**:'.length).trim();
               } else if (currentLine.startsWith('**説明**:')) {
                 description = currentLine.substring('**説明**:'.length).trim();
-              } else if (currentLine.startsWith('**優先度**:')) {
-                priority = currentLine.substring('**優先度**:'.length).trim();
-              } else if (currentLine.startsWith('**見積作業時間**:')) {
-                estimatedTime = currentLine.substring('**見積作業時間**:'.length).trim();
               } else if (currentLine.startsWith('**含まれる機能**:')) {
                 i++;
                 while (i < lines.length && /^\d+\. /.test(lines[i])) {
@@ -351,11 +346,97 @@ export class ScopeManagerPanel {
                 ...found,
                 id: scopeId,
                 description,
-                priority,
-                estimatedTime,
                 features,
                 files
               };
+            } else if (scopeName) {
+              // スコープリストに存在しないが、スコープ名が記載されている場合は新規作成
+              const newScope = {
+                name: scopeName,
+                id: scopeId || `scope-${Date.now()}`,
+                description,
+                status: 'pending',
+                progress: 0,
+                features,
+                files
+              };
+              
+              pendingScopes.push(newScope);
+              this._currentScope = newScope;
+            }
+            
+            continue;
+          }
+        }
+        
+        // 次のスコープ情報の処理
+        if (currentSection === '次回実装予定') {
+          if (line.startsWith('### 次のスコープ:')) {
+            const scopeName = line.substring('### 次のスコープ:'.length).trim();
+            let scopeId = '';
+            let description = '';
+            let features = [];
+            let files = [];
+            let dependencies = [];
+            
+            i++;
+            while (i < lines.length && !lines[i].startsWith('##')) {
+              const currentLine = lines[i];
+              
+              if (currentLine.startsWith('**スコープID**:')) {
+                scopeId = currentLine.substring('**スコープID**:'.length).trim();
+              } else if (currentLine.startsWith('**説明**:')) {
+                description = currentLine.substring('**説明**:'.length).trim();
+              } else if (currentLine.startsWith('**含まれる機能**:')) {
+                i++;
+                while (i < lines.length && /^\d+\. /.test(lines[i])) {
+                  features.push(lines[i].replace(/^\d+\. /, '').trim());
+                  i++;
+                }
+                continue;
+              } else if (currentLine.startsWith('**依存するスコープ**:')) {
+                i++;
+                while (i < lines.length && lines[i].trim().startsWith('- ')) {
+                  dependencies.push(lines[i].replace(/^- /, '').trim());
+                  i++;
+                }
+                continue;
+              } else if (currentLine.startsWith('**実装予定ファイル**:')) {
+                i++;
+                while (i < lines.length && lines[i].trim().startsWith('- [')) {
+                  const fileMatch = lines[i].match(/- \[([ x])\] (.+)/);
+                  if (fileMatch) {
+                    const completed = fileMatch[1] === 'x';
+                    const filePath = fileMatch[2];
+                    files.push({
+                      path: filePath,
+                      completed
+                    });
+                  }
+                  i++;
+                }
+                continue;
+              }
+              
+              i++;
+            }
+            
+            // 次のスコープ情報を保存
+            nextScope = {
+              name: scopeName,
+              id: scopeId || `scope-${Date.now()}`,
+              description,
+              status: 'pending',
+              progress: 0,
+              features,
+              files,
+              dependencies
+            };
+            
+            // もし次のスコープが未着手スコープリストに存在しなければ追加
+            const existingNextScope = pendingScopes.find(s => s.name.includes(scopeName));
+            if (!existingNextScope && scopeName) {
+              pendingScopes.push(nextScope);
             }
             
             continue;
@@ -378,10 +459,23 @@ export class ScopeManagerPanel {
         }
       });
       
+      // 現在のスコープが選択されていない場合、次のスコープを選択
+      if (this._selectedScopeIndex < 0 && nextScope) {
+        const nextScopeIndex = this._scopes.findIndex(s => s.name.includes(nextScope.name));
+        if (nextScopeIndex >= 0) {
+          this._selectedScopeIndex = nextScopeIndex;
+          this._currentScope = this._scopes[nextScopeIndex];
+        }
+      }
+      
       Logger.info(`${this._scopes.length}個のスコープを読み込みました`);
       
       if (this._selectedScopeIndex >= 0) {
         Logger.info(`現在のスコープ: ${this._scopes[this._selectedScopeIndex].name}`);
+      }
+      
+      if (nextScope) {
+        Logger.info(`次のスコープ: ${nextScope.name}`);
       }
     } catch (error) {
       Logger.error('ステータスファイルの解析中にエラーが発生しました', error as Error);
@@ -591,12 +685,22 @@ export class ScopeManagerPanel {
       // 実装アシスタントプロンプトのパスを取得
       const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Implementation_Assistant_Prompt.md');
       
+      // CURRENT_STATUS.mdファイルへの参照を追加
+      const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
+      
+      // ClaudeCodeの起動方法を決定
+      const launcher = ClaudeCodeLauncherService.getInstance();
+      let success = false;
+      
+      // ファイル配列が未定義または空の場合のデフォルト値を設定
+      const files = this._currentScope.files || [];
+      
       // 実装に必要な情報の準備
       const scopeInfo: IImplementationScope = {
         id: this._currentScope.id || `scope-${Date.now()}`,
         name: this._currentScope.name,
-        description: this._currentScope.description,
-        items: this._currentScope.files.map((file: any) => ({
+        description: this._currentScope.description || '説明が設定されていません',
+        items: files.map((file: any) => ({
           id: `file-${Math.random().toString(36).substr(2, 9)}`,
           title: file.path,
           description: `Implementation of ${file.path}`,
@@ -607,25 +711,57 @@ export class ScopeManagerPanel {
           dependencies: [],
           relatedFiles: [file.path]
         })),
-        selectedIds: this._currentScope.files
+        selectedIds: files
           .filter((f: any) => !f.completed)
-          .map((f: any, i: number) => `file-${Math.random().toString(36).substr(2, 9)}`),
+          .map(() => `file-${Math.random().toString(36).substr(2, 9)}`),
         estimatedTime: this._currentScope.estimatedTime || "10時間",
         totalProgress: this._currentScope.progress || 0,
         projectPath: this._projectPath
       };
       
-      // ClaudeCodeの起動方法を決定
-      const launcher = ClaudeCodeLauncherService.getInstance();
-      let success = false;
-      
-      // 実装アシスタントプロンプトが存在する場合はそれを使用、なければ通常の方法で起動
+      // 実装アシスタントプロンプトが存在する場合はそれを使用
       if (fs.existsSync(promptFilePath)) {
-        success = await launcher.launchClaudeCodeWithPrompt(
-          this._projectPath,
-          promptFilePath,
-          { title: 'ClaudeCode - 実装アシスタント' }
-        );
+        // CURRENT_STATUS.mdファイルの存在を確認
+        if (!fs.existsSync(statusFilePath)) {
+          // 存在しない場合は作成
+          await this._updateStatusFile();
+          Logger.info(`CURRENT_STATUS.mdファイルが存在しなかったため作成しました: ${statusFilePath}`);
+        }
+        
+        // 一時的な結合ファイルを作成して両方の内容を含める
+        const tempDir = path.join(this._projectPath, 'temp');
+        if (!fs.existsSync(tempDir)) {
+          fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        const combinedFilePath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
+        
+        try {
+          // プロンプトファイルとステータスファイルの内容を読み込む
+          const promptContent = fs.readFileSync(promptFilePath, 'utf8');
+          const statusContent = fs.readFileSync(statusFilePath, 'utf8');
+          
+          // 結合ファイルを作成
+          const combinedContent = 
+            promptContent + 
+            '\n\n# 現在の実装状況\n\n' +
+            '以下は現在の実装状況です。この情報を参考にして実装を進めてください。\n\n' +
+            statusContent;
+          
+          fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
+          Logger.info(`結合プロンプトファイルを作成しました: ${combinedFilePath}`);
+          
+          // ClaudeCodeの起動
+          const launcher = ClaudeCodeLauncherService.getInstance();
+          success = await launcher.launchClaudeCodeWithPrompt(
+            this._projectPath,
+            combinedFilePath,
+            { title: 'ClaudeCode - 実装アシスタント' }
+          );
+        } catch (error) {
+          Logger.error('結合プロンプトファイルの作成に失敗しました', error as Error);
+          throw error;
+        }
       } else {
         success = await launcher.launchClaudeCode(scopeInfo);
       }
@@ -913,8 +1049,6 @@ export class ScopeManagerPanel {
         content += `### 現在のスコープ: ${this._currentScope.name}\n`;
         content += `**スコープID**: ${this._currentScope.id || `scope-${Date.now()}`}  \n`;
         content += `**説明**: ${this._currentScope.description || ''}  \n`;
-        content += `**優先度**: ${this._currentScope.priority || '中'}  \n`;
-        content += `**見積作業時間**: ${this._currentScope.estimatedTime || '8時間'}\n\n`;
         
         // 含まれる機能
         content += '**含まれる機能**:\n';
@@ -961,8 +1095,6 @@ export class ScopeManagerPanel {
         content += `### 次のスコープ: ${nextScope.name}\n`;
         content += `**スコープID**: ${nextScope.id || `scope-${Date.now()}`}  \n`;
         content += `**説明**: ${nextScope.description || ''}  \n`;
-        content += `**優先度**: ${nextScope.priority || '中'}  \n`;
-        content += `**見積作業時間**: ${nextScope.estimatedTime || '8時間'}\n\n`;
         
         // 含まれる機能
         content += '**含まれる機能**:\n';

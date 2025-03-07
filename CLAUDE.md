@@ -102,6 +102,68 @@ npm run watch  # 開発モード
 npm run package  # パッケージング
 ```
 
+## ClaudeCodeに複数ファイルを渡す方法
+
+ClaudeCodeに複数ファイルを渡す必要がある場合（例：プロンプトファイルとステータスファイル）、以下の方法を使用できます：
+
+1. **結合ファイル方式**（推奨）
+   ```typescript
+   // 一時的な結合ファイルを作成して両方の内容を含める
+   const tempDir = path.join(projectPath, 'temp');
+   if (!fs.existsSync(tempDir)) {
+     fs.mkdirSync(tempDir, { recursive: true });
+   }
+   
+   // 一時ファイル名を生成
+   const combinedFilePath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
+   
+   // ファイル内容を結合
+   const promptContent = fs.readFileSync(promptFilePath, 'utf8');
+   const secondContent = fs.readFileSync(secondFilePath, 'utf8');
+   
+   // 結合ファイルを作成（セクション見出しなどで構造化）
+   const combinedContent = 
+     promptContent + 
+     '\n\n# 追加情報\n\n' +
+     secondContent;
+   
+   fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
+   
+   // ClaudeCodeの起動
+   const launcher = ClaudeCodeLauncherService.getInstance();
+   await launcher.launchClaudeCodeWithPrompt(
+     projectPath,
+     combinedFilePath,
+     { title: 'ClaudeCode - 処理名' }
+   );
+   ```
+
+2. **変数置換方式**（テンプレート固定の場合）
+   ```typescript
+   // テンプレートファイルの内容を読み込む
+   let templateContent = fs.readFileSync(templatePath, 'utf8');
+   
+   // 変数を置換
+   templateContent = templateContent
+     .replace(/{{VARIABLE1}}/g, value1)
+     .replace(/{{VARIABLE2}}/g, value2)
+     .replace(/{{FILEPATH}}/g, filePath);
+   
+   // 一時的なテンプレートファイルを作成
+   fs.writeFileSync(tempFilePath, templateContent, 'utf8');
+   
+   // Claude CLIで実行
+   terminal.sendText(`claude ${escapedTempFilePath}`);
+   ```
+
+3. **標準入力パイプ方式**（カスタマイズが必要）
+   ```bash
+   # 標準入力からデータを渡す例
+   cat secondFile.md | claude promptFile.md
+   ```
+
+モックアップギャラリーや実装スコープ管理など、複数のコンポーネントで「結合ファイル方式」を使用しています。これにより、ClaudeCodeに複数のコンテキストを効果的に渡すことができます。
+
 ## プロジェクトパスの取り扱い
 
 AppGeniusの各コンポーネントはプロジェクトごとに独立したファイルを管理します。以下の点に注意してください：
