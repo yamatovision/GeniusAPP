@@ -298,6 +298,7 @@
           <div class="project-header">
             <h3>${escapeHtml(project.name)}</h3>
             <div class="project-actions">
+              <button class="icon-button edit-project" data-id="${project.id}" title="パス編集">📁</button>
               <button class="icon-button delete-project" data-id="${project.id}" title="削除">🗑️</button>
             </div>
           </div>
@@ -312,10 +313,10 @@
     // プロジェクト項目のクリックイベント
     document.querySelectorAll('.project-item').forEach(item => {
       item.addEventListener('click', event => {
-        // 削除ボタンのクリックは伝播させない
-        if (event.target.classList.contains('delete-project')) {
+        // ボタンのクリックは伝播させない
+        if (event.target.classList.contains('delete-project') || 
+            event.target.classList.contains('edit-project')) {
           event.stopPropagation();
-          deleteProject(event.target.dataset.id);
           return;
         }
         
@@ -328,6 +329,14 @@
       button.addEventListener('click', event => {
         event.stopPropagation();
         deleteProject(button.dataset.id);
+      });
+    });
+    
+    // 編集ボタンのイベントリスナー
+    document.querySelectorAll('.edit-project').forEach(button => {
+      button.addEventListener('click', event => {
+        event.stopPropagation();
+        showEditPathModal(button.dataset.id);
       });
     });
   }
@@ -1106,6 +1115,106 @@
     
     // バックエンド側で確認ダイアログを表示し、結果に応じて削除処理を行う
     // メッセージハンドラはextension.tsで処理
+  }
+  
+  /**
+   * プロジェクトパス編集モーダルを表示
+   */
+  function showEditPathModal(id) {
+    const project = state.projects.find(p => p.id === id);
+    if (!project) return;
+    
+    // モーダル要素の作成
+    const modal = document.createElement('div');
+    modal.id = 'edit-path-modal';
+    modal.className = 'modal';
+    modal.style.display = 'flex';
+    
+    // モーダルの内容を設定
+    modal.innerHTML = `
+      <div class="modal-content">
+        <h2>プロジェクトパスの編集</h2>
+        <form id="edit-path-form">
+          <div class="form-group">
+            <label for="project-path">プロジェクトパス <span style="color: #e74c3c;">*</span></label>
+            <input type="text" id="project-path" value="${escapeHtml(project.path || '')}" required placeholder="/path/to/your/project">
+            <p class="help-text" style="font-size: 0.8rem; color: #718096; margin-top: 0.3rem;">フォルダが移動または名前変更された場合に更新してください</p>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="button secondary" id="cancel-edit-path">キャンセル</button>
+            <button type="submit" class="button primary">更新</button>
+          </div>
+        </form>
+      </div>
+    `;
+    
+    // モーダルをDOMに追加
+    document.body.appendChild(modal);
+    
+    // キャンセルボタンのイベントリスナー
+    const cancelButton = document.getElementById('cancel-edit-path');
+    if (cancelButton) {
+      cancelButton.addEventListener('click', hideEditPathModal);
+    }
+    
+    // フォームのイベントリスナー
+    const form = document.getElementById('edit-path-form');
+    if (form) {
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        
+        const pathInput = document.getElementById('project-path');
+        if (!pathInput) return;
+        
+        const newPath = pathInput.value.trim();
+        if (!newPath) {
+          showError('プロジェクトパスを入力してください');
+          return;
+        }
+        
+        // パスの更新
+        updateProjectPath(id, newPath);
+        
+        // モーダルを閉じる
+        hideEditPathModal();
+      });
+    }
+  }
+  
+  /**
+   * プロジェクトパス編集モーダルを非表示
+   */
+  function hideEditPathModal() {
+    const modal = document.getElementById('edit-path-modal');
+    if (modal) {
+      document.body.removeChild(modal);
+    }
+  }
+  
+  /**
+   * プロジェクトパスを更新
+   */
+  function updateProjectPath(id, newPath) {
+    const project = state.projects.find(p => p.id === id);
+    if (!project) return;
+    
+    // 更新が必要ない場合は何もしない
+    if (project.path === newPath) return;
+    
+    // 更新内容を設定
+    const updates = {
+      path: newPath
+    };
+    
+    // ローディング状態にする
+    updateLoadingState(true);
+    
+    // バックエンドに更新メッセージを送信
+    vscode.postMessage({
+      command: 'updateProject',
+      id,
+      updates
+    });
   }
   
   /**
