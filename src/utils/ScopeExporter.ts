@@ -296,7 +296,7 @@ export class ScopeExporter {
       return '';
     }
     
-    // CLIコマンドを構築
-    return `appgenius-cli --scope="${scopeFilePath}" --project="${scope.projectPath}"`;
+    // CLIコマンドを構築（ClaudeCodeを使用）
+    return `claude --scope=${scopeId} "${path.join(scope.projectPath, 'CLAUDE.md')}"`;
   }
 }

@@ -1,229 +1,488 @@
-# 環境変数アシスタント 要件定義
+# 環境変数アシスタント要件定義
 
-## 1. 機能概要
+## 概要
 
-### 目的と主な機能
-環境変数アシスタントは、非技術者でも安全かつ容易に環境変数を設定・管理できるUIを提供します。主な機能は以下の通りです：
+環境変数アシスタントは、プログラミング知識がない非技術者（「おばちゃんでも」）が安全かつ簡単に環境変数を設定できるツールです。VSCodeとClaudeCodeを連携させ、AIが実際のUI状態を正確に把握し、ユーザーを手助けするだけでなく、可能な限り自動化することで環境変数設定の複雑さを解消します。
 
-- 必須および任意の環境変数をカード形式で一覧表示
-- 環境変数ごとの詳細な設定ガイドと説明の提供
-- セキュアな値の自動生成機能
-- 接続テスト機能
-- 進捗状況の視覚的表示
-- 設定済み環境変数の.envファイルへの保存
+## 核心コンセプト
 
-### 想定ユーザー
-- プログラミング経験の少ないビジネスユーザー
-- API連携やデータベース接続設定に不慣れなユーザー
-- VSCode拡張機能を使ってアプリケーション開発を行う個人開発者
+**「AIと実際のUIのギャップをなくし、おばちゃんでも環境変数が設定できる」**
 
-## 2. UI要素の詳細
+従来のAIアシスタントでは「ここをクリックしてください」と言われても、実際の画面では該当する要素がなかったり、違う場所にあったりして混乱が生じます。本アシスタントでは、リアルタイムのUI情報をファイルとしてClaudeCodeと共有することで、この問題を解決します。
 
-### 環境変数カード
-- **表示要素**:
-  - 環境変数名（例：MONGODB_URI, JWT_SECRET）
-  - ステータスバッジ（必須/任意）
-  - 設定状態（設定済み/未設定）のアイコンと表示
-  - 説明文（環境変数の用途や重要性）
-  - 入力フィールド（適切なプレースホルダー付き）
-  - アクションボタン
-- **カードの状態**:
-  - 設定済み：緑色の左ボーダー、チェックアイコン付き
-  - 必須/未設定：赤色の左ボーダー
-  - 任意/未設定：黄色の左ボーダー
-- **アクションボタン**:
-  - 「保存」ボタン：入力内容を保存
-  - 変数タイプに応じた補助ボタン（「安全な値を生成」「接続テスト」「取得方法を表示」など）
-  - 「編集」ボタン（設定済み変数の場合）
-  - 「このプロジェクトでは使用しない」ボタン（任意変数の場合）
+## 主要機能
 
-### ガイドパネル
-- **表示要素**:
-  - 現在フォーカスされている環境変数名をタイトルとして表示
-  - ステップバイステップの設定手順（番号付きリスト）
-  - AIによる提案・アドバイス
-  - アクションボタン
-- **機能**:
-  - 常に現在選択中または編集中の環境変数に関する情報を表示
-  - スクロールしても上部に固定表示（sticky position）
-  - リアルタイムでフィードバックを提供
+### 1. リアルタイムUI情報共有システム
 
-### ヘッダー
-- **表示要素**:
-  - タイトル「環境変数アシスタント」
-  - 進捗インジケーター（設定済み/全体の比率）
-  - プログレスバー（視覚的な進捗表示）
+- **DOM構造ファイル出力機能**: 
+  - 環境変数アシスタント起動時に現在のDOM構造を自動的に取得
+  - `.claude_ui_data/dom_structure.json`として保存
+  - UI変更時に構造を自動更新（3秒ごとなど）
 
-### フッター
-- **アクション**:
-  - 「すべての環境変数を.envファイルに保存」ボタン
+- **UI要素マッピング**:
+  - 主要UI要素に固有ID/クラス割り当て
+  - 操作可能なボタン、入力フィールドの自動検出
+  - 各要素の状態（有効/無効/変更済み）を構造化データとして保存
 
-### 入力フィールドと検証ルール
-- **MongoDB URI**:
-  - フォーマット検証：有効なMongoDBの接続文字列であることを確認
-  - 接続テスト機能：実際に接続できるかを検証
-  
-- **JWT_SECRET**:
-  - 最小長：32文字以上
-  - 複雑性：英数字と特殊文字を含む
-  - 自動生成オプション：ボタンクリックで安全な値を生成
-  
-- **API_KEY**:
-  - フォーマット検証：API_プレフィックスと適切な長さ
-  - マスキング表示：保存後に値の一部をマスク表示
-  
-- **SMTP_SERVER**:
-  - フォーマット検証：有効なSMTPサーバーアドレス
-  - 任意フィールドのスキップオプション
+- **スクリーンショット機能**:
+  - 現在のUI状態のスクリーンショットを自動取得
+  - `.claude_ui_data/screenshots/`フォルダに保存
+  - タイムスタンプ付きで履歴管理
 
-## 3. データ構造
+### 2. 自動環境変数検出・設定
 
-### 環境変数データモデル
+- **コード分析による必要変数検出**:
+  - プロジェクトコードを自動スキャン
+  - 使用中のフレームワーク/ライブラリを検出
+  - 必要な環境変数のリストを自動生成し`.claude_ui_data/env_variables.json`に保存
+
+- **ワンクリック設定**:
+  - 「自動設定」ボタンで標準的な値を自動入力
+  - セキュアな値の自動生成（APIキー、シークレットなど）
+  - データベース接続文字列など複雑な値の自動構築
+
+- **設定テンプレート**:
+  - 一般的なフレームワーク用の設定テンプレート
+  - 業界標準のベストプラクティスに基づいた推奨値
+  - プロジェクトタイプ（Web/モバイル/データ分析など）別の設定
+
+### 3. VSCode操作支援機能
+
+- **UI操作自動化**:
+  - ClaudeCodeからの操作指示ファイル`.claude_ui_data/actions.json`の監視
+  - 指示に基づくUI要素の自動クリック・入力・選択
+  - 操作結果の`.claude_ui_data/action_results.json`への書き込み
+
+- **視覚的ガイダンス**:
+  - 画面上の操作箇所を視覚的に強調表示
+  - UIへのオーバーレイでの矢印・指示表示
+  - 操作手順のステップバイステップ表示
+
+- **音声ガイダンス**:
+  - 重要な手順は音声で説明（オプション）
+  - シンプルな言葉で専門用語を解説
+  - 次のステップを明確に指示
+
+### 4. ワンクリック検証・トラブルシューティング
+
+- **自動接続テスト**:
+  - データベース、API、サービス接続の自動検証
+  - 「テスト実行」ボタン1つで全設定を検証
+  - 結果を視覚的に表示（成功/失敗/警告）
+
+- **問題の自動修正**:
+  - 一般的な問題を自動検出・修正
+  - 「自動修正」ボタンでAIが推奨修正を適用
+  - 修正内容を非技術者にもわかる言葉で説明
+
+- **ガイド付きトラブルシューティング**:
+  - 問題発生時に段階的な解決ガイド表示
+  - スクリーンショットと矢印で操作箇所を明示
+  - 必要に応じてAIによる自動操作の提案
+
+## UI/UX設計
+
+### ワンクリックスタート画面
+
+1. **シンプルな初期画面**
+   - 大きな「環境変数を自動設定」ボタン
+   - 「手動設定を開始」の選択肢も提供
+   - 現在のプロジェクト名と状態を表示
+
+2. **自動検出結果画面**
+   - 検出された必要環境変数のリスト
+   - 各変数の横に「自動設定」チェックボックス（デフォルトオン）
+   - 「すべて自動設定する」大型ボタン
+
+### 視覚的フィードバック
+
+1. **直感的なステータス表示**
+   - 緑色のチェックマーク: 設定完了・検証済み
+   - 黄色の注意アイコン: 設定済み・未検証
+   - 赤色の警告アイコン: 未設定または無効な設定
+   - 進行中の操作はアニメーションで明示
+
+2. **シンプルな説明**
+   - 専門用語を避けた平易な表現（「APIキー」→「サービス接続用の特別なパスワード」）
+   - 画像やアイコンを活用した視覚的な説明
+   - 「これは何？」ボタンで詳細説明へアクセス
+
+### アシスタントパネル
+
+1. **AIガイド表示エリア**
+   - 現在の操作に関するシンプルな説明
+   - 実際の画面上に矢印や枠で操作箇所を強調
+   - 「次へ」「戻る」で手順をステップバイステップで進行
+
+2. **自動操作コントロール**
+   - 「AIに任せる」ボタン：次の数ステップを自動実行
+   - 「ストップ」ボタン：自動操作を一時停止
+   - 「やり直す」ボタン：直前の操作をやり直し
+
+## データモデルと構造
+
+### ClaudeCode共有データ構造
+
 ```typescript
+// .claude_ui_data/dom_structure.json
+interface DOMSnapshot {
+  timestamp: number;        // スナップショット取得時刻
+  elements: UIElement[];    // UI要素の配列
+  activeElementId?: string; // 現在フォーカスのある要素ID
+  viewport: {               // 表示領域サイズ
+    width: number;
+    height: number;
+  };
+  currentScreenshot: string; // 最新のスクリーンショットファイル名
+}
+
+interface UIElement {
+  id: string;               // 要素の一意識別子
+  type: string;             // ボタン、入力欄、選択肢など
+  text: string;             // 表示テキスト
+  isVisible: boolean;       // 表示/非表示状態
+  isEnabled: boolean;       // 有効/無効状態
+  rect: {                   // 画面上の位置情報
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  };
+  parentId?: string;        // 親要素ID
+  childIds: string[];       // 子要素IDリスト
+  attributes: {             // その他属性
+    [key: string]: string;
+  };
+  value?: string;           // 入力要素の場合の現在値
+}
+
+// .claude_ui_data/actions.json
+interface UIActionRequest {
+  requestId: string;        // リクエスト識別子
+  timestamp: number;        // リクエスト時刻
+  actions: UIAction[];      // 実行すべきアクション
+  timeout?: number;         // タイムアウト時間（ミリ秒）
+}
+
+interface UIAction {
+  type: 'click' | 'input' | 'select' | 'scroll' | 'wait';
+  targetElementId?: string; // 操作対象要素ID
+  altTargetSelector?: string; // 代替セレクタ（ID見つからない場合）
+  value?: string;           // 入力値など
+  description: string;      // 操作の説明（ユーザー表示/ログ用）
+}
+
+// .claude_ui_data/action_results.json
+interface UIActionResult {
+  requestId: string;        // 対応するリクエスト識別子
+  timestamp: number;        // 結果生成時刻
+  success: boolean;         // 成功/失敗
+  actions: {
+    index: number;          // アクションのインデックス
+    success: boolean;       // 個別アクションの成功/失敗
+    errorMessage?: string;  // エラーメッセージ
+    screenshot?: string;    // 実行後のスクリーンショットファイル名
+  }[];
+  newDOMSnapshot: boolean;  // 新しいDOMスナップショットが利用可能か
+}
+```
+
+### 環境変数モデル
+
+```typescript
+// .claude_ui_data/env_variables.json
+interface EnvironmentVariableData {
+  timestamp: number;        // 更新時刻
+  variables: EnvironmentVariable[];
+  groups: EnvironmentVariableGroup[];
+  progress: {
+    total: number;
+    configured: number;
+    requiredTotal: number;
+    requiredConfigured: number;
+  };
+}
+
 interface EnvironmentVariable {
-  name: string;            // 環境変数名
-  value: string;           // 設定値
-  description: string;     // 説明文
-  category: string;        // カテゴリ（DB, API, Auth, Mail等）
-  isRequired: boolean;     // 必須かどうか
-  isConfigured: boolean;   // 設定済みかどうか
-  isTested?: boolean;      // テスト済みかどうか
-  format?: string;         // 期待されるフォーマット（正規表現）
-  guideSteps?: string[];   // ガイドステップの配列
-  suggestion?: string;     // AIからの提案
-}
-```
-
-### 環境変数グループ
-```typescript
-interface EnvironmentVariableGroup {
-  id: string;              // グループID
-  name: string;            // グループ名（MongoDB, JWT, API等）
-  variables: EnvironmentVariable[]; // グループ内の環境変数
-  dependsOn?: string[];    // 依存する他のグループID
-}
-```
-
-### 永続化要件
-- 設定済み環境変数は`.env`ファイルに保存
-- 環境変数の説明や設定状態は`project-settings.json`に保存
-- セキュリティのため、実際の値はローカルストレージのみに保存し、リモートには共有しない
-- `.env.example`ファイルを自動生成（実際の値は含まず、フォーマットのみ）
-
-## 4. API・バックエンド連携
-
-### 必要なAPIエンドポイント
-
-#### 環境変数管理API
-- **getEnvironmentVariables**:
-  - 目的：プロジェクトに必要な環境変数リストの取得
-  - パラメータ：プロジェクトID
-  - レスポンス：環境変数オブジェクトの配列（値を除く）
-
-- **saveEnvironmentVariables**:
-  - 目的：設定済み環境変数を.envファイルに保存
-  - パラメータ：環境変数オブジェクトの配列
-  - レスポンス：成功/失敗ステータス
-
-#### 接続テストAPI
-- **testDatabaseConnection**:
-  - 目的：データベース接続文字列の検証
-  - パラメータ：接続文字列
-  - レスポンス：接続成功/失敗、エラーメッセージ
-
-- **testAPIConnection**:
-  - 目的：APIキーの検証
-  - パラメータ：APIキー、エンドポイントURL
-  - レスポンス：接続成功/失敗、エラーメッセージ
-
-#### 値生成API
-- **generateSecureValue**:
-  - 目的：セキュアなランダム値の生成
-  - パラメータ：長さ、複雑性レベル
-  - レスポンス：生成された値
-
-### ファイルシステム連携
-- **読み取り操作**:
-  - 既存の.envファイルの解析
-  - project-settings.jsonの読み込み
+  // 基本情報
+  name: string;           // 環境変数名
+  value: string;          // 値（マスク処理済み場合あり）
+  description: string;    // 平易な言葉での説明
+  technicalDescription?: string;  // 技術的な説明（詳細表示用）
+  isRequired: boolean;    // 必須か任意か
   
-- **書き込み操作**:
-  - .envファイルの作成/更新
-  - .env.exampleファイルの作成/更新
-  - project-settings.jsonの更新
+  // 自動化情報
+  autoDetected: boolean;  // 自動検出されたかどうか
+  autoConfigurable: boolean; // 自動設定可能かどうか
+  autoConfigured: boolean;   // 自動設定されたかどうか
+  
+  // 検証情報
+  validationStatus: 'unknown' | 'valid' | 'invalid' | 'warning';
+  validationMessage?: string;  // 検証結果メッセージ
+  
+  // セキュリティ設定
+  isSensitive: boolean;      // 機密情報かどうか
+  
+  // グループ情報
+  groupId: string;          // 所属グループID
+}
 
-## 5. エラー処理
+interface EnvironmentVariableGroup {
+  id: string;
+  name: string;
+  description: string;
+  order: number;        // 表示順序
+}
+```
 
-### 想定されるエラーケース
-1. **接続エラー**:
-   - データベース接続失敗
-   - APIキー認証失敗
-   - SMTPサーバー接続失敗
-   
-2. **入力検証エラー**:
-   - 不正なフォーマットの入力
-   - 必須フィールドの未入力
-   - 安全でない値（短すぎるパスワードなど）
-   
-3. **ファイル操作エラー**:
-   - .envファイル書き込み権限なし
-   - 既存ファイルのバックアップ失敗
-   
-4. **システムエラー**:
-   - AIサービス連携失敗
-   - VSCode拡張API呼び出しエラー
+## 実装アーキテクチャ
 
-### エラーメッセージと回復方法
-1. **接続エラー対応**:
-   - 具体的なエラー原因を表示（「MongoDBサーバーに接続できません。ネットワーク設定を確認してください」）
-   - 考えられる解決策の提案（「IPアドレス制限が設定されていないか確認してください」）
-   - 詳細なログへのアクセス方法
-   
-2. **入力検証エラー対応**:
-   - インラインでのエラー表示（入力フィールド下に赤字でメッセージ）
-   - フォーマット例の表示
-   - 「安全な値を生成」などの代替オプションの提案
-   
-3. **ファイル操作エラー対応**:
-   - 権限の問題の場合は手動での対応方法を案内
-   - 一時ファイルへの出力オプションの提供
-   
-4. **システムエラー対応**:
-   - エラーログの自動収集
-   - トラブルシューティング情報の表示
-   - 手動での回避方法の案内
+### コンポーネント構成
 
-## 6. パフォーマンス要件
+1. **VSCode拡張（バックエンド）**
+   - `src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts`
+     - WebViewパネル管理
+     - DOM構造のスナップショット取得機能
+   - `src/services/EnvironmentVariableService.ts`
+     - 環境変数の検出・管理・設定
+   - `src/services/UIInteractionService.ts`
+     - UI要素のマッピングとインタラクション処理
+   - `src/utils/ClaudeDataExporter.ts`
+     - ClaudeCode用データファイル出力機能
 
-### 応答時間の目標
-- UI操作の応答時間：200ms以内
-- 環境変数保存処理：500ms以内
-- 接続テスト：3秒以内（タイムアウト設定あり）
-- 値の自動生成：1秒以内
+2. **WebView（フロントエンド）**
+   - `media/environmentVariablesAssistant.js`
+     - UI状態管理
+     - DOM構造の変化監視
+     - 自動操作実行機能
+   - `media/environmentVariablesAssistant.css`
+     - シンプルで直感的なUI設計
 
-### 最適化と負荷対策
-- 環境変数リストの遅延読み込み（必要な部分のみ初期表示）
-- 接続テストの非同期処理（UI操作をブロックしない）
-- カード表示の仮想化（多数の環境変数がある場合）
-- キャッシュ機能（設定値の一時保存）
+3. **共有データディレクトリ**
+   - `.claude_ui_data/` - ClaudeCodeと共有するデータディレクトリ
+     - `dom_structure.json` - DOM構造スナップショット
+     - `env_variables.json` - 環境変数情報
+     - `actions.json` - ClaudeCodeからの操作指示
+     - `action_results.json` - 操作結果フィードバック
+     - `screenshots/` - UI状態のスクリーンショット
 
-## 7. セキュリティ要件
+### データフローと連携メカニズム
 
-### 認証・認可
-- VSCode拡張の権限モデルに準拠
-- ファイルシステム操作は最小権限の原則に従う
-- 外部APIとの通信は適切な認証を行う
+1. **初期化フェーズ**
+   - 環境変数アシスタント起動
+   - プロジェクト分析で必要な環境変数を検出
+   - 初期DOMスナップショット取得・保存
+   - 初期スクリーンショット保存
 
-### データ保護
-- 環境変数の値は平文でUIに表示しない（マスキング処理）
-- JWT_SECRET等の機密値はクリップボードに自動コピーしない設計
-- .envファイルが.gitignoreに含まれていることを確認
-- .env.exampleには実際の値を含めない
-- セキュリティに関するベストプラクティスをガイドに含める
-- 開発環境と本番環境で異なる値を使用するよう促す
+2. **ClaudeCode起動と連携**
+   - ClaudeCodeの起動（通常のClaudeCode起動コマンド）
+   - ClaudeCodeが`.claude_ui_data/`ディレクトリの情報を読み込み
+   - 現在のUI状態の把握とガイダンス提供
 
-### セキュリティガイド
-- 各環境変数タイプに応じたセキュリティアドバイスを表示
-- APIキーのローテーション推奨
-- 強力なシークレット生成のガイドライン
-- 環境変数漏洩時のリスクと対応策の説明
+3. **自動化連携フロー**
+   - ClaudeCodeが`.claude_ui_data/actions.json`に操作指示を書き込み
+   - 環境変数アシスタントが定期的（500ms間隔）にファイルを監視
+   - 新しい操作指示を検出したら実行
+   - 実行結果を`.claude_ui_data/action_results.json`に書き込み
+   - DOM構造とスクリーンショットを更新
+
+4. **完了フェーズ**
+   - 環境変数設定完了後、.envファイル生成
+   - 設定サマリーを`.claude_ui_data/env_summary.json`に出力
+   - ClaudeCodeに完了通知
+
+## 実装詳細
+
+### 1. ファイルベース連携の仕組み
+
+- **ファイル監視メカニズム**
+  ```typescript
+  // VSCode拡張側での実装例
+  const watchActions = () => {
+    fs.watch('.claude_ui_data/actions.json', (eventType) => {
+      if (eventType === 'change') {
+        const actions = JSON.parse(fs.readFileSync('.claude_ui_data/actions.json', 'utf8'));
+        executeActions(actions);
+      }
+    });
+  };
+  ```
+
+- **スナップショット生成**
+  ```typescript
+  // WebView側での実装例
+  const captureDOMSnapshot = () => {
+    const elements = [];
+    document.querySelectorAll('[data-claude-id]').forEach(el => {
+      elements.push({
+        id: el.getAttribute('data-claude-id'),
+        type: el.tagName.toLowerCase(),
+        text: el.textContent,
+        isVisible: isElementVisible(el),
+        // 他の属性も同様に取得
+      });
+    });
+    
+    const snapshot = {
+      timestamp: Date.now(),
+      elements,
+      activeElementId: document.activeElement?.getAttribute('data-claude-id'),
+      viewport: {
+        width: window.innerWidth,
+        height: window.innerHeight
+      },
+      currentScreenshot: `screenshot_${Date.now()}.png`
+    };
+    
+    // VSCode APIでファイルに書き込む
+    vscode.postMessage({
+      command: 'saveDOMSnapshot',
+      data: snapshot
+    });
+  };
+  ```
+
+### 2. UI操作の自動化実装
+
+- **操作実行メカニズム**
+  ```typescript
+  // WebView側での実装例
+  const executeAction = async (action) => {
+    const { type, targetElementId, value } = action;
+    const element = document.querySelector(`[data-claude-id="${targetElementId}"]`);
+    
+    if (!element) {
+      return { success: false, errorMessage: 'Element not found' };
+    }
+    
+    switch (type) {
+      case 'click':
+        element.click();
+        return { success: true };
+        
+      case 'input':
+        element.value = value;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        return { success: true };
+        
+      // 他のアクションタイプも同様に実装
+    }
+  };
+  ```
+
+### 3. 視覚的ガイダンス実装
+
+- **オーバーレイ表示**
+  ```typescript
+  // WebView側での実装例
+  const showGuidance = (elementId, message) => {
+    const element = document.querySelector(`[data-claude-id="${elementId}"]`);
+    if (!element) return;
+    
+    const rect = element.getBoundingClientRect();
+    
+    // ガイダンス要素を作成
+    const overlay = document.createElement('div');
+    overlay.className = 'guidance-overlay';
+    overlay.style.top = `${rect.top}px`;
+    overlay.style.left = `${rect.left}px`;
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+    
+    const messageEl = document.createElement('div');
+    messageEl.className = 'guidance-message';
+    messageEl.textContent = message;
+    
+    document.body.appendChild(overlay);
+    document.body.appendChild(messageEl);
+    
+    // アニメーション効果
+    overlay.classList.add('pulse');
+    
+    // 一定時間後に除去
+    setTimeout(() => {
+      overlay.remove();
+      messageEl.remove();
+    }, 5000);
+  };
+  ```
+
+## 実装ステップと優先順位
+
+### フェーズ1: 基本機能（1-2週間）
+1. VSCodeパネルとUI構築
+2. DOM構造スナップショット機能の実装
+3. `.claude_ui_data/`ディレクトリ構造の設計と実装
+4. 基本的な環境変数検出機能
+
+### フェーズ2: ファイル連携機能（1-2週間）
+1. ClaudeCode用データ出力の完全実装
+2. 操作指示ファイル監視メカニズム
+3. スクリーンショット自動取得機能
+4. 基本的なUI操作自動化
+
+### フェーズ3: 自動化機能（2-3週間）
+1. 環境変数の自動検出機能強化
+2. 標準値の自動設定機能
+3. シンプルなUI操作ガイダンス
+4. .envファイル自動生成
+
+### フェーズ4: ユーザー体験強化（2-3週間）
+1. リアルタイム視覚的ガイダンス
+2. 操作シーケンスの自動実行強化
+3. 問題診断と修正提案
+4. 非技術者向けユーザーテストと最適化
+
+## 成功基準
+
+- **おばちゃんテスト**: プログラミング経験のない50代以上の方が、説明10分以内で環境変数設定を完了できること
+- **自動化率**: 一般的プロジェクトの環境変数設定の80%以上を全自動化
+- **操作削減**: 従来の方法と比較して必要な操作を90%削減
+- **エラー率**: 設定エラーの発生率を従来の10%以下に削減
+
+## ユーザーシナリオ例
+
+### シナリオ1: 完全自動モード
+1. ユーザーが「環境変数アシスタント」を起動
+2. 「自動設定」ボタンをクリック
+3. AIがプロジェクトを分析し、必要な環境変数を検出
+4. AIが安全な値を自動生成し、入力
+5. 設定完了後、「接続テスト」が自動実行
+6. すべて緑色チェックマークで完了
+7. .envファイルが自動生成され保存
+
+### シナリオ2: ガイド付き手動モード
+1. ユーザーが「手動設定を開始」をクリック
+2. AIが最初に設定すべき変数を選択し、説明表示
+3. 画面上に矢印で入力欄を示し、「ここにデータベースのパスワードを入力してください」と案内
+4. ユーザーが入力完了後、「次へ」をクリック
+5. AIが次の変数の設定を同様にガイド
+6. 最後に「すべてを保存」ボタンを示して完了案内
+
+### シナリオ3: ClaudeCode自動操作モード
+1. ユーザーが環境変数アシスタントを起動
+2. 別ウィンドウでClaudeCodeを起動
+3. ClaudeCodeが自動的に`.claude_ui_data/`の情報を読み込み
+4. ユーザーがClaudeCodeに「環境変数を設定して」と指示
+5. ClaudeCodeが`actions.json`に操作指示を書き込み
+6. 環境変数アシスタントが自動的に操作を実行
+7. 実行結果が`action_results.json`に書き込まれ、ClaudeCodeが確認
+8. 一連の操作が完了するまで自動的に進行
+
+## 制限事項と対策
+
+1. **ファイル連携の同期性**
+   - ファイル書き込み・読み取りのタイミング管理が重要
+   - 操作リクエストにID付与で重複実行防止
+   - ファイル監視の適切な間隔設定（パフォーマンスとレスポンス速度のバランス）
+
+2. **セキュリティ考慮事項**
+   - 機密情報は`.claude_ui_data/`ディレクトリに書き込まない設計
+   - スクリーンショットから機密情報を自動マスク
+   - `.claude_ui_data/`を`.gitignore`に自動追加
+
+3. **UI変更への対応**
+   - 静的なセレクタだけでなく、テキストや位置など複数の特徴で要素を特定
+   - 操作失敗時の代替手段を用意（代替セレクタの利用）
+   - 回復メカニズム実装（操作に失敗しても全体が停止しない）

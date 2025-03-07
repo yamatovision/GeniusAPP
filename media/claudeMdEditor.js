@@ -40,7 +40,7 @@
       });
     });
     
-    // CLIエクスポートボタン
+    // ClaudeCodeで開くボタン
     exportCliBtn.addEventListener('click', function() {
       vscode.postMessage({
         command: 'exportToCli'

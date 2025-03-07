@@ -10,7 +10,7 @@
 - **状態**: 進行中
 - **関連ファイル**: 
   - `src/core/ClaudeMdService.ts`
-  - `appgenius-cli/src/services/claudeMdService.ts`
+  - `src/utils/ClaudeMdService.ts`
 - **依存関係**: なし
 - **期間**: 1週間
 
@@ -38,8 +38,7 @@
 - **優先度**: 高
 - **状態**: 未着手
 - **関連ファイル**:
-  - `src/core/CLIBridgeService.ts`
-  - `appgenius-cli/src/services/vscodeConnector.ts`
+  - `src/services/ClaudeCodeLauncherService.ts`
 - **依存関係**: スコープ1.1
 - **期間**: 1週間
 
@@ -88,7 +87,7 @@
 - **優先度**: 高
 - **状態**: 未着手
 - **関連ファイル**:
-  - `appgenius-cli/src/services/claudeCodeService.ts`
+  - `src/services/ClaudeCodeLauncherService.ts`
 - **依存関係**: スコープ1.4, スコープ2.3
 - **期間**: 2週間
 

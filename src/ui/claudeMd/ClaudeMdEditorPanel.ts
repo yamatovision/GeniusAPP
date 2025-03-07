@@ -170,7 +170,7 @@ export class ClaudeMdEditorPanel {
   }
 
   /**
-   * CLAUDE.mdをCLIにエクスポート
+   * CLAUDE.mdをClaudeCodeで開く
    */
   private async _exportClaudeMdToCli(): Promise<void> {
     try {
@@ -181,21 +181,21 @@ export class ClaudeMdEditorPanel {
       // プロジェクトディレクトリを取得
       const projectPath = path.dirname(this._claudeMdPath);
       
-      // CLIでコマンドを実行
+      // ClaudeCodeを起動
       const terminal = vscode.window.createTerminal({
-        name: 'AppGenius CLI - CLAUDE.md',
+        name: 'ClaudeCode - CLAUDE.md',
         cwd: projectPath
       });
       
       terminal.show();
       terminal.sendText(`cd "${projectPath}"`);
-      terminal.sendText(`appgenius-cli scope --from-memory`);
+      terminal.sendText(`claude "${this._claudeMdPath}"`);
 
-      Logger.info(`CLAUDE.mdをCLIにエクスポートしました: ${this._claudeMdPath}`);
-      vscode.window.showInformationMessage('CLAUDE.mdをCLIにエクスポートしました');
+      Logger.info(`CLAUDE.mdをClaudeCodeで開きました: ${this._claudeMdPath}`);
+      vscode.window.showInformationMessage('CLAUDE.mdをClaudeCodeで開きました');
     } catch (error) {
-      Logger.error('CLAUDE.md CLIエクスポートエラー', error as Error);
-      vscode.window.showErrorMessage(`CLIへのエクスポートに失敗しました: ${(error as Error).message}`);
+      Logger.error('ClaudeCode起動エラー', error as Error);
+      vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -314,7 +314,7 @@ export class ClaudeMdEditorPanel {
   <div class="editor-container">
     <div class="toolbar">
       <button id="save-btn" class="button">保存</button>
-      <button id="export-cli-btn" class="button">CLIにエクスポート</button>
+      <button id="export-cli-btn" class="button">ClaudeCodeで開く</button>
       <button id="load-template-btn" class="button">テンプレート読み込み</button>
       <span id="file-path"></span>
     </div>

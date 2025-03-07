@@ -1,2 +1,0 @@
-/set-project /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius
-
