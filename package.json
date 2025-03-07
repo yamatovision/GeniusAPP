@@ -280,7 +280,10 @@
     "lint": "eslint src --ext ts",
     "test": "node ./out/test/runTest.js",
     "test-watch": "tsc -p . -w --outDir out",
-    "check-workspace": "node check-workspace.js"
+    "check-workspace": "node check-workspace.js",
+    "check-toolkit": "node toolkit-dependencies.js",
+    "update-dashboard": "node toolkit-update.js",
+    "open-dashboard": "open toolkit-dashboard.html"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",

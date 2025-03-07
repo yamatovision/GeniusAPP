@@ -25,6 +25,7 @@ export class ScopeManagerPanel {
   private _selectedScopeIndex: number = -1;
   private _currentScope: any = null;
   private _directoryStructure: string = '';
+  private _fileWatcher: vscode.FileSystemWatcher | null = null;
 
   /**
    * パネルを作成または表示
@@ -152,8 +153,65 @@ export class ScopeManagerPanel {
     Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
     Logger.info(`ステータスファイルパス: ${this._statusFilePath}`);
 
+    // 既存のファイルウォッチャーを破棄
+    if (this._fileWatcher) {
+      this._fileWatcher.dispose();
+      this._fileWatcher = null;
+    }
+    
+    // ファイルウォッチャーを設定
+    this._setupFileWatcher();
+
     // パスが設定されたらステータスファイルを読み込む
     this._loadStatusFile();
+  }
+  
+  /**
+   * ファイル変更の監視を設定
+   */
+  private _setupFileWatcher(): void {
+    try {
+      // docs ディレクトリが存在しない場合は作成
+      const docsDir = path.join(this._projectPath, 'docs');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      
+      // CURRENT_STATUS.md の変更を監視
+      this._fileWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(
+          this._projectPath, 
+          'docs/CURRENT_STATUS.md'
+        )
+      );
+      
+      // ファイル変更時の処理
+      this._fileWatcher.onDidChange(() => {
+        Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました');
+        this._loadStatusFile();
+      });
+      
+      // 新規ファイル作成時の処理
+      this._fileWatcher.onDidCreate(() => {
+        Logger.info('CURRENT_STATUS.mdファイルが新規作成されました');
+        this._loadStatusFile();
+      });
+      
+      // ファイル削除時の処理（必要に応じて）
+      this._fileWatcher.onDidDelete(() => {
+        Logger.info('CURRENT_STATUS.mdファイルが削除されました');
+        // ファイルが削除された場合は空のスコープリストを表示
+        this._scopes = [];
+        this._updateWebview();
+      });
+      
+      // ウォッチャーをdisposablesに追加
+      this._disposables.push(this._fileWatcher);
+      
+      Logger.info('ファイル監視を設定しました');
+    } catch (error) {
+      Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
+    }
   }
 
   /**
@@ -192,6 +250,7 @@ export class ScopeManagerPanel {
       let directoryStructure = '';
       let completedFiles: string[] = [];
       let inProgressFiles: string[] = [];
+      let environmentVariables: any[] = [];
       let nextScope: any = null;
       
       // 行ごとに処理
@@ -205,6 +264,60 @@ export class ScopeManagerPanel {
         if (line.startsWith('## ')) {
           currentSection = line.substring(3).trim();
           i++;
+          
+          // 環境変数セクションの処理
+          if (currentSection === '環境変数設定状況') {
+            // サブセクション（カテゴリ）を処理
+            while (i < lines.length && !lines[i].startsWith('## ')) {
+              const currentLine = lines[i];
+              
+              // カテゴリヘッダーを検出
+              if (currentLine.startsWith('### ')) {
+                const category = currentLine.substring(4).trim();
+                i++;
+                
+                // カテゴリ内の環境変数を処理
+                while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
+                  const envVarLine = lines[i].trim();
+                  
+                  // チェックボックス形式の行をパース
+                  const envVarMatch = envVarLine.match(/- \[([ x!])\] ([A-Z0-9_]+)(?: - (.+))?/);
+                  
+                  if (envVarMatch) {
+                    const status = envVarMatch[1];
+                    const name = envVarMatch[2];
+                    const description = envVarMatch[3] || '';
+                    
+                    let statusCode = 'unconfigured';
+                    if (status === 'x') {
+                      statusCode = 'configured';
+                    } else if (status === '!') {
+                      statusCode = 'used';
+                    }
+                    
+                    environmentVariables.push({
+                      name,
+                      description,
+                      category,
+                      status: statusCode
+                    });
+                  }
+                  
+                  i++;
+                }
+                
+                // カテゴリが終わっていなければ続ける
+                if (i < lines.length && !lines[i].startsWith('##')) {
+                  continue;
+                }
+              } else {
+                i++;
+              }
+            }
+            
+            continue;
+          }
+          
           continue;
         }
         
@@ -446,6 +559,9 @@ export class ScopeManagerPanel {
         i++;
       }
       
+      // 環境変数情報のログ出力
+      Logger.info(`環境変数情報を ${environmentVariables.length} 件読み込みました`);
+      
       // すべてのスコープをまとめる
       this._scopes = [...completedScopes, ...inProgressScopes, ...pendingScopes];
       
@@ -457,6 +573,10 @@ export class ScopeManagerPanel {
         if (this._currentScope && scope.name.includes(this._currentScope.name)) {
           this._selectedScopeIndex = index;
         }
+        
+        // 環境変数をスコープに関連付け（一時的な実装 - 本来は特定のスコープに関連する環境変数のみをフィルタリング）
+        // ここでは単純にすべての環境変数をスコープに追加（実際の実装では要修正）
+        scope.environmentVariables = environmentVariables;
       });
       
       // 現在のスコープが選択されていない場合、次のスコープを選択
@@ -1304,13 +1424,22 @@ export class ScopeManagerPanel {
       overflow: hidden;
     }
     
-    .file-item {
+    .feature-list, .env-var-list {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--vscode-panel-border);
+      border-radius: 4px;
+      padding: 8px;
+      margin-top: 12px;
+    }
+    
+    .feature-item, .env-var-item {
       display: flex;
       align-items: center;
       padding: 4px 0;
     }
     
-    .file-checkbox {
+    .feature-checkbox, .env-var-checkbox {
       margin-right: 8px;
       cursor: pointer;
     }
@@ -1390,14 +1519,7 @@ export class ScopeManagerPanel {
       vertical-align: middle;
     }
     
-    .file-list {
-      max-height: 300px;
-      overflow-y: auto;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 4px;
-      padding: 8px;
-      margin-top: 12px;
-    }
+    /* スタイリングは feature-list, env-var-list に統合済み */
     
     .metadata-grid {
       display: grid;
@@ -1542,38 +1664,21 @@ export class ScopeManagerPanel {
             <div id="scope-detail-content" style="display: none;">
               <p id="scope-description"></p>
               
-              <div class="metadata-grid">
-                <div class="metadata-item">
-                  <div class="metadata-label">優先度</div>
-                  <div id="scope-priority" class="metadata-value"></div>
-                </div>
-                <div class="metadata-item">
-                  <div class="metadata-label">複雑度</div>
-                  <div id="scope-complexity" class="metadata-value"></div>
-                </div>
-                <div class="metadata-item">
-                  <div class="metadata-label">見積時間</div>
-                  <div id="scope-estimated-time" class="metadata-value"></div>
-                </div>
-                <div class="metadata-item">
-                  <div class="metadata-label">進捗</div>
-                  <div id="scope-progress" class="metadata-value"></div>
-                </div>
+              <div class="metadata-item" style="margin-bottom: 16px;">
+                <div class="metadata-label">進捗</div>
+                <div id="scope-progress" class="metadata-value"></div>
               </div>
               
-              <div id="dependency-section">
-                <h3>依存関係</h3>
-                <div id="dependencies-content">依存関係はありません</div>
+              <h3 style="margin-top: 20px;">実装対象機能</h3>
+              <div id="feature-list" class="feature-list">
+                <!-- 機能リストがここに動的に生成されます -->
+                <div class="feature-item">機能が定義されていません</div>
               </div>
               
-              <div id="dependency-graph" class="dependency-graph" style="display: none;">
-                <!-- 依存関係グラフがここに表示されます -->
-              </div>
-              
-              <h3 style="margin-top: 20px;">実装対象ファイル</h3>
-              <div id="file-list" class="file-list">
-                <!-- ファイルリストがここに動的に生成されます -->
-                <div class="file-item">ファイルがありません</div>
+              <h3 style="margin-top: 20px;">必要な環境変数</h3>
+              <div id="env-var-list" class="env-var-list">
+                <!-- 環境変数リストがここに動的に生成されます -->
+                <div class="env-var-item">必要な環境変数はありません</div>
               </div>
               
               <!-- ボタンエリア -->
@@ -1582,7 +1687,7 @@ export class ScopeManagerPanel {
                 このスコープの実装を開始する
               </button>
               <div id="scope-warn-message" style="color: var(--vscode-errorForeground); margin-top: 8px; text-align: center; display: none;">
-                このスコープを実装するには、依存するスコープをすべて完了させる必要があります。
+                このスコープを実装するには、事前に必要な準備をすべて完了させてください。
               </div>
             </div>
             
@@ -1607,23 +1712,13 @@ export class ScopeManagerPanel {
             <label class="form-label" for="edit-description">説明</label>
             <textarea id="edit-description" class="form-textarea"></textarea>
           </div>
-          <div style="display: flex; gap: 16px;">
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label" for="edit-priority">優先度</label>
-              <select id="edit-priority" class="form-input">
-                <option value="高">高</option>
-                <option value="中">中</option>
-                <option value="低">低</option>
-              </select>
-            </div>
-            <div class="form-group" style="flex: 1;">
-              <label class="form-label" for="edit-estimated-time">見積時間</label>
-              <input type="text" id="edit-estimated-time" class="form-input">
-            </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-features">実装対象機能（1行に1つの機能）</label>
+            <textarea id="edit-features" class="form-textarea"></textarea>
           </div>
           <div class="form-group">
-            <label class="form-label" for="edit-files">実装ファイル（1行に1つのファイルパス）</label>
-            <textarea id="edit-files" class="form-textarea"></textarea>
+            <label class="form-label" for="edit-env-vars">必要な環境変数（1行に1つ、書式: 変数名 - 説明）</label>
+            <textarea id="edit-env-vars" class="form-textarea"></textarea>
           </div>
         </div>
         <div class="dialog-footer">

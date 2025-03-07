@@ -152,9 +152,6 @@ const vscode = acquireVsCodeApi();
     // スコープの詳細情報を表示
     if (scopeTitle) scopeTitle.textContent = scope.name || '';
     if (scopeDescription) scopeDescription.textContent = scope.description || '';
-    if (scopePriority) scopePriority.textContent = scope.priority || '未設定';
-    if (scopeComplexity) scopeComplexity.textContent = scope.complexity || '中';
-    if (scopeEstimatedTime) scopeEstimatedTime.textContent = scope.estimatedTime || '未設定';
     if (scopeProgress) scopeProgress.textContent = `${scope.progress || 0}%`;
     
     // 表示/非表示の切り替え
@@ -162,41 +159,57 @@ const vscode = acquireVsCodeApi();
     if (scopeEmptyMessage) scopeEmptyMessage.style.display = 'none';
     if (scopeActions) scopeActions.style.display = 'block';
     
-    // ファイルリストの更新
+    // 機能リストの更新
     if (fileList) {
+      // IDを更新して機能リストと明確にする
+      fileList.id = 'feature-list';
       fileList.innerHTML = '';
       
-      if (!scope.files || scope.files.length === 0) {
-        fileList.innerHTML = '<div class="file-item">ファイルがありません</div>';
+      if (!scope.features || scope.features.length === 0) {
+        fileList.innerHTML = '<div class="feature-item">機能が定義されていません</div>';
       } else {
-        scope.files.forEach(file => {
-          const fileItem = document.createElement('div');
-          fileItem.className = 'file-item';
+        scope.features.forEach((feature, index) => {
+          const featureItem = document.createElement('div');
+          featureItem.className = 'feature-item';
           
-          // チェックボックスの状態
-          const isCompleted = file.completed || false;
+          // 擬似的な完了状態を機能インデックスと進捗状況から判断
+          // スコープの進捗に応じて機能を自動的に完了としてマーク
+          const totalFeatures = scope.features.length;
+          const completedFeaturesCount = Math.floor((scope.progress / 100) * totalFeatures);
+          const isCompleted = index < completedFeaturesCount;
           
-          fileItem.innerHTML = `
-            <input type="checkbox" class="file-checkbox" ${isCompleted ? 'checked' : ''} />
-            <span>${file.path}</span>
+          featureItem.innerHTML = `
+            <input type="checkbox" class="feature-checkbox" ${isCompleted ? 'checked' : ''} />
+            <span>${feature}</span>
           `;
           
           // チェックボックスのイベントハンドラー
-          const checkbox = fileItem.querySelector('input');
+          const checkbox = featureItem.querySelector('input');
           if (checkbox) {
             checkbox.addEventListener('change', (e) => {
+              // チェックされた機能の数をカウント
+              const checkboxes = fileList.querySelectorAll('input[type="checkbox"]');
+              const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+              
+              // 進捗率を計算
+              const progress = Math.round((checkedCount / totalFeatures) * 100);
+              
               vscode.postMessage({
-                command: 'toggleFileStatus',
-                filePath: file.path,
-                completed: e.target.checked
+                command: 'updateScopeStatus',
+                scopeId: scope.id,
+                status: progress === 100 ? 'completed' : (progress > 0 ? 'in-progress' : 'pending'),
+                progress: progress
               });
             });
           }
           
-          fileList.appendChild(fileItem);
+          fileList.appendChild(featureItem);
         });
       }
     }
+    
+    // 環境変数セクションの更新
+    // ここに環境変数の表示を追加することも可能
     
     // 依存関係セクションの更新
     updateDependencySection(scope);
@@ -233,8 +246,63 @@ const vscode = acquireVsCodeApi();
     const dependenciesContent = document.getElementById('dependencies-content');
     if (!dependenciesContent) return;
     
-    // 仮の実装 - 実際には依存関係の情報が必要
-    dependenciesContent.textContent = '依存関係はありません';
+    // 環境変数関連の情報を表示
+    dependenciesContent.innerHTML = '';
+    
+    // セクションタイトルの追加
+    const envVarsTitle = document.createElement('h3');
+    envVarsTitle.textContent = '必要な環境変数';
+    envVarsTitle.style.marginTop = '0';
+    dependenciesContent.appendChild(envVarsTitle);
+    
+    // 仮の環境変数リスト - 実際にはCURRENT_STATUS.mdから取得する必要がある
+    // この部分は後でサーバーサイドから正確なデータで更新
+    const envVars = [
+      { name: 'API_KEY', description: 'API認証キー', status: 'unconfigured' },
+      { name: 'DATABASE_URL', description: 'データベース接続URL', status: 'configured' },
+      { name: 'PORT', description: 'サーバーポート', status: 'unconfigured' }
+    ];
+    
+    if (envVars.length === 0) {
+      const noVarsMessage = document.createElement('p');
+      noVarsMessage.textContent = 'このスコープで必要な環境変数はありません';
+      dependenciesContent.appendChild(noVarsMessage);
+    } else {
+      // 環境変数リストの表示
+      const envVarsList = document.createElement('div');
+      envVarsList.className = 'env-vars-list';
+      
+      envVars.forEach(envVar => {
+        const envVarItem = document.createElement('div');
+        envVarItem.className = 'env-var-item';
+        
+        // 環境変数の状態に基づいてチェックボックスの状態を設定
+        const isConfigured = envVar.status === 'configured';
+        
+        envVarItem.innerHTML = `
+          <input type="checkbox" class="env-var-checkbox" ${isConfigured ? 'checked' : ''} disabled />
+          <div class="env-var-details">
+            <span class="env-var-name">${envVar.name}</span>
+            <span class="env-var-description">${envVar.description}</span>
+          </div>
+        `;
+        
+        envVarsList.appendChild(envVarItem);
+      });
+      
+      dependenciesContent.appendChild(envVarsList);
+      
+      // 環境変数設定ボタン
+      const configButton = document.createElement('button');
+      configButton.className = 'button button-secondary';
+      configButton.textContent = '環境変数アシスタントを開く';
+      configButton.style.marginTop = '12px';
+      configButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'openEnvironmentVariablesAssistant' });
+      });
+      
+      dependenciesContent.appendChild(configButton);
+    }
   }
   
   /**

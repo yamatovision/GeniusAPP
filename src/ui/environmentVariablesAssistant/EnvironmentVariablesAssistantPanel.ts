@@ -274,7 +274,7 @@ export class EnvironmentVariablesAssistantPanel {
           </div>
           <div class="guide-step">
             <span class="step-number">4</span>
-            設定情報をCLAUDE.mdに追加して、プロジェクト情報を一元管理します。
+            設定情報をCURRENT_STATUS.mdに追加して、進捗と共に管理します。
           </div>
         </div>
         
@@ -289,7 +289,7 @@ export class EnvironmentVariablesAssistantPanel {
     
     <div class="footer">
       <button id="auto-detect-variables" class="button button-secondary">プロジェクト分析を開始</button>
-      <button id="save-all-variables" class="button button-success">CLAUDE.mdに環境変数情報を追加</button>
+      <button id="save-all-variables" class="button button-success">環境変数情報を保存</button>
     </div>
   </div>
   
@@ -640,23 +640,95 @@ export class EnvironmentVariablesAssistantPanel {
       // 環境変数ファイルを保存
       await this._saveEnvFile(this._activeEnvFile, this._envVariables[this._activeEnvFile]);
       
-      // .env.exampleも作成
-      const examplePath = path.join(this._projectPath, '.env.example');
-      await this._saveEnvExampleFile(examplePath, this._envVariables[this._activeEnvFile]);
-      
       // .gitignoreに.envを追加
       await this._addToGitignore();
       
       // 環境変数データをClaudeCode共有ディレクトリに書き出し
       await this._writeEnvVariablesData();
       
+      // CURRENT_STATUS.mdに環境変数情報を追加
+      await this._updateCurrentStatusFile();
+      
       // 環境変数サマリーを作成
       await this._writeEnvSummary();
       
-      vscode.window.showInformationMessage('すべての環境変数を保存しました');
+      vscode.window.showInformationMessage('環境変数情報を保存しました');
     } catch (error) {
-      Logger.error(`すべての環境変数保存エラー:`, error as Error);
+      Logger.error(`環境変数保存エラー:`, error as Error);
       await this._showError(`環境変数の保存に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * CURRENT_STATUS.mdファイルを更新
+   */
+  private async _updateCurrentStatusFile(): Promise<void> {
+    try {
+      // CURRENT_STATUS.mdのパス
+      const currentStatusPath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
+      
+      // ファイルが存在するか確認
+      if (!fs.existsSync(currentStatusPath)) {
+        Logger.warn(`CURRENT_STATUS.mdファイルが見つかりません: ${currentStatusPath}`);
+        return;
+      }
+      
+      // ファイルの内容を読み込む
+      let content = fs.readFileSync(currentStatusPath, 'utf8');
+      
+      // 環境変数セクションがあるか確認
+      const envSectionRegex = /## 環境変数設定状況[\s\S]*?(?=\n## |$)/;
+      const envSectionExists = envSectionRegex.test(content);
+      
+      // 環境変数情報を生成
+      const envVariables = this._generateEnvVariablesModel();
+      const categories = this._generateEnvGroups();
+      
+      // 環境変数セクションの内容を作成
+      let envSection = '## 環境変数設定状況\n\n';
+      
+      // カテゴリごとに変数を整理
+      for (const category of categories) {
+        const categoryVars = envVariables.filter(v => v.groupId === category.id);
+        if (categoryVars.length === 0) continue;
+        
+        // カテゴリ見出しを追加
+        envSection += `### ${category.name}\n`;
+        
+        // 各変数をチェックリスト形式で追加
+        for (const variable of categoryVars) {
+          const checkmark = variable.autoConfigured ? 'x' : ' ';
+          envSection += `- [${checkmark}] ${variable.name} - ${variable.description || '環境変数'}\n`;
+        }
+        
+        envSection += '\n';
+      }
+      
+      // ファイルを更新
+      if (envSectionExists) {
+        // 既存のセクションを置換
+        content = content.replace(envSectionRegex, envSection);
+      } else {
+        // 適切な位置に追加（最初のセクションの後）
+        const firstSectionRegex = /^# .*\n\n## .*\n/;
+        const match = content.match(firstSectionRegex);
+        
+        if (match) {
+          // 最初のセクションの後に追加
+          const insertIndex = match.index! + match[0].length;
+          content = content.slice(0, insertIndex) + envSection + '\n' + content.slice(insertIndex);
+        } else {
+          // 最後に追加
+          content += '\n\n' + envSection;
+        }
+      }
+      
+      // ファイルに書き込み
+      fs.writeFileSync(currentStatusPath, content, 'utf8');
+      Logger.info(`CURRENT_STATUS.mdに環境変数情報を更新しました: ${currentStatusPath}`);
+    } catch (error) {
+      Logger.error(`CURRENT_STATUS.md更新エラー:`, error as Error);
+      throw error;
     }
   }
   
@@ -1104,13 +1176,14 @@ export class EnvironmentVariablesAssistantPanel {
 - プロジェクトパス: ${projectPath}
 - 環境変数ファイル: ${envFilePath}
 
-## CLAUDE.mdとの連携
+## CURRENT_STATUS.mdとの連携
 
-CLAUDE.mdファイルには、既に設定済みの環境変数や追加すべき環境変数の情報が記載されている場合があります。この情報を参照し、以下を行ってください：
+CURRENT_STATUS.mdファイルには、既に設定済みの環境変数や追加すべき環境変数の情報が記載されている場合があります。この情報を参照し、以下を行ってください：
 
-1. 既存のCLAUDE.mdファイルの内容から環境変数関連情報を探し出す
-2. 「環境変数」「API設定」「接続情報」などのセクションがあれば特に注意深く確認
-3. 見つかった情報をもとに、設定すべき環境変数のリストを作成
+1. 既存のCURRENT_STATUS.mdファイルの内容から「環境変数設定状況」セクションを探し出す
+2. セクション内のカテゴリ（データベース設定、API設定など）ごとの環境変数リストを確認
+3. チェック状態（[x]は設定済み、[ ]は未設定）を把握
+4. 見つかった情報をもとに、設定すべき環境変数のリストを作成
 
 ## プロジェクト分析
 
@@ -1156,34 +1229,34 @@ CLAUDE.mdファイルには、既に設定済みの環境変数や追加すべ�
 2. `.env.example`ファイル - サンプル値やプレースホルダーを含む（共有・バージョン管理用）
 3. `.gitignore`にこれらのファイルが含まれていることを確認
 
-## CLAUDE.mdへの情報追加
+## CURRENT_STATUS.mdへの情報追加
 
-次の形式で環境変数情報をCLAUDE.mdに追加することを提案してください：
+次の形式で環境変数情報をCURRENT_STATUS.mdに追加することを提案してください：
 
 \`\`\`markdown
-## 環境変数設定
-
-以下の環境変数が必要です：
-
-### 開発環境設定
-- NODE_ENV=development - 実行環境設定
-- PORT=3000 - サーバーポート番号
+## 環境変数設定状況
 
 ### データベース設定
-- DB_HOST=localhost - データベースホスト
-- DB_PORT=5432 - データベースポート
-- DB_USER=pguser - データベースユーザー名
-- DB_PASSWORD=******** - データベースパスワード（実際の値で置き換え）
-- DB_NAME=myappdb - データベース名
+- [ ] DB_HOST - データベースホスト
+- [ ] DB_PORT - データベースポート
+- [ ] DB_USER - データベースユーザー名
+- [ ] DB_PASSWORD - データベースパスワード
+- [ ] DB_NAME - データベース名
 
 ### API設定
-- API_KEY=******** - APIキー（実際の値で置き換え）
-- API_URL=https://api.example.com - APIエンドポイント
+- [ ] API_KEY - APIキー
+- [ ] API_URL - APIエンドポイント
 
-### セキュリティ設定
-- JWT_SECRET=******** - JWTシークレットキー（実際の値で置き換え）
-- SESSION_SECRET=******** - セッションシークレット（実際の値で置き換え）
+### サーバー設定
+- [x] PORT - サーバーポート番号
+- [x] NODE_ENV - 実行環境（development/production/test）
+
+### 認証設定
+- [ ] JWT_SECRET - JWT認証用シークレットキー
+- [ ] SESSION_SECRET - セッション用シークレットキー
 \`\`\`
+
+※注意: チェックマーク([x])は設定済み、空白([ ])は未設定を示します。
 
 ## セキュリティガイドライン
 

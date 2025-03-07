@@ -89,7 +89,7 @@
   margin-left: auto;
 }
 
-.file-item {
+.file-item, .feature-item, .env-var-item {
   display: flex;
   align-items: center;
   padding: 10px 8px;
@@ -97,19 +97,37 @@
   transition: all 0.2s ease;
 }
 
-.file-item:hover {
+.file-item:hover, .feature-item:hover, .env-var-item:hover {
   background-color: var(--vscode-list-hoverBackground);
 }
 
-.file-item:last-child {
+.file-item:last-child, .feature-item:last-child, .env-var-item:last-child {
   border-bottom: none;
 }
 
-.file-checkbox {
+.file-checkbox, .feature-checkbox, .env-var-checkbox {
   margin-right: 10px;
   width: 18px;
   height: 18px;
   accent-color: var(--primary-color);
+}
+
+.env-var-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.env-var-name {
+  font-weight: bold;
+}
+
+.env-var-description {
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.env-vars-list {
+  margin-bottom: 15px;
 }
 
 .scope-action-button {

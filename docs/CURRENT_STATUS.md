@@ -11,6 +11,28 @@
 - ✅ WebViewベースUI
 - ✅ イベントバスシステム
 
+## 環境変数設定状況
+
+### データベース設定
+- [ ] DB_HOST - データベースホスト名
+- [ ] DB_PORT - データベースポート
+- [ ] DB_NAME - データベース名
+- [ ] DB_USER - データベースユーザー名
+- [ ] DB_PASSWORD - データベースパスワード
+
+### API設定
+- [ ] API_BASE_URL - API基本URL
+- [ ] API_KEY - APIキー
+- [ ] API_VERSION - APIバージョン
+
+### サーバー設定
+- [x] PORT - アプリケーションポート
+- [x] NODE_ENV - 実行環境（development/production/test）
+
+### 認証設定
+- [ ] JWT_SECRET - JWT認証用シークレットキー
+- [ ] SESSION_SECRET - セッション用シークレットキー
+
 ### VSCode拡張機能
 - ✅ ダッシュボード
 - ✅ 要件定義エディタ
