@@ -1997,17 +1997,17 @@ ${this._generateEnvironmentVariablesList('production')}
    */
   private async _prepareEnvAssistantPrompt(): Promise<string> {
     try {
-      // テンプレートディレクトリの取得
-      const platformManager = PlatformManager.getInstance();
-      const tempDir = platformManager.getTempDirectory('env-assistant');
+      // プロジェクト内の一時ディレクトリを使用（他のコンポーネントと同様）
+      const tempDir = path.join(this._projectPath, 'temp');
       
-      // ディレクトリが存在しなければ作成
+      // ディレクトリが存在することを確認
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
       
       // プロンプトファイル名と内容を作成
-      const promptPath = path.join(tempDir, `env-assistant-${Date.now()}.md`);
+      const timestamp = Date.now();
+      const promptPath = path.join(tempDir, `env-assistant-${timestamp}.md`);
       
       // テンプレートから内容を作成
       const content = this._generateEnvAssistantPrompt();
@@ -2015,11 +2015,18 @@ ${this._generateEnvironmentVariablesList('production')}
       // ファイルに書き込み
       fs.writeFileSync(promptPath, content, 'utf8');
       
+      // 書き込み後のファイル存在確認
+      if (!fs.existsSync(promptPath)) {
+        throw new Error(`一時ファイルが作成できませんでした: ${promptPath}`);
+      }
+      
       Logger.info(`環境変数アシスタントプロンプトを作成しました: ${promptPath}`);
       return promptPath;
     } catch (error) {
       Logger.error(`環境変数アシスタントプロンプトの準備に失敗しました`, error as Error);
-      throw error;
+      // エラーメッセージにパスを含めて詳細を提供
+      const errorMessage = `プロンプト準備エラー: ${(error as Error).message}`;
+      throw new Error(errorMessage);
     }
   }
   

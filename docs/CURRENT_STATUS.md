@@ -1,182 +1,214 @@
-# AppGenius - 開発状況
+# 実装状況 (2025/03/07更新)
 
-## 現在の実装状況
+## 全体進捗
+- 完成予定ファイル数: 32
+- 作成済みファイル数: 17
+- 進捗率: 53.1%
+- 最終更新日: 2025/03/07
 
-### 基本インフラ
-- ✅ VSCode拡張基盤
-- ✅ CLIフレームワーク連携
-- ✅ 設定管理システム
-- ✅ ファイルシステム操作
-- ✅ ロギング機能
-- ✅ WebViewベースUI
-- ✅ イベントバスシステム
+## スコープ状況
+
+### 完了済みスコープ
+- [x] スコープ1: 初期セットアップ/環境構築 (100%)
+- [x] スコープ2: 認証システム (100%)
+
+### 進行中スコープ
+- [ ] スコープ3: ダッシュボード・LP管理 (80%)
+
+### 未着手スコープ
+- [ ] スコープ4: AI主導のLP作成機能 (0%)
+- [ ] スコープ5: バリアントテスト機能 (0%)
+- [ ] スコープ6: テスト結果分析 (0%)
+- [ ] スコープ7: 会員管理機能 (0%)
+
+## 現在のディレクトリ構造
+```
+ailp/
+├── .env.local                    # 環境変数
+├── .gitignore                    # git除外設定
+├── package.json                  # プロジェクト依存関係
+├── tsconfig.json                 # TypeScript設定
+├── next.config.js                # Next.js設定
+├── tailwind.config.js            # Tailwind CSS設定
+├── postcss.config.js             # PostCSS設定
+├── public/                       # 静的ファイル
+│   └── assets/                   # 画像、アイコンなど
+├── src/                          # ソースコード
+│   ├── app/                      # Next.js App Router
+│   │   ├── (auth)/               # 認証関連ページ
+│   │   │   ├── layout.tsx        # 認証ページ共通レイアウト
+│   │   │   ├── login/            # ログインページ
+│   │   │   │   └── page.tsx      # ログインページ
+│   │   │   ├── register/         # 登録ページ
+│   │   │   │   └── page.tsx      # 登録ページ
+│   │   │   ├── forgot-password/  # パスワードリセット
+│   │   │   │   └── page.tsx      # パスワードリセットページ
+│   │   │   └── reset-password/   # パスワード再設定
+│   │   │       └── page.tsx      # パスワード再設定ページ
+│   │   ├── (dashboard)/          # ダッシュボード関連ページ
+│   │   │   ├── layout.tsx        # ダッシュボード共通レイアウト
+│   │   │   ├── dashboard/        # ダッシュボードトップ
+│   │   │   │   └── page.tsx      # ダッシュボードトップページ
+│   │   │   ├── lp/               # LP管理
+│   │   │   │   ├── page.tsx      # LP一覧ページ
+│   │   │   │   └── new/          # 新規LP作成
+│   │   │   │       └── page.tsx  # 新規LP作成ページ
+│   │   │   ├── tests/            # テスト結果
+│   │   │   └── members/          # 会員管理
+│   │   ├── layout.tsx            # ルートレイアウト
+│   │   ├── page.tsx              # ルートページ
+│   │   └── providers.tsx         # プロバイダー設定
+│   ├── components/               # コンポーネント
+│   │   ├── ui/                   # 基本UI要素
+│   │   │   ├── button.tsx        # ボタンコンポーネント
+│   │   │   ├── card.tsx          # カードコンポーネント
+│   │   │   ├── input.tsx         # 入力フィールド
+│   │   │   ├── label.tsx         # ラベル
+│   │   │   ├── form.tsx          # フォームコンポーネント
+│   │   │   ├── avatar.tsx        # アバター
+│   │   │   ├── toast.tsx         # トースト通知
+│   │   │   ├── toaster.tsx       # トースト管理
+│   │   │   ├── use-toast.ts      # トーストフック
+│   │   │   └── dropdown-menu.tsx # ドロップダウンメニュー
+│   │   ├── layout/               # レイアウト関連
+│   │   │   ├── dashboard-header.tsx  # ダッシュボードヘッダー
+│   │   │   ├── dashboard-sidebar.tsx # ダッシュボードサイドバー
+│   │   │   └── user-nav.tsx      # ユーザーナビ
+│   │   ├── auth/                 # 認証関連
+│   │   │   ├── login-form.tsx    # ログインフォーム
+│   │   │   ├── register-form.tsx # 登録フォーム
+│   │   │   ├── forgot-password-form.tsx # パスワードリセットフォーム
+│   │   │   └── reset-password-form.tsx # パスワード再設定フォーム
+│   │   ├── dashboard/            # ダッシュボード関連
+│   │   │   ├── lp-card.tsx       # LPカードコンポーネント
+│   │   │   └── lp-filter.tsx     # LPフィルターコンポーネント
+│   │   ├── lp-builder/          # LP作成関連
+│   │   ├── test-results/        # テスト結果関連
+│   │   └── members/             # 会員管理関連
+│   ├── lib/                     # ユーティリティ
+│   │   ├── api/                 # API呼び出し関数
+│   │   │   └── lp.ts            # LP API関数
+│   │   ├── auth/                # 認証関連
+│   │   │   └── auth-context.tsx # 認証コンテキスト
+│   │   ├── db/                  # データベース関連
+│   │   │   └── prisma.ts        # Prismaクライアント
+│   │   ├── ai/                  # AI関連処理
+│   │   ├── utils.ts             # 汎用ユーティリティ
+│   │   └── supabase.ts          # Supabase接続
+│   ├── store/                   # 状態管理
+│   ├── styles/                  # グローバルスタイル
+│   │   └── globals.css          # グローバルCSS
+│   ├── types/                   # 型定義
+│   │   └── index.ts             # 型定義
+│   ├── hooks/                   # カスタムフック
+│   │   └── use-auth-redirect.ts # 認証リダイレクトフック
+│   ├── middleware.ts            # 認証ミドルウェア
+│   └── server/                  # サーバーサイド処理
+│       ├── db/                  # データベースモデル
+│       │   └── lp.ts            # LP DBアクセス関数
+│       ├── api/                 # APIのバックエンド処理
+│       └── ai/                  # AIサービス連携
+└── prisma/                      # Prisma設定
+    └── schema.prisma            # データベーススキーマ
+```
+
+## 実装完了ファイル
+
+### スコープ1 & 2 (認証システム)
+- [x] /src/components/auth/login-form.tsx
+- [x] /src/components/auth/register-form.tsx
+- [x] /src/components/auth/forgot-password-form.tsx
+- [x] /src/components/auth/reset-password-form.tsx
+- [x] /src/app/(auth)/login/page.tsx
+- [x] /src/app/(auth)/register/page.tsx
+- [x] /src/app/(auth)/forgot-password/page.tsx
+- [x] /src/app/(auth)/reset-password/page.tsx
+- [x] /src/app/(auth)/layout.tsx
+- [x] /src/lib/auth/auth-context.tsx
+- [x] /src/hooks/use-auth-redirect.ts
+- [x] /src/middleware.ts
+
+### スコープ3 (ダッシュボード・LP管理)
+- [x] /src/app/(dashboard)/dashboard/page.tsx
+- [x] /src/app/(dashboard)/lp/page.tsx
+- [x] /src/app/(dashboard)/lp/new/page.tsx
+- [x] /src/components/dashboard/lp-card.tsx
+- [x] /src/components/dashboard/lp-filter.tsx
+- [x] /src/lib/api/lp.ts
+- [x] /src/server/db/lp.ts
+
+## 実装中ファイル
+- [ ] /src/app/(dashboard)/lp/[id]/edit/page.tsx
+- [ ] /src/app/(dashboard)/lp/[id]/page.tsx
+
+## 引継ぎ情報
+
+### 現在のスコープ: スコープ3: ダッシュボード・LP管理
+**スコープID**: DASHBOARD-01  
+**説明**: LP一覧表示と基本的な管理機能の実装  
+
+**含まれる機能**:
+1. ✅ ダッシュボード画面の実装
+2. ✅ LP一覧の表示
+3. ✅ ステータス別フィルタリング
+4. ✅ 検索機能
+5. ✅ LP操作（新規作成、編集、複製、削除）
+6. ✅ LP情報の表示（サムネイル、タイトル、説明、ステータス、作成日、コンバージョン率）
+7. [ ] LP詳細ページの実装
+8. [ ] LP編集ページの実装
+
+**実装すべきファイル**: 
+- [x] src/app/(dashboard)/dashboard/page.tsx
+- [x] src/app/(dashboard)/lp/page.tsx
+- [x] src/components/dashboard/lp-card.tsx
+- [x] src/components/dashboard/lp-filter.tsx
+- [x] src/lib/api/lp.ts
+- [x] src/server/db/lp.ts
+- [x] src/app/(dashboard)/lp/new/page.tsx
+- [ ] src/app/(dashboard)/lp/[id]/page.tsx
+- [ ] src/app/(dashboard)/lp/[id]/edit/page.tsx
 
 ## 環境変数設定状況
 
-### データベース設定
-- [ ] DB_HOST - データベースホスト名
-- [ ] DB_PORT - データベースポート
-- [ ] DB_NAME - データベース名
-- [ ] DB_USER - データベースユーザー名
-- [ ] DB_PASSWORD - データベースパスワード
+- [!] DATABASE_URL - Prismaデータベース接続文字列（開発環境では"postgresql://postgres:password@localhost:5432/ailp"で仮実装）
+- [!] NEXT_PUBLIC_SUPABASE_URL - Supabase URL（開発環境では仮の値で実装中）
+- [!] NEXT_PUBLIC_SUPABASE_ANON_KEY - Supabase匿名キー（開発環境では仮の値で実装中）
 
-### API設定
-- [ ] API_BASE_URL - API基本URL
-- [ ] API_KEY - APIキー
-- [ ] API_VERSION - APIバージョン
+### スコープ別必要環境変数
 
-### サーバー設定
-- [x] PORT - アプリケーションポート
-- [x] NODE_ENV - 実行環境（development/production/test）
+#### スコープ2: ユーザー認証
+必要な環境変数:
+- [!] NEXT_PUBLIC_SUPABASE_URL - Supabase URL（使用確認済み、仮の値で実装中）
+- [!] NEXT_PUBLIC_SUPABASE_ANON_KEY - Supabase匿名キー（使用確認済み、仮の値で実装中）
 
-### 認証設定
-- [ ] JWT_SECRET - JWT認証用シークレットキー
-- [ ] SESSION_SECRET - セッション用シークレットキー
+#### スコープ3: ダッシュボード・LP管理
+必要な環境変数:
+- [!] DATABASE_URL - Prismaデータベース接続文字列（使用確認済み、仮の値で実装中）
 
-### VSCode拡張機能
-- ✅ ダッシュボード
-- ✅ 要件定義エディタ
-- ✅ ディレクトリ構造エディタ 
-- ✅ リファレンスマネージャー
-- ✅ モックアップギャラリー
-- ✅ スコープマネージャー
-- ✅ スコープ実装アシスタント
-- ✅ デバッグ探偵
-- ✅ 環境変数アシスタント
+## 次回実装予定
 
-### 自動化機能
-- ✅ 要件定義と構造変更の自動検出
-- ✅ プロジェクトフェーズの自動更新
-- ✅ CLAUDE.md自動更新
-- ✅ モックアップの自動生成
-- ✅ スコープベースのコード生成
-- ✅ エラー検出と自動修正提案
+### 次のスコープ: スコープ4: AI主導のLP作成機能
+**スコープID**: LP-01  
+**説明**: AI対話を通じてLPを作成する機能の実装  
 
-### AI連携機能
-- ✅ Claude API連携
-- ✅ ストリーミングレスポンス対応
-- ✅ マークダウン処理
-- ✅ コード抽出と保存
-- ✅ スコープベースのプロンプト管理
-- ✅ デバッグコンテキスト分析
+**含まれる機能**:
+1. AIとの対話によるLPデザイン・コンテンツ生成
+2. マーケティングフレームワーク分析
+3. セクション分割とバリアント生成
+4. AIコードジェネレーション（HTML/CSS/JS）
+5. リアルタイムプレビュー
+6. AI主導の修正・改善
 
-## 次の開発ステップ
-1. VSCode-ClaudeCode連携のデバッグ強化
-   - 実装コードの品質検証
-   - 自動テスト生成と実行
-   - 修正適用後の確認機能
-
-2. デプロイ機能の実装
-   - デプロイプロセスの自動化
-   - ホスティング設定支援
-   - デプロイ環境設定の自動生成
-   - デプロイ後の検証支援
-
-3. API連携機能の強化
-   - API連携のインタラクティブ設定
-   - RESTful APIテスト支援
-   - API仕様書自動生成
-   - 外部サービス連携支援
-
-## 最近の実装
-1. デバッグ探偵の実装
-   - エラーログ収集・分析機能
-   - 問題診断と解決策提案インターフェース
-   - シャーロックホームズ風UI/UXデザイン
-   - AI活用による高度なエラー分析と解決
-
-2. 環境変数アシスタントの実装
-   - 環境変数管理UIの実装
-   - リアルタイムUI情報共有システム
-   - 環境変数の自動検出と設定機能
-   - セキュリティ考慮機能（機密情報保護）
-
-3. ClaudeCode連携機能の強化
-   - Scope_Manager_Promptによるスコープ生成の最適化
-   - Scope_Implementation_Assistant_Promptによる実装支援の精度向上
-   - CLAUDE.mdをハブとした情報連携の改善
-   - 複数ファイル連携機能の強化
-
-## 優先度の高い機能
-1. デプロイワークフローの統合
-2. 自動テスト生成の強化
-3. API連携の自動化
-4. パフォーマンス最適化
-
-## 必要な改善点
-- 既存機能の安定性向上
-- デプロイ機能の実装
-- 多様なプロジェクト構成への対応
-- 大規模プロジェクトのパフォーマンス向上
-- ダッシュボード機能拡張
-
-## VSCode拡張インターフェース実装状況
-
-### 実装済み機能
-1. **ダッシュボード**
-   - プロジェクト管理（作成・開読・削除）
-   - 開発フェーズの視覚的表示
-   - ステップごとの進行状況トラッキング
-   - リファレンスマネージャーとの統合
-
-2. **要件定義エディタ**
-   - AIチャットインターフェース
-   - 要件定義ファイル編集機能
-   - ディレクトリ構造編集機能
-   - マークダウンプレビュー
-   - タブ切り替え表示
-
-3. **リファレンスマネージャー**
-   - テキスト参照情報の保存
-   - 画像参照情報の保存
-   - ダッシュボードとの統合
-
-### 技術スタック
-- **フロントエンド**: WebView, JavaScript, CSS
-- **バックエンド**: TypeScript, Node.js
-- **API連携**: Anthropic Claude API
-
-### 実装済みUI要素
-1. **モックアップギャラリー**
-   - ビジュアルエディタ
-   - リアルタイムプレビュー
-   - AI対話インターフェース
-   - スコープ要件生成
-
-2. **スコープマネージャー**
-   - 機能分割ビューア
-   - ファイルチェックリスト
-   - 進捗状況追跡
-   - ClaudeCode連携
-
-3. **スコープ実装アシスタント**
-   - スコープ情報収集インターフェース
-   - 高品質コード生成UI
-   - 進捗表示ダッシュボード
-   - ClaudeCode連携機能
-
-4. **デバッグ探偵**
-   - エラーセッション管理インターフェース
-   - エラーログ表示・分析機能
-   - 問題診断と解決策提案UI
-   - APIとClaudeCode連携
-   - 知見データベース管理
-
-5. **環境変数アシスタント**
-   - 環境変数の直感的管理UI
-   - 自動検出と設定機能
-   - 接続テストと検証機能
-   - セキュリティ考慮（機密情報保護）
-   - ClaudeCode連携によるサポート
-
-### ユーザーフロー（実装済み）
-1. VSCodeでAppGenius拡張を起動
-2. ダッシュボードでプロジェクトを作成または選択
-3. 要件定義タブで要件をAIと対話しながら作成
-4. ディレクトリ構造タブで構造を定義
-5. モックアップギャラリーで各ページのモックアップを作成・編集
-6. スコープマネージャーで実装単位を定義・管理
-7. スコープ実装アシスタントでClaudeCodeを起動し実装
-8. デバッグ探偵でエラーを検出・分析し解決策を提案
-9. 環境変数アシスタントで環境設定を構成
-10. 進捗状況が自動更新され、次のスコープへ進む
+**実装予定ファイル**:
+- [ ] src/app/(dashboard)/lp/[id]/builder/page.tsx
+- [ ] src/components/lp-builder/chat-interface.tsx
+- [ ] src/components/lp-builder/framework-analysis.tsx
+- [ ] src/components/lp-builder/section-editor.tsx
+- [ ] src/components/lp-builder/preview-panel.tsx
+- [ ] src/components/lp-builder/variant-switcher.tsx
+- [ ] src/lib/ai/lp-generator.ts
+- [ ] src/lib/ai/framework-analyzer.ts
+- [ ] src/lib/ai/section-generator.ts
+- [ ] src/server/ai/openai-client.ts
+- [ ] src/server/ai/prompt-templates.ts
+- [ ] src/server/api/lp-builder.ts
