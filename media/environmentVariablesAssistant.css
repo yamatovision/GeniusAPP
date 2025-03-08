@@ -507,6 +507,68 @@ body {
   color: var(--error);
 }
 
+.connection-test-result.testing {
+  background-color: rgba(74, 109, 167, 0.1);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--vscode-progressBar-background);
+  border-top: 2px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.verification-badge {
+  margin-top: 8px;
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.verification-badge.verified {
+  background-color: var(--success);
+  color: white;
+}
+
+.verification-badge.format-only {
+  background-color: var(--warning);
+  color: white;
+}
+
+.verification-time {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.button.verified {
+  background-color: var(--success);
+  color: white;
+}
+
+.status-icon.verified {
+  background-color: var(--primary);
+}
+
+.status-icon.verified::after {
+  content: "✓";
+  color: white;
+}
+
+.env-card.verified {
+  border-left: 4px solid var(--primary);
+  background-color: rgba(74, 109, 167, 0.1);
+}
+
 /* オーバーレイ表示用スタイル（AI操作ガイダンス用） */
 .guidance-overlay {
   position: absolute;

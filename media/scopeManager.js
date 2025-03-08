@@ -129,14 +129,12 @@ const vscode = acquireVsCodeApi();
     // 要素の取得
     const scopeTitle = document.getElementById('scope-title');
     const scopeDescription = document.getElementById('scope-description');
-    const scopePriority = document.getElementById('scope-priority');
-    const scopeComplexity = document.getElementById('scope-complexity');
-    const scopeEstimatedTime = document.getElementById('scope-estimated-time');
     const scopeProgress = document.getElementById('scope-progress');
     const scopeDetailContent = document.getElementById('scope-detail-content');
     const scopeEmptyMessage = document.getElementById('scope-empty-message');
     const scopeActions = document.getElementById('scope-actions');
-    const fileList = document.getElementById('file-list');
+    const fileList = document.getElementById('implementation-files');
+    const inheritanceInfo = document.getElementById('inheritance-info');
     const implementButton = document.getElementById('implement-button');
     const scopeWarnMessage = document.getElementById('scope-warn-message');
     
@@ -159,70 +157,40 @@ const vscode = acquireVsCodeApi();
     if (scopeEmptyMessage) scopeEmptyMessage.style.display = 'none';
     if (scopeActions) scopeActions.style.display = 'block';
     
-    // 機能リストの更新
+    // 実装予定ファイルリストの更新
     if (fileList) {
-      // IDを更新して機能リストと明確にする
-      fileList.id = 'feature-list';
       fileList.innerHTML = '';
       
-      if (!scope.features || scope.features.length === 0) {
-        fileList.innerHTML = '<div class="feature-item">機能が定義されていません</div>';
+      if (!scope.files || scope.files.length === 0) {
+        fileList.innerHTML = '<div class="file-item">実装予定ファイルが定義されていません</div>';
       } else {
-        scope.features.forEach((feature, index) => {
-          const featureItem = document.createElement('div');
-          featureItem.className = 'feature-item';
+        scope.files.forEach((file) => {
+          const fileItem = document.createElement('div');
+          fileItem.className = 'file-item';
           
-          // 擬似的な完了状態を機能インデックスと進捗状況から判断
-          // スコープの進捗に応じて機能を自動的に完了としてマーク
-          const totalFeatures = scope.features.length;
-          const completedFeaturesCount = Math.floor((scope.progress / 100) * totalFeatures);
-          const isCompleted = index < completedFeaturesCount;
-          
-          featureItem.innerHTML = `
-            <input type="checkbox" class="feature-checkbox" ${isCompleted ? 'checked' : ''} />
-            <span>${feature}</span>
+          // 完了状態を表示（読み取り専用）
+          fileItem.innerHTML = `
+            <input type="checkbox" class="file-checkbox" ${file.completed ? 'checked' : ''} disabled />
+            <span>${file.path}</span>
           `;
           
-          // チェックボックスのイベントハンドラー
-          const checkbox = featureItem.querySelector('input');
-          if (checkbox) {
-            checkbox.addEventListener('change', (e) => {
-              // チェックされた機能の数をカウント
-              const checkboxes = fileList.querySelectorAll('input[type="checkbox"]');
-              const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
-              
-              // 進捗率を計算
-              const progress = Math.round((checkedCount / totalFeatures) * 100);
-              
-              vscode.postMessage({
-                command: 'updateScopeStatus',
-                scopeId: scope.id,
-                status: progress === 100 ? 'completed' : (progress > 0 ? 'in-progress' : 'pending'),
-                progress: progress
-              });
-            });
-          }
-          
-          fileList.appendChild(featureItem);
+          fileList.appendChild(fileItem);
         });
       }
     }
     
-    // 環境変数セクションの更新
-    // ここに環境変数の表示を追加することも可能
-    
-    // 依存関係セクションの更新
-    updateDependencySection(scope);
+    // 引継ぎ情報の更新
+    if (inheritanceInfo && scope.inheritanceInfo) {
+      inheritanceInfo.innerHTML = scope.inheritanceInfo || '引継ぎ情報はありません';
+    } else if (inheritanceInfo) {
+      inheritanceInfo.innerHTML = '引継ぎ情報はありません';
+    }
     
     // 実装ボタンの状態更新
     if (implementButton) {
       // 完了済みのスコープは実装ボタンを無効化
       const isCompleted = scope.status === 'completed';
       implementButton.disabled = isCompleted;
-      
-      // 依存関係のチェック（仮の実装 - 実際には依存関係の情報が必要）
-      const hasDependencies = false;
-      const dependenciesCompleted = true;
       
       if (isCompleted) {
         implementButton.textContent = '✅ 実装完了';
@@ -234,75 +202,35 @@ const vscode = acquireVsCodeApi();
       
       // 依存関係の警告メッセージ
       if (scopeWarnMessage) {
-        scopeWarnMessage.style.display = (hasDependencies && !dependenciesCompleted) ? 'block' : 'none';
+        scopeWarnMessage.style.display = 'none'; // 簡略化のため非表示に
       }
     }
   }
   
   /**
-   * 依存関係セクションの更新
+   * 環境変数アシスタントを開くボタンを追加
    */
-  function updateDependencySection(scope) {
-    const dependenciesContent = document.getElementById('dependencies-content');
-    if (!dependenciesContent) return;
+  function addEnvironmentVariablesButton() {
+    const actionsArea = document.getElementById('scope-actions');
+    if (!actionsArea) return;
     
-    // 環境変数関連の情報を表示
-    dependenciesContent.innerHTML = '';
-    
-    // セクションタイトルの追加
-    const envVarsTitle = document.createElement('h3');
-    envVarsTitle.textContent = '必要な環境変数';
-    envVarsTitle.style.marginTop = '0';
-    dependenciesContent.appendChild(envVarsTitle);
-    
-    // 仮の環境変数リスト - 実際にはCURRENT_STATUS.mdから取得する必要がある
-    // この部分は後でサーバーサイドから正確なデータで更新
-    const envVars = [
-      { name: 'API_KEY', description: 'API認証キー', status: 'unconfigured' },
-      { name: 'DATABASE_URL', description: 'データベース接続URL', status: 'configured' },
-      { name: 'PORT', description: 'サーバーポート', status: 'unconfigured' }
-    ];
-    
-    if (envVars.length === 0) {
-      const noVarsMessage = document.createElement('p');
-      noVarsMessage.textContent = 'このスコープで必要な環境変数はありません';
-      dependenciesContent.appendChild(noVarsMessage);
-    } else {
-      // 環境変数リストの表示
-      const envVarsList = document.createElement('div');
-      envVarsList.className = 'env-vars-list';
-      
-      envVars.forEach(envVar => {
-        const envVarItem = document.createElement('div');
-        envVarItem.className = 'env-var-item';
-        
-        // 環境変数の状態に基づいてチェックボックスの状態を設定
-        const isConfigured = envVar.status === 'configured';
-        
-        envVarItem.innerHTML = `
-          <input type="checkbox" class="env-var-checkbox" ${isConfigured ? 'checked' : ''} disabled />
-          <div class="env-var-details">
-            <span class="env-var-name">${envVar.name}</span>
-            <span class="env-var-description">${envVar.description}</span>
-          </div>
-        `;
-        
-        envVarsList.appendChild(envVarItem);
-      });
-      
-      dependenciesContent.appendChild(envVarsList);
-      
-      // 環境変数設定ボタン
-      const configButton = document.createElement('button');
-      configButton.className = 'button button-secondary';
-      configButton.textContent = '環境変数アシスタントを開く';
-      configButton.style.marginTop = '12px';
-      configButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'openEnvironmentVariablesAssistant' });
-      });
-      
-      dependenciesContent.appendChild(configButton);
+    // 既存のボタンがあれば削除
+    const existingButton = document.getElementById('env-vars-button');
+    if (existingButton) {
+      existingButton.remove();
     }
+    
+    // 環境変数設定ボタンを追加
+    const configButton = document.createElement('button');
+    configButton.id = 'env-vars-button';
+    configButton.className = 'button button-secondary';
+    configButton.style.marginLeft = '8px';
+    configButton.innerHTML = '<i class="material-icons" style="margin-right: 4px;">settings</i>環境変数アシスタント';
+    configButton.addEventListener('click', () => {
+      vscode.postMessage({ command: 'openEnvironmentVariablesAssistant' });
+    });
+    
+    actionsArea.appendChild(configButton);
   }
   
   /**

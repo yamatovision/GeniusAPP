@@ -145,6 +145,10 @@
           handleShowError(message.message);
           break;
           
+        case 'connectionTestStart':
+          handleConnectionTestStart(message);
+          break;
+          
         case 'connectionTestResult':
           handleConnectionTestResult(message);
           break;
@@ -202,17 +206,12 @@
     }, 5000);
   }
   
-  // 接続テスト結果を処理
-  function handleConnectionTestResult(message) {
-    const { connectionType, success, message: resultMessage } = message;
+  // 接続テストの開始を処理
+  function handleConnectionTestStart(message) {
+    const { connectionType, name } = message;
     
-    // 接続テスト結果をUIに表示（簡易的な実装）
-    const resultDiv = document.createElement('div');
-    resultDiv.className = `connection-test-result ${success ? 'success' : 'error'}`;
-    resultDiv.textContent = resultMessage;
-    
-    // 対応するカードに表示
-    const card = document.querySelector(`.env-card[data-type="${connectionType}"]`);
+    // 対応するカードを見つける
+    const card = document.querySelector(`.env-card[data-name="${name}"]`);
     if (card) {
       // 既存の結果表示を削除
       const existingResult = card.querySelector('.connection-test-result');
@@ -220,8 +219,103 @@
         existingResult.remove();
       }
       
+      // テスト中のメッセージを表示
+      const testingDiv = document.createElement('div');
+      testingDiv.className = 'connection-test-result testing';
+      testingDiv.innerHTML = `
+        <div class="spinner-small"></div>
+        <span>接続テスト実行中...</span>
+      `;
+      card.appendChild(testingDiv);
+      
+      // テストボタンを無効化
+      const testButton = card.querySelector('.button-test');
+      if (testButton) {
+        testButton.disabled = true;
+        testButton.textContent = 'テスト中...';
+      }
+    }
+  }
+  
+  // 接続テスト結果を処理
+  function handleConnectionTestResult(message) {
+    const { connectionType, success, verified, lastVerified, message: resultMessage } = message;
+    
+    // 対応するカードをname属性で探す（データ型ではなく変数名で検索）
+    const cards = document.querySelectorAll(`.env-card`);
+    let targetCard = null;
+    
+    // 該当するカードを探す
+    cards.forEach(card => {
+      const input = card.querySelector('.env-input');
+      if (input && input.dataset.name && getConnectionType(input.dataset.name, card.getAttribute('data-category')) === connectionType) {
+        targetCard = card;
+      }
+    });
+    
+    if (targetCard) {
+      // 既存の結果表示を削除
+      const existingResult = targetCard.querySelector('.connection-test-result');
+      if (existingResult) {
+        existingResult.remove();
+      }
+      
+      // テストボタンを再有効化
+      const testButton = targetCard.querySelector('.button-test');
+      if (testButton) {
+        testButton.disabled = false;
+        testButton.textContent = verified ? '接続テスト済み' : '接続テスト';
+        
+        // 検証済みなら色を変える
+        if (verified) {
+          testButton.classList.add('verified');
+        } else {
+          testButton.classList.remove('verified');
+        }
+      }
+      
       // 新しい結果を表示
-      card.appendChild(resultDiv);
+      const resultDiv = document.createElement('div');
+      resultDiv.className = `connection-test-result ${success ? 'success' : 'error'}`;
+      
+      // 結果内容を構築
+      let resultContent = resultMessage;
+      
+      // 検証状態を追加
+      if (success) {
+        if (verified) {
+          resultContent += `<div class="verification-badge verified">✓ 接続確認済み</div>`;
+          if (lastVerified) {
+            const date = new Date(lastVerified);
+            resultContent += `<div class="verification-time">テスト日時: ${date.toLocaleString()}</div>`;
+          }
+        } else {
+          resultContent += `<div class="verification-badge format-only">⚠ 形式確認のみ</div>`;
+        }
+      }
+      
+      resultDiv.innerHTML = resultContent;
+      targetCard.appendChild(resultDiv);
+      
+      // 環境変数カードのステータスクラスを更新
+      if (success) {
+        if (verified) {
+          targetCard.classList.add('verified');
+          
+          // ステータスアイコンも更新
+          const statusIcon = targetCard.querySelector('.status-icon');
+          if (statusIcon) {
+            statusIcon.classList.add('verified');
+            statusIcon.classList.remove('completed', 'warning');
+            
+            // 親要素のテキスト更新
+            const statusText = statusIcon.parentElement;
+            if (statusText) {
+              statusText.textContent = '接続確認済み';
+            }
+          }
+        }
+      }
     }
   }
   
@@ -394,7 +488,7 @@
     if (!state.activeEnvFile) {
       const message = document.createElement('div');
       message.className = 'no-file-message';
-      message.textContent = 'CLAUDE.mdからの環境変数情報を読み込み中です。「AIアシスタントを起動」をクリックして、必要な環境変数を分析してください。';
+      message.textContent = 'env.mdとCLAUDE.mdから環境変数情報を読み込み中です。「AIアシスタントを起動」をクリックして、必要な環境変数を分析してください。';
       elements.envList.appendChild(message);
       return;
     }
@@ -404,7 +498,7 @@
     if (!activeVars || Object.keys(activeVars).length === 0) {
       const message = document.createElement('div');
       message.className = 'no-variables-message';
-      message.textContent = 'CLAUDE.mdからの環境変数情報が見つかりません。「プロジェクト分析を開始」をクリックしてプロジェクトに必要な環境変数を特定してください。';
+      message.textContent = 'env.mdからの環境変数情報が見つかりません。「プロジェクト分析を開始」をクリックしてプロジェクトに必要な環境変数を特定してください。';
       elements.envList.appendChild(message);
       return;
     }
@@ -854,7 +948,7 @@
     
     // 接続テスト可能なカテゴリの場合は検証ボタンを追加
     if (category === 'database' || category === 'api' || name.toLowerCase().includes('smtp')) {
-      buttons += `<button class="button button-secondary button-test" data-claude-id="button-test-${name}">CLAUDE.mdに追加</button>`;
+      buttons += `<button class="button button-secondary button-test" data-claude-id="button-test-${name}">接続テスト</button>`;
     }
     
     return buttons;

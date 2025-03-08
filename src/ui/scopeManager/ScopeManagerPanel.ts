@@ -126,6 +126,9 @@ export class ScopeManagerPanel {
             case 'addNewScope':
               await this._handleAddNewScope();
               break;
+            case 'openEnvironmentVariablesAssistant':
+              await this._handleOpenEnvironmentVariablesAssistant();
+              break;
             case 'launchScopeCreator':
               await this._handleLaunchScopeCreator();
               break;
@@ -250,8 +253,8 @@ export class ScopeManagerPanel {
       let directoryStructure = '';
       let completedFiles: string[] = [];
       let inProgressFiles: string[] = [];
-      let environmentVariables: any[] = [];
       let nextScope: any = null;
+      let inheritanceInfo: string = '';
       
       // 行ごとに処理
       const lines = content.split(/\r?\n/);
@@ -264,60 +267,6 @@ export class ScopeManagerPanel {
         if (line.startsWith('## ')) {
           currentSection = line.substring(3).trim();
           i++;
-          
-          // 環境変数セクションの処理
-          if (currentSection === '環境変数設定状況') {
-            // サブセクション（カテゴリ）を処理
-            while (i < lines.length && !lines[i].startsWith('## ')) {
-              const currentLine = lines[i];
-              
-              // カテゴリヘッダーを検出
-              if (currentLine.startsWith('### ')) {
-                const category = currentLine.substring(4).trim();
-                i++;
-                
-                // カテゴリ内の環境変数を処理
-                while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
-                  const envVarLine = lines[i].trim();
-                  
-                  // チェックボックス形式の行をパース
-                  const envVarMatch = envVarLine.match(/- \[([ x!])\] ([A-Z0-9_]+)(?: - (.+))?/);
-                  
-                  if (envVarMatch) {
-                    const status = envVarMatch[1];
-                    const name = envVarMatch[2];
-                    const description = envVarMatch[3] || '';
-                    
-                    let statusCode = 'unconfigured';
-                    if (status === 'x') {
-                      statusCode = 'configured';
-                    } else if (status === '!') {
-                      statusCode = 'used';
-                    }
-                    
-                    environmentVariables.push({
-                      name,
-                      description,
-                      category,
-                      status: statusCode
-                    });
-                  }
-                  
-                  i++;
-                }
-                
-                // カテゴリが終わっていなければ続ける
-                if (i < lines.length && !lines[i].startsWith('##')) {
-                  continue;
-                }
-              } else {
-                i++;
-              }
-            }
-            
-            continue;
-          }
-          
           continue;
         }
         
@@ -325,10 +274,11 @@ export class ScopeManagerPanel {
         if (currentSection === 'スコープ状況') {
           if (line.startsWith('### 完了済みスコープ')) {
             i++;
-            while (i < lines.length && !lines[i].startsWith('###')) {
+            while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const scopeLine = lines[i].trim();
-              if (scopeLine.match(/- \[x\] (.+?) \(100%\)/)) {
-                const name = scopeLine.match(/- \[x\] (.+?) \(100%\)/)![1];
+              const match = scopeLine.match(/- \[x\] (.+?) \(100%\)/);
+              if (match) {
+                const name = match[1];
                 completedScopes.push({
                   name,
                   status: 'completed',
@@ -340,7 +290,7 @@ export class ScopeManagerPanel {
             continue;
           } else if (line.startsWith('### 進行中スコープ')) {
             i++;
-            while (i < lines.length && !lines[i].startsWith('###')) {
+            while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const scopeLine = lines[i].trim();
               const match = scopeLine.match(/- \[ \] (.+?) \((\d+)%\)/);
               if (match) {
@@ -357,7 +307,7 @@ export class ScopeManagerPanel {
             continue;
           } else if (line.startsWith('### 未着手スコープ')) {
             i++;
-            while (i < lines.length && !lines[i].startsWith('##')) {
+            while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const scopeLine = lines[i].trim();
               const match = scopeLine.match(/- \[ \] (.+?) \(0%\)/);
               if (match) {
@@ -385,37 +335,100 @@ export class ScopeManagerPanel {
             }
             directoryStructure = structureContent;
             this._directoryStructure = structureContent;
+            i++; // ```の行をスキップ
+            continue;
           }
         }
         
-        // 実装完了ファイルセクションの処理
-        if (currentSection === '実装完了ファイル') {
-          if (line.trim().startsWith('- ✅ ')) {
-            const filePath = line.match(/- ✅ (.+?) \(/)?.[1];
-            if (filePath) {
-              completedFiles.push(filePath);
+        // 実装完了ファイルセクションの処理（スコープ別）
+        if (currentSection.includes('実装完了ファイル')) {
+          // スコープ別のファイルリストを処理
+          if (line.startsWith('### スコープ') || line.trim().startsWith('- [x]')) {
+            let currentScopeName = '';
+            
+            // スコープヘッダーを検出
+            if (line.startsWith('### スコープ')) {
+              currentScopeName = line.substring(4).trim();
+              i++;
             }
+            
+            // ファイルリストを処理
+            while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
+              const fileLine = lines[i].trim();
+              if (fileLine.startsWith('- [x]')) {
+                const filePath = fileLine.match(/- \[x\] ([^\(\)]+)/)?.[1]?.trim();
+                if (filePath) {
+                  completedFiles.push(filePath);
+                  
+                  // 該当するスコープのファイルリストを更新
+                  const scopesToUpdate = [...completedScopes, ...inProgressScopes, ...pendingScopes];
+                  scopesToUpdate.forEach(scope => {
+                    if (scope.name === currentScopeName || fileLine.includes(scope.name)) {
+                      if (!scope.files) scope.files = [];
+                      
+                      // 既存のファイルリストにあれば更新、なければ追加
+                      const fileIndex = scope.files.findIndex((f: any) => f.path === filePath);
+                      if (fileIndex >= 0) {
+                        scope.files[fileIndex].completed = true;
+                      } else {
+                        scope.files.push({
+                          path: filePath,
+                          completed: true
+                        });
+                      }
+                    }
+                  });
+                }
+              }
+              i++;
+            }
+            continue;
           }
         }
         
         // 実装中ファイルセクションの処理
         if (currentSection === '実装中ファイル') {
-          if (line.trim().startsWith('- ⏳ ')) {
-            const filePath = line.match(/- ⏳ (.+?) \(/)?.[1];
+          if (line.trim().startsWith('- [ ]')) {
+            const filePath = line.match(/- \[ \] ([^\(\)]+)/)?.[1]?.trim();
             if (filePath) {
               inProgressFiles.push(filePath);
+              
+              // 進行中スコープのファイルリストを更新
+              inProgressScopes.forEach(scope => {
+                if (line.includes(scope.name)) {
+                  if (!scope.files) scope.files = [];
+                  
+                  // 既存のファイルリストにあれば更新、なければ追加
+                  const fileIndex = scope.files.findIndex((f: any) => f.path === filePath);
+                  if (fileIndex >= 0) {
+                    scope.files[fileIndex].completed = false;
+                  } else {
+                    scope.files.push({
+                      path: filePath,
+                      completed: false
+                    });
+                  }
+                }
+              });
             }
           }
+          i++;
+          continue;
         }
         
-        // 現在のスコープ情報の処理
+        // 引継ぎ情報セクションの処理
         if (currentSection === '引継ぎ情報') {
+          // 現在のスコープ情報の処理
           if (line.startsWith('### 現在のスコープ:')) {
             const scopeName = line.substring('### 現在のスコープ:'.length).trim();
             let scopeId = '';
             let description = '';
             let features = [];
             let files = [];
+            
+            // 引継ぎ情報の内容をキャプチャ
+            let sectionStartIdx = i;
+            let sectionEndIdx = i;
             
             i++;
             while (i < lines.length && !lines[i].startsWith('##')) {
@@ -433,6 +446,7 @@ export class ScopeManagerPanel {
                 }
                 continue;
               } else if (currentLine.startsWith('**実装すべきファイル**:')) {
+                sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
                 i++;
                 while (i < lines.length && lines[i].trim().startsWith('- [')) {
                   const fileMatch = lines[i].match(/- \[([ x])\] (.+)/);
@@ -452,6 +466,11 @@ export class ScopeManagerPanel {
               i++;
             }
             
+            // 引継ぎ情報を抽出
+            if (sectionEndIdx > sectionStartIdx) {
+              inheritanceInfo = lines.slice(sectionStartIdx, sectionEndIdx + 1).join('\n');
+            }
+            
             // 現在進行中のスコープを選択
             const found = [...completedScopes, ...inProgressScopes, ...pendingScopes].find(s => s.name.includes(scopeName));
             if (found) {
@@ -460,7 +479,8 @@ export class ScopeManagerPanel {
                 id: scopeId,
                 description,
                 features,
-                files
+                files,
+                inheritanceInfo
               };
             } else if (scopeName) {
               // スコープリストに存在しないが、スコープ名が記載されている場合は新規作成
@@ -471,7 +491,8 @@ export class ScopeManagerPanel {
                 status: 'pending',
                 progress: 0,
                 features,
-                files
+                files,
+                inheritanceInfo
               };
               
               pendingScopes.push(newScope);
@@ -491,6 +512,10 @@ export class ScopeManagerPanel {
             let features = [];
             let files = [];
             let dependencies = [];
+            
+            // 引継ぎ情報の開始位置
+            let sectionStartIdx = i;
+            let sectionEndIdx = i;
             
             i++;
             while (i < lines.length && !lines[i].startsWith('##')) {
@@ -515,6 +540,7 @@ export class ScopeManagerPanel {
                 }
                 continue;
               } else if (currentLine.startsWith('**実装予定ファイル**:')) {
+                sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
                 i++;
                 while (i < lines.length && lines[i].trim().startsWith('- [')) {
                   const fileMatch = lines[i].match(/- \[([ x])\] (.+)/);
@@ -534,6 +560,12 @@ export class ScopeManagerPanel {
               i++;
             }
             
+            // 引継ぎ情報を抽出
+            let nextInheritanceInfo = '';
+            if (sectionEndIdx > sectionStartIdx) {
+              nextInheritanceInfo = lines.slice(sectionStartIdx, sectionEndIdx + 1).join('\n');
+            }
+            
             // 次のスコープ情報を保存
             nextScope = {
               name: scopeName,
@@ -543,7 +575,8 @@ export class ScopeManagerPanel {
               progress: 0,
               features,
               files,
-              dependencies
+              dependencies,
+              inheritanceInfo: nextInheritanceInfo
             };
             
             // もし次のスコープが未着手スコープリストに存在しなければ追加
@@ -559,9 +592,6 @@ export class ScopeManagerPanel {
         i++;
       }
       
-      // 環境変数情報のログ出力
-      Logger.info(`環境変数情報を ${environmentVariables.length} 件読み込みました`);
-      
       // すべてのスコープをまとめる
       this._scopes = [...completedScopes, ...inProgressScopes, ...pendingScopes];
       
@@ -572,11 +602,12 @@ export class ScopeManagerPanel {
         // 現在のスコープを特定
         if (this._currentScope && scope.name.includes(this._currentScope.name)) {
           this._selectedScopeIndex = index;
+          
+          // 現在のスコープが既に選択されている場合は、引継ぎ情報を引き継ぐ
+          if (this._currentScope.inheritanceInfo) {
+            scope.inheritanceInfo = this._currentScope.inheritanceInfo;
+          }
         }
-        
-        // 環境変数をスコープに関連付け（一時的な実装 - 本来は特定のスコープに関連する環境変数のみをフィルタリング）
-        // ここでは単純にすべての環境変数をスコープに追加（実際の実装では要修正）
-        scope.environmentVariables = environmentVariables;
       });
       
       // 現在のスコープが選択されていない場合、次のスコープを選択
@@ -585,6 +616,11 @@ export class ScopeManagerPanel {
         if (nextScopeIndex >= 0) {
           this._selectedScopeIndex = nextScopeIndex;
           this._currentScope = this._scopes[nextScopeIndex];
+          
+          // 次のスコープに引継ぎ情報がある場合は設定
+          if (nextScope.inheritanceInfo) {
+            this._currentScope.inheritanceInfo = nextScope.inheritanceInfo;
+          }
         }
       }
       
@@ -793,6 +829,21 @@ export class ScopeManagerPanel {
     } catch (error) {
       Logger.error('実装アシスタントの起動に失敗しました', error as Error);
       await this._showError(`実装アシスタントの起動に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 環境変数アシスタントを開く
+   */
+  private async _handleOpenEnvironmentVariablesAssistant(): Promise<void> {
+    try {
+      // 環境変数アシスタントを開くコマンドを実行
+      await vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', this._projectPath);
+      
+      Logger.info('環境変数アシスタントを開きました');
+    } catch (error) {
+      Logger.error('環境変数アシスタントの起動に失敗しました', error as Error);
+      await this._showError(`環境変数アシスタントの起動に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -1411,20 +1462,7 @@ export class ScopeManagerPanel {
       background-color: var(--vscode-terminal-ansiRed);
     }
     
-    .dependency-graph {
-      width: 100%;
-      height: 200px;
-      border: 1px solid var(--vscode-panel-border);
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin-top: 16px;
-      overflow: hidden;
-    }
-    
-    .feature-list, .env-var-list {
+    .file-list {
       max-height: 300px;
       overflow-y: auto;
       border: 1px solid var(--vscode-panel-border);
@@ -1433,15 +1471,25 @@ export class ScopeManagerPanel {
       margin-top: 12px;
     }
     
-    .feature-item, .env-var-item {
+    .file-item {
       display: flex;
       align-items: center;
       padding: 4px 0;
     }
     
-    .feature-checkbox, .env-var-checkbox {
+    .file-checkbox {
       margin-right: 8px;
-      cursor: pointer;
+      cursor: default;
+    }
+    
+    .inheritance-info {
+      margin-top: 20px;
+      padding: 12px;
+      background-color: var(--vscode-editor-infoBackground);
+      border-radius: 4px;
+      border-left: 4px solid var(--vscode-infoForeground);
+      font-size: 14px;
+      line-height: 1.5;
     }
     
     .scope-action-button {
@@ -1458,16 +1506,6 @@ export class ScopeManagerPanel {
     
     .progress-section {
       margin-top: 24px;
-    }
-    
-    .dependency-chip {
-      margin: 4px !important;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
-      background-color: var(--vscode-badge-background);
-      color: var(--vscode-badge-foreground);
-      display: inline-block;
     }
     
     .scope-detail-header {
@@ -1517,15 +1555,6 @@ export class ScopeManagerPanel {
     .material-icons {
       font-size: 20px;
       vertical-align: middle;
-    }
-    
-    /* スタイリングは feature-list, env-var-list に統合済み */
-    
-    .metadata-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-      margin-bottom: 20px;
     }
     
     .metadata-item {
@@ -1580,35 +1609,6 @@ export class ScopeManagerPanel {
       padding-top: 16px;
       border-top: 1px solid var(--vscode-panel-border);
     }
-    
-    .form-group {
-      margin-bottom: 16px;
-    }
-    
-    .form-label {
-      display: block;
-      margin-bottom: 4px;
-    }
-    
-    .form-input {
-      width: 100%;
-      padding: 6px 8px;
-      background-color: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border);
-      border-radius: 2px;
-    }
-    
-    .form-textarea {
-      width: 100%;
-      padding: 6px 8px;
-      background-color: var(--vscode-input-background);
-      color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border);
-      border-radius: 2px;
-      min-height: 80px;
-      resize: vertical;
-    }
   </style>
 </head>
 <body>
@@ -1652,11 +1652,9 @@ export class ScopeManagerPanel {
             <div class="scope-detail-header">
               <h2 id="scope-title">スコープを選択してください</h2>
               <div id="scope-actions" style="display: none;">
-                <button id="edit-scope-button" class="icon-button">
-                  <i class="material-icons">edit</i>
-                </button>
-                <button id="dependency-graph-button" class="icon-button">
-                  <i class="material-icons">share</i>
+                <button id="implement-button" class="button">
+                  <i class="material-icons" style="margin-right: 4px;">code</i>
+                  実装開始
                 </button>
               </div>
             </div>
@@ -1669,23 +1667,16 @@ export class ScopeManagerPanel {
                 <div id="scope-progress" class="metadata-value"></div>
               </div>
               
-              <h3 style="margin-top: 20px;">実装対象機能</h3>
-              <div id="feature-list" class="feature-list">
-                <!-- 機能リストがここに動的に生成されます -->
-                <div class="feature-item">機能が定義されていません</div>
+              <h3 style="margin-top: 20px;">実装予定ファイル</h3>
+              <div id="implementation-files" class="file-list">
+                <!-- ファイルリストがここに動的に生成されます -->
+                <div class="file-item">実装予定ファイルが定義されていません</div>
               </div>
               
-              <h3 style="margin-top: 20px;">必要な環境変数</h3>
-              <div id="env-var-list" class="env-var-list">
-                <!-- 環境変数リストがここに動的に生成されます -->
-                <div class="env-var-item">必要な環境変数はありません</div>
+              <div id="inheritance-info" class="inheritance-info">
+                引継ぎ情報はありません
               </div>
               
-              <!-- ボタンエリア -->
-              <button id="implement-button" class="button scope-action-button" style="width: 100%;">
-                <i class="material-icons" style="margin-right: 4px;">code</i>
-                このスコープの実装を開始する
-              </button>
               <div id="scope-warn-message" style="color: var(--vscode-errorForeground); margin-top: 8px; text-align: center; display: none;">
                 このスコープを実装するには、事前に必要な準備をすべて完了させてください。
               </div>
@@ -1695,35 +1686,6 @@ export class ScopeManagerPanel {
               左側のリストからスコープを選択してください。
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-    
-    <!-- 編集ダイアログ -->
-    <div id="edit-dialog" class="dialog-overlay" style="display: none;">
-      <div class="dialog">
-        <h3 class="dialog-title">スコープを編集</h3>
-        <div>
-          <div class="form-group">
-            <label class="form-label" for="edit-name">スコープ名</label>
-            <input type="text" id="edit-name" class="form-input">
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="edit-description">説明</label>
-            <textarea id="edit-description" class="form-textarea"></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="edit-features">実装対象機能（1行に1つの機能）</label>
-            <textarea id="edit-features" class="form-textarea"></textarea>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="edit-env-vars">必要な環境変数（1行に1つ、書式: 変数名 - 説明）</label>
-            <textarea id="edit-env-vars" class="form-textarea"></textarea>
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <button id="edit-cancel" class="button button-secondary">キャンセル</button>
-          <button id="edit-save" class="button">保存</button>
         </div>
       </div>
     </div>
