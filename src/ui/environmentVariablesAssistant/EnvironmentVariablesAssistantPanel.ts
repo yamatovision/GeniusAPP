@@ -2093,7 +2093,7 @@ ${this._generateEnvironmentVariablesList('production')}
       }
       
       // ディレクトリパスを構築
-      this._claudeUiDataDir = path.join(this._projectPath, '.claude_ui_data');
+      this._claudeUiDataDir = path.join(this._projectPath, '.claude_data');
       
       // ディレクトリが存在しない場合は作成
       if (!fs.existsSync(this._claudeUiDataDir)) {
@@ -2107,7 +2107,7 @@ ${this._generateEnvironmentVariablesList('production')}
       }
       
       // .gitignoreファイルに追加
-      await this._addDirToGitignore('.claude_ui_data/');
+      await this._addDirToGitignore('.claude_data/');
       
       // アクションファイルの初期化
       const actionsFilePath = path.join(this._claudeUiDataDir, 'actions.json');
@@ -2412,7 +2412,7 @@ ${this._generateEnvironmentVariablesList('production')}
       
       // プロンプトファイル名と内容を作成
       const timestamp = Date.now();
-      const promptPath = path.join(tempDir, `env-assistant-${timestamp}.md`);
+      const promptPath = path.join(tempDir, `combined_env_${timestamp}.md`);
       
       // テンプレートから内容を作成
       const content = this._generateEnvAssistantPrompt();
@@ -2439,6 +2439,16 @@ ${this._generateEnvironmentVariablesList('production')}
    * 環境変数アシスタント用のプロンプトを生成
    */
   private _generateEnvAssistantPrompt(): string {
+    // プロンプトファイルがあれば読み込む
+    const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'environment_manager.md');
+    if (fs.existsSync(promptFilePath)) {
+      try {
+        return fs.readFileSync(promptFilePath, 'utf8');
+      } catch (error) {
+        Logger.error(`環境変数アシスタントプロンプトファイルの読み込みに失敗しました: ${promptFilePath}`, error as Error);
+      }
+    }
+    
     // プロジェクトパスと環境変数ファイルパスを取得
     const projectPath = this._projectPath;
     const envFilePath = this._activeEnvFile || path.join(projectPath, '.env');

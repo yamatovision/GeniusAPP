@@ -576,7 +576,7 @@ export class MockupGalleryPanel {
       }
       
       // テンプレートパスの構築
-      const templatePath = path.join(this._projectPath, 'docs/mockup_analysis_template.md');
+      const templatePath = path.join(this._projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
       
       // ターミナルの作成
       const terminal = vscode.window.createTerminal({
@@ -611,7 +611,7 @@ export class MockupGalleryPanel {
           }
           
           // 一時的なテンプレートファイルパス
-          const tempTemplatePath = path.join(tempDir, `mockup_analysis_${mockup.name}_${Date.now()}.md`);
+          const tempTemplatePath = path.join(tempDir, `combined_mockup_${Date.now()}.md`);
           
           // テンプレートファイルの内容を読み込む
           let templateContent = fs.readFileSync(templatePath, 'utf8');

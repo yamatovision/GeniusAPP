@@ -43,11 +43,11 @@ export class DebugDetectivePanel {
         throw new Error('プロジェクトパスが指定されていません');
       }
       
-      // DebagDetector.mdファイルの存在を確認
-      const debugPromptPath = path.join(projectPath, 'docs', 'DebagDetector.md');
+      // デバッグプロンプトファイルの存在を確認
+      const debugPromptPath = path.join(projectPath, 'docs', 'prompts', 'debug_detective.md');
       if (!fs.existsSync(debugPromptPath)) {
         Logger.warn(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
-        vscode.window.showWarningMessage(`デバッグプロンプトファイル（DebagDetector.md）が見つかりません。調査機能が制限されます。`);
+        vscode.window.showWarningMessage(`デバッグプロンプトファイル（debug_detective.md）が見つかりません。調査機能が制限されます。`);
       }
       
       const column = vscode.window.activeTextEditor
@@ -212,12 +212,12 @@ export class DebugDetectivePanel {
       // 知見ベース初期化
       await this._knowledgeBaseManager.initialize();
       
-      // DebagDetector.mdファイルの存在を確認
-      const debugPromptPath = path.join(this._projectPath, 'docs', 'DebagDetector.md');
+      // デバッグプロンプトファイルの存在を確認
+      const debugPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'debug_detective.md');
       Logger.info(`デバッグプロンプトファイルをチェックします: ${debugPromptPath}`);
       if (!fs.existsSync(debugPromptPath)) {
         Logger.warn(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
-        vscode.window.showWarningMessage(`デバッグプロンプトファイルが見つかりません: DebagDetector.md`);
+        vscode.window.showWarningMessage(`デバッグプロンプトファイルが見つかりません: debug_detective.md`);
       } else {
         Logger.info(`デバッグプロンプトファイルを確認しました: ${debugPromptPath}`);
       }
@@ -413,12 +413,12 @@ export class DebugDetectivePanel {
       }
       
       // 調査用プロンプトを作成
-      const debugPromptPath = path.join(this._projectPath, 'docs', 'DebagDetector.md');
+      const debugPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'debug_detective.md');
       
       // プロンプトファイルの存在確認
       if (!fs.existsSync(debugPromptPath)) {
         Logger.error(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
-        throw new Error(`デバッグプロンプトファイル（DebagDetector.md）が見つかりません。docs/DebagDetector.mdを確認してください。`);
+        throw new Error(`デバッグプロンプトファイル（debug_detective.md）が見つかりません。docs/prompts/debug_detective.mdを確認してください。`);
       }
       
       // 実際のファイル内容を読み込み
@@ -434,7 +434,7 @@ export class DebugDetectivePanel {
       
       const combinedPromptPath = path.join(
         tempDir, 
-        `debug_investigation_${Date.now()}.md`
+        `combined_debug_${Date.now()}.md`
       );
       
       Logger.info(`デバッグプロンプトファイルを読み込みます: ${debugPromptPath}`);

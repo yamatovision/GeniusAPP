@@ -772,7 +772,7 @@ export class ScopeManagerPanel {
       }
       
       // スコープマネージャプロンプトのパスを取得
-      const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Manager_Prompt.md');
+      const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_manager.md');
       
       if (!fs.existsSync(promptFilePath)) {
         throw new Error(`スコープマネージャプロンプトファイルが見つかりません: ${promptFilePath}`);
@@ -807,7 +807,7 @@ export class ScopeManagerPanel {
       }
       
       // 実装アシスタントプロンプトのパスを取得
-      const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Implementation_Assistant_Prompt.md');
+      const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_implementer.md');
       
       if (!fs.existsSync(promptFilePath)) {
         throw new Error(`実装アシスタントプロンプトファイルが見つかりません: ${promptFilePath}`);
@@ -854,7 +854,7 @@ export class ScopeManagerPanel {
       }
       
       // 実装アシスタントプロンプトのパスを取得
-      const promptFilePath = path.join(this._projectPath, 'docs', 'Scope_Implementation_Assistant_Prompt.md');
+      const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_implementer.md');
       
       // CURRENT_STATUS.mdファイルへの参照を追加
       const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');

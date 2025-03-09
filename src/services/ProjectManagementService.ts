@@ -186,22 +186,39 @@ export class ProjectManagementService {
       fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'archived', '.gitkeep'), '', 'utf8');
       fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'knowledge', '.gitkeep'), '', 'utf8');
       
-      // ClaudeCode UI共有ディレクトリの作成
-      this.ensureDirectoryExists(path.join(projectPath, '.claude_ui_data'));
-      this.ensureDirectoryExists(path.join(projectPath, '.claude_ui_data', 'screenshots'));
+      // ClaudeCode データ共有ディレクトリの作成
+      this.ensureDirectoryExists(path.join(projectPath, '.claude_data'));
+      this.ensureDirectoryExists(path.join(projectPath, '.claude_data', 'screenshots'));
       
-      // .gitignoreに.claude_ui_data/を追加
+      // 一時ファイル用ディレクトリの作成
+      this.ensureDirectoryExists(path.join(projectPath, 'temp'));
+      
+      // .gitignoreに.claude_data/とtemp/を追加
       const gitignorePath = path.join(projectPath, '.gitignore');
       if (!fs.existsSync(gitignorePath)) {
-        fs.writeFileSync(gitignorePath, '.claude_ui_data/\n', 'utf8');
+        fs.writeFileSync(gitignorePath, '.claude_data/\ntemp/\n', 'utf8');
       } else {
-        // 既存のgitignoreがあれば内容を読み取って.claude_ui_dataが含まれていなければ追加
+        // 既存のgitignoreがあれば内容を読み取って必要な項目が含まれていなければ追加
         const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
-        if (!gitignoreContent.includes('.claude_ui_data')) {
-          fs.writeFileSync(gitignorePath, gitignoreContent + '\n.claude_ui_data/\n', 'utf8');
+        let updatedContent = gitignoreContent;
+        
+        if (!gitignoreContent.includes('.claude_data')) {
+          updatedContent += '\n.claude_data/\n';
+        }
+        
+        if (!gitignoreContent.includes('temp/')) {
+          updatedContent += 'temp/\n';
+        }
+        
+        if (updatedContent !== gitignoreContent) {
+          fs.writeFileSync(gitignorePath, updatedContent, 'utf8');
         }
       }
-      // requirements.md
+      
+      // AI プロンプト用ディレクトリの作成
+      this.ensureDirectoryExists(path.join(projectPath, 'docs', 'prompts'));
+      
+      // docs/requirements.md
       fs.writeFileSync(
         path.join(projectPath, 'docs', 'requirements.md'),
         `# 要件定義
@@ -316,32 +333,105 @@ project/
         'utf8'
       );
       
-      // env.example
+      // data_models.md
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'env.example'),
-        `# 環境変数サンプル
-# 実際の値は.envファイルに設定してください
+        path.join(projectPath, 'docs', 'data_models.md'),
+        `# データモデル定義
 
-# サーバー設定
-PORT=3000
-NODE_ENV=development
+## ユーザーモデル (User)
 
-# データベース設定
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=mydatabase
-DB_USER=user
-DB_PASSWORD=password
+| フィールド | タイプ | 説明 | 制約 |
+|------------|-------|------|------|
+| id | Integer | 一意のユーザーID | 主キー、自動採番 |
+| name | String | ユーザー名 | 必須、最大100文字 |
+| email | String | メールアドレス | 必須、一意、有効なメール形式 |
+| password | String | パスワード（ハッシュ済） | 必須、最小8文字 |
+| role | Enum | ユーザー権限 | 必須、'user'または'admin' |
+| createdAt | Date | 作成日時 | 自動設定 |
+| updatedAt | Date | 更新日時 | 自動更新 |
 
-# 認証設定
-JWT_SECRET=your_jwt_secret_key
+## 関連モデル
+
+**User - Post (1:N)**
+- ユーザーは複数の投稿を持つことができる
+
+**Post - Comment (1:N)**
+- 投稿は複数のコメントを持つことができる
+
+## 変更履歴
+
+| 日付 | 変更者 | 変更内容 | 影響範囲 |
+|------|-------|---------|---------|
+| YYYY/MM/DD | 開発者名 | 初期モデル定義 | すべてのモデル |
+`,
+        'utf8'
+      );
+      
+      // env.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'env.md'),
+        `# 環境変数リスト
+
+## バックエンド
+[ ] \`DB_HOST\` - データベースに接続するためのホスト名またはIPアドレス
+[ ] \`DB_PORT\` - データベース接続ポート
+[ ] \`DB_NAME\` - データベース名
+[ ] \`DB_USER\` - データベース接続ユーザー名
+[ ] \`DB_PASSWORD\` - データベース接続パスワード
+[ ] \`JWT_SECRET\` - JWT認証用シークレットキー
+[ ] \`PORT\` - アプリケーションが使用するポート番号
+[ ] \`NODE_ENV\` - 実行環境（development/production/test）
+
+## フロントエンド
+[ ] \`NEXT_PUBLIC_API_URL\` - バックエンドAPIのURL
+[ ] \`NEXT_PUBLIC_APP_VERSION\` - アプリケーションバージョン
+`,
+        'utf8'
+      );
+      
+      // deploy.md
+      fs.writeFileSync(
+        path.join(projectPath, 'docs', 'deploy.md'),
+        `# デプロイ情報
+
+## デプロイプラットフォーム
+
+### ローカル開発環境
+
+**起動コマンド**:
+\`\`\`bash
+# バックエンド
+npm run dev:backend
+
+# フロントエンド
+npm run dev:frontend
+\`\`\`
+
+**環境設定**:
+- \`.env\`ファイルをプロジェクトルートに配置
+- 必要な環境変数は\`env.md\`を参照
+
+### 本番環境
+
+**推奨プラットフォーム**:
+- フロントエンド: Vercel, Netlify
+- バックエンド: Heroku, AWS Elastic Beanstalk
+
+**デプロイ手順**:
+1. 環境変数を本番環境用に設定
+2. ビルドコマンドを実行: \`npm run build\`
+3. デプロイコマンドを実行: \`npm run deploy\`
+
+**注意事項**:
+- 本番環境ではセキュリティ設定の再確認
+- データベースのバックアップ体制を確立
 `,
         'utf8'
       );
 
-      // requirementsadvicer.md
+      // docs/prompts/requirements_advisor.md - 要件定義アドバイザー
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'requirementsadvicer.md'),
+        path.join(projectPath, 'docs', 'prompts', 'requirements_advisor.md'),
         `# 要件定義アドバイザー
 
 あなたは要件定義の作成・編集・改善を支援するエキスパートアドバイザーです。すべての応答は必ず日本語で行ってください。
@@ -370,12 +460,23 @@ JWT_SECRET=your_jwt_secret_key
 3. 要件の追加・編集を行う場合は、常にユーザーの承認を得てください
 4. 要件定義が完了したら、次のステップ（モックアップ作成や実装計画）への移行をサポートしてください
 
+## 出力ドキュメント構成
+
+要件定義の作成・編集時には、以下の構造化された文書セットを作成してください。この構成に沿うことで、後続の開発フェーズがスムーズに進行します：
+
+1. **requirements.md** - 基本要件と機能リスト
+2. **structure.md** - 基本的なディレクトリ構造（概略レベル）
+3. **data_models.md** - 基本的なデータモデル
+4. **api.md** - APIエンドポイントの概要
+5. **env.md** - 環境変数リスト
+
 ## 重要なポイント
 
 - 常に「ユーザーにとって何が価値があるか」という視点で考えてください
 - 技術的な実装詳細よりも「何を実現したいか」に焦点を当ててください
 - 「なぜその要件が必要か」という背景や目的の明確化を支援してください
-- 「どのようなデータが必要か」「どのような出力が期待されるか」といった具体的な情報を引き出してください
+- モックアップ解析とスコープマネージャーが後続で使用する4つの重要ドキュメント（ディレクトリ構造、データモデル、API設計、環境変数）の基本情報を提供してください
+- 専門的な技術文書よりも、非技術者でも理解できる基本的な設計情報の提供を重視してください
 
 このファイルは要件定義エディタから「AIと相談・編集」ボタンを押したときに利用されます。
 ユーザーの質問に答え、要件定義文書の改善を支援してください。
@@ -383,9 +484,9 @@ JWT_SECRET=your_jwt_secret_key
         'utf8'
       );
       
-      // Scope_Manager_Prompt.md
+      // docs/prompts/scope_manager.md - スコープマネージャー
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'Scope_Manager_Prompt.md'),
+        path.join(projectPath, 'docs', 'prompts', 'scope_manager.md'),
         `# スコープマネージャー システムプロンプト
 
 あなたはプロジェクト実装のスコープ管理専門家です。要件定義書とモックアップをもとに、効率的な実装単位（スコープ）を設計する役割を担います。
@@ -589,9 +690,9 @@ project-root/
         'utf8'
       );
       
-      // Scope_Implementation_Assistant_Prompt.md
+      // docs/prompts/scope_implementer.md - スコープ実装アシスタント
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'Scope_Implementation_Assistant_Prompt.md'),
+        path.join(projectPath, 'docs', 'prompts', 'scope_implementer.md'),
         `# スコープ実装アシスタント システムプロンプト
 
 あなたはプロジェクト実装の専門家です。設計情報とスコープ定義から、効率的で堅牢なコードを生成する役割を担います。
@@ -812,7 +913,7 @@ project-root/
 
       // デバッグ探偵プロンプト
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'DebagDetector.md'),
+        path.join(projectPath, 'docs', 'prompts', 'debug_detective.md'),
         `# デバッグ探偵 シャーロックホームズ - システムプロンプト
 
 私はデバッグ探偵シャーロックホームズとして、あなたのプロジェクトのエラーを解析し、最適な解決策を提供します。
@@ -940,7 +1041,7 @@ project-root/
       // 環境変数アシスタント要件
       this.ensureDirectoryExists(path.join(projectPath, 'docs', 'scopes'));
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'scopes', 'environmentVariablesAssistant-requirements.md'),
+        path.join(projectPath, 'docs', 'prompts', 'environment_manager.md'),
         `# 環境変数アシスタント要件定義
 
 ## 概要
@@ -1341,10 +1442,10 @@ interface EnvironmentVariableGroup {
       this.ensureDirectoryExists(path.join(projectPath, 'docs', 'scopes'));
       Logger.info(`Created scopes directory at: ${path.join(projectPath, 'docs', 'scopes')}`);
       
-      // mockup_analysis_template.md
+      // docs/prompts/mockup_analyzer.md - モックアップ解析
       fs.writeFileSync(
-        path.join(projectPath, 'docs', 'mockup_analysis_template.md'),
-        `# モックアップ解析と要件定義のテンプレート
+        path.join(projectPath, 'docs', 'prompts', 'mockup_analyzer.md'),
+        `# モックアップ解析と要件定義の詳細化
 
 あなたはUIモックアップの解析と要件定義の詳細化を行うエキスパートです。すべての応答は必ず日本語で行ってください。英語でのレスポンスは避けてください。ファイルパスの確認なども日本語で行ってください。
 
