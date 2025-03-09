@@ -7,6 +7,19 @@
 必ず日本語で応答してください。ファイルパスの確認や処理内容の報告もすべて日本
 語で行ってください。英語での応答は避けてください。
 
+## 【重要原則】データモデル管理について
+
+本プロジェクトでは「単一の真実源」原則を採用しています。
+
+- 全データモデルは `docs/data_models.md` で一元管理
+- 初期データモデルはスコープマネージャーが設計
+- 実装フェーズでは、スコープ実装アシスタントが必要に応じてデータモデルを拡張・詳細化
+- データモデル変更時は `docs/data_models.md` を必ず更新し、変更履歴を記録
+- 大規模な構造変更は事前に他のスコープへの影響を確認
+
+この原則に従わず別々の場所でモデル定義を行うと、プロジェクト全体の一貫性が
+損なわれる問題が発生します。詳細は `docs/data_models.md` を参照してください。
+
 ## プロジェクト概要
 
 [プロジェクトの概要と目的を簡潔に記述してください。1-2段落程度が理想的です。]
@@ -54,34 +67,45 @@
 ## 開発アシスタント
 - **requirementsadvicer.md**
   - 全体の要件定義をより明確にするアシスタント
+  - 初期データモデル要件を特定
 
 - **mockup_analysis_template.md**
   - 個別のモックアップをブラッシュアップする
   - ページごとの詳細な要件定義を書く
+  - UIから必要なデータモデル属性を特定して提案
 
 - **Scope_Manager_Prompt.md**
   - CURRENT_STATUS.mdを更新してフェーズごとにスコープ管理できるようにする
   - ディレクトリ構造を確定させる
   - APIをまとめる
   - 環境変数をまとめる
+  - data_models.mdを管理し、単一の真実源として維持する
+  - データモデルの変更を承認・実施する責任者
+  - スコープごとに使用するデータモデルを明示
 
 - **Scope_Implementation_Assistant_Prompt.md**
   - CURRENT_STATUS.mdをベースにスコープごとの実装を担当
+  - data_models.mdからモデル定義を利用（変更は不可）
+  - モデル変更が必要な場合は変更提案のみ行う
 
 - **DebagDetector.md**
   - デバックを担当
+  - データモデル関連の問題を診断
 
 - **environmentVariablesAssistant-requirements.md**
   - 環境変数を担当
+  - データベース接続情報を管理
 
 ## ドキュメントリンク
 
 ### 設計情報
-- [要件定義](./Requirements/requirements.md) - プロジェクトの詳細要件
+- [要件定義](./docs/requirements.md) - プロジェクトの詳細要件
 - [ディレクトリ構造](./docs/structure.md) - プロジェクトのフォルダ構成
+- [データモデル](./docs/data_models.md) - データモデル定義（単一の真実源）
 - [モックアップ](./mockups/) - UIデザインとプロトタイプ
 - [実装スコープ](./docs/scope.md) - 実装する機能の詳細と優先順位
 - [API設計](./docs/api.md) - APIエンドポイントの定義
+- [環境変数リスト](./docs/env.md) - 必要な環境変数の設定リスト
 
 ### 技術情報
 - [開発状況](./docs/CURRENT_STATUS.md) - 現在の開発状況と進捗
@@ -93,25 +117,25 @@
 ```
 [プロジェクト名]/
 ├── CLAUDE.md                     # プロジェクト中心情報
+├── TOOLKIT.md                    # ツールキット管理・連携情報
 ├── CURRENT_STATUS.md             # 開発状況と進捗
 ├── .env                          # 環境変数（.gitignoreに追加）
-├── Assistant/                    # AIアシスタントプロンプト
+├── docs/                         # プロジェクト定義とテンプレート
 │   ├── requirementsadvicer.md    # 要件定義アドバイザー
 │   ├── mockup_analysis_template.md # モックアップ解析テンプレート
 │   ├── Scope_Manager_Prompt.md   # スコープ管理プロンプト
 │   ├── Scope_Implementation_Assistant_Prompt.md # 実装支援プロンプト
 │   ├── DebagDetector.md          # デバッグ探偵プロンプト
-│   └── environmentVariablesAssistant-requirements.md # 環境変数要件
+│   ├── environmentVariablesAssistant-requirements.md # 環境変数要件
+│   ├── api.md                    # API定義
+│   ├── data_models.md            # データモデル定義（単一の真実源）
+│   ├── scope.md                  # スコープ定義
+│   ├── structure.md              # ディレクトリ構造
+│   └── env.md                    # 環境変数リスト
 ├── mockups/                      # モックアップファイル
 │   └── *.html                    # 各ページのモックアップ
-├── Requirements/                 # 要件定義
-│   ├── requirements.md           # 全体要件定義
-│   └── scopes/                   # 個別要件定義
-│       └── *-requirements.md     # 各ページの詳細要件
-├── docs/                         # プロジェクト定義
-│   ├── api.md                    # API定義
-│   ├── scope.md                  # スコープ定義
-│   └── structure.md              # ディレクトリ構造
+├── scopes/                       # 個別スコープ要件
+│   └── *-requirements.md         # 各ページの詳細要件
 ├── debug/                        # デバッグ情報
 │   ├── archived/                 # アーカイブされた情報
 │   ├── knowledge/                # 知識ベース
@@ -119,10 +143,32 @@
 └── reference/                    # 参照情報
 ```
 
+## データモデル管理
+
+### データモデル管理の原則
+プロジェクトのデータモデルは `docs/data_models.md` で一元管理します。このファイルが
+「単一の真実源」として機能し、すべてのデータ定義はここから派生します。
+
+1. **データモデル管理体制**:
+   - 初期データモデルはスコープマネージャーが設計
+   - スコープ実装アシスタントは実装時に必要に応じてモデルを拡張・詳細化
+   - 大規模な構造変更は事前にスコープマネージャーと協議
+
+2. **データモデル変更記録**:
+   - すべてのモデル変更はdata_models.mdの変更履歴セクションに記録
+   - CURRENT_STATUS.mdにも変更内容を反映
+   - 変更日、モデル名、変更内容、変更者、影響範囲を明記
+
+3. **スコープとの連携**:
+   - 各スコープが使用するデータモデルをCURRENT_STATUS.mdに明示
+   - 影響範囲があるモデル変更は他のスコープ担当者に通知
+
+詳細は `docs/data_models.md` を参照してください。
+
 ## 環境変数管理
 
-プロジェクトで使用する環境変数はCURRENT_STATUS.mdで状況を管理します。
-実際の値は`.env`ファイルに設定してください。環境変数に関する詳細情報は、
+プロジェクトで使用する環境変数は `docs/env.md` で一元管理し、CURRENT_STATUS.mdで
+状況を追跡します。実際の値は`.env`ファイルに設定してください。環境変数に関する詳細情報は、
 [環境変数設定状況](./docs/CURRENT_STATUS.md#環境変数設定状況)を参照してください。
 
 ## 開発コマンド
