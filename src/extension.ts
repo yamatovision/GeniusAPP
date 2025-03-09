@@ -38,6 +38,22 @@ export function activate(context: vscode.ExtensionContext) {
 	ScopeExporter.getInstance();
 	Logger.info('ScopeExporter initialized successfully');
 	
+	// ToolkitManagerとToolkitUpdaterの初期化
+	import('./utils/ToolkitManager').then(({ ToolkitManager }) => {
+		ToolkitManager.getInstance();
+		Logger.info('ToolkitManager initialized successfully');
+		
+		import('./utils/ToolkitUpdater').then(({ ToolkitUpdater }) => {
+			const toolkitUpdater = ToolkitUpdater.getInstance();
+			toolkitUpdater.setup();
+			Logger.info('ToolkitUpdater initialized successfully');
+		}).catch(error => {
+			Logger.error(`ToolkitUpdater initialization failed: ${(error as Error).message}`);
+		});
+	}).catch(error => {
+		Logger.error(`ToolkitManager initialization failed: ${(error as Error).message}`);
+	});
+	
 	// デバッグモードを無効化して実際のAPIを使用する
 	vscode.workspace.getConfiguration('appgeniusAI').update('debugMode', false, true);
 	vscode.workspace.getConfiguration('appgeniusAI').update('useRealApi', true, true);
@@ -380,6 +396,105 @@ ${Object.entries(analysis.stats.languageBreakdown)
 			} catch (error) {
 				Logger.error('リファレンスマネージャーの起動に失敗しました', error as Error);
 				vscode.window.showErrorMessage(`リファレンスマネージャーの起動に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// ツールキットダッシュボードを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openToolkitDashboard', async () => {
+			try {
+				const { ToolkitManager } = await import('./utils/ToolkitManager');
+				const toolkitManager = ToolkitManager.getInstance();
+				
+				// ダッシュボードの更新
+				await toolkitManager.updateDashboard();
+				
+				// 拡張機能のパスを取得
+				const platformManager = PlatformManager.getInstance();
+				const extensionPath = platformManager.getExtensionPath();
+				const dashboardPath = path.join(extensionPath, 'toolkit-dashboard.html');
+				
+				// ファイルURI形式に変換
+				const dashboardUri = vscode.Uri.file(dashboardPath);
+				
+				// ブラウザで開く
+				vscode.env.openExternal(dashboardUri);
+				
+				Logger.info('ツールキットダッシュボードを起動しました');
+			} catch (error) {
+				Logger.error('ツールキットダッシュボードの起動に失敗しました', error as Error);
+				vscode.window.showErrorMessage(`ツールキットダッシュボードの起動に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// ツールキットを更新するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.updateToolkit', async () => {
+			try {
+				const { ToolkitUpdater, UpdateStatus } = await import('./utils/ToolkitUpdater');
+				const toolkitUpdater = ToolkitUpdater.getInstance();
+				
+				// ツールキットの更新
+				const result = await toolkitUpdater.updateToolkit();
+				
+				if (result.status === UpdateStatus.COMPLETED) {
+					vscode.window.showInformationMessage('ツールキットの更新が完了しました');
+				} else if (result.status === UpdateStatus.FAILED) {
+					vscode.window.showErrorMessage(`ツールキットの更新に失敗しました: ${result.errorMessage || '不明なエラー'}`);
+				}
+				
+				Logger.info(`ツールキット更新結果: ${result.status}`);
+			} catch (error) {
+				Logger.error('ツールキットの更新に失敗しました', error as Error);
+				vscode.window.showErrorMessage(`ツールキットの更新に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// ツールキットの整合性を検証するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.validateToolkit', async () => {
+			try {
+				const { ToolkitManager } = await import('./utils/ToolkitManager');
+				const toolkitManager = ToolkitManager.getInstance();
+				
+				// 依存関係の分析
+				const result = toolkitManager.analyzeDependencies();
+				
+				// 結果表示
+				let message = '';
+				
+				if (result.missingDependencies.length > 0) {
+					message += `見つからない依存関係: ${result.missingDependencies.join(', ')}\n`;
+				}
+				
+				if (result.circularDependencies.length > 0) {
+					message += `循環依存関係: ${result.circularDependencies.join(', ')}\n`;
+				}
+				
+				if (result.outdatedDependencies.length > 0) {
+					message += `古い依存関係: ${result.outdatedDependencies.join(', ')}\n`;
+				}
+				
+				if (message === '') {
+					vscode.window.showInformationMessage('ツールキットの整合性検証に成功しました。問題は見つかりませんでした。');
+				} else {
+					// 詳細メッセージをアウトプットパネルに表示
+					const outputChannel = vscode.window.createOutputChannel('AppGenius ツールキット検証');
+					outputChannel.clear();
+					outputChannel.appendLine('# ツールキット整合性検証結果');
+					outputChannel.appendLine(message);
+					outputChannel.show();
+					
+					vscode.window.showWarningMessage('ツールキットの整合性検証で問題が見つかりました。詳細はアウトプットパネルをご確認ください。');
+				}
+				
+				Logger.info('ツールキットの整合性検証が完了しました');
+			} catch (error) {
+				Logger.error('ツールキットの整合性検証に失敗しました', error as Error);
+				vscode.window.showErrorMessage(`ツールキットの整合性検証に失敗しました: ${(error as Error).message}`);
 			}
 		})
 	);

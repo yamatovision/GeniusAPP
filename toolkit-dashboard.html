@@ -127,6 +127,11 @@
             font-size: 0.85rem;
         }
 
+        .component-description {
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+        }
+
         .component-date {
             color: #666;
             font-size: 0.8rem;
@@ -313,7 +318,7 @@
         <header>
             <div>
                 <h1>AppGenius ツールキットダッシュボード</h1>
-                <p class="last-updated">最終更新日: <span id="updated-date">2025-03-07</span></p>
+                <p class="last-updated">最終更新日: <span id="updated-date">2025-03-08</span></p>
             </div>
             <div>
                 <select id="theme-selector">
@@ -357,26 +362,100 @@
             </div>
         </div>
 
+        <!-- コンポーネント一覧 -->
+        <h2>コアコンポーネント</h2>
+        <div class="component-grid">
+            
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.2.0</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-07</div>
+        <div class="component-deps">依存: AppGeniusEventBus, PlatformManager, ScopeExporter</div>
+      </div>
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.1.5</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-07</div>
+        <div class="component-deps">依存: ClaudeCodeLauncherService, FileOperationManager</div>
+      </div>
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.0.2</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-05</div>
+        <div class="component-deps">依存: ClaudeCodeLauncherService, FileOperationManager</div>
+      </div>
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.0.1</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-04</div>
+        <div class="component-deps">依存: KnowledgeBaseManager, ErrorSessionManager</div>
+      </div>
+        </div>
+
+        <h2>統合ポイント</h2>
+        <div class="component-grid">
+            
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.3.0</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-07</div>
+      </div>
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.1.0</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-07</div>
+      </div>
+      <div class="component-card">
+        <div class="component-header">
+          <span>undefined</span>
+          <span class="component-version">v1.2.0</span>
+        </div>
+        <div class="component-description"></div>
+        <div class="component-date">最終更新日: 2025-03-05</div>
+      </div>
+        </div>
+
         <!-- 依存関係グラフ -->
         <h2>コンポーネント依存関係図</h2>
         <div class="dep-graph">
             <div class="mermaid">
 graph TD
-    A[CLAUDE.md] --> B[ClaudeCodeLauncherService]
-    A --> C[ScopeManagerPanel]
-    C --> D[CURRENT_STATUS.md]
-    C --> B
-    E[スコープ実装プロンプト] --> B
-    F[環境変数アシスタント] --> A
-    G[デバッグ探偵] --> A
-    
-    style A fill:#007acc,color:#fff
-    style B fill:#28a745,color:#fff
-    style C fill:#28a745,color:#fff
-    style D fill:#007acc,color:#fff
-    style E fill:#ffc107,color:#000
-    style F fill:#28a745,color:#fff
-    style G fill:#28a745,color:#fff
+    undefined[undefined]
+    undefined[undefined]
+    undefined[undefined]
+    undefined[undefined]
+    AppGeniusEventBus --> undefined
+    PlatformManager --> undefined
+    ScopeExporter --> undefined
+    ClaudeCodeLauncherService --> undefined
+    FileOperationManager --> undefined
+    ClaudeCodeLauncherService --> undefined
+    FileOperationManager --> undefined
+    KnowledgeBaseManager --> undefined
+    ErrorSessionManager --> undefined
+    style undefined fill:#17a2b8,color:#fff
+    style undefined fill:#17a2b8,color:#fff
+    style undefined fill:#17a2b8,color:#fff
+    style undefined fill:#17a2b8,color:#fff
+
             </div>
         </div>
 
@@ -430,77 +509,79 @@ graph TD
 
         <!-- 各UIコンポーネントとファイルの関係 -->
         <h2>UIコンポーネントとファイルの関係</h2>
-        <div class="file-structure">
-            <!-- 要件定義 -->
-            <div class="file-group">
-                <div class="file-group-title">要件定義</div>
-                <ul class="file-list">
-                    <li class="core-file">requirementsadvicer.md (入力)</li>
-                    <li class="core-file">requirements.md (出力)</li>
-                    <li class="core-file">mockups/*.html (出力)</li>
-                </ul>
-                <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
-                    <p><strong>機能:</strong> ユーザーの要求から要件定義とモックアップ作成</p>
-                </div>
-            </div>
-
-            <!-- モックアップギャラリー -->
-            <div class="file-group">
-                <div class="file-group-title">モックアップギャラリー</div>
-                <ul class="file-list">
-                    <li class="core-file">mockup_analysis_template.md (入力)</li>
-                    <li class="core-file">mockups/*.html (更新)</li>
-                    <li class="core-file">scopes/*-requirements.md (出力)</li>
-                </ul>
-                <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
-                    <p><strong>機能:</strong> モックアップ表示、編集、個別要件生成</p>
-                </div>
-            </div>
-
-            <!-- スコープマネージャー -->
-            <div class="file-group">
-                <div class="file-group-title">スコープマネージャー</div>
-                <ul class="file-list">
-                    <li class="core-file">Scope_Manager_Prompt.md (入力)</li>
-                    <li class="core-file">Scope_Implementation_Assistant_Prompt.md (入力)</li>
-                    <li class="core-file">CURRENT_STATUS.md (出力/管理)</li>
-                    <li class="core-file">scope.md (出力/管理)</li>
-                    <li class="optional-file">structure.md (入力)</li>
-                    <li class="optional-file">api.md (入力)</li>
-                    <li class="optional-file">env.example (連携)</li>
-                </ul>
-                <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
-                    <p><strong>機能:</strong> スコープ定義、優先順位付け、実装管理</p>
-                </div>
-            </div>
-
-            <!-- デバッグ探偵 -->
-            <div class="file-group">
-                <div class="file-group-title">デバッグ探偵</div>
-                <ul class="file-list">
-                    <li class="core-file">DebugDetector.md (入力)</li>
-                    <li class="core-file">logs/debug/knowledge/ (出力)</li>
-                    <li class="core-file">logs/debug/sessions/ (出力)</li>
-                    <li class="optional-file">logs/debug/archived/ (出力)</li>
-                </ul>
-                <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
-                    <p><strong>機能:</strong> エラー分析、解決策提案、知識ベース管理</p>
-                </div>
-            </div>
-
-            <!-- 環境変数アシスタント -->
-            <div class="file-group">
-                <div class="file-group-title">環境変数アシスタント</div>
-                <ul class="file-list">
-                    <li class="core-file">environmentVariablesAssistant-requirements.md (入力)</li>
-                    <li class="core-file">env.example (出力)</li>
-                    <li class="core-file">CLAUDE.md 環境変数セクション (更新)</li>
-                </ul>
-                <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
-                    <p><strong>機能:</strong> 環境変数管理、設定ファイル生成、カテゴリ管理</p>
-                </div>
-            </div>
+        
+    <div class="file-structure">
+      <!-- 要件定義 -->
+      <div class="file-group">
+        <div class="file-group-title">要件定義</div>
+        <ul class="file-list">
+          <li class="core-file">requirementsadvicer.md (入力)</li>
+          <li class="core-file">requirements.md (出力)</li>
+          <li class="core-file">mockups/*.html (出力)</li>
+        </ul>
+        <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+          <p><strong>機能:</strong> ユーザーの要求から要件定義とモックアップ作成</p>
         </div>
+      </div>
+
+      <!-- モックアップギャラリー -->
+      <div class="file-group">
+        <div class="file-group-title">モックアップギャラリー</div>
+        <ul class="file-list">
+          <li class="core-file">mockup_analysis_template.md (入力)</li>
+          <li class="core-file">mockups/*.html (更新)</li>
+          <li class="core-file">scopes/*-requirements.md (出力)</li>
+        </ul>
+        <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+          <p><strong>機能:</strong> モックアップ表示、編集、個別要件生成</p>
+        </div>
+      </div>
+
+      <!-- スコープマネージャー -->
+      <div class="file-group">
+        <div class="file-group-title">スコープマネージャー</div>
+        <ul class="file-list">
+          <li class="core-file">Scope_Manager_Prompt.md (入力)</li>
+          <li class="core-file">Scope_Implementation_Assistant_Prompt.md (入力)</li>
+          <li class="core-file">CURRENT_STATUS.md (出力/管理)</li>
+          <li class="core-file">scope.md (出力/管理)</li>
+          <li class="optional-file">structure.md (入力)</li>
+          <li class="optional-file">api.md (入力)</li>
+          <li class="optional-file">env.example (連携)</li>
+        </ul>
+        <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+          <p><strong>機能:</strong> スコープ定義、優先順位付け、実装管理</p>
+        </div>
+      </div>
+
+      <!-- デバッグ探偵 -->
+      <div class="file-group">
+        <div class="file-group-title">デバッグ探偵</div>
+        <ul class="file-list">
+          <li class="core-file">DebugDetector.md (入力)</li>
+          <li class="core-file">logs/debug/knowledge/ (出力)</li>
+          <li class="core-file">logs/debug/sessions/ (出力)</li>
+          <li class="optional-file">logs/debug/archived/ (出力)</li>
+        </ul>
+        <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+          <p><strong>機能:</strong> エラー分析、解決策提案、知識ベース管理</p>
+        </div>
+      </div>
+
+      <!-- 環境変数アシスタント -->
+      <div class="file-group">
+        <div class="file-group-title">環境変数アシスタント</div>
+        <ul class="file-list">
+          <li class="core-file">environmentVariablesAssistant-requirements.md (入力)</li>
+          <li class="core-file">env.example (出力)</li>
+          <li class="core-file">CLAUDE.md 環境変数セクション (更新)</li>
+        </ul>
+        <div style="margin-top: 10px; font-size: 0.85rem; color: #666;">
+          <p><strong>機能:</strong> 環境変数管理、設定ファイル生成、カテゴリ管理</p>
+        </div>
+      </div>
+    </div>
+    
 
         <!-- コード連携例 -->
         <h2>連携メカニズム</h2>
@@ -516,7 +597,11 @@ graph TD
             <span class="comment">// 結合ファイルを作成（セクション見出しなどで構造化）</span><br>
             <span class="keyword">const</span> combinedContent = <br>
             &nbsp;&nbsp;promptContent + <br>
-            &nbsp;&nbsp;<span class="string">'\n\n# 追加情報\n\n'</span> +<br>
+            &nbsp;&nbsp;<span class="string">'
+
+# 追加情報
+
+'</span> +<br>
             &nbsp;&nbsp;secondContent;<br>
             <br>
             fs.<span class="function">writeFileSync</span>(combinedFilePath, combinedContent, <span class="string">'utf8'</span>);<br>
@@ -591,6 +676,7 @@ graph TD
         <h2>改善計画</h2>
         <div class="dep-graph">
             <div class="mermaid">
+
 timeline
     title AppGenius 改善ロードマップ
     section 短期計画 (Q2)
@@ -607,6 +693,7 @@ timeline
         プロジェクト間でのツールキット共有機能 : 10月
         AIプロンプト自動最適化システム : 10月〜11月
         リファレンス管理システムの強化 : 11月〜12月
+
             </div>
         </div>
 
@@ -655,3 +742,4 @@ timeline
     </script>
 </body>
 </html>
+    

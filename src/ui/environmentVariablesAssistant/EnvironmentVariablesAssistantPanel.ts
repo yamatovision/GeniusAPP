@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { Logger } from '../../utils/logger';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 import { PlatformManager } from '../../utils/PlatformManager';
+import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
 
 /**
  * 環境変数アシスタントのメインパネルクラス
@@ -27,9 +28,11 @@ export class EnvironmentVariablesAssistantPanel {
   private _activeEnvFile: string | null = null;
   private _envVariables: { [filePath: string]: Record<string, string> } = {};
   
-  // UI監視とスクリーンショット
-  private _domSnapshotInterval: NodeJS.Timeout | null = null;
+  // ファイル監視
   private _fileWatcher: fs.FSWatcher | null = null;
+  
+  // サービス
+  private _eventBus: AppGeniusEventBus;
   
   /**
    * パネルの作成または表示（シングルトンパターン）
@@ -76,6 +79,12 @@ export class EnvironmentVariablesAssistantPanel {
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath?: string) {
     this._panel = panel;
     this._extensionUri = extensionUri;
+    
+    // サービスを初期化
+    this._eventBus = AppGeniusEventBus.getInstance();
+    
+    // イベントリスナーを設定
+    this._setupEventListeners();
     
     // プロジェクトパスが指定されている場合は設定
     if (projectPath) {
@@ -176,16 +185,24 @@ export class EnvironmentVariablesAssistantPanel {
   }
   
   /**
+   * イベントリスナーの設定
+   * EventBusからのイベントをリッスン
+   */
+  private _setupEventListeners(): void {
+    try {
+      // 必要に応じて他のイベントリスナーをここに追加
+      
+      Logger.info('環境変数アシスタント: イベントリスナーを設定しました');
+    } catch (error) {
+      Logger.error('環境変数アシスタント: イベントリスナー設定エラー:', error as Error);
+    }
+  }
+
+  /**
    * リソースの解放
    */
   public dispose(): void {
     EnvironmentVariablesAssistantPanel.currentPanel = undefined;
-    
-    // DOM監視を停止
-    if (this._domSnapshotInterval) {
-      clearInterval(this._domSnapshotInterval);
-      this._domSnapshotInterval = null;
-    }
     
     // ファイル監視を停止
     if (this._fileWatcher) {
@@ -368,12 +385,6 @@ export class EnvironmentVariablesAssistantPanel {
       
       // env.mdから環境変数情報を読み込む
       await this._loadEnvironmentVariablesFromEnvMd();
-      
-      // DOM構造の定期監視を開始
-      this._startDOMSnapshotCapture();
-      
-      // AI操作ファイルの監視を開始
-      this._startActionsFileWatch();
       
       // WebViewを更新
       await this._updateWebview();
@@ -1048,17 +1059,27 @@ export class EnvironmentVariablesAssistantPanel {
    */
   private async _loadEnvironmentVariablesFromEnvMd(): Promise<void> {
     try {
-      // env.mdのパス
+      // env.mdのパス（まずプロジェクト内を確認）
       const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
       
+      // 参照用env.mdのパス
+      const refEnvMdPath = path.join(this._projectPath, 'docs', 'refference', 'env.md');
+      
+      // どちらか存在するファイルを使用
+      let targetEnvMdPath = fs.existsSync(envMdPath) ? envMdPath : 
+                           fs.existsSync(refEnvMdPath) ? refEnvMdPath : null;
+      
       // ファイルが存在しない場合はスキップ
-      if (!fs.existsSync(envMdPath)) {
-        Logger.warn(`env.mdファイルが見つかりません: ${envMdPath}`);
+      if (!targetEnvMdPath) {
+        Logger.warn(`env.mdファイルが見つかりません: ${envMdPath} または ${refEnvMdPath}`);
         return;
       }
       
       // ファイルの内容を読み込む
-      const content = fs.readFileSync(envMdPath, 'utf8');
+      const content = fs.readFileSync(targetEnvMdPath, 'utf8');
+      
+      // 新形式かどうかを確認
+      const isNewFormat = content.includes('[✓]') && content.includes('[!]') && content.includes('実際の値で設定され');
       
       // 環境変数情報を解析
       const envVarStatus = this._parseEnvMdFile(content);
@@ -1075,7 +1096,7 @@ export class EnvironmentVariablesAssistantPanel {
           // 状態を更新
           if (envVar.isConfigured) {
             // 既に設定済みの場合は状態のみ更新
-            Logger.info(`環境変数 ${envVar.name} は既にenv.mdで設定済みとマークされています`);
+            Logger.info(`環境変数 ${envVar.name} は既に${path.basename(targetEnvMdPath)}で設定済みとマークされています`);
           }
         } else {
           // .envファイルに存在しない変数は追加
@@ -1083,13 +1104,23 @@ export class EnvironmentVariablesAssistantPanel {
             this._envVariables[this._activeEnvFile] = {};
           }
           
-          // 設定済み変数には値を設定、未設定変数にはプレースホルダーを設定
-          this._envVariables[this._activeEnvFile][envVar.name] = 
-            envVar.isConfigured ? 
-            `env.mdで設定済み` : 
-            `【要設定】${envVar.description}`;
+          // 設定済み、部分的に設定済み、未設定によって異なるメッセージを設定
+          let valueToSet;
+          
+          if (envVar.isConfigured) {
+            // 完全に設定済み
+            valueToSet = `${path.basename(targetEnvMdPath)}で設定済み`;
+          } else if (isNewFormat && envVar.partiallyConfigured) {
+            // 部分的に設定済み（新形式のみ）
+            valueToSet = `【テスト未完了】${envVar.description}`;
+          } else {
+            // 未設定
+            valueToSet = `【要設定】${envVar.description}`;
+          }
+          
+          this._envVariables[this._activeEnvFile][envVar.name] = valueToSet;
             
-          Logger.info(`env.mdから環境変数 ${envVar.name} を追加しました`);
+          Logger.info(`${path.basename(targetEnvMdPath)}から環境変数 ${envVar.name} を追加しました`);
         }
       });
       
@@ -1137,8 +1168,14 @@ export class EnvironmentVariablesAssistantPanel {
                                value !== 'your-secret-key';
                                
             if (isConfigured) {
-              // env.mdでも設定済みとしてマーク
-              await this._updateEnvVariableStatus(name, true);
+              // 値の内容に基づいて状態を更新
+              if (value.includes('テスト未完了')) {
+                // テスト未完了状態
+                await this._updateEnvVariableStatus(name, false, true);
+              } else {
+                // 完全に設定済み状態
+                await this._updateEnvVariableStatus(name, true, false);
+              }
             }
           }
         }
@@ -1169,36 +1206,74 @@ export class EnvironmentVariablesAssistantPanel {
   /**
    * env.mdの環境変数状態を更新
    */
-  private async _updateEnvVariableStatus(name: string, isConfigured: boolean): Promise<void> {
+  private async _updateEnvVariableStatus(name: string, isConfigured: boolean, partiallyConfigured: boolean = false): Promise<void> {
     try {
-      // env.mdのパス
+      // env.mdのパス（まずプロジェクト内を確認）
       const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
       
+      // 参照用env.mdのパス
+      const refEnvMdPath = path.join(this._projectPath, 'docs', 'refference', 'env.md');
+      
+      // どちらか存在するファイルを使用
+      let targetEnvMdPath = fs.existsSync(envMdPath) ? envMdPath : 
+                           fs.existsSync(refEnvMdPath) ? refEnvMdPath : null;
+      
       // ファイルが存在しない場合は作成
-      if (!fs.existsSync(envMdPath)) {
+      if (!targetEnvMdPath) {
         await this._updateEnvMdFile();
+        targetEnvMdPath = envMdPath;
         return;
       }
       
       // ファイルの内容を読み込む
-      const content = fs.readFileSync(envMdPath, 'utf8');
+      const content = fs.readFileSync(targetEnvMdPath, 'utf8');
+      
+      // 新形式（refference/env.md）の場合とそれ以外で処理を分ける
+      const isNewFormat = content.includes('[✓]') && content.includes('[!]') && content.includes('実際の値で設定され');
       
       // 行ごとに処理して更新
       const lines = content.split('\n');
       const updatedLines = lines.map(line => {
         // 環境変数行を検出
-        const match = line.match(/\[([\s✓x])\]\s*`([^`]+)`\s*-\s*(.*)/);
+        let match;
+        
+        if (isNewFormat) {
+          match = line.match(/\[([\s✓x!])\]\s*`([^`]+)`\s*-\s*(.*)/);
+        } else {
+          match = line.match(/\[([\s✓x])\]\s*`([^`]+)`\s*-\s*(.*)/);
+        }
+        
         if (match && match[2] === name) {
           // 変数名が一致した場合、設定状態を更新
-          const checkmark = isConfigured ? '✓' : ' ';
-          return `[${checkmark}] \`${name}\` - ${match[3]}`;
+          let statusMark;
+          
+          if (isNewFormat) {
+            // 新形式: 完全に設定済みなら✓、部分的に設定済みなら!、未設定なら空白
+            if (isConfigured) {
+              statusMark = '✓';
+            } else if (partiallyConfigured) {
+              statusMark = '!';
+            } else {
+              statusMark = ' ';
+            }
+          } else {
+            // 旧形式: 設定済みなら✓、未設定なら空白
+            statusMark = isConfigured ? '✓' : ' ';
+          }
+          
+          return `[${statusMark}] \`${name}\` - ${match[3]}`;
         }
         return line;
       });
       
       // 更新された内容を書き込み
-      fs.writeFileSync(envMdPath, updatedLines.join('\n'), 'utf8');
-      Logger.info(`環境変数 ${name} の状態を env.md で更新しました: ${isConfigured ? '設定済み' : '未設定'}`);
+      fs.writeFileSync(targetEnvMdPath, updatedLines.join('\n'), 'utf8');
+      
+      // ログメッセージの作成
+      let statusDesc = isConfigured ? '設定済み' : 
+                     partiallyConfigured ? 'テスト未完了' : '未設定';
+      
+      Logger.info(`環境変数 ${name} の状態を ${path.basename(targetEnvMdPath)} で更新しました: ${statusDesc}`);
       
     } catch (error) {
       Logger.error(`環境変数状態更新エラー:`, error as Error);
@@ -1213,8 +1288,23 @@ export class EnvironmentVariablesAssistantPanel {
       // env.mdのパス
       const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
       
-      // ファイルが存在するか確認
-      if (!fs.existsSync(envMdPath)) {
+      // 参照用env.mdのパス
+      const refEnvMdPath = path.join(this._projectPath, 'docs', 'refference', 'env.md');
+      
+      // 参照用env.mdが存在する場合はそれを元にコピーする
+      if (fs.existsSync(refEnvMdPath) && !fs.existsSync(envMdPath)) {
+        // ディレクトリが存在しない場合は作成
+        const docsDir = path.join(this._projectPath, 'docs');
+        if (!fs.existsSync(docsDir)) {
+          fs.mkdirSync(docsDir, { recursive: true });
+        }
+        
+        // 参照ファイルをコピー
+        fs.copyFileSync(refEnvMdPath, envMdPath);
+        Logger.info(`参照用env.mdからコピーしました: ${envMdPath}`);
+      }
+      // どちらも存在しない場合は新規作成
+      else if (!fs.existsSync(envMdPath)) {
         Logger.warn(`env.mdファイルが見つかりません: ${envMdPath}`);
         
         // ディレクトリが存在しない場合は作成
@@ -1224,12 +1314,31 @@ export class EnvironmentVariablesAssistantPanel {
         }
         
         // テンプレートの作成と保存
-        const templateContent = `# 環境変数リスト\n\nこのファイルはプロジェクトで使用する環境変数を管理します。チェックマーク [✓] は設定済みの変数を示します。\n\n## バックエンド\n\n## フロントエンド\n\n## デプロイ環境別設定の詳細はdeploy.mdを参照してください`;
+        const templateContent = `# 環境変数リスト
+
+このファイルはプロジェクトで使用する環境変数を管理します。
+
+## 環境変数ステータスについて
+
+- [✓] - 実際の値で設定され、アプリケーションでの接続/動作テストに成功した変数
+- [!] - 値は設定されているが、アプリケーションでの接続/動作テストが完了していない変数
+- [ ] - 未設定または設定が必要な変数
+
+**重要**: アプリケーションでの接続テストや動作確認が完了していない限り、環境変数は「設定済み」([✓])とは見なしません。ダミー値や仮の値での設定は [!] としてマークしてください。
+
+## バックエンド
+
+## フロントエンド
+
+## デプロイ環境別設定の詳細はdeploy.mdを参照してください`;
         fs.writeFileSync(envMdPath, templateContent, 'utf8');
       }
       
       // ファイルの内容を読み込む
       const content = fs.readFileSync(envMdPath, 'utf8');
+      
+      // 新形式かどうかを確認
+      const isNewFormat = content.includes('[✓]') && content.includes('[!]') && content.includes('実際の値で設定され');
       
       // 現在の環境変数の状態を解析する
       const currentEnvStatus = this._parseEnvMdFile(content);
@@ -1237,6 +1346,234 @@ export class EnvironmentVariablesAssistantPanel {
       // 環境変数情報を取得
       const envVariables = this._generateEnvVariablesModel();
       
+      // 更新方法を決定（新形式か旧形式か）
+      if (isNewFormat) {
+        await this._updateNewFormatEnvMdFile(envMdPath, content, currentEnvStatus, envVariables);
+      } else {
+        await this._updateOldFormatEnvMdFile(envMdPath, content, currentEnvStatus, envVariables);
+      }
+      
+      Logger.info(`env.mdに環境変数情報を更新しました: ${envMdPath}`);
+    } catch (error) {
+      Logger.error(`env.md更新エラー:`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 新形式のenv.mdファイルを更新
+   */
+  private async _updateNewFormatEnvMdFile(
+    envMdPath: string, 
+    content: string, 
+    currentEnvStatus: any[], 
+    envVariables: any[]
+  ): Promise<void> {
+    try {
+      // 必須環境変数とオプション環境変数に分類
+      const requiredVars = envVariables.filter(v => v.isRequired);
+      const optionalVars = envVariables.filter(v => !v.isRequired);
+      
+      // AIに関連する変数を抽出
+      const aiVars = envVariables.filter(v => 
+        v.name.toLowerCase().includes('openai') || 
+        v.name.toLowerCase().includes('ai_') || 
+        v.name.toLowerCase().includes('ai-') || 
+        v.name.toLowerCase().includes('gpt') || 
+        v.name.toLowerCase().includes('claude')
+      );
+      
+      // 分類から既にAI変数として抽出された変数を除外
+      const filteredRequiredVars = requiredVars.filter(v => !aiVars.some(aiVar => aiVar.name === v.name));
+      const filteredOptionalVars = optionalVars.filter(v => !aiVars.some(aiVar => aiVar.name === v.name));
+      
+      // ヘッダー部分を保持
+      const headerPattern = /^#\s+環境変数リスト\s+[\s\S]*?(?=##\s+必須環境変数|##\s+バックエンド|$)/;
+      const headerMatch = content.match(headerPattern);
+      let newContent = headerMatch ? headerMatch[0] : `# 環境変数リスト
+
+このファイルはプロジェクトで使用する環境変数を管理します。
+
+## 環境変数ステータスについて
+
+- [✓] - 実際の値で設定され、アプリケーションでの接続/動作テストに成功した変数
+- [!] - 値は設定されているが、アプリケーションでの接続/動作テストが完了していない変数
+- [ ] - 未設定または設定が必要な変数
+
+**重要**: アプリケーションでの接続テストや動作確認が完了していない限り、環境変数は「設定済み」([✓])とは見なしません。ダミー値や仮の値での設定は [!] としてマークしてください。
+
+`;
+      
+      // 必須環境変数を追加
+      newContent += '## 必須環境変数\n\n';
+      
+      // 既存のセクション構造を維持するために、既存のサブセクションを抽出
+      const existingRequiredSection = this._extractSection(content, '必須環境変数', 'AI機能設定');
+      const hasSubSections = existingRequiredSection && 
+                            (existingRequiredSection.includes('### データベース設定') ||
+                             existingRequiredSection.includes('### サーバー設定') ||
+                             existingRequiredSection.includes('### Supabase認証設定'));
+      
+      if (hasSubSections) {
+        // サブセクションがある場合は維持する
+        // データベース設定
+        const dbVars = filteredRequiredVars.filter(v => v.groupId === 'database');
+        if (dbVars.length > 0) {
+          newContent += '### データベース設定\n';
+          dbVars.forEach(variable => {
+            const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+            const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                              (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+            newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+          });
+          newContent += '\n';
+        }
+        
+        // 認証設定
+        const authVars = filteredRequiredVars.filter(v => 
+          v.groupId === 'security' || 
+          v.name.toLowerCase().includes('auth') || 
+          v.name.toLowerCase().includes('supabase')
+        );
+        if (authVars.length > 0) {
+          newContent += '### Supabase認証設定\n';
+          authVars.forEach(variable => {
+            const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+            const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                              (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+            newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+          });
+          newContent += '\n';
+        }
+        
+        // サーバー設定
+        const serverVars = filteredRequiredVars.filter(v => 
+          v.groupId === 'server' || 
+          v.name === 'PORT' || 
+          v.name === 'NODE_ENV'
+        );
+        if (serverVars.length > 0) {
+          newContent += '### サーバー設定\n';
+          serverVars.forEach(variable => {
+            const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+            const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                              (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+            newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+          });
+          newContent += '\n';
+        }
+        
+        // その他の必須設定
+        const otherRequiredVars = filteredRequiredVars.filter(v => 
+          v.groupId !== 'database' && 
+          v.groupId !== 'security' && 
+          v.groupId !== 'server' && 
+          v.name !== 'PORT' && 
+          v.name !== 'NODE_ENV' &&
+          !v.name.toLowerCase().includes('auth') && 
+          !v.name.toLowerCase().includes('supabase')
+        );
+        if (otherRequiredVars.length > 0) {
+          newContent += '### その他の必須設定\n';
+          otherRequiredVars.forEach(variable => {
+            const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+            const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                              (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+            newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+          });
+          newContent += '\n';
+        }
+      } else {
+        // サブセクションがない場合はシンプルに必須変数を追加
+        if (filteredRequiredVars.length > 0) {
+          filteredRequiredVars.forEach(variable => {
+            const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+            const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                              (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+            newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+          });
+        } else {
+          // 既存の値を維持
+          const existingRequiredSectionContent = this._extractSection(content, '必須環境変数', 'AI機能設定');
+          if (existingRequiredSectionContent && existingRequiredSectionContent.trim() !== '') {
+            newContent += existingRequiredSectionContent + '\n\n';
+          } else {
+            newContent += '必須環境変数はまだ検出されていません。\n\n';
+          }
+        }
+      }
+      
+      // AI機能設定を追加
+      newContent += '## AI機能設定（スコープ4で使用）\n\n';
+      if (aiVars.length > 0) {
+        aiVars.forEach(variable => {
+          const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+          const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                           (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+          newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+        });
+      } else {
+        // 既存の値を維持
+        const existingAiSectionContent = this._extractSection(content, 'AI機能設定', '追加設定');
+        if (existingAiSectionContent && existingAiSectionContent.trim() !== '') {
+          newContent += existingAiSectionContent + '\n\n';
+        } else {
+          newContent += '[ ] `OPENAI_API_KEY` - OpenAI APIキー\n';
+          newContent += '[ ] `OPENAI_API_MODEL` - 使用するモデル名（例: gpt-4o）\n\n';
+        }
+      }
+      
+      // 追加設定（オプション）を追加
+      newContent += '## 追加設定（オプション）\n\n';
+      if (filteredOptionalVars.length > 0) {
+        filteredOptionalVars.forEach(variable => {
+          const existingStatus = currentEnvStatus.find(s => s.name === variable.name);
+          const statusMark = existingStatus && existingStatus.isConfigured ? '✓' : 
+                           (existingStatus && existingStatus.partiallyConfigured) ? '!' : ' ';
+          newContent += `[${statusMark}] \`${variable.name}\` - ${variable.description || '環境変数'}\n`;
+        });
+      } else {
+        // 既存の値を維持
+        const existingOptionalSectionContent = this._extractSection(content, '追加設定', 'スコープ別必要環境変数');
+        if (existingOptionalSectionContent && existingOptionalSectionContent.trim() !== '') {
+          newContent += existingOptionalSectionContent + '\n\n';
+        }
+      }
+      
+      // スコープ別環境変数情報を保持
+      if (content.includes('## スコープ別必要環境変数')) {
+        const scopeSection = content.substring(content.indexOf('## スコープ別必要環境変数'));
+        newContent += '\n' + scopeSection;
+      } else {
+        newContent += '\n## スコープ別必要環境変数\n\n';
+      }
+      
+      // 参考情報を保持
+      if (!newContent.includes('## 設定方法') && content.includes('## 設定方法')) {
+        const settingSection = this._extractSection(content, '設定方法', 'スコープ別必要環境変数');
+        if (settingSection) {
+          newContent += '\n## 設定方法\n\n' + settingSection + '\n';
+        }
+      }
+      
+      // ファイルに書き込み
+      fs.writeFileSync(envMdPath, newContent, 'utf8');
+    } catch (error) {
+      Logger.error(`新形式env.md更新エラー:`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 旧形式のenv.mdファイルを更新
+   */
+  private async _updateOldFormatEnvMdFile(
+    envMdPath: string, 
+    content: string, 
+    currentEnvStatus: any[], 
+    envVariables: any[]
+  ): Promise<void> {
+    try {
       // バックエンドとフロントエンドに分類
       const backendVars = envVariables.filter(v => 
         v.groupId === 'database' || 
@@ -1309,9 +1646,8 @@ export class EnvironmentVariablesAssistantPanel {
       
       // ファイルに書き込み
       fs.writeFileSync(envMdPath, newContent, 'utf8');
-      Logger.info(`env.mdに環境変数情報を更新しました: ${envMdPath}`);
     } catch (error) {
-      Logger.error(`env.md更新エラー:`, error as Error);
+      Logger.error(`旧形式env.md更新エラー:`, error as Error);
       throw error;
     }
   }
@@ -1319,22 +1655,55 @@ export class EnvironmentVariablesAssistantPanel {
   /**
    * env.mdファイルから環境変数情報を解析
    */
-  private _parseEnvMdFile(content: string): { name: string; isConfigured: boolean; description: string; section: string }[] {
+  private _parseEnvMdFile(content: string): { name: string; isConfigured: boolean; partiallyConfigured: boolean; description: string; section: string }[] {
     try {
-      const envVariables: { name: string; isConfigured: boolean; description: string; section: string }[] = [];
+      const envVariables: { name: string; isConfigured: boolean; partiallyConfigured: boolean; description: string; section: string }[] = [];
       
-      // バックエンドセクションを抽出
-      const backendSection = this._extractSection(content, 'バックエンド', 'フロントエンド');
-      if (backendSection) {
-        const backendVars = this._parseEnvSection(backendSection, 'バックエンド');
-        envVariables.push(...backendVars);
-      }
+      // 環境変数ステータス形式の確認（新形式か旧形式か）
+      const isNewFormat = content.includes('[✓]') && content.includes('[!]') && content.includes('実際の値で設定され');
       
-      // フロントエンドセクションを抽出
-      const frontendSection = this._extractSection(content, 'フロントエンド', 'デプロイ環境別設定');
-      if (frontendSection) {
-        const frontendVars = this._parseEnvSection(frontendSection, 'フロントエンド');
-        envVariables.push(...frontendVars);
+      // 新形式（docs/reference/env.md）の場合
+      if (isNewFormat) {
+        Logger.info('新形式のenv.mdを検出しました');
+        
+        // バックエンドセクションを抽出（必須環境変数からデプロイ環境別設定までの間）
+        const backendSection = this._extractSection(content, '必須環境変数', 'AI機能設定');
+        if (backendSection) {
+          const backendVars = this._parseNewEnvSection(backendSection, 'バックエンド');
+          envVariables.push(...backendVars);
+        }
+        
+        // AI機能セクションを抽出
+        const aiSection = this._extractSection(content, 'AI機能設定', '追加設定');
+        if (aiSection) {
+          const aiVars = this._parseNewEnvSection(aiSection, 'AI機能');
+          envVariables.push(...aiVars);
+        }
+        
+        // オプションセクションを抽出
+        const optionsSection = this._extractSection(content, '追加設定', 'スコープ別必要環境変数');
+        if (optionsSection) {
+          const optionVars = this._parseNewEnvSection(optionsSection, 'オプション');
+          envVariables.push(...optionVars);
+        }
+      } 
+      // 旧形式の場合
+      else {
+        Logger.info('従来形式のenv.mdを検出しました');
+        
+        // バックエンドセクションを抽出
+        const backendSection = this._extractSection(content, 'バックエンド', 'フロントエンド');
+        if (backendSection) {
+          const backendVars = this._parseEnvSection(backendSection, 'バックエンド');
+          envVariables.push(...backendVars);
+        }
+        
+        // フロントエンドセクションを抽出
+        const frontendSection = this._extractSection(content, 'フロントエンド', 'デプロイ環境別設定');
+        if (frontendSection) {
+          const frontendVars = this._parseEnvSection(frontendSection, 'フロントエンド');
+          envVariables.push(...frontendVars);
+        }
       }
       
       return envVariables;
@@ -1370,10 +1739,45 @@ export class EnvironmentVariablesAssistantPanel {
   }
   
   /**
-   * 環境変数セクションを解析
+   * 環境変数セクションを解析（新形式）
    */
-  private _parseEnvSection(section: string, sectionName: string): { name: string; isConfigured: boolean; description: string; section: string }[] {
-    const envVariables: { name: string; isConfigured: boolean; description: string; section: string }[] = [];
+  private _parseNewEnvSection(section: string, sectionName: string): { name: string; isConfigured: boolean; partiallyConfigured: boolean; description: string; section: string }[] {
+    const envVariables: { name: string; isConfigured: boolean; partiallyConfigured: boolean; description: string; section: string }[] = [];
+    
+    // 行ごとに処理
+    const lines = section.split('\n');
+    
+    for (const line of lines) {
+      // 環境変数行を抽出 (例: [✓] `DATABASE_URL` - データベース接続文字列)
+      // 新形式: [✓], [!], [ ] のステータス対応
+      const match = line.match(/\[([\s✓x!])\]\s*`([^`]+)`\s*-\s*(.*)/);
+      if (match) {
+        const statusMark = match[1];
+        const name = match[2];
+        const description = match[3].trim();
+        
+        // ステータスによって設定済みかどうかを判断
+        const isConfigured = statusMark === '✓'; // チェックマークがあれば設定済み
+        const isPartiallyConfigured = statusMark === '!'; // 感嘆符があれば部分的に設定済み
+        
+        envVariables.push({
+          name,
+          isConfigured: isConfigured, // 完全に設定済みの場合のみtrue
+          partiallyConfigured: isPartiallyConfigured, // 部分的に設定済みの場合
+          description,
+          section: sectionName
+        });
+      }
+    }
+    
+    return envVariables;
+  }
+  
+  /**
+   * 環境変数セクションを解析（旧形式）
+   */
+  private _parseEnvSection(section: string, sectionName: string): { name: string; isConfigured: boolean; partiallyConfigured: boolean; description: string; section: string }[] {
+    const envVariables: { name: string; isConfigured: boolean; partiallyConfigured: boolean; description: string; section: string }[] = [];
     
     // 行ごとに処理
     const lines = section.split('\n');
@@ -1389,6 +1793,7 @@ export class EnvironmentVariablesAssistantPanel {
         envVariables.push({
           name,
           isConfigured: checkmark === '✓' || checkmark === 'x',
+          partiallyConfigured: false, // 旧形式には部分的に設定済みの概念がない
           description,
           section: sectionName
         });
