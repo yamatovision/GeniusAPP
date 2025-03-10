@@ -361,6 +361,25 @@ export class DashboardPanel {
           Logger.debug(`No implementation scope found for project: ${projectId}`);
         }
       }
+
+      // モックアップファイルの存在を必ず再確認する（リアルタイム更新のため）
+      if (project.path) {
+        try {
+          const mockupsDir = path.join(project.path, 'mockups');
+          if (fs.existsSync(mockupsDir)) {
+            const files = fs.readdirSync(mockupsDir);
+            const hasMockupFiles = files.some(file => file.endsWith('.html'));
+            Logger.info(`モックアップファイルをリアルタイムチェック: ${mockupsDir}, HTMLファイル存在: ${hasMockupFiles}`);
+            
+            // 既存のactiveProjectDetailsがない場合は初期化
+            if (!this._projectMockups[projectId]) {
+              this._projectMockups[projectId] = [];
+            }
+          }
+        } catch (err) {
+          Logger.warn(`モックアップファイルの再チェック中にエラー: ${(err as Error).message}`);
+        }
+      }
       
       // 詳細情報が読み込まれた後、UI更新（ロードインジケータは表示せずに更新）
       await this._updateWebview();
@@ -1116,14 +1135,17 @@ JWT_SECRET=your_jwt_secret_key
         // ファイル進捗情報は使用しない
         let fileProgress = { completed: [], total: [], percentage: 0 };
 
-        // モックアップファイルの存在チェック
+        // モックアップファイルの存在チェック - 毎回確実に最新状態を確認
         let hasMockupFiles = false;
         try {
           const mockupsDir = path.join(projectPath, 'mockups');
           if (fs.existsSync(mockupsDir)) {
             const files = fs.readdirSync(mockupsDir);
             hasMockupFiles = files.some(file => file.endsWith('.html'));
-            Logger.debug(`モックアップフォルダをチェック: ${mockupsDir}, HTMLファイル存在: ${hasMockupFiles}`);
+            Logger.info(`リアルタイムモックアップ状態チェック: ${mockupsDir}, HTMLファイル存在: ${hasMockupFiles}`);
+            
+            // クリックできるかどうかのログを追加（デバッグ用）
+            Logger.info(`モックアップギャラリーボタンは${hasMockupFiles ? 'クリック可能' : '無効'}になるはずです`);
           }
         } catch (err) {
           Logger.warn(`モックアップフォルダのチェック中にエラー: ${(err as Error).message}`);
@@ -1164,12 +1186,21 @@ JWT_SECRET=your_jwt_secret_key
         };
       }
       
+      // WebViewに状態を送信する前にデバッグ情報を記録
+      if (activeProjectDetails && activeProjectDetails.hasMockupFiles) {
+        Logger.info('モックアップファイルが存在するため、モックアップギャラリーボタンを有効化します');
+      }
+      
+      // WebViewに状態更新を送信
       await this._panel.webview.postMessage({
         command: 'updateState',
         projects: this._currentProjects || [],
         activeProject: this._activeProject || null,
         activeProjectDetails: activeProjectDetails
       });
+      
+      // 状態更新の確認ログ
+      Logger.info('WebViewへの状態更新を完了しました');
     } catch (error) {
       Logger.error(`WebView状態更新エラー`, error as Error);
       // 最低限のメッセージを送信

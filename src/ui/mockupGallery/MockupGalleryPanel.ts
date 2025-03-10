@@ -179,7 +179,6 @@ export class MockupGalleryPanel {
   private _getDefaultProjectPath(): string {
     try {
       // AppGeniusStateManagerからアクティブプロジェクトパスの取得を試みる
-      // これは動的importを使用するため非同期が望ましいが、現在の設計では同期的に処理する
       try {
         // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { AppGeniusStateManager } = require('../../services/AppGeniusStateManager');
@@ -189,6 +188,21 @@ export class MockupGalleryPanel {
         if (activeProjectId) {
           const projectPath = stateManager.getProjectPath(activeProjectId);
           if (projectPath) {
+            // プロジェクトのmockupsフォルダにHTMLファイルがあるか確認
+            const mockupsPath = path.join(projectPath, 'mockups');
+            if (fs.existsSync(mockupsPath)) {
+              try {
+                const files = fs.readdirSync(mockupsPath);
+                const hasHtmlFiles = files.some(file => file.endsWith('.html'));
+                
+                if (hasHtmlFiles) {
+                  Logger.info(`プロジェクトのmockupsフォルダにHTMLファイルが見つかりました: ${mockupsPath}`);
+                }
+              } catch (fsError) {
+                Logger.debug(`mockupsフォルダの読み取りに失敗: ${(fsError as Error).message}`);
+              }
+            }
+            
             Logger.info(`AppGeniusStateManagerからプロジェクトパスを取得: ${projectPath}`);
             return projectPath;
           }
@@ -198,19 +212,50 @@ export class MockupGalleryPanel {
         Logger.debug(`StateManagerからのパス取得失敗: ${(stateError as Error).message}`);
       }
       
-      // 1. VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
+      // VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
       const workspaceFolders = vscode.workspace.workspaceFolders;
       
       if (workspaceFolders && workspaceFolders.length > 0) {
         const wsPath = workspaceFolders[0].uri.fsPath;
+        
+        // ワークスペースのmockupsフォルダにHTMLファイルがあるか確認
+        const mockupsPath = path.join(wsPath, 'mockups');
+        if (fs.existsSync(mockupsPath)) {
+          try {
+            const files = fs.readdirSync(mockupsPath);
+            const hasHtmlFiles = files.some(file => file.endsWith('.html'));
+            
+            if (hasHtmlFiles) {
+              Logger.info(`ワークスペースのmockupsフォルダにHTMLファイルが見つかりました: ${mockupsPath}`);
+            }
+          } catch (fsError) {
+            Logger.debug(`ワークスペースのmockupsフォルダの読み取りに失敗: ${(fsError as Error).message}`);
+          }
+        }
+        
         Logger.info(`ワークスペースフォルダからプロジェクトパスを取得: ${wsPath}`);
         return wsPath;
       }
       
-      // 2. 現在のディレクトリを使用
+      // 現在のディレクトリを使用
       const currentPath = process.cwd();
-      Logger.info(`カレントディレクトリからプロジェクトパスを取得: ${currentPath}`);
       
+      // 現在のディレクトリのmockupsフォルダにHTMLファイルがあるか確認
+      const currentMockupsPath = path.join(currentPath, 'mockups');
+      if (fs.existsSync(currentMockupsPath)) {
+        try {
+          const files = fs.readdirSync(currentMockupsPath);
+          const hasHtmlFiles = files.some(file => file.endsWith('.html'));
+          
+          if (hasHtmlFiles) {
+            Logger.info(`カレントディレクトリのmockupsフォルダにHTMLファイルが見つかりました: ${currentMockupsPath}`);
+          }
+        } catch (fsError) {
+          Logger.debug(`カレントディレクトリのmockupsフォルダの読み取りに失敗: ${(fsError as Error).message}`);
+        }
+      }
+      
+      Logger.info(`カレントディレクトリからプロジェクトパスを取得: ${currentPath}`);
       return currentPath;
     } catch (error) {
       // エラーが発生した場合は現在のディレクトリをフォールバックとして使用
@@ -578,6 +623,10 @@ export class MockupGalleryPanel {
       // テンプレートパスの構築
       const templatePath = path.join(this._projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
       
+      // 要件定義ファイルの存在確認
+      const requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
+      const requirementsExists = fs.existsSync(requirementsPath);
+      
       // ターミナルの作成
       const terminal = vscode.window.createTerminal({
         name: `ClaudeCode - ${mockup.name}の解析`,
@@ -623,6 +672,14 @@ export class MockupGalleryPanel {
             .replace(/{{MOCKUP_NAME}}/g, mockup.name)
             .replace(/{{SOURCE}}/g, 'mockupGallery');
           
+          // 要件定義ファイルが存在する場合、その内容を追加
+          if (requirementsExists) {
+            const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
+            // 要件定義の内容をテンプレートに追加
+            templateContent += '\n\n## プロジェクト要件定義\n\n```markdown\n' + requirementsContent + '\n```\n';
+            Logger.info(`要件定義ファイルの内容を追加しました: ${requirementsPath}`);
+          }
+          
           // 一時的なテンプレートファイルを作成
           fs.writeFileSync(tempTemplatePath, templateContent, 'utf8');
           
@@ -632,6 +689,9 @@ export class MockupGalleryPanel {
           // コマンド実行
           terminal.sendText(`echo "テンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
           terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
+          if (requirementsExists) {
+            terminal.sendText(`echo "要件定義ファイルも含めて解析します: ${requirementsPath}"`);
+          }
           terminal.sendText(`claude ${escapedTempTemplatePath}`);
           
           Logger.info(`一時的なテンプレートファイルを作成しました: ${tempTemplatePath}`);

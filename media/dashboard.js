@@ -67,6 +67,16 @@
     
     // ローディング状態の更新
     updateLoadingState(true);
+    
+    // 定期的な状態更新（1秒ごとに更新）
+    setInterval(() => {
+      if (state.activeProject) {
+        console.log("定期的な状態更新を実行します");
+        vscode.postMessage({
+          command: 'refreshProjects'
+        });
+      }
+    }, 1000);
   });
   
   // メッセージのハンドラーを登録
@@ -468,8 +478,11 @@
       // phase情報の安全な取得
       const phases = project.phases || { requirements: false, design: false, implementation: false, testing: false, deployment: false };
       
-      // モックアップファイルの存在チェック (新しい条件)
+      // モックアップファイルの存在チェック (新しい条件) - 常に最新の状態を反映
       const hasMockupFiles = details.hasMockupFiles || false;
+      
+      // デバッグ用ログ
+      console.log(`モックアップファイル存在フラグ: ${hasMockupFiles}`);
       
       // 計画プロセスのステップ描画
       const planningStepsHtml = `
@@ -485,7 +498,7 @@
             <div class="step-action">開く</div>
           </a>
 
-          <a href="#" class="process-step ${phases.design ? 'completed' : (phases.requirements ? 'active' : '')} ${!phases.requirements ? 'disabled' : ''}" id="mockup-step" data-command="openMockupEditor">
+          <a href="#" class="process-step ${phases.design ? 'completed' : 'active'}" id="mockup-step" data-command="openMockupEditor">
             <div class="step-number">2</div>
             <div class="step-icon">🎨</div>
             <div class="step-content">
