@@ -65,7 +65,7 @@ const vscode = acquireVsCodeApi();
     // リストをクリア
     scopeList.innerHTML = '';
     
-    // スコープが空の場合の表示と「スコープを作成する」ボタンの表示/非表示
+    // スコープが空の場合の表示
     const directoryButton = document.getElementById('directory-structure-button');
     const createScopeButton = document.getElementById('create-scope-button');
     
@@ -78,15 +78,16 @@ const vscode = acquireVsCodeApi();
         </div>
       `;
       
-      // スコープが空の場合はディレクトリボタンを隠し、スコープ作成ボタンを表示
+      // スコープが空の場合はディレクトリボタンを隠す
       if (directoryButton) directoryButton.style.display = 'none';
       if (createScopeButton) createScopeButton.style.display = 'block';
       return;
     }
     
-    // スコープがある場合はディレクトリボタンを表示し、スコープ作成ボタンを隠す
+    // スコープがある場合はディレクトリボタンを表示
     if (directoryButton) directoryButton.style.display = 'block';
-    if (createScopeButton) createScopeButton.style.display = 'none';
+    // スコープ作成ボタンは常に表示する
+    if (createScopeButton) createScopeButton.style.display = 'block';
     
     // スコープごとにリスト項目を生成
     scopes.forEach((scope, index) => {

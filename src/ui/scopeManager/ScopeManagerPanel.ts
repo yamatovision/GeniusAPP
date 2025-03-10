@@ -1640,7 +1640,7 @@ export class ScopeManagerPanel {
             <i class="material-icons" style="margin-right: 4px;">folder</i>
             ディレクトリ構造を表示
           </button>
-          <button id="create-scope-button" class="button button-secondary" style="width: 100%; margin-top: 10px; display: none;">
+          <button id="create-scope-button" class="button button-secondary" style="width: 100%; margin-top: 10px;">
             <i class="material-icons" style="margin-right: 4px;">create_new_folder</i>
             スコープを作成する
           </button>
