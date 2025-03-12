@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppGenius - プロンプト管理</title>
+  
+  <!-- React と ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Material-UI -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5.14.5/umd/material-ui.production.min.js"></script>
+  <script src="https://unpkg.com/@emotion/react@11.11.1/dist/emotion-react.umd.min.js"></script>
+  <script src="https://unpkg.com/@emotion/styled@11.11.0/dist/emotion-styled.umd.min.js"></script>
+  
+  <!-- Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  
+  <!-- Fonts -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+    }
+    
+    #root {
+      min-height: 100vh;
+    }
+    
+    .auth-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    }
+    
+    .auth-card {
+      max-width: 450px;
+      width: 90%;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+    
+    .auth-header {
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    
+    .auth-logo {
+      width: 60px;
+      height: 60px;
+      margin-bottom: 16px;
+    }
+    
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .dashboard {
+      min-height: 100vh;
+      display: flex;
+    }
+    
+    .sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      border-right: 1px solid #e0e0e0;
+    }
+    
+    .sidebar-header {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .content {
+      flex-grow: 1;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    
+    .dashboard-header {
+      height: 64px;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      border-bottom: 1px solid #e0e0e0;
+      justify-content: space-between;
+    }
+    
+    .page-title {
+      margin-bottom: 24px;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    
+    .stat-card {
+      height: 140px;
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    
+    .recent-section {
+      margin-bottom: 40px;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .prompt-card {
+      display: flex;
+      padding: 16px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+      align-items: center;
+    }
+    
+    .prompt-content {
+      flex-grow: 1;
+      margin-left: 16px;
+    }
+    
+    .prompt-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .tag {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+    
+    .link-no-decoration {
+      text-decoration: none;
+      color: inherit;
+    }
+    
+    .search-bar {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+    }
+    
+    .user-menu {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      margin-right: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const {
+      CssBaseline, ThemeProvider, createTheme,
+      Box, Container, Paper, Typography, TextField, Button, Link, Divider,
+      AppBar, Toolbar, IconButton, Avatar, Menu, MenuItem,
+      Drawer, List, ListItem, ListItemIcon, ListItemText, ListItemButton,
+      Card, CardContent, CardActions, Chip, Badge,
+      Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
+      Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle,
+      CircularProgress, Snackbar, Alert, Tabs, Tab,
+      useMediaQuery
+    } = MaterialUI;
+
+    // テーマ設定
+    const theme = createTheme({
+      palette: {
+        primary: {
+          main: '#4a6eff',
+        },
+        secondary: {
+          main: '#6c25be',
+        },
+        background: {
+          default: '#f5f5f5',
+        },
+      },
+      shape: {
+        borderRadius: 8,
+      },
+    });
+
+    // モックデータ
+    const MOCK_DATA = {
+      user: {
+        id: 'user1',
+        name: '山田 太郎',
+        email: 'yamada.taro@example.com',
+        avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+        role: 'admin'
+      },
+      stats: {
+        totalPrompts: 42,
+        activeUsers: 12
+      },
+      recentPrompts: [
+        { 
+          id: 'prompt1', 
+          title: 'ユーザーデータ解析アシスタント', 
+          category: 'データ分析', 
+          updatedAt: '2023-03-10T12:30:00Z',
+          tags: ['データ', '分析', 'ダッシュボード'],
+          version: '2.3'
+        },
+        { 
+          id: 'prompt2', 
+          title: 'マーケティングコピー生成ツール', 
+          category: 'マーケティング', 
+          updatedAt: '2023-03-09T14:45:00Z',
+          tags: ['コピーライティング', 'SEO'],
+          version: '1.0'
+        },
+        { 
+          id: 'prompt3', 
+          title: 'コード説明アシスタント', 
+          category: '開発', 
+          updatedAt: '2023-03-08T09:15:00Z',
+          tags: ['コード', '解説', '教育'],
+          version: '3.1'
+        },
+        { 
+          id: 'prompt4', 
+          title: 'VSCode拡張開発ガイド', 
+          category: '開発', 
+          updatedAt: '2023-03-06T11:20:00Z',
+          tags: ['VSCode', '拡張機能', 'TypeScript'],
+          version: '1.2'
+        },
+        { 
+          id: 'prompt5', 
+          title: 'デバッグ検出プロンプト', 
+          category: 'デバッグ', 
+          updatedAt: '2023-03-05T14:30:00Z',
+          tags: ['エラー解析', 'トラブルシューティング'],
+          version: '2.1'
+        }
+      ]
+    };
+
+    // 日付フォーマット関数
+    const formatDate = (dateString) => {
+      const date = new Date(dateString);
+      return new Intl.DateTimeFormat('ja-JP', {
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      }).format(date);
+    };
+
+    // ローディングコンポーネント
+    const LoadingSpinner = () => (
+      <Box 
+        display="flex" 
+        justifyContent="center" 
+        alignItems="center" 
+        minHeight="100vh"
+      >
+        <CircularProgress />
+      </Box>
+    );
+
+    // ログインページコンポーネント
+    const LoginPage = ({ onLogin, isLoading }) => {
+      const [email, setEmail] = React.useState('');
+      const [password, setPassword] = React.useState('');
+      const [showRegister, setShowRegister] = React.useState(false);
+      
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onLogin({ email, password });
+      };
+      
+      return (
+        <Box className="auth-page">
+          <Paper className="auth-card" elevation={10}>
+            <Box className="auth-header">
+              <img 
+                src="https://via.placeholder.com/60?text=AG" 
+                alt="AppGenius Logo" 
+                className="auth-logo" 
+              />
+              <Typography variant="h5" component="h1" fontWeight="bold">
+                AppGenius
+              </Typography>
+              <Typography variant="subtitle1" color="text.secondary">
+                {showRegister ? 'アカウント作成' : 'プロンプト管理システム'}
+              </Typography>
+            </Box>
+            
+            {showRegister ? (
+              <Box component="form" className="auth-form" onSubmit={handleSubmit}>
+                <TextField
+                  label="お名前"
+                  variant="outlined"
+                  fullWidth
+                  required
+                />
+                <TextField
+                  label="メールアドレス"
+                  variant="outlined"
+                  type="email"
+                  fullWidth
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField
+                  label="パスワード"
+                  variant="outlined"
+                  type="password"
+                  fullWidth
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <TextField
+                  label="パスワード (確認)"
+                  variant="outlined"
+                  type="password"
+                  fullWidth
+                  required
+                />
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  size="large" 
+                  fullWidth 
+                  type="submit"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <CircularProgress size={24} /> : 'アカウント作成'}
+                </Button>
+                <Box textAlign="center">
+                  <Typography variant="body2">
+                    すでにアカウントをお持ちですか？{' '}
+                    <Link href="#" onClick={() => setShowRegister(false)}>
+                      ログイン
+                    </Link>
+                  </Typography>
+                </Box>
+              </Box>
+            ) : (
+              <Box component="form" className="auth-form" onSubmit={handleSubmit}>
+                <TextField
+                  label="メールアドレス"
+                  variant="outlined"
+                  type="email"
+                  fullWidth
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField
+                  label="パスワード"
+                  variant="outlined"
+                  type="password"
+                  fullWidth
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <Box display="flex" justifyContent="flex-end">
+                  <Link href="#" variant="body2">
+                    パスワードをお忘れですか？
+                  </Link>
+                </Box>
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  size="large" 
+                  fullWidth 
+                  type="submit"
+                  disabled={isLoading}
+                >
+                  {isLoading ? <CircularProgress size={24} /> : 'ログイン'}
+                </Button>
+                <Box textAlign="center">
+                  <Typography variant="body2">
+                    アカウントをお持ちでないですか？{' '}
+                    <Link href="#" onClick={() => setShowRegister(true)}>
+                      新規登録
+                    </Link>
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+          </Paper>
+        </Box>
+      );
+    };
+
+    // サイドバーナビゲーションコンポーネント
+    const SidebarNavigation = ({ onNavigate, currentPage }) => {
+      const navItems = [
+        { label: 'ダッシュボード', icon: 'dashboard', page: 'dashboard' },
+        { label: 'プロンプト', icon: 'description', page: 'prompts' },
+        { label: 'ユーザー', icon: 'people', page: 'users' },
+        { label: '設定', icon: 'settings', page: 'settings' },
+      ];
+      
+      return (
+        <Box className="sidebar">
+          <Box className="sidebar-header">
+            <Typography variant="h6" fontWeight="bold">AppGenius</Typography>
+          </Box>
+          <List>
+            {navItems.map((item) => (
+              <ListItem key={item.page} disablePadding>
+                <ListItemButton 
+                  selected={currentPage === item.page}
+                  onClick={() => onNavigate(item.page)}
+                >
+                  <ListItemIcon>
+                    <span className="material-icons">{item.icon}</span>
+                  </ListItemIcon>
+                  <ListItemText primary={item.label} />
+                </ListItemButton>
+              </ListItem>
+            ))}
+            <Divider sx={{ my: 2 }} />
+            <ListItem disablePadding>
+              <ListItemButton>
+                <ListItemIcon>
+                  <span className="material-icons">help_outline</span>
+                </ListItemIcon>
+                <ListItemText primary="ヘルプ" />
+              </ListItemButton>
+            </ListItem>
+          </List>
+        </Box>
+      );
+    };
+
+    // プロンプト管理ページコンポーネント
+    const PromptsPage = ({ user, recentPrompts }) => {
+      const [menuAnchor, setMenuAnchor] = React.useState(null);
+      const [showAddDialog, setShowAddDialog] = React.useState(false);
+      const [showEditDialog, setShowEditDialog] = React.useState(false);
+      const [showLinkDialog, setShowLinkDialog] = React.useState(false);
+      const [selectedPrompt, setSelectedPrompt] = React.useState(null);
+      
+      const handleEdit = (prompt) => {
+        setSelectedPrompt(prompt);
+        setShowEditDialog(true);
+      };
+      
+      const handlePublicLink = (prompt) => {
+        setSelectedPrompt(prompt);
+        setShowLinkDialog(true);
+      };
+      
+      return (
+        <Box>
+          <Box className="dashboard-header">
+            <Box className="search-bar">
+              <TextField
+                placeholder="プロンプトを検索..."
+                variant="outlined"
+                size="small"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <Box mr={1} display="flex" alignItems="center">
+                      <span className="material-icons">search</span>
+                    </Box>
+                  ),
+                }}
+              />
+            </Box>
+            <Box className="user-menu" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+              <img src={user.avatar} alt={user.name} className="user-avatar" />
+              <Typography variant="body2">{user.name}</Typography>
+              <Box ml={1}>
+                <span className="material-icons">arrow_drop_down</span>
+              </Box>
+            </Box>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem>プロフィール</MenuItem>
+              <MenuItem>設定</MenuItem>
+              <Divider />
+              <MenuItem>ログアウト</MenuItem>
+            </Menu>
+          </Box>
+
+          <Box className="content">
+            <Box className="section-header">
+              <Typography variant="h4" className="page-title">プロンプト管理</Typography>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<span className="material-icons">add</span>}
+                onClick={() => setShowAddDialog(true)}
+              >
+                新規プロンプト
+              </Button>
+            </Box>
+            
+            {recentPrompts.map(prompt => (
+              <Card key={prompt.id} className="prompt-card">
+                <Box 
+                  display="flex" 
+                  alignItems="center" 
+                  justifyContent="center" 
+                  bgcolor="primary.light" 
+                  color="primary.contrastText" 
+                  width={40} 
+                  height={40} 
+                  borderRadius="50%"
+                >
+                  <span className="material-icons">description</span>
+                </Box>
+                <Box className="prompt-content">
+                  <Typography variant="h6">{prompt.title}</Typography>
+                  <Box mt={0.5} display="flex" alignItems="center">
+                    <Typography variant="body2" color="text.secondary" mr={2}>
+                      {prompt.category}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" mr={2}>
+                      v{prompt.version}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      更新: {formatDate(prompt.updatedAt)}
+                    </Typography>
+                  </Box>
+                  <Box mt={1}>
+                    {prompt.tags.map(tag => (
+                      <Chip 
+                        key={tag} 
+                        label={tag} 
+                        size="small" 
+                        sx={{ mr: 0.5 }} 
+                      />
+                    ))}
+                  </Box>
+                </Box>
+                <Box className="prompt-actions">
+                  <IconButton size="small" onClick={() => handleEdit(prompt)}>
+                    <span className="material-icons">edit</span>
+                  </IconButton>
+                  <IconButton size="small" onClick={() => handlePublicLink(prompt)}>
+                    <span className="material-icons">link</span>
+                  </IconButton>
+                  <IconButton size="small">
+                    <span className="material-icons">delete</span>
+                  </IconButton>
+                </Box>
+              </Card>
+            ))}
+          </Box>
+          
+          {/* プロンプト追加・編集ダイアログ */}
+          <Dialog 
+            open={showAddDialog || showEditDialog} 
+            onClose={() => showAddDialog ? setShowAddDialog(false) : setShowEditDialog(false)}
+            fullWidth
+            maxWidth="md"
+          >
+            <DialogTitle>
+              {showAddDialog ? '新規プロンプトの作成' : 'プロンプトの編集'}
+            </DialogTitle>
+            <DialogContent>
+              <Box component="form" sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField 
+                  label="タイトル" 
+                  variant="outlined" 
+                  fullWidth
+                  defaultValue={selectedPrompt?.title || ''}
+                />
+                <TextField 
+                  label="カテゴリ" 
+                  variant="outlined" 
+                  fullWidth
+                  defaultValue={selectedPrompt?.category || ''}
+                />
+                <TextField 
+                  label="タグ（カンマ区切り）" 
+                  variant="outlined" 
+                  fullWidth
+                  defaultValue={selectedPrompt?.tags.join(', ') || ''}
+                />
+                <TextField 
+                  label="プロンプト内容" 
+                  variant="outlined" 
+                  multiline
+                  rows={10}
+                  fullWidth
+                />
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => showAddDialog ? setShowAddDialog(false) : setShowEditDialog(false)}>キャンセル</Button>
+              <Button variant="contained" color="primary">保存</Button>
+            </DialogActions>
+          </Dialog>
+          
+          {/* 公開リンクダイアログ */}
+          <Dialog 
+            open={showLinkDialog} 
+            onClose={() => setShowLinkDialog(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>公開リンク</DialogTitle>
+            <DialogContent>
+              <DialogContentText>
+                以下のリンクを共有することで、他のユーザーとプロンプトを共有できます。
+              </DialogContentText>
+              <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', p: 1, bgcolor: 'grey.100', borderRadius: 1 }}>
+                <TextField 
+                  variant="standard"
+                  fullWidth
+                  InputProps={{
+                    disableUnderline: true,
+                  }}
+                  value={`https://appgenius.example.com/prompt/${selectedPrompt?.id}`}
+                />
+                <IconButton>
+                  <span className="material-icons">content_copy</span>
+                </IconButton>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button variant="contained" onClick={() => setShowLinkDialog(false)}>閉じる</Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      );
+    };
+
+    // ユーザー管理ページコンポーネント
+    const UsersPage = ({ user }) => {
+      const [menuAnchor, setMenuAnchor] = React.useState(null);
+      const [showAddDialog, setShowAddDialog] = React.useState(false);
+      const [showEditDialog, setShowEditDialog] = React.useState(false);
+      const [selectedUser, setSelectedUser] = React.useState(null);
+      
+      // モックユーザーデータ
+      const users = [
+        { 
+          id: '1', 
+          name: '山田太郎', 
+          email: 'yamada@example.com', 
+          status: '管理者', 
+          lastLogin: '2025-03-10T10:30:00Z',
+          tokenLimit: 5000000,
+          tokenUsed: 1200000,
+          apiStatus: '有効',
+          promptAccess: '全て'
+        },
+        { 
+          id: '2', 
+          name: '佐藤次郎', 
+          email: 'sato@example.com', 
+          status: 'アクティブ', 
+          lastLogin: '2025-03-09T14:15:00Z',
+          tokenLimit: 1000000,
+          tokenUsed: 850000,
+          apiStatus: '有効',
+          promptAccess: '基本'
+        },
+        { 
+          id: '3', 
+          name: '鈴木花子', 
+          email: 'suzuki@example.com', 
+          status: 'アクティブ', 
+          lastLogin: '2025-03-08T09:45:00Z',
+          tokenLimit: 2000000,
+          tokenUsed: 450000,
+          apiStatus: '有効',
+          promptAccess: '拡張'
+        },
+        { 
+          id: '4', 
+          name: '高橋健太', 
+          email: 'takahashi@example.com', 
+          status: '退会', 
+          lastLogin: '2025-03-05T16:20:00Z',
+          tokenLimit: 1000000,
+          tokenUsed: 980000,
+          apiStatus: '無効',
+          promptAccess: '基本'
+        },
+      ];
+      
+      const getStatusColor = (status) => {
+        switch(status) {
+          case '管理者': return '#1565c0';
+          case 'アクティブ': return '#2e7d32';
+          case '退会': return '#c62828';
+          default: return '#757575';
+        }
+      };
+      
+      const handleEdit = (user) => {
+        setSelectedUser(user);
+        setShowEditDialog(true);
+      };
+      
+      return (
+        <Box>
+          <Box className="dashboard-header">
+            <Box className="search-bar">
+              <TextField
+                placeholder="ユーザーを検索..."
+                variant="outlined"
+                size="small"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <Box mr={1} display="flex" alignItems="center">
+                      <span className="material-icons">search</span>
+                    </Box>
+                  ),
+                }}
+              />
+            </Box>
+            <Box className="user-menu" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+              <img src={user.avatar} alt={user.name} className="user-avatar" />
+              <Typography variant="body2">{user.name}</Typography>
+              <Box ml={1}>
+                <span className="material-icons">arrow_drop_down</span>
+              </Box>
+            </Box>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem>プロフィール</MenuItem>
+              <MenuItem>設定</MenuItem>
+              <Divider />
+              <MenuItem>ログアウト</MenuItem>
+            </Menu>
+          </Box>
+
+          <Box className="content">
+            <Box className="section-header">
+              <Typography variant="h4" className="page-title">ユーザー管理</Typography>
+              <Button 
+                variant="contained" 
+                color="primary" 
+                startIcon={<span className="material-icons">add</span>}
+                onClick={() => setShowAddDialog(true)}
+              >
+                新規ユーザー
+              </Button>
+            </Box>
+            
+            <TableContainer component={Paper} sx={{ mt: 3 }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>名前</TableCell>
+                    <TableCell>メールアドレス</TableCell>
+                    <TableCell>ステータス</TableCell>
+                    <TableCell>トークン使用量</TableCell>
+                    <TableCell>API状態</TableCell>
+                    <TableCell>プロンプト</TableCell>
+                    <TableCell>最終ログイン</TableCell>
+                    <TableCell align="right">アクション</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {users.map(user => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <Typography variant="body1" fontWeight="medium">
+                          {user.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={user.status} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: `${getStatusColor(user.status)}20`, 
+                            color: getStatusColor(user.status),
+                            fontWeight: 500
+                          }} 
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Box display="flex" alignItems="center">
+                          <Box sx={{ position: 'relative', display: 'inline-flex', mr: 1 }}>
+                            <CircularProgress 
+                              variant="determinate" 
+                              value={(user.tokenUsed / user.tokenLimit) * 100} 
+                              size={24} 
+                              sx={{ 
+                                color: (user.tokenUsed / user.tokenLimit) > 0.8 ? '#f44336' : '#4caf50' 
+                              }}
+                            />
+                          </Box>
+                          <Typography variant="body2">
+                            {Math.round(user.tokenUsed/10000)/100}M / {Math.round(user.tokenLimit/10000)/100}M
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={user.apiStatus} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: user.apiStatus === '有効' ? 'rgba(46, 125, 50, 0.1)' : 'rgba(198, 40, 40, 0.1)', 
+                            color: user.apiStatus === '有効' ? '#2e7d32' : '#c62828',
+                            fontWeight: 500
+                          }} 
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={user.promptAccess} 
+                          size="small" 
+                          sx={{ 
+                            bgcolor: 'rgba(25, 118, 210, 0.1)', 
+                            color: '#1976d2',
+                            fontWeight: 500
+                          }} 
+                        />
+                      </TableCell>
+                      <TableCell>{formatDate(user.lastLogin)}</TableCell>
+                      <TableCell align="right">
+                        <IconButton size="small" onClick={() => handleEdit(user)}>
+                          <span className="material-icons">edit</span>
+                        </IconButton>
+                        <IconButton size="small">
+                          <span className="material-icons">delete</span>
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+          
+          {/* ユーザー追加・編集ダイアログ */}
+          <Dialog 
+            open={showAddDialog || showEditDialog} 
+            onClose={() => showAddDialog ? setShowAddDialog(false) : setShowEditDialog(false)}
+            fullWidth
+            maxWidth="sm"
+          >
+            <DialogTitle>
+              {showAddDialog ? '新規ユーザーの追加' : 'ユーザー情報の編集'}
+            </DialogTitle>
+            <DialogContent>
+              <Box component="form" sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField 
+                  label="名前" 
+                  variant="outlined" 
+                  fullWidth
+                  defaultValue={selectedUser?.name || ''}
+                />
+                <TextField 
+                  label="メールアドレス" 
+                  variant="outlined" 
+                  type="email"
+                  fullWidth
+                  defaultValue={selectedUser?.email || ''}
+                />
+                {!selectedUser && (
+                  <TextField 
+                    label="パスワード" 
+                    variant="outlined" 
+                    type="password"
+                    fullWidth
+                  />
+                )}
+                
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    select
+                    label="ステータス"
+                    variant="outlined"
+                    fullWidth
+                    defaultValue={selectedUser?.status || 'アクティブ'}
+                  >
+                    <MenuItem value="管理者">管理者</MenuItem>
+                    <MenuItem value="アクティブ">アクティブ</MenuItem>
+                    <MenuItem value="退会">退会</MenuItem>
+                  </TextField>
+                  
+                  <TextField
+                    select
+                    label="API状態"
+                    variant="outlined"
+                    fullWidth
+                    defaultValue={selectedUser?.apiStatus || '有効'}
+                  >
+                    <MenuItem value="有効">有効</MenuItem>
+                    <MenuItem value="無効">無効</MenuItem>
+                  </TextField>
+                </Box>
+                
+                <Typography variant="subtitle2" sx={{ mt: 1 }}>トークン使用制限</Typography>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <TextField
+                    select
+                    label="プラン"
+                    variant="outlined"
+                    fullWidth
+                    defaultValue="custom"
+                  >
+                    <MenuItem value="basic">基本（1M）</MenuItem>
+                    <MenuItem value="standard">標準（2M）</MenuItem>
+                    <MenuItem value="premium">プレミアム（5M）</MenuItem>
+                    <MenuItem value="custom">カスタム</MenuItem>
+                  </TextField>
+                  
+                  <TextField 
+                    label="トークン上限" 
+                    variant="outlined"
+                    type="number"
+                    InputProps={{
+                      endAdornment: <Typography variant="caption" color="textSecondary">百万</Typography>
+                    }}
+                    defaultValue={selectedUser ? Math.round(selectedUser.tokenLimit/1000000) : 1}
+                  />
+                </Box>
+                
+                <TextField
+                  select
+                  label="プロンプトアクセス権限"
+                  variant="outlined"
+                  fullWidth
+                  defaultValue={selectedUser?.promptAccess || '基本'}
+                >
+                  <MenuItem value="基本">基本（一般プロンプトのみ）</MenuItem>
+                  <MenuItem value="拡張">拡張（特別プロンプト含む）</MenuItem>
+                  <MenuItem value="全て">全て（管理者用プロンプト含む）</MenuItem>
+                </TextField>
+                
+                {selectedUser && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                    <Typography variant="subtitle2">現在の使用量:</Typography>
+                    <Box sx={{ position: 'relative', display: 'inline-flex', mr: 1 }}>
+                      <CircularProgress 
+                        variant="determinate" 
+                        value={(selectedUser.tokenUsed / selectedUser.tokenLimit) * 100} 
+                        size={24} 
+                        sx={{ 
+                          color: (selectedUser.tokenUsed / selectedUser.tokenLimit) > 0.8 ? '#f44336' : '#4caf50' 
+                        }}
+                      />
+                    </Box>
+                    <Typography variant="body2">
+                      {Math.round(selectedUser.tokenUsed/10000)/100}M / {Math.round(selectedUser.tokenLimit/10000)/100}M
+                    </Typography>
+                    <Button 
+                      variant="outlined" 
+                      size="small" 
+                      color="primary"
+                      startIcon={<span className="material-icons" style={{ fontSize: 16 }}>restart_alt</span>}
+                    >
+                      リセット
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => showAddDialog ? setShowAddDialog(false) : setShowEditDialog(false)}>キャンセル</Button>
+              <Button variant="contained" color="primary">保存</Button>
+            </DialogActions>
+          </Dialog>
+        </Box>
+      );
+    };
+    
+    // ダッシュボードページコンポーネント
+    const DashboardPage = ({ user, stats }) => {
+      const [menuAnchor, setMenuAnchor] = React.useState(null);
+      
+      return (
+        <Box>
+          <Box className="dashboard-header">
+            <Box className="search-bar">
+              <TextField
+                placeholder="検索..."
+                variant="outlined"
+                size="small"
+                fullWidth
+                InputProps={{
+                  startAdornment: (
+                    <Box mr={1} display="flex" alignItems="center">
+                      <span className="material-icons">search</span>
+                    </Box>
+                  ),
+                }}
+              />
+            </Box>
+            <Box className="user-menu" onClick={(e) => setMenuAnchor(e.currentTarget)}>
+              <img src={user.avatar} alt={user.name} className="user-avatar" />
+              <Typography variant="body2">{user.name}</Typography>
+              <Box ml={1}>
+                <span className="material-icons">arrow_drop_down</span>
+              </Box>
+            </Box>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem>プロフィール</MenuItem>
+              <MenuItem>設定</MenuItem>
+              <Divider />
+              <MenuItem>ログアウト</MenuItem>
+            </Menu>
+          </Box>
+
+          <Box className="content">
+            <Typography variant="h4" className="page-title">ダッシュボード</Typography>
+            
+            <Box className="stats-grid">
+              <Card className="stat-card">
+                <Typography variant="body2" color="text.secondary">総プロンプト数</Typography>
+                <Typography variant="h3">{stats.totalPrompts}</Typography>
+                <Typography variant="body2" color="primary">先週比 +8%</Typography>
+              </Card>
+              <Card className="stat-card">
+                <Typography variant="body2" color="text.secondary">登録ユーザー数</Typography>
+                <Typography variant="h3">{stats.activeUsers}</Typography>
+                <Typography variant="body2" color="primary">先週比 +15%</Typography>
+              </Card>
+            </Box>
+          </Box>
+        </Box>
+      );
+    };
+
+    // VSCode拡張認証ページ（Webビュー用）
+    const VSCodeAuthView = ({ onLogin, isLoading }) => {
+      const [email, setEmail] = React.useState('');
+      const [password, setPassword] = React.useState('');
+      const [showSuccess, setShowSuccess] = React.useState(false);
+      
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        // モック用: 成功画面表示のために通常のログイン処理は行わず、
+        // 代わりに成功状態を表示する
+        setShowSuccess(true);
+      };
+      
+      return (
+        <Box 
+          display="flex" 
+          flexDirection="column" 
+          alignItems="center" 
+          justifyContent="center" 
+          p={3}
+          height="100vh"
+          bgcolor="#252526" // VSCodeの暗い背景
+          color="white"
+        >
+          {showSuccess ? (
+            // ログイン成功画面
+            <Paper 
+              sx={{ 
+                p: 4, 
+                maxWidth: 400, 
+                width: '100%',
+                bgcolor: '#333333',
+                color: 'white',
+                borderRadius: 2,
+                textAlign: 'center'
+              }}
+            >
+              <Box 
+                sx={{ 
+                  width: 70, 
+                  height: 70, 
+                  borderRadius: '50%', 
+                  bgcolor: 'rgba(76, 175, 80, 0.2)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  margin: '0 auto 20px auto'
+                }}
+              >
+                <span className="material-icons" style={{ fontSize: 40, color: '#4CAF50' }}>check</span>
+              </Box>
+              
+              <Typography variant="h5" fontWeight="bold" mb={1}>認証成功</Typography>
+              <Typography variant="body2" color="rgba(255,255,255,0.7)" mb={3}>
+                AppGenius VSCode拡張機能が有効化されました
+              </Typography>
+              
+              <Box bgcolor="rgba(255,255,255,0.1)" p={2} borderRadius={1} mb={3}>
+                <Typography variant="body2" color="white">
+                  山田 太郎としてログインしています
+                </Typography>
+                <Typography variant="body2" color="rgba(255,255,255,0.6)">
+                  yamada.taro@example.com
+                </Typography>
+              </Box>
+              
+              <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+                <Box flex={1}>
+                  <Typography variant="caption" color="rgba(255,255,255,0.6)">APIキー状態</Typography>
+                  <Box display="flex" alignItems="center">
+                    <span className="material-icons" style={{ fontSize: 16, marginRight: 8, color: "#4CAF50" }}>
+                      check_circle
+                    </span>
+                    <Typography variant="body2">有効</Typography>
+                  </Box>
+                </Box>
+                <Box flex={1}>
+                  <Typography variant="caption" color="rgba(255,255,255,0.6)">プロンプト同期</Typography>
+                  <Box display="flex" alignItems="center">
+                    <span className="material-icons" style={{ fontSize: 16, marginRight: 8, color: "#4CAF50" }}>
+                      sync
+                    </span>
+                    <Typography variant="body2">接続済み</Typography>
+                  </Box>
+                </Box>
+                <Box flex={1}>
+                  <Typography variant="caption" color="rgba(255,255,255,0.6)">使用量</Typography>
+                  <Box display="flex" alignItems="center">
+                    <Box sx={{ position: 'relative', display: 'inline-flex', mr: 1, width: 16, height: 16 }}>
+                      <CircularProgress 
+                        variant="determinate" 
+                        value={65} 
+                        size={16} 
+                        sx={{ color: '#4caf50' }}
+                      />
+                    </Box>
+                    <Typography variant="body2">65%</Typography>
+                  </Box>
+                </Box>
+              </Box>
+              
+              <Button 
+                variant="contained" 
+                color="primary" 
+                fullWidth
+              >
+                VSCodeに戻る
+              </Button>
+              
+              <Box mt={2} display="flex" justifyContent="center">
+                <Button 
+                  variant="text" 
+                  size="small"
+                  startIcon={<span className="material-icons" style={{ fontSize: 16 }}>logout</span>}
+                  sx={{ color: 'rgba(255,255,255,0.7)' }}
+                >
+                  ログアウト
+                </Button>
+              </Box>
+            </Paper>
+          ) : (
+            // ログインフォーム画面
+            <Paper 
+              sx={{ 
+                p: 4, 
+                maxWidth: 400, 
+                width: '100%',
+                bgcolor: '#333333', // VSCodeのUI色
+                color: 'white',
+                borderRadius: 2
+              }}
+            >
+              <Box textAlign="center" mb={3}>
+                <Typography variant="h5" fontWeight="bold">AppGenius</Typography>
+                <Typography variant="subtitle2" color="rgba(255,255,255,0.7)">
+                  VSCode拡張機能認証
+                </Typography>
+              </Box>
+              
+              <Box component="form" onSubmit={handleSubmit}>
+                <TextField
+                  label="メールアドレス"
+                  variant="outlined"
+                  fullWidth
+                  required
+                  margin="normal"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: 'white',
+                      '& fieldset': {
+                        borderColor: 'rgba(255,255,255,0.3)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(255,255,255,0.5)',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(255,255,255,0.7)',
+                    },
+                  }}
+                />
+                <TextField
+                  label="パスワード"
+                  variant="outlined"
+                  type="password"
+                  fullWidth
+                  required
+                  margin="normal"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      color: 'white',
+                      '& fieldset': {
+                        borderColor: 'rgba(255,255,255,0.3)',
+                      },
+                      '&:hover fieldset': {
+                        borderColor: 'rgba(255,255,255,0.5)',
+                      },
+                    },
+                    '& .MuiInputLabel-root': {
+                      color: 'rgba(255,255,255,0.7)',
+                    },
+                  }}
+                />
+                
+                <Button 
+                  variant="contained" 
+                  color="primary" 
+                  fullWidth 
+                  type="submit"
+                  sx={{ mt: 3 }}
+                  disabled={isLoading}
+                >
+                  {isLoading ? <CircularProgress size={24} /> : 'ログイン'}
+                </Button>
+                
+                <Box mt={2} display="flex" alignItems="center" justifyContent="center" textAlign="center">
+                  <Typography variant="body2" color="rgba(255,255,255,0.7)" mr={1}>
+                    使用量:
+                  </Typography>
+                  <Box sx={{ position: 'relative', display: 'inline-flex', mr: 1 }}>
+                    <CircularProgress 
+                      variant="determinate" 
+                      value={65} 
+                      size={24} 
+                      sx={{ color: '#4caf50' }}
+                    />
+                    <Box
+                      sx={{
+                        top: 0,
+                        left: 0,
+                        bottom: 0,
+                        right: 0,
+                        position: 'absolute',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Typography variant="caption" color="white" fontSize="0.6rem">65%</Typography>
+                    </Box>
+                  </Box>
+                  <Typography variant="body2" color="rgba(255,255,255,0.7)">
+                    650K / 1M トークン
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+          )}
+          
+          <Box mt={3} textAlign="center">
+            <Typography variant="body2" color="rgba(255,255,255,0.5)">
+              ログインすることで、ClaudeCode API へのアクセスと<br />
+              プロンプト管理機能が有効になります
+            </Typography>
+            <Box mt={2} display="flex" alignItems="center" justifyContent="center">
+              <Box 
+                sx={{ 
+                  bgcolor: "rgba(255,255,255,0.1)", 
+                  p: 1, 
+                  borderRadius: 1,
+                  display: "flex",
+                  alignItems: "center"
+                }}
+              >
+                <span className="material-icons" style={{ fontSize: 16, marginRight: 8, color: "#4CAF50" }}>
+                  cloud_done
+                </span>
+                <Typography variant="caption" color="rgba(255,255,255,0.7)">
+                  プロンプトライブラリ連携済み
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+        </Box>
+      );
+    };
+
+    // メインアプリケーション
+    const App = () => {
+      const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+      const [isLoading, setIsLoading] = React.useState(false);
+      const [currentPage, setCurrentPage] = React.useState('dashboard');
+      const [isVSCodeAuth, setIsVSCodeAuth] = React.useState(false);
+      
+      // ログイン処理のモック
+      const handleLogin = (credentials) => {
+        setIsLoading(true);
+        
+        // ログイン処理を模擬（1秒後に成功）
+        setTimeout(() => {
+          setIsLoggedIn(true);
+          setIsLoading(false);
+        }, 1000);
+      };
+      
+      // 表示コンテンツの判定
+      const renderContent = () => {
+        // ローディング中
+        if (isLoading) {
+          return <LoadingSpinner />;
+        }
+        
+        // VSCode拡張認証
+        if (isVSCodeAuth) {
+          return <VSCodeAuthView onLogin={handleLogin} isLoading={isLoading} />;
+        }
+        
+        // ログイン前
+        if (!isLoggedIn) {
+          return <LoginPage onLogin={handleLogin} isLoading={isLoading} />;
+        }
+        
+        // ログイン後
+        return (
+          <Box className="dashboard">
+            <SidebarNavigation 
+              onNavigate={setCurrentPage} 
+              currentPage={currentPage} 
+            />
+            <Box sx={{ flexGrow: 1 }}>
+              {currentPage === 'dashboard' && (
+                <DashboardPage 
+                  user={MOCK_DATA.user}
+                  stats={MOCK_DATA.stats}
+                />
+              )}
+              {currentPage === 'prompts' && (
+                <PromptsPage
+                  user={MOCK_DATA.user}
+                  recentPrompts={MOCK_DATA.recentPrompts}
+                />
+              )}
+              {currentPage === 'users' && (
+                <UsersPage
+                  user={MOCK_DATA.user}
+                />
+              )}
+              {!['dashboard', 'prompts', 'users'].includes(currentPage) && (
+                <Box p={4} textAlign="center">
+                  <Typography variant="h4">
+                    {currentPage.charAt(0).toUpperCase() + currentPage.slice(1)}
+                  </Typography>
+                  <Typography variant="body1" mt={2}>
+                    このページは現在開発中です。
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        );
+      };
+      
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          {renderContent()}
+        </ThemeProvider>
+      );
+    };
+
+    // アプリケーション描画
+    const rootElement = document.getElementById('root');
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(<App />);
+  </script>
+</body>
+</html>

@@ -1357,6 +1357,86 @@ ${projectName}/
   /**
    * 初期データ読み込み処理
    */
+  /**
+   * デフォルトのプロジェクトパスを取得
+   * @returns デフォルトのプロジェクトパス
+   */
+  private _getDefaultProjectPath(): string {
+    try {
+      // AppGeniusStateManagerからアクティブプロジェクトパスの取得を試みる
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { AppGeniusStateManager } = require('../services/AppGeniusStateManager');
+        const stateManager = AppGeniusStateManager.getInstance();
+        const activeProjectId = stateManager.getActiveProjectId();
+        
+        if (activeProjectId) {
+          const projectPath = stateManager.getProjectPath(activeProjectId);
+          if (projectPath) {
+            // プロジェクトのdocsフォルダにrequirements.mdファイルがあるか確認
+            const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
+            if (fs.existsSync(requirementsPath)) {
+              Logger.info(`プロジェクトのdocsフォルダにrequirements.mdファイルが見つかりました: ${requirementsPath}`);
+            }
+            
+            Logger.info(`AppGeniusStateManagerからプロジェクトパスを取得: ${projectPath}`);
+            return projectPath;
+          }
+        }
+      } catch (stateError) {
+        // ステートマネージャーの取得に失敗した場合は警告を出して次の方法へ
+        Logger.debug(`StateManagerからのパス取得失敗: ${(stateError as Error).message}`);
+      }
+      
+      // VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const wsPath = workspaceFolders[0].uri.fsPath;
+        
+        // ワークスペースのdocsフォルダにrequirements.mdファイルがあるか確認
+        const requirementsPath = path.join(wsPath, 'docs', 'requirements.md');
+        if (fs.existsSync(requirementsPath)) {
+          Logger.info(`ワークスペースのdocsフォルダにrequirements.mdファイルが見つかりました: ${requirementsPath}`);
+        }
+        
+        Logger.info(`ワークスペースフォルダからプロジェクトパスを取得: ${wsPath}`);
+        return wsPath;
+      }
+      
+      // ProjectManagementServiceからアクティブプロジェクト取得を試みる
+      try {
+        const projectService = ProjectManagementService.getInstance();
+        const activeProject = projectService.getActiveProject();
+        if (activeProject && activeProject.path) {
+          const projectPath = activeProject.path;
+          Logger.info(`ProjectManagementServiceからプロジェクトパスを取得: ${projectPath}`);
+          return projectPath;
+        }
+      } catch (e) {
+        Logger.warn(`ProjectManagementService取得エラー: ${(e as Error).message}`);
+      }
+      
+      // 現在のディレクトリを使用
+      const currentPath = process.cwd();
+      
+      // 現在のディレクトリのdocsフォルダにrequirements.mdファイルがあるか確認
+      const currentRequirementsPath = path.join(currentPath, 'docs', 'requirements.md');
+      if (fs.existsSync(currentRequirementsPath)) {
+        Logger.info(`カレントディレクトリのdocsフォルダにrequirements.mdファイルが見つかりました: ${currentRequirementsPath}`);
+      }
+      
+      Logger.info(`カレントディレクトリからプロジェクトパスを取得: ${currentPath}`);
+      return currentPath;
+    } catch (error) {
+      // エラーが発生した場合は現在のディレクトリをフォールバックとして使用
+      const fallbackPath = process.cwd();
+      Logger.error(`プロジェクトパスの取得中にエラー: ${(error as Error).message}`);
+      Logger.info(`フォールバックパスを使用: ${fallbackPath}`);
+      return fallbackPath;
+    }
+  }
+
   private async _loadInitialData(): Promise<void> {
     try {
       // プロジェクトパスが設定されているか確認
@@ -1364,25 +1444,31 @@ ${projectName}/
       if (!projectPath) {
         Logger.warn('プロジェクトパスが設定されていません。デフォルト値を使用します。');
         
-        // アクティブなプロジェクトからパスを取得
-        try {
-          const projectService = ProjectManagementService.getInstance();
-          const activeProject = projectService.getActiveProject();
-          if (activeProject && activeProject.path) {
-            this._projectPath = activeProject.path;
-            Logger.info(`アクティブプロジェクトからパスを取得しました: ${this._projectPath}`);
-          }
-        } catch (e) {
-          Logger.warn(`アクティブプロジェクト取得エラー: ${(e as Error).message}`);
-        }
+        // デフォルトプロジェクトパスを取得
+        this._projectPath = this._getDefaultProjectPath();
+        Logger.info(`デフォルトプロジェクトパスを設定しました: ${this._projectPath}`);
       }
       
       // プロジェクトパスを使用
-      const basePath = this._projectPath || '';
+      const basePath = this._projectPath || this._getDefaultProjectPath();
       Logger.info(`プロジェクトパスを使用: ${basePath}`);
       
+      // docsディレクトリのパス
+      const docsDir = path.join(basePath, 'docs');
+      
+      // docsディレクトリが存在するか確認
+      if (!fs.existsSync(docsDir)) {
+        Logger.info(`docsディレクトリが存在しないため作成します: ${docsDir}`);
+        try {
+          fs.mkdirSync(docsDir, { recursive: true });
+          Logger.info(`docsディレクトリを作成しました: ${docsDir}`);
+        } catch (mkdirError) {
+          Logger.error(`docsディレクトリの作成に失敗しました: ${(mkdirError as Error).message}`);
+        }
+      }
+      
       // 要件定義ファイルのパスを構成
-      const requirementsPath = path.join(basePath, 'docs', 'requirements.md');
+      const requirementsPath = path.join(docsDir, 'requirements.md');
       
       Logger.info(`要件定義ファイルパス: ${requirementsPath}`);
       
@@ -1390,10 +1476,25 @@ ${projectName}/
       let requirementsContent = '';
       if (fs.existsSync(requirementsPath)) {
         Logger.info('要件定義ファイルが見つかりました、読み込みを開始します');
-        requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
-        Logger.info(`要件定義ファイルを読み込みました (${requirementsContent.length} 文字)`);
+        try {
+          requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
+          Logger.info(`要件定義ファイルを読み込みました (${requirementsContent.length} 文字)`);
+        } catch (readError) {
+          Logger.error(`要件定義ファイルの読み込みに失敗しました: ${(readError as Error).message}`);
+          // ファイル読み込み失敗時のメッセージを表示
+          this._panel.webview.postMessage({
+            command: 'showError',
+            text: `要件定義ファイルの読み込みに失敗しました: ${(readError as Error).message}`
+          });
+        }
       } else {
         Logger.warn(`要件定義ファイルが見つかりません: ${requirementsPath}`);
+        
+        // ファイルが存在しない場合に表示するメッセージ
+        this._panel.webview.postMessage({
+          command: 'showWarning',
+          text: `要件定義ファイルが見つかりません: ${requirementsPath}`
+        });
       }
       
       // 初期テンプレートからの変更を検出し、フェーズを更新
@@ -1466,10 +1567,23 @@ ${projectName}/
         this._fileWatcher.dispose();
       }
       
-      // プロジェクトパスが設定されていない場合は何もしない
+      // プロジェクトパスが設定されていない場合はデフォルトパスを取得
       if (!this._projectPath) {
-        Logger.warn('プロジェクトパスが設定されていないため、ファイル監視をスキップします');
-        return;
+        this._projectPath = this._getDefaultProjectPath();
+        Logger.info(`ファイル監視用にデフォルトプロジェクトパスを設定: ${this._projectPath}`);
+      }
+      
+      // requirements.mdファイルの格納されているdocsディレクトリのパス
+      const docsDir = path.join(this._projectPath, 'docs');
+      
+      // ディレクトリが存在するか確認
+      if (!fs.existsSync(docsDir)) {
+        try {
+          fs.mkdirSync(docsDir, { recursive: true });
+          Logger.info(`docsディレクトリを作成しました: ${docsDir}`);
+        } catch (mkdirError) {
+          Logger.error(`docsディレクトリの作成に失敗しました: ${(mkdirError as Error).message}`);
+        }
       }
       
       // 要件定義ファイルのパターン
@@ -1477,6 +1591,16 @@ ${projectName}/
         this._projectPath,
         'docs/requirements.md'
       );
+      
+      // 要件定義ファイルのパス
+      const requirementsPath = path.join(docsDir, 'requirements.md');
+      
+      // ファイルの存在を確認してログに記録
+      if (fs.existsSync(requirementsPath)) {
+        Logger.info(`監視対象ファイルが存在します: ${requirementsPath}`);
+      } else {
+        Logger.warn(`監視対象ファイルが存在しません: ${requirementsPath}`);
+      }
       
       // ファイルウォッチャーを作成
       this._fileWatcher = vscode.workspace.createFileSystemWatcher(requirementsGlob);
@@ -1486,25 +1610,96 @@ ${projectName}/
         try {
           Logger.info(`要件定義ファイルの変更を検出しました: ${uri.fsPath}`);
           
-          // ファイル内容を読み込む
-          const content = fs.readFileSync(uri.fsPath, 'utf8');
-          
-          // WebViewに更新通知
-          this._panel.webview.postMessage({
-            command: 'updateRequirementsContent',
-            content: content
-          });
-          
-          Logger.info('要件定義タブの内容を更新しました');
+          // ファイルが存在するか確認
+          if (fs.existsSync(uri.fsPath)) {
+            try {
+              // ファイル内容を読み込む
+              const content = fs.readFileSync(uri.fsPath, 'utf8');
+              
+              // WebViewに更新通知
+              this._panel.webview.postMessage({
+                command: 'updateRequirementsContent',
+                content: content
+              });
+              
+              Logger.info(`要件定義タブの内容を更新しました (${content.length} 文字)`);
+              
+              // ユーザーに通知
+              this._panel.webview.postMessage({
+                command: 'showMessage',
+                text: `要件定義ファイルが更新されました (${content.length} 文字)`
+              });
+            } catch (readError) {
+              Logger.error(`ファイル読み込みエラー: ${(readError as Error).message}`);
+              
+              // エラーをユーザーに通知
+              this._panel.webview.postMessage({
+                command: 'showError',
+                text: `ファイル読み込みエラー: ${(readError as Error).message}`
+              });
+            }
+          } else {
+            Logger.warn(`変更を検出したファイルが存在しません: ${uri.fsPath}`);
+          }
         } catch (error) {
           Logger.error(`要件定義ファイル更新の監視中にエラーが発生: ${(error as Error).message}`);
+        }
+      });
+      
+      // ファイル作成イベントのリスナーを追加
+      this._fileWatcher.onDidCreate(async uri => {
+        try {
+          const filePath = uri.fsPath;
+          Logger.info(`新しい要件定義ファイルが作成されました: ${filePath}`);
+          
+          try {
+            const content = fs.readFileSync(filePath, 'utf8');
+            this._panel.webview.postMessage({
+              command: 'updateRequirementsContent',
+              content
+            });
+            
+            Logger.info(`新しい要件定義ファイルを読み込みました: ${filePath} (${content.length} 文字)`);
+            
+            // ユーザーに通知
+            this._panel.webview.postMessage({
+              command: 'showMessage',
+              text: `要件定義ファイルが作成されました (${content.length} 文字)`
+            });
+          } catch (readError) {
+            Logger.error(`新ファイル読み込みエラー: ${(readError as Error).message}`);
+          }
+        } catch (error) {
+          Logger.error(`ファイル作成の処理中にエラー: ${(error as Error).message}`);
+        }
+      });
+      
+      // ファイル削除イベントのリスナーを追加
+      this._fileWatcher.onDidDelete(uri => {
+        try {
+          const filePath = uri.fsPath;
+          Logger.warn(`要件定義ファイルが削除されました: ${filePath}`);
+          
+          // 要件定義ファイルが削除された場合
+          this._panel.webview.postMessage({
+            command: 'updateRequirementsContent',
+            content: ''
+          });
+          
+          // ユーザーに通知
+          this._panel.webview.postMessage({
+            command: 'showWarning',
+            text: `要件定義ファイルが削除されました: ${filePath}`
+          });
+        } catch (error) {
+          Logger.error(`ファイル削除の処理中にエラー: ${(error as Error).message}`);
         }
       });
       
       // ウォッチャーを破棄リストに追加
       this._disposables.push(this._fileWatcher);
       
-      Logger.info('要件定義ファイルの監視を開始しました');
+      Logger.info(`要件定義ファイルの監視を開始しました: ${requirementsPath}`);
     } catch (error) {
       Logger.error(`ファイル監視の設定に失敗: ${(error as Error).message}`);
     }

@@ -1,0 +1,1677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppGenius - プロンプト管理システム</title>
+  <!-- React と ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Material UI -->
+  <script src="https://unpkg.com/@mui/material@5.14.5/umd/material-ui.production.min.js"></script>
+  <!-- Material UI Icons -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <!-- Material Icons フォントを使用 -->
+  <style>
+    .material-icon {
+      font-family: 'Material Icons';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
+    }
+  </style>
+  <!-- Roboto Font -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+  <!-- Emotion (for styled components) -->
+  <script src="https://unpkg.com/@emotion/react@11.11.1/dist/emotion-react.umd.min.js"></script>
+  <script src="https://unpkg.com/@emotion/styled@11.11.0/dist/emotion-styled.umd.min.js"></script>
+  <!-- Babel for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Roboto', sans-serif;
+      background-color: #f5f5f5;
+    }
+    .app-wrapper {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    .loading-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+    .loading-screen h2 {
+      margin-top: 20px;
+      color: #3f51b5;
+    }
+    a {
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const {
+      createTheme, ThemeProvider, CssBaseline, Typography, Button, TextField, Paper, Box,
+      Container, Grid, Card, CardContent, CardActions, CardMedia, Divider, Chip, Avatar,
+      List, ListItem, ListItemIcon, ListItemText, ListItemButton, AppBar, Toolbar, IconButton,
+      Drawer, Menu, MenuItem, Dialog, DialogTitle, DialogContent, DialogActions, Tab, Tabs,
+      Table, TableBody, TableCell, TableContainer, TableHead, TableRow, CircularProgress,
+      Alert, Snackbar, InputAdornment, Select, FormControl, InputLabel, Badge, Tooltip,
+      LinearProgress
+    } = MaterialUI;
+
+    // Material Iconsフォントを使ったアイコンコンポーネント
+    // シンプルなアイコンコンポーネントの作成
+    const createIconComponent = (iconName) => (props) => {
+      return React.createElement('i', {
+        className: 'material-icon',
+        style: { verticalAlign: 'middle', ...props.style },
+        ...props
+      }, iconName);
+    };
+    
+    // アイコン定義
+    const MenuIcon = createIconComponent('menu');
+    const DashboardIcon = createIconComponent('dashboard');
+    const FolderIcon = createIconComponent('folder');
+    const SettingsIcon = createIconComponent('settings');
+    const PersonIcon = createIconComponent('person');
+    const LogoutIcon = createIconComponent('exit_to_app');
+    const BookmarkIcon = createIconComponent('bookmark');
+    const HistoryIcon = createIconComponent('history');
+    const SearchIcon = createIconComponent('search');
+    const AddIcon = createIconComponent('add');
+    const EditIcon = createIconComponent('edit');
+    const DeleteIcon = createIconComponent('delete');
+    const FilterListIcon = createIconComponent('filter_list');
+    const SortIcon = createIconComponent('sort');
+    const StarIcon = createIconComponent('star');
+    const StarBorderIcon = createIconComponent('star_border');
+    const LanguageIcon = createIconComponent('language');
+    const CodeIcon = createIconComponent('code');
+    const AssessmentIcon = createIconComponent('assessment');
+    const GroupIcon = createIconComponent('group');
+    const DateRangeIcon = createIconComponent('date_range');
+    const GitHubIcon = createIconComponent('code'); // GitHub特有のアイコンがないのでcodeで代用
+    const GoogleIcon = createIconComponent('public'); // Google特有のアイコンがないのでpublicで代用
+    const LockOpenIcon = createIconComponent('lock_open');
+    const VpnKeyIcon = createIconComponent('vpn_key');
+    const BuildIcon = createIconComponent('build');
+    const ChatIcon = createIconComponent('chat');
+    const ListIcon = createIconComponent('format_list_bulleted');
+    const RefreshIcon = createIconComponent('refresh');
+    const MoreVertIcon = createIconComponent('more_vert');
+    const CheckIcon = createIconComponent('check');
+    const CloseIcon = createIconComponent('close');
+    const VisibilityIcon = createIconComponent('visibility');
+    const VisibilityOffIcon = createIconComponent('visibility_off');
+    const ArrowBackIcon = createIconComponent('arrow_back');
+    const ContentCopyIcon = createIconComponent('content_copy');
+    const ShareIcon = createIconComponent('share');
+
+    // テーマ設定
+    const theme = createTheme({
+      palette: {
+        primary: {
+          main: '#3f51b5',
+        },
+        secondary: {
+          main: '#ff4081',
+        },
+        background: {
+          default: '#f5f5f5',
+        },
+      },
+      typography: {
+        h4: {
+          fontWeight: 600,
+        },
+        h5: {
+          fontWeight: 500,
+        },
+        h6: {
+          fontWeight: 500,
+        },
+      },
+      components: {
+        MuiButton: {
+          styleOverrides: {
+            root: {
+              textTransform: 'none',
+            },
+          },
+        },
+      },
+    });
+
+    // モックデータ
+    const mockProjects = [
+      { id: 1, name: "Eコマースアシスタント", promptCount: 12, lastUpdated: "2023-04-15" },
+      { id: 2, name: "コンテンツ作成支援", promptCount: 8, lastUpdated: "2023-04-10" },
+      { id: 3, name: "カスタマーサポート", promptCount: 15, lastUpdated: "2023-04-18" },
+    ];
+
+    const mockPrompts = [
+      { 
+        id: 1, 
+        title: "Eコマース商品説明文生成", 
+        content: "あなたは優れたEコマース商品説明文のライターです。次の商品情報に基づいて、魅力的でSEOに最適化された商品説明文を生成してください。\n\n商品情報: {{商品情報}}\n\n説明文の長さ: {{文字数}}\n\nターゲット層: {{ターゲット}}\n\n重要なキーワード: {{キーワード}}", 
+        type: "GENERATION",
+        tags: ["eコマース", "商品説明", "SEO"],
+        project: "Eコマースアシスタント",
+        updatedAt: "2023-04-15",
+        version: 3,
+        favorite: true
+      },
+      { 
+        id: 2, 
+        title: "カスタマーサポート応答", 
+        content: "あなたは親切で効率的なカスタマーサポートスペシャリストです。以下の顧客からの問い合わせに対して、共感的かつ解決策を提供する応答を生成してください。\n\n顧客の問い合わせ: {{問い合わせ内容}}\n\n製品/サービス: {{製品名}}\n\n応答トーン: {{トーン}}\n\n", 
+        type: "RESPONSE",
+        tags: ["カスタマーサポート", "顧客対応"],
+        project: "カスタマーサポート",
+        updatedAt: "2023-04-18",
+        version: 2,
+        favorite: false
+      },
+      { 
+        id: 3, 
+        title: "ブログ記事概要作成", 
+        content: "あなたは経験豊富なコンテンツマーケターです。以下のトピックに関するブログ記事の概要（見出し構成と各セクションの要点）を作成してください。\n\nトピック: {{トピック}}\n\nターゲットオーディエンス: {{ターゲット}}\n\n目的: {{目的}}\n\nキーワード: {{キーワード}}\n\n記事の長さ: {{長さ}}", 
+        type: "OUTLINE",
+        tags: ["ブログ", "コンテンツマーケティング"],
+        project: "コンテンツ作成支援",
+        updatedAt: "2023-04-12",
+        version: 5,
+        favorite: true
+      },
+    ];
+
+    const mockUsageData = {
+      totalPrompts: 35,
+      activeProjects: 3,
+      promptsUsedToday: 12,
+      totalUsage: 324,
+      recentActivity: [
+        { action: "編集", promptId: 1, promptTitle: "Eコマース商品説明文生成", timestamp: "2023-04-15 14:30" },
+        { action: "使用", promptId: 2, promptTitle: "カスタマーサポート応答", timestamp: "2023-04-15 11:15" },
+        { action: "作成", promptId: 3, promptTitle: "ブログ記事概要作成", timestamp: "2023-04-12 09:45" },
+      ]
+    };
+
+    // エラーバウンダリコンポーネント
+    class ErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+      }
+
+      static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+      }
+
+      componentDidCatch(error, errorInfo) {
+        console.error("Error caught by boundary:", error, errorInfo);
+      }
+
+      render() {
+        if (this.state.hasError) {
+          return (
+            <Box sx={{ p: 3, textAlign: 'center' }}>
+              <Typography variant="h5" color="error" gutterBottom>
+                エラーが発生しました
+              </Typography>
+              <Typography variant="body1" paragraph>
+                {this.state.error?.message || 'アプリケーションエラー'}
+              </Typography>
+              <Button 
+                variant="contained" 
+                color="primary"
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                再読み込み
+              </Button>
+            </Box>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    // ローディングコンポーネント
+    const LoadingScreen = () => (
+      <Box className="loading-screen">
+        <CircularProgress size={60} />
+        <Typography variant="h6" sx={{ mt: 2 }}>読み込み中...</Typography>
+      </Box>
+    );
+
+    // ログインページ
+    const LoginPage = ({ onLogin }) => {
+      const [isLoading, setIsLoading] = React.useState(false);
+      const [loginMethod, setLoginMethod] = React.useState('credentials');
+      const [email, setEmail] = React.useState('');
+      const [password, setPassword] = React.useState('');
+      const [showPassword, setShowPassword] = React.useState(false);
+      const [error, setError] = React.useState('');
+
+      const handleLogin = () => {
+        setError('');
+        setIsLoading(true);
+        
+        // ログイン処理をシミュレート
+        setTimeout(() => {
+          setIsLoading(false);
+          if (email && password) {
+            onLogin();
+          } else {
+            setError('メールアドレスとパスワードを入力してください');
+          }
+        }, 1000);
+      };
+
+      const handleOAuthLogin = (provider) => {
+        setError('');
+        setIsLoading(true);
+        
+        // OAuth認証をシミュレート
+        setTimeout(() => {
+          setIsLoading(false);
+          onLogin();
+        }, 1000);
+      };
+
+      return (
+        <Container component="main" maxWidth="xs">
+          <Paper elevation={3} sx={{ mt: 8, p: 4, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <Typography component="h1" variant="h5" sx={{ mb: 2 }}>
+              AppGenius プロンプト管理
+            </Typography>
+            
+            <Tabs value={loginMethod} onChange={(e, newValue) => setLoginMethod(newValue)} sx={{ mb: 3, width: '100%' }}>
+              <Tab label="メールアドレス" value="credentials" />
+              <Tab label="OAuth" value="oauth" />
+            </Tabs>
+            
+            {loginMethod === 'credentials' ? (
+              <Box sx={{ width: '100%' }}>
+                {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+                
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  id="email"
+                  label="メールアドレス"
+                  name="email"
+                  autoComplete="email"
+                  autoFocus
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+                <TextField
+                  margin="normal"
+                  required
+                  fullWidth
+                  name="password"
+                  label="パスワード"
+                  type={showPassword ? "text" : "password"}
+                  id="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+                <Button
+                  type="submit"
+                  fullWidth
+                  variant="contained"
+                  color="primary"
+                  sx={{ mt: 3, mb: 2 }}
+                  onClick={handleLogin}
+                  disabled={isLoading}
+                >
+                  {isLoading ? <CircularProgress size={24} /> : 'ログイン'}
+                </Button>
+                <Grid container>
+                  <Grid item xs>
+                    <Typography variant="body2" color="primary" sx={{ cursor: 'pointer' }}>
+                      パスワードを忘れましたか？
+                    </Typography>
+                  </Grid>
+                  <Grid item>
+                    <Typography variant="body2" color="primary" sx={{ cursor: 'pointer' }}>
+                      アカウント作成
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Box>
+            ) : (
+              <Box sx={{ width: '100%' }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GitHubIcon />}
+                  sx={{ mb: 2 }}
+                  onClick={() => handleOAuthLogin('github')}
+                  disabled={isLoading}
+                >
+                  GitHubでログイン
+                </Button>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GoogleIcon />}
+                  onClick={() => handleOAuthLogin('google')}
+                  disabled={isLoading}
+                >
+                  Googleでログイン
+                </Button>
+              </Box>
+            )}
+          </Paper>
+        </Container>
+      );
+    };
+
+    // VSCode認証モーダル
+    const VSCodeAuthModal = ({ open, onClose }) => {
+      const [authCode, setAuthCode] = React.useState('');
+      const [isLoading, setIsLoading] = React.useState(false);
+      
+      const handleAuth = () => {
+        setIsLoading(true);
+        setTimeout(() => {
+          setIsLoading(false);
+          onClose(true);
+        }, 1500);
+      };
+      
+      React.useEffect(() => {
+        if (open) {
+          // ランダムな認証コードを生成
+          const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+          setAuthCode(code);
+        }
+      }, [open]);
+      
+      return (
+        <Dialog open={open} onClose={() => onClose(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>VSCode拡張機能の認証</DialogTitle>
+          <DialogContent>
+            <Box sx={{ textAlign: 'center', py: 2 }}>
+              <Typography variant="body1" paragraph>
+                VSCode拡張機能からのアクセスを許可するには、以下の認証コードを拡張機能に入力してください:
+              </Typography>
+              
+              <Paper elevation={2} sx={{ p: 3, my: 3, backgroundColor: '#f5f5f5' }}>
+                <Typography variant="h4" sx={{ letterSpacing: 2, fontFamily: 'monospace' }}>
+                  {authCode}
+                </Typography>
+              </Paper>
+              
+              <Typography variant="body2" color="textSecondary">
+                この認証コードは5分間有効です。認証後、VSCode拡張機能からプロンプトライブラリにアクセスできるようになります。
+              </Typography>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => onClose(false)}>キャンセル</Button>
+            <Button 
+              variant="contained" 
+              color="primary" 
+              onClick={handleAuth}
+              disabled={isLoading}
+            >
+              {isLoading ? <CircularProgress size={24} /> : '認証する'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      );
+    };
+
+    // VSCodeサイドバーモックアップ
+    const VSCodeSidebar = () => {
+      const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+      const [isAuthenticating, setIsAuthenticating] = React.useState(false);
+      const [authError, setAuthError] = React.useState('');
+      const [authCode, setAuthCode] = React.useState('');
+      
+      const handleAuthenticate = () => {
+        setIsAuthenticating(true);
+        setAuthError('');
+        
+        // 認証をシミュレート
+        setTimeout(() => {
+          if (authCode === 'ABC123') {
+            setIsAuthenticated(true);
+            setIsAuthenticating(false);
+          } else {
+            setAuthError('無効な認証コードです。正確なコードを入力してください。');
+            setIsAuthenticating(false);
+          }
+        }, 1000);
+      };
+      
+      return (
+        <Box sx={{ 
+          width: 300, 
+          height: '100vh', 
+          backgroundColor: '#252526', 
+          color: '#CCCCCC',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <Box sx={{ p: 2, borderBottom: '1px solid #3c3c3c' }}>
+            <Typography variant="h6" sx={{ color: '#FFFFFF' }}>
+              AppGenius プロンプト
+            </Typography>
+          </Box>
+          
+          {!isAuthenticated ? (
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="body2">
+                プロンプトライブラリにアクセスするには認証が必要です。
+              </Typography>
+              
+              <TextField
+                fullWidth
+                variant="outlined"
+                label="認証コード"
+                size="small"
+                value={authCode}
+                onChange={(e) => setAuthCode(e.target.value)}
+                sx={{ 
+                  backgroundColor: '#3c3c3c',
+                  input: { color: '#FFFFFF' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#6b6b6b' },
+                    '&:hover fieldset': { borderColor: '#8b8b8b' },
+                  },
+                  '& .MuiInputLabel-root': { color: '#CCCCCC' }
+                }}
+              />
+              
+              {authError && (
+                <Alert severity="error" sx={{ 
+                  backgroundColor: '#5A1D1D', 
+                  color: '#FFFFFF',
+                  '& .MuiAlert-icon': { color: '#FFFFFF' }
+                }}>
+                  {authError}
+                </Alert>
+              )}
+              
+              <Button
+                variant="contained"
+                color="primary"
+                fullWidth
+                onClick={handleAuthenticate}
+                disabled={isAuthenticating}
+                sx={{ mt: 1 }}
+              >
+                {isAuthenticating ? <CircularProgress size={24} /> : '認証する'}
+              </Button>
+              
+              <Typography variant="body2" sx={{ fontSize: '0.8rem', color: '#AAAAAA', mt: 1 }}>
+                認証コードは、Webポータル上で確認できます。
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <Box sx={{ p: 2, backgroundColor: '#333333' }}>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="プロンプトを検索..."
+                  size="small"
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: '#AAAAAA' }} />
+                      </InputAdornment>
+                    ),
+                  }}
+                  sx={{ 
+                    backgroundColor: '#3c3c3c',
+                    input: { color: '#FFFFFF' },
+                    '& .MuiOutlinedInput-root': {
+                      '& fieldset': { borderColor: '#6b6b6b' },
+                      '&:hover fieldset': { borderColor: '#8b8b8b' },
+                    }
+                  }}
+                />
+              </Box>
+              
+              <List sx={{ flex: 1, overflow: 'auto' }}>
+                <ListItem>
+                  <ListItemText 
+                    primary="カテゴリ" 
+                    primaryTypographyProps={{ 
+                      fontWeight: 'bold', 
+                      color: '#FFFFFF'
+                    }} 
+                  />
+                </ListItem>
+                <ListItemButton sx={{ pl: 4 }}>
+                  <ListItemText primary="Eコマース" />
+                </ListItemButton>
+                <ListItemButton sx={{ pl: 4 }}>
+                  <ListItemText primary="カスタマーサポート" />
+                </ListItemButton>
+                <ListItemButton sx={{ pl: 4 }}>
+                  <ListItemText primary="コンテンツ作成" />
+                </ListItemButton>
+                
+                <ListItem sx={{ mt: 2 }}>
+                  <ListItemText 
+                    primary="最近使用したプロンプト" 
+                    primaryTypographyProps={{ 
+                      fontWeight: 'bold', 
+                      color: '#FFFFFF'
+                    }} 
+                  />
+                </ListItem>
+                <ListItemButton sx={{ pl: 4 }}>
+                  <ListItemText 
+                    primary="Eコマース商品説明文生成" 
+                    secondary="最終使用: 昨日"
+                    secondaryTypographyProps={{ color: '#AAAAAA', fontSize: '0.7rem' }}
+                  />
+                </ListItemButton>
+                <ListItemButton sx={{ pl: 4 }}>
+                  <ListItemText 
+                    primary="カスタマーサポート応答" 
+                    secondary="最終使用: 3日前"
+                    secondaryTypographyProps={{ color: '#AAAAAA', fontSize: '0.7rem' }}
+                  />
+                </ListItemButton>
+              </List>
+              
+              <Box sx={{ p: 2, borderTop: '1px solid #3c3c3c', display: 'flex', justifyContent: 'space-between' }}>
+                <Button 
+                  variant="text" 
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  sx={{ color: '#CCCCCC' }}
+                >
+                  同期
+                </Button>
+                <Button 
+                  variant="text" 
+                  size="small"
+                  startIcon={<LogoutIcon />}
+                  sx={{ color: '#CCCCCC' }}
+                  onClick={() => setIsAuthenticated(false)}
+                >
+                  ログアウト
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </Box>
+      );
+    };
+
+    // メインアプリレイアウト
+    const MainLayout = ({ children }) => {
+      const [drawerOpen, setDrawerOpen] = React.useState(true);
+      const [activeMenu, setActiveMenu] = React.useState('dashboard');
+      
+      const menuItems = [
+        { id: 'dashboard', label: 'ダッシュボード', icon: <DashboardIcon /> },
+        { id: 'prompts', label: 'プロンプトライブラリ', icon: <BookmarkIcon /> },
+        { id: 'projects', label: 'プロジェクト', icon: <FolderIcon /> },
+        { id: 'history', label: '使用履歴', icon: <HistoryIcon /> },
+        { id: 'settings', label: '設定', icon: <SettingsIcon /> },
+      ];
+      
+      return (
+        <Box sx={{ display: 'flex', height: '100vh' }}>
+          {/* サイドナビゲーション */}
+          <Drawer
+            variant="permanent"
+            open={drawerOpen}
+            sx={{
+              width: drawerOpen ? 240 : 72,
+              flexShrink: 0,
+              '& .MuiDrawer-paper': {
+                width: drawerOpen ? 240 : 72,
+                boxSizing: 'border-box',
+                overflowX: 'hidden',
+                transition: theme.transitions.create('width', {
+                  easing: theme.transitions.easing.sharp,
+                  duration: theme.transitions.duration.enteringScreen,
+                }),
+              },
+            }}
+          >
+            <Toolbar 
+              sx={{ 
+                display: 'flex', 
+                justifyContent: drawerOpen ? 'space-between' : 'center',
+                px: drawerOpen ? 2 : 1
+              }}
+            >
+              {drawerOpen && (
+                <Typography variant="h6" noWrap component="div">
+                  AppGenius
+                </Typography>
+              )}
+              <IconButton onClick={() => setDrawerOpen(!drawerOpen)}>
+                <MenuIcon />
+              </IconButton>
+            </Toolbar>
+            <Divider />
+            <List>
+              {menuItems.map((item) => (
+                <ListItem 
+                  key={item.id} 
+                  disablePadding 
+                  sx={{ display: 'block' }}
+                  onClick={() => setActiveMenu(item.id)}
+                >
+                  <ListItemButton
+                    sx={{
+                      minHeight: 48,
+                      justifyContent: drawerOpen ? 'initial' : 'center',
+                      px: 2.5,
+                      backgroundColor: activeMenu === item.id ? 'rgba(0, 0, 0, 0.08)' : 'transparent',
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        minWidth: 0,
+                        mr: drawerOpen ? 3 : 'auto',
+                        justifyContent: 'center',
+                        color: activeMenu === item.id ? 'primary.main' : 'inherit',
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    {drawerOpen && (
+                      <ListItemText 
+                        primary={item.label} 
+                        sx={{ opacity: drawerOpen ? 1 : 0 }}
+                        primaryTypographyProps={{
+                          fontWeight: activeMenu === item.id ? 'medium' : 'regular',
+                          color: activeMenu === item.id ? 'primary.main' : 'inherit',
+                        }}
+                      />
+                    )}
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+            <Divider />
+            <Box sx={{ flexGrow: 1 }} />
+            <List>
+              <ListItem disablePadding sx={{ display: 'block' }}>
+                <ListItemButton
+                  sx={{
+                    minHeight: 48,
+                    justifyContent: drawerOpen ? 'initial' : 'center',
+                    px: 2.5,
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: drawerOpen ? 3 : 'auto',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <PersonIcon />
+                  </ListItemIcon>
+                  {drawerOpen && (
+                    <ListItemText primary="プロフィール" sx={{ opacity: drawerOpen ? 1 : 0 }} />
+                  )}
+                </ListItemButton>
+              </ListItem>
+              <ListItem disablePadding sx={{ display: 'block' }}>
+                <ListItemButton
+                  sx={{
+                    minHeight: 48,
+                    justifyContent: drawerOpen ? 'initial' : 'center',
+                    px: 2.5,
+                  }}
+                >
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 0,
+                      mr: drawerOpen ? 3 : 'auto',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <LogoutIcon />
+                  </ListItemIcon>
+                  {drawerOpen && (
+                    <ListItemText primary="ログアウト" sx={{ opacity: drawerOpen ? 1 : 0 }} />
+                  )}
+                </ListItemButton>
+              </ListItem>
+            </List>
+          </Drawer>
+          
+          {/* メインコンテンツ */}
+          <Box component="main" sx={{ flexGrow: 1, p: 3, overflow: 'auto' }}>
+            <Toolbar />
+            {children}
+          </Box>
+        </Box>
+      );
+    };
+
+    // ダッシュボード
+    const Dashboard = () => {
+      const [vsCodeAuthOpen, setVSCodeAuthOpen] = React.useState(false);
+      
+      return (
+        <>
+          <Typography variant="h4" component="h1" gutterBottom>
+            ダッシュボード
+          </Typography>
+          
+          <Grid container spacing={3}>
+            {/* 概要カード */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 3 }}>
+                <Grid container spacing={3}>
+                  <Grid item xs={12} sm={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h3" color="primary">
+                        {mockUsageData.totalPrompts}
+                      </Typography>
+                      <Typography variant="body1">
+                        登録プロンプト数
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h3" color="primary">
+                        {mockUsageData.activeProjects}
+                      </Typography>
+                      <Typography variant="body1">
+                        アクティブプロジェクト
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h3" color="primary">
+                        {mockUsageData.promptsUsedToday}
+                      </Typography>
+                      <Typography variant="body1">
+                        本日の使用回数
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={12} sm={3}>
+                    <Box sx={{ textAlign: 'center' }}>
+                      <Typography variant="h3" color="primary">
+                        {mockUsageData.totalUsage}
+                      </Typography>
+                      <Typography variant="body1">
+                        総使用回数
+                      </Typography>
+                    </Box>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+            
+            {/* プロジェクト一覧 */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6">
+                    プロジェクト
+                  </Typography>
+                  <Button size="small" startIcon={<AddIcon />}>
+                    新規プロジェクト
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <List>
+                  {mockProjects.map((project) => (
+                    <ListItem 
+                      key={project.id}
+                      secondaryAction={
+                        <IconButton edge="end">
+                          <MoreVertIcon />
+                        </IconButton>
+                      }
+                    >
+                      <ListItemIcon>
+                        <FolderIcon />
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={project.name}
+                        secondary={`プロンプト数: ${project.promptCount} | 最終更新: ${project.lastUpdated}`}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Paper>
+            </Grid>
+            
+            {/* 最近の活動 */}
+            <Grid item xs={12} md={6}>
+              <Paper sx={{ p: 2, height: '100%' }}>
+                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6">
+                    最近の活動
+                  </Typography>
+                  <Button size="small">
+                    すべて表示
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <List>
+                  {mockUsageData.recentActivity.map((activity, index) => (
+                    <ListItem key={index}>
+                      <ListItemIcon>
+                        {activity.action === '編集' && <EditIcon color="info" />}
+                        {activity.action === '使用' && <HistoryIcon color="success" />}
+                        {activity.action === '作成' && <AddIcon color="primary" />}
+                      </ListItemIcon>
+                      <ListItemText 
+                        primary={`${activity.promptTitle} を${activity.action}`}
+                        secondary={activity.timestamp}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Paper>
+            </Grid>
+            
+            {/* プロンプトライブラリ概要 */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Box sx={{ mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6">
+                    プロンプトライブラリ
+                  </Typography>
+                  <Button size="small" startIcon={<MoreVertIcon />}>
+                    すべて表示
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  {mockPrompts.map((prompt) => (
+                    <Grid item xs={12} sm={6} md={4} key={prompt.id}>
+                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        <CardContent sx={{ flexGrow: 1 }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                            <Typography variant="h6" component="div">
+                              {prompt.title}
+                            </Typography>
+                            <IconButton size="small">
+                              {prompt.favorite ? <StarIcon color="warning" /> : <StarBorderIcon />}
+                            </IconButton>
+                          </Box>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            プロジェクト: {prompt.project}
+                          </Typography>
+                          <Typography variant="body2" sx={{ mt: 1, mb: 1 }}>
+                            {prompt.content.substring(0, 100)}...
+                          </Typography>
+                          <Box sx={{ mt: 1 }}>
+                            {prompt.tags.map((tag) => (
+                              <Chip
+                                key={tag}
+                                label={tag}
+                                size="small"
+                                sx={{ mr: 0.5, mb: 0.5 }}
+                              />
+                            ))}
+                          </Box>
+                        </CardContent>
+                        <CardActions>
+                          <Button size="small">詳細</Button>
+                          <Button size="small">編集</Button>
+                          <Box sx={{ flexGrow: 1 }} />
+                          <Typography variant="caption" color="text.secondary">
+                            v{prompt.version}
+                          </Typography>
+                        </CardActions>
+                      </Card>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Paper>
+            </Grid>
+            
+            {/* VSCode連携 */}
+            <Grid item xs={12}>
+              <Paper sx={{ p: 3, mt: 2, backgroundColor: '#f0f4ff' }}>
+                <Grid container spacing={2} alignItems="center">
+                  <Grid item xs={12} md={8}>
+                    <Typography variant="h6" gutterBottom>
+                      VSCode拡張機能と連携
+                    </Typography>
+                    <Typography variant="body1">
+                      VSCode拡張機能を使用すると、プロンプトライブラリにシームレスにアクセスでき、
+                      コーディング中に直接プロンプトを挿入することができます。
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} md={4} sx={{ textAlign: 'center' }}>
+                    <Button 
+                      variant="contained"
+                      startIcon={<CodeIcon />}
+                      onClick={() => setVSCodeAuthOpen(true)}
+                    >
+                      VSCode連携を設定
+                    </Button>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+          </Grid>
+          
+          {/* VSCode認証モーダル */}
+          <VSCodeAuthModal 
+            open={vsCodeAuthOpen} 
+            onClose={(success) => {
+              setVSCodeAuthOpen(false);
+              if (success) {
+                // 成功通知を表示
+              }
+            }} 
+          />
+        </>
+      );
+    };
+
+    // プロンプトライブラリ
+    const PromptLibrary = () => {
+      const [selectedCategory, setSelectedCategory] = React.useState('all');
+      const [searchQuery, setSearchQuery] = React.useState('');
+      const [sortBy, setSortBy] = React.useState('name');
+      
+      const categories = [
+        { id: 'all', name: 'すべて' },
+        { id: 'generation', name: '生成' },
+        { id: 'response', name: '応答' },
+        { id: 'outline', name: '概要作成' },
+      ];
+      
+      const filteredPrompts = mockPrompts.filter(prompt => {
+        const matchesCategory = selectedCategory === 'all' || prompt.type.toLowerCase() === selectedCategory.toLowerCase();
+        const matchesSearch = searchQuery === '' || 
+          prompt.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          prompt.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          prompt.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
+        
+        return matchesCategory && matchesSearch;
+      });
+      
+      return (
+        <>
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Typography variant="h4" component="h1">
+              プロンプトライブラリ
+            </Typography>
+            <Button variant="contained" startIcon={<AddIcon />}>
+              新規プロンプト作成
+            </Button>
+          </Box>
+          
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Grid container spacing={2} alignItems="center">
+              <Grid item xs={12} md={6}>
+                <TextField
+                  fullWidth
+                  variant="outlined"
+                  placeholder="プロンプトを検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>カテゴリ</InputLabel>
+                  <Select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    label="カテゴリ"
+                  >
+                    {categories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>
+                        {category.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={6} md={3}>
+                <FormControl fullWidth>
+                  <InputLabel>並び替え</InputLabel>
+                  <Select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    label="並び替え"
+                  >
+                    <MenuItem value="name">名前</MenuItem>
+                    <MenuItem value="updated">更新日</MenuItem>
+                    <MenuItem value="created">作成日</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+            </Grid>
+          </Paper>
+          
+          <Grid container spacing={3}>
+            {filteredPrompts.map((prompt) => (
+              <Grid item xs={12} sm={6} md={4} key={prompt.id}>
+                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                      <Typography variant="h6" component="div">
+                        {prompt.title}
+                      </Typography>
+                      <IconButton size="small">
+                        {prompt.favorite ? <StarIcon color="warning" /> : <StarBorderIcon />}
+                      </IconButton>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      プロジェクト: {prompt.project} | 最終更新: {prompt.updatedAt}
+                    </Typography>
+                    <Box sx={{ 
+                      mt: 1, 
+                      p: 1, 
+                      backgroundColor: '#f5f5f5', 
+                      borderRadius: 1,
+                      height: '100px',
+                      overflow: 'hidden',
+                      position: 'relative'
+                    }}>
+                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                        {prompt.content.substring(0, 200)}
+                      </Typography>
+                      <Box sx={{ 
+                        position: 'absolute', 
+                        bottom: 0, 
+                        left: 0, 
+                        right: 0, 
+                        height: '30px',
+                        background: 'linear-gradient(transparent, #f5f5f5)',
+                      }} />
+                    </Box>
+                    <Box sx={{ mt: 2 }}>
+                      {prompt.tags.map((tag) => (
+                        <Chip
+                          key={tag}
+                          label={tag}
+                          size="small"
+                          sx={{ mr: 0.5, mb: 0.5 }}
+                        />
+                      ))}
+                    </Box>
+                  </CardContent>
+                  <CardActions>
+                    <Button size="small">詳細</Button>
+                    <Button size="small">編集</Button>
+                    <Button size="small">使用</Button>
+                    <Box sx={{ flexGrow: 1 }} />
+                    <Chip
+                      label={`v${prompt.version}`}
+                      size="small"
+                      color="primary"
+                      variant="outlined"
+                    />
+                  </CardActions>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </>
+      );
+    };
+
+    // プロンプト詳細/編集
+    const PromptDetail = () => {
+      const [prompt, setPrompt] = React.useState(mockPrompts[0]);
+      const [editMode, setEditMode] = React.useState(false);
+      const [activeTab, setActiveTab] = React.useState(0);
+      
+      const handleTabChange = (event, newValue) => {
+        setActiveTab(newValue);
+      };
+      
+      return (
+        <>
+          <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <IconButton sx={{ mr: 1 }}>
+                <ArrowBackIcon />
+              </IconButton>
+              {editMode ? (
+                <TextField
+                  value={prompt.title}
+                  onChange={(e) => setPrompt({ ...prompt, title: e.target.value })}
+                  variant="standard"
+                  InputProps={{
+                    sx: { fontSize: '2rem', fontWeight: 500 }
+                  }}
+                />
+              ) : (
+                <Typography variant="h4" component="h1">
+                  {prompt.title}
+                </Typography>
+              )}
+            </Box>
+            <Box>
+              {editMode ? (
+                <>
+                  <Button sx={{ mr: 1 }} onClick={() => setEditMode(false)}>
+                    キャンセル
+                  </Button>
+                  <Button variant="contained" onClick={() => setEditMode(false)}>
+                    保存
+                  </Button>
+                </>
+              ) : (
+                <Button variant="contained" startIcon={<EditIcon />} onClick={() => setEditMode(true)}>
+                  編集
+                </Button>
+              )}
+            </Box>
+          </Box>
+          
+          <Paper sx={{ mb: 3 }}>
+            <Tabs value={activeTab} onChange={handleTabChange} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+              <Tab label="プロンプト詳細" />
+              <Tab label="バージョン履歴" />
+              <Tab label="使用履歴" />
+            </Tabs>
+            
+            <Box sx={{ p: 3 }}>
+              {activeTab === 0 && (
+                <Grid container spacing={3}>
+                  <Grid item xs={12} md={8}>
+                    <Typography variant="h6" gutterBottom>
+                      プロンプト内容
+                    </Typography>
+                    {editMode ? (
+                      <TextField
+                        multiline
+                        fullWidth
+                        minRows={10}
+                        value={prompt.content}
+                        onChange={(e) => setPrompt({ ...prompt, content: e.target.value })}
+                        variant="outlined"
+                        sx={{ fontFamily: 'monospace' }}
+                      />
+                    ) : (
+                      <Paper variant="outlined" sx={{ p: 2, backgroundColor: '#f5f5f5' }}>
+                        <Typography 
+                          variant="body1" 
+                          sx={{ 
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: 'monospace'
+                          }}
+                        >
+                          {prompt.content}
+                        </Typography>
+                      </Paper>
+                    )}
+                    
+                    <Box sx={{ mt: 3 }}>
+                      <Typography variant="h6" gutterBottom>
+                        テスト
+                      </Typography>
+                      <Paper variant="outlined" sx={{ p: 2 }}>
+                        <Typography variant="body2" gutterBottom>
+                          このプロンプトをテストするには、必要なパラメータを入力してください：
+                        </Typography>
+                        <Grid container spacing={2} sx={{ mt: 1 }}>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="商品情報"
+                              variant="outlined"
+                              multiline
+                              rows={3}
+                              placeholder="商品の詳細情報を入力"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="文字数"
+                              variant="outlined"
+                              placeholder="例: 500文字"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="ターゲット"
+                              variant="outlined"
+                              placeholder="例: 20代女性"
+                            />
+                          </Grid>
+                          <Grid item xs={12} md={6}>
+                            <TextField
+                              fullWidth
+                              label="キーワード"
+                              variant="outlined"
+                              placeholder="例: 快適, 軽量, 防水"
+                            />
+                          </Grid>
+                        </Grid>
+                        <Box sx={{ mt: 2 }}>
+                          <Button variant="contained">
+                            テスト実行
+                          </Button>
+                        </Box>
+                      </Paper>
+                    </Box>
+                  </Grid>
+                  
+                  <Grid item xs={12} md={4}>
+                    <Paper variant="outlined" sx={{ p: 2 }}>
+                      <Typography variant="h6" gutterBottom>
+                        プロンプト情報
+                      </Typography>
+                      <List disablePadding>
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText 
+                            primary="プロジェクト" 
+                            secondary={editMode ? (
+                              <Select
+                                value={prompt.project}
+                                onChange={(e) => setPrompt({ ...prompt, project: e.target.value })}
+                                size="small"
+                                fullWidth
+                                sx={{ mt: 1 }}
+                              >
+                                {mockProjects.map(project => (
+                                  <MenuItem key={project.id} value={project.name}>{project.name}</MenuItem>
+                                ))}
+                              </Select>
+                            ) : prompt.project}
+                          />
+                        </ListItem>
+                        <Divider component="li" />
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText 
+                            primary="タイプ" 
+                            secondary={editMode ? (
+                              <Select
+                                value={prompt.type}
+                                onChange={(e) => setPrompt({ ...prompt, type: e.target.value })}
+                                size="small"
+                                fullWidth
+                                sx={{ mt: 1 }}
+                              >
+                                <MenuItem value="GENERATION">生成</MenuItem>
+                                <MenuItem value="RESPONSE">応答</MenuItem>
+                                <MenuItem value="OUTLINE">概要作成</MenuItem>
+                              </Select>
+                            ) : prompt.type}
+                          />
+                        </ListItem>
+                        <Divider component="li" />
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText 
+                            primary="バージョン" 
+                            secondary={`v${prompt.version}`}
+                          />
+                        </ListItem>
+                        <Divider component="li" />
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText 
+                            primary="最終更新" 
+                            secondary={prompt.updatedAt}
+                          />
+                        </ListItem>
+                        <Divider component="li" />
+                        <ListItem sx={{ px: 0 }}>
+                          <ListItemText 
+                            primary="タグ" 
+                            secondary={
+                              <Box sx={{ mt: 1 }}>
+                                {editMode ? (
+                                  <TextField
+                                    fullWidth
+                                    size="small"
+                                    placeholder="タグをカンマで区切って入力"
+                                    value={prompt.tags.join(', ')}
+                                    onChange={(e) => setPrompt({ 
+                                      ...prompt, 
+                                      tags: e.target.value.split(',').map(tag => tag.trim()) 
+                                    })}
+                                  />
+                                ) : (
+                                  prompt.tags.map((tag) => (
+                                    <Chip
+                                      key={tag}
+                                      label={tag}
+                                      size="small"
+                                      sx={{ mr: 0.5, mb: 0.5 }}
+                                    />
+                                  ))
+                                )}
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                      </List>
+                      
+                      <Box sx={{ mt: 3 }}>
+                        <Typography variant="h6" gutterBottom>
+                          アクション
+                        </Typography>
+                        <Button 
+                          variant="outlined" 
+                          fullWidth 
+                          sx={{ mb: 1 }}
+                          startIcon={<ContentCopyIcon />}
+                        >
+                          クリップボードにコピー
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          fullWidth 
+                          sx={{ mb: 1 }}
+                          startIcon={<ShareIcon />}
+                        >
+                          共有
+                        </Button>
+                        <Button 
+                          variant="outlined" 
+                          color="error" 
+                          fullWidth
+                          startIcon={<DeleteIcon />}
+                        >
+                          削除
+                        </Button>
+                      </Box>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              )}
+              
+              {activeTab === 1 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    バージョン履歴
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>バージョン</TableCell>
+                          <TableCell>更新日時</TableCell>
+                          <TableCell>変更内容</TableCell>
+                          <TableCell>アクション</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>v3</TableCell>
+                          <TableCell>2023-04-15 14:30</TableCell>
+                          <TableCell>SEOキーワードに関する指示を追加</TableCell>
+                          <TableCell>
+                            <Button size="small">表示</Button>
+                            <Button size="small">復元</Button>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>v2</TableCell>
+                          <TableCell>2023-04-10 11:45</TableCell>
+                          <TableCell>ターゲット層に関するパラメータを追加</TableCell>
+                          <TableCell>
+                            <Button size="small">表示</Button>
+                            <Button size="small">復元</Button>
+                          </TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>v1</TableCell>
+                          <TableCell>2023-04-01 09:15</TableCell>
+                          <TableCell>初回作成</TableCell>
+                          <TableCell>
+                            <Button size="small">表示</Button>
+                            <Button size="small">復元</Button>
+                          </TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+              
+              {activeTab === 2 && (
+                <Box>
+                  <Typography variant="h6" gutterBottom>
+                    使用履歴
+                  </Typography>
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell>日時</TableCell>
+                          <TableCell>ユーザー</TableCell>
+                          <TableCell>プロジェクト</TableCell>
+                          <TableCell>使用方法</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>2023-04-15 14:30</TableCell>
+                          <TableCell>山田太郎</TableCell>
+                          <TableCell>Eコマースアシスタント</TableCell>
+                          <TableCell>VSCode経由</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>2023-04-12 11:45</TableCell>
+                          <TableCell>佐藤花子</TableCell>
+                          <TableCell>Eコマースアシスタント</TableCell>
+                          <TableCell>ポータル経由</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>2023-04-10 09:15</TableCell>
+                          <TableCell>山田太郎</TableCell>
+                          <TableCell>Eコマースアシスタント</TableCell>
+                          <TableCell>API経由</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+              )}
+            </Box>
+          </Paper>
+        </>
+      );
+    };
+
+    // メインアプリケーション
+    const App = () => {
+      const [isLoading, setIsLoading] = React.useState(false);
+      const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+      const [currentView, setCurrentView] = React.useState('dashboard');
+      const [showVSCodeSidebar, setShowVSCodeSidebar] = React.useState(false);
+      
+      const handleLogin = () => {
+        setIsLoading(true);
+        // ログイン処理をシミュレート
+        setTimeout(() => {
+          setIsLoggedIn(true);
+          setIsLoading(false);
+        }, 1000);
+      };
+      
+      // ビュー選択
+      let content;
+      if (showVSCodeSidebar) {
+        content = <VSCodeSidebar />;
+      } else if (!isLoggedIn) {
+        content = <LoginPage onLogin={handleLogin} />;
+      } else {
+        if (currentView === 'dashboard') {
+          content = (
+            <MainLayout>
+              <Dashboard />
+            </MainLayout>
+          );
+        } else if (currentView === 'promptLibrary') {
+          content = (
+            <MainLayout>
+              <PromptLibrary />
+            </MainLayout>
+          );
+        } else if (currentView === 'promptDetail') {
+          content = (
+            <MainLayout>
+              <PromptDetail />
+            </MainLayout>
+          );
+        }
+      }
+      
+      // デモ用のナビゲーション
+      return (
+        <Box className="app-wrapper">
+          {isLoading ? (
+            <LoadingScreen />
+          ) : (
+            <>
+              {content}
+              
+              {/* デモ用の制御パネル */}
+              {isLoggedIn && !showVSCodeSidebar && (
+                <Box sx={{ 
+                  position: 'fixed', 
+                  bottom: 20, 
+                  right: 20, 
+                  zIndex: 9999,
+                  backgroundColor: 'rgba(255,255,255,0.9)',
+                  p: 2,
+                  borderRadius: 2,
+                  boxShadow: 3
+                }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    デモナビゲーション
+                  </Typography>
+                  <Button 
+                    size="small" 
+                    variant={currentView === 'dashboard' ? 'contained' : 'outlined'}
+                    onClick={() => setCurrentView('dashboard')}
+                    sx={{ mr: 1, mb: 1 }}
+                  >
+                    ダッシュボード
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant={currentView === 'promptLibrary' ? 'contained' : 'outlined'}
+                    onClick={() => setCurrentView('promptLibrary')}
+                    sx={{ mr: 1, mb: 1 }}
+                  >
+                    プロンプトライブラリ
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant={currentView === 'promptDetail' ? 'contained' : 'outlined'}
+                    onClick={() => setCurrentView('promptDetail')}
+                    sx={{ mr: 1, mb: 1 }}
+                  >
+                    プロンプト詳細
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    onClick={() => setShowVSCodeSidebar(true)}
+                    sx={{ mr: 1, mb: 1 }}
+                  >
+                    VSCodeサイドバー
+                  </Button>
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    color="error"
+                    onClick={() => setIsLoggedIn(false)}
+                  >
+                    ログアウト
+                  </Button>
+                </Box>
+              )}
+              
+              {showVSCodeSidebar && (
+                <Box sx={{ 
+                  position: 'fixed', 
+                  top: 20, 
+                  right: 20, 
+                  zIndex: 9999,
+                  backgroundColor: 'rgba(255,255,255,0.9)',
+                  p: 2,
+                  borderRadius: 2,
+                  boxShadow: 3
+                }}>
+                  <Button 
+                    size="small" 
+                    variant="outlined"
+                    color="primary"
+                    onClick={() => setShowVSCodeSidebar(false)}
+                  >
+                    ポータル画面に戻る
+                  </Button>
+                </Box>
+              )}
+            </>
+          )}
+        </Box>
+      );
+    };
+
+    // アプリケーションのレンダリング
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(
+      <ErrorBoundary>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <App />
+        </ThemeProvider>
+      </ErrorBoundary>
+    );
+  </script>
+</body>
+</html>

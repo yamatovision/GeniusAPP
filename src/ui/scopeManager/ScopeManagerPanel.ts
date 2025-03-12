@@ -340,10 +340,13 @@ export class ScopeManagerPanel {
           }
         }
         
-        // 実装完了ファイルセクションの処理（スコープ別）
-        if (currentSection.includes('実装完了ファイル')) {
+        // 実装ファイルセクションの処理（スコープ別）
+        // 「実装完了ファイル」「実装すべきファイル」「実装予定ファイル」など複数のパターンに対応
+        if (currentSection.includes('実装完了ファイル') || 
+            currentSection.includes('実装すべきファイル') || 
+            currentSection.includes('実装予定ファイル')) {
           // スコープ別のファイルリストを処理
-          if (line.startsWith('### スコープ') || line.trim().startsWith('- [x]')) {
+          if (line.startsWith('### スコープ') || line.trim().startsWith('- [')) {
             let currentScopeName = '';
             
             // スコープヘッダーを検出
@@ -355,10 +358,16 @@ export class ScopeManagerPanel {
             // ファイルリストを処理
             while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const fileLine = lines[i].trim();
-              if (fileLine.startsWith('- [x]')) {
-                const filePath = fileLine.match(/- \[x\] ([^\(\)]+)/)?.[1]?.trim();
-                if (filePath) {
-                  completedFiles.push(filePath);
+              if (fileLine.startsWith('- [')) {
+                const completedMatch = fileLine.match(/- \[([ x])\] ([^\(\)]+)/);
+                if (completedMatch) {
+                  const isCompleted = completedMatch[1] === 'x';
+                  const filePath = completedMatch[2].trim();
+                  
+                  // 完了済みならcompletedFilesに追加
+                  if (isCompleted) {
+                    completedFiles.push(filePath);
+                  }
                   
                   // 該当するスコープのファイルリストを更新
                   const scopesToUpdate = [...completedScopes, ...inProgressScopes, ...pendingScopes];
@@ -369,11 +378,11 @@ export class ScopeManagerPanel {
                       // 既存のファイルリストにあれば更新、なければ追加
                       const fileIndex = scope.files.findIndex((f: any) => f.path === filePath);
                       if (fileIndex >= 0) {
-                        scope.files[fileIndex].completed = true;
+                        scope.files[fileIndex].completed = isCompleted;
                       } else {
                         scope.files.push({
                           path: filePath,
-                          completed: true
+                          completed: isCompleted
                         });
                       }
                     }
@@ -386,8 +395,8 @@ export class ScopeManagerPanel {
           }
         }
         
-        // 実装中ファイルセクションの処理
-        if (currentSection === '実装中ファイル') {
+        // 実装中ファイルセクションの処理（より柔軟性を持たせる）
+        if (currentSection === '実装中ファイル' || currentSection.includes('実装中')) {
           if (line.trim().startsWith('- [ ]')) {
             const filePath = line.match(/- \[ \] ([^\(\)]+)/)?.[1]?.trim();
             if (filePath) {
@@ -445,7 +454,7 @@ export class ScopeManagerPanel {
                   i++;
                 }
                 continue;
-              } else if (currentLine.startsWith('**実装すべきファイル**:')) {
+              } else if (currentLine.startsWith('**実装すべきファイル**:') || currentLine.startsWith('**実装予定ファイル**:')) {
                 sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
                 i++;
                 while (i < lines.length && lines[i].trim().startsWith('- [')) {
@@ -539,7 +548,7 @@ export class ScopeManagerPanel {
                   i++;
                 }
                 continue;
-              } else if (currentLine.startsWith('**実装予定ファイル**:')) {
+              } else if (currentLine.startsWith('**実装予定ファイル**:') || currentLine.startsWith('**実装すべきファイル**:')) {
                 sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
                 i++;
                 while (i < lines.length && lines[i].trim().startsWith('- [')) {

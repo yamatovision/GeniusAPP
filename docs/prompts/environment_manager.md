@@ -1,4 +1,4 @@
-# 環境変数アシスタント
+# 環境変数アシスタント要件定義
 
 ## 概要
 
@@ -16,7 +16,7 @@
 
 - **DOM構造ファイル出力機能**: 
   - 環境変数アシスタント起動時に現在のDOM構造を自動的に取得
-  - `.claude_data/dom_structure.json`として保存
+  - `.claude_ui_data/dom_structure.json`として保存
   - UI変更時に構造を自動更新（3秒ごとなど）
 
 - **UI要素マッピング**:
@@ -26,7 +26,7 @@
 
 - **スクリーンショット機能**:
   - 現在のUI状態のスクリーンショットを自動取得
-  - `.claude_data/screenshots/`フォルダに保存
+  - `.claude_ui_data/screenshots/`フォルダに保存
   - タイムスタンプ付きで履歴管理
 
 ### 2. 自動環境変数検出・設定
@@ -34,7 +34,7 @@
 - **コード分析による必要変数検出**:
   - プロジェクトコードを自動スキャン
   - 使用中のフレームワーク/ライブラリを検出
-  - 必要な環境変数のリストを自動生成し`.claude_data/env_variables.json`に保存
+  - 必要な環境変数のリストを自動生成し`.claude_ui_data/env_variables.json`に保存
 
 - **ワンクリック設定**:
   - 「自動設定」ボタンで標準的な値を自動入力
@@ -49,9 +49,9 @@
 ### 3. VSCode操作支援機能
 
 - **UI操作自動化**:
-  - ClaudeCodeからの操作指示ファイル`.claude_data/actions.json`の監視
+  - ClaudeCodeからの操作指示ファイル`.claude_ui_data/actions.json`の監視
   - 指示に基づくUI要素の自動クリック・入力・選択
-  - 操作結果の`.claude_data/action_results.json`への書き込み
+  - 操作結果の`.claude_ui_data/action_results.json`への書き込み
 
 - **視覚的ガイダンス**:
   - 画面上の操作箇所を視覚的に強調表示
@@ -69,16 +69,6 @@
   - データベース、API、サービス接続の自動検証
   - 「テスト実行」ボタン1つで全設定を検証
   - 結果を視覚的に表示（成功/失敗/警告）
-
-- **env.md統合**:
-  - 環境変数の設定状態をenv.mdに反映
-  - 設定完了した変数はチェックマーク [✓] で更新
-  - プロジェクト進捗と環境変数設定状況を管理
-
-- **deploy.md連携**:
-  - 環境別設定情報をdeploy.mdに自動反映
-  - 異なる環境での設定値の違いを明確化
-  - デプロイ手順と環境変数設定の連携
 
 - **問題の自動修正**:
   - 一般的な問題を自動検出・修正
@@ -107,8 +97,9 @@
 ### 視覚的フィードバック
 
 1. **直感的なステータス表示**
-   - 緑色のチェックマーク: 設定完了・検証済み（env.mdでは [✓]）
-   - 赤色の警告アイコン: 未設定または無効な設定（env.mdでは [ ]）
+   - 緑色のチェックマーク: 設定完了・検証済み
+   - 黄色の注意アイコン: 設定済み・未検証
+   - 赤色の警告アイコン: 未設定または無効な設定
    - 進行中の操作はアニメーションで明示
 
 2. **シンプルな説明**
@@ -133,7 +124,7 @@
 ### ClaudeCode共有データ構造
 
 ```typescript
-// .claude_data/dom_structure.json
+// .claude_ui_data/dom_structure.json
 interface DOMSnapshot {
   timestamp: number;        // スナップショット取得時刻
   elements: UIElement[];    // UI要素の配列
@@ -165,7 +156,7 @@ interface UIElement {
   value?: string;           // 入力要素の場合の現在値
 }
 
-// .claude_data/actions.json
+// .claude_ui_data/actions.json
 interface UIActionRequest {
   requestId: string;        // リクエスト識別子
   timestamp: number;        // リクエスト時刻
@@ -181,7 +172,7 @@ interface UIAction {
   description: string;      // 操作の説明（ユーザー表示/ログ用）
 }
 
-// .claude_data/action_results.json
+// .claude_ui_data/action_results.json
 interface UIActionResult {
   requestId: string;        // 対応するリクエスト識別子
   timestamp: number;        // 結果生成時刻
@@ -199,7 +190,7 @@ interface UIActionResult {
 ### 環境変数モデル
 
 ```typescript
-// .claude_data/env_variables.json
+// .claude_ui_data/env_variables.json
 interface EnvironmentVariableData {
   timestamp: number;        // 更新時刻
   variables: EnvironmentVariable[];
@@ -268,7 +259,7 @@ interface EnvironmentVariableGroup {
      - シンプルで直感的なUI設計
 
 3. **共有データディレクトリ**
-   - `.claude_data/` - ClaudeCodeと共有するデータディレクトリ
+   - `.claude_ui_data/` - ClaudeCodeと共有するデータディレクトリ
      - `dom_structure.json` - DOM構造スナップショット
      - `env_variables.json` - 環境変数情報
      - `actions.json` - ClaudeCodeからの操作指示
@@ -285,165 +276,20 @@ interface EnvironmentVariableGroup {
 
 2. **ClaudeCode起動と連携**
    - ClaudeCodeの起動（通常のClaudeCode起動コマンド）
-   - ClaudeCodeが`.claude_data/`ディレクトリの情報を読み込み
+   - ClaudeCodeが`.claude_ui_data/`ディレクトリの情報を読み込み
    - 現在のUI状態の把握とガイダンス提供
 
 3. **自動化連携フロー**
-   - ClaudeCodeが`.claude_data/actions.json`に操作指示を書き込み
+   - ClaudeCodeが`.claude_ui_data/actions.json`に操作指示を書き込み
    - 環境変数アシスタントが定期的（500ms間隔）にファイルを監視
    - 新しい操作指示を検出したら実行
-   - 実行結果を`.claude_data/action_results.json`に書き込み
+   - 実行結果を`.claude_ui_data/action_results.json`に書き込み
    - DOM構造とスクリーンショットを更新
 
 4. **完了フェーズ**
    - 環境変数設定完了後、.envファイル生成
-   - 設定サマリーを`.claude_data/env_summary.json`に出力
-   - env.mdの環境変数ステータスをチェックマーク [✓] で更新
-   - deploy.mdの環境別設定情報を更新
+   - 設定サマリーを`.claude_ui_data/env_summary.json`に出力
    - ClaudeCodeに完了通知
-
-## 実装詳細
-
-### 1. ファイルベース連携の仕組み
-
-- **ファイル監視メカニズム**
-  ```typescript
-  // VSCode拡張側での実装例
-  const watchActions = () => {
-    fs.watch('.claude_data/actions.json', (eventType) => {
-      if (eventType === 'change') {
-        const actions = JSON.parse(fs.readFileSync('.claude_data/actions.json', 'utf8'));
-        executeActions(actions);
-      }
-    });
-  };
-  ```
-
-- **スナップショット生成**
-  ```typescript
-  // WebView側での実装例
-  const captureDOMSnapshot = () => {
-    const elements = [];
-    document.querySelectorAll('[data-claude-id]').forEach(el => {
-      elements.push({
-        id: el.getAttribute('data-claude-id'),
-        type: el.tagName.toLowerCase(),
-        text: el.textContent,
-        isVisible: isElementVisible(el),
-        // 他の属性も同様に取得
-      });
-    });
-    
-    const snapshot = {
-      timestamp: Date.now(),
-      elements,
-      activeElementId: document.activeElement?.getAttribute('data-claude-id'),
-      viewport: {
-        width: window.innerWidth,
-        height: window.innerHeight
-      },
-      currentScreenshot: `screenshot_${Date.now()}.png`
-    };
-    
-    // VSCode APIでファイルに書き込む
-    vscode.postMessage({
-      command: 'saveDOMSnapshot',
-      data: snapshot
-    });
-  };
-  ```
-
-### 2. UI操作の自動化実装
-
-- **操作実行メカニズム**
-  ```typescript
-  // WebView側での実装例
-  const executeAction = async (action) => {
-    const { type, targetElementId, value } = action;
-    const element = document.querySelector(`[data-claude-id="${targetElementId}"]`);
-    
-    if (!element) {
-      return { success: false, errorMessage: 'Element not found' };
-    }
-    
-    switch (type) {
-      case 'click':
-        element.click();
-        return { success: true };
-        
-      case 'input':
-        element.value = value;
-        element.dispatchEvent(new Event('input', { bubbles: true }));
-        element.dispatchEvent(new Event('change', { bubbles: true }));
-        return { success: true };
-        
-      // 他のアクションタイプも同様に実装
-    }
-  };
-  ```
-
-### 3. 視覚的ガイダンス実装
-
-- **オーバーレイ表示**
-  ```typescript
-  // WebView側での実装例
-  const showGuidance = (elementId, message) => {
-    const element = document.querySelector(`[data-claude-id="${elementId}"]`);
-    if (!element) return;
-    
-    const rect = element.getBoundingClientRect();
-    
-    // ガイダンス要素を作成
-    const overlay = document.createElement('div');
-    overlay.className = 'guidance-overlay';
-    overlay.style.top = `${rect.top}px`;
-    overlay.style.left = `${rect.left}px`;
-    overlay.style.width = `${rect.width}px`;
-    overlay.style.height = `${rect.height}px`;
-    
-    const messageEl = document.createElement('div');
-    messageEl.className = 'guidance-message';
-    messageEl.textContent = message;
-    
-    document.body.appendChild(overlay);
-    document.body.appendChild(messageEl);
-    
-    // アニメーション効果
-    overlay.classList.add('pulse');
-    
-    // 一定時間後に除去
-    setTimeout(() => {
-      overlay.remove();
-      messageEl.remove();
-    }, 5000);
-  };
-  ```
-
-## 実装ステップと優先順位
-
-### フェーズ1: 基本機能（1-2週間）
-1. VSCodeパネルとUI構築
-2. DOM構造スナップショット機能の実装
-3. `.claude_data/`ディレクトリ構造の設計と実装
-4. 基本的な環境変数検出機能
-
-### フェーズ2: ファイル連携機能（1-2週間）
-1. ClaudeCode用データ出力の完全実装
-2. 操作指示ファイル監視メカニズム
-3. スクリーンショット自動取得機能
-4. 基本的なUI操作自動化
-
-### フェーズ3: 自動化機能（2-3週間）
-1. 環境変数の自動検出機能強化
-2. 標準値の自動設定機能
-3. シンプルなUI操作ガイダンス
-4. .envファイル自動生成
-
-### フェーズ4: ユーザー体験強化（2-3週間）
-1. リアルタイム視覚的ガイダンス
-2. 操作シーケンスの自動実行強化
-3. 問題診断と修正提案
-4. 非技術者向けユーザーテストと最適化
 
 ## 成功基準
 
@@ -474,21 +320,9 @@ interface EnvironmentVariableGroup {
 ### シナリオ3: ClaudeCode自動操作モード
 1. ユーザーが環境変数アシスタントを起動
 2. 別ウィンドウでClaudeCodeを起動
-3. ClaudeCodeが自動的に`.claude_data/`の情報を読み込み
+3. ClaudeCodeが自動的に`.claude_ui_data/`の情報を読み込み
 4. ユーザーがClaudeCodeに「環境変数を設定して」と指示
 5. ClaudeCodeが`actions.json`に操作指示を書き込み
 6. 環境変数アシスタントが自動的に操作を実行
 7. 実行結果が`action_results.json`に書き込まれ、ClaudeCodeが確認
 8. 一連の操作が完了するまで自動的に進行
-
-## 制限事項と対策
-
-1. **ファイル連携の同期性**
-   - ファイル書き込み・読み取りのタイミング管理が重要
-   - 操作リクエストにID付与で重複実行防止
-   - ファイル監視の適切な間隔設定（パフォーマンスとレスポンス速度のバランス）
-
-2. **セキュリティ考慮事項**
-   - 機密情報は`.claude_data/`ディレクトリに書き込まない設計
-   - スクリーンショットから機密情報を自動マスク
-   - `.claude_data/`を`.gitignore`に自動追加

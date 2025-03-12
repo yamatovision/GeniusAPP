@@ -3,3 +3,6 @@ dist/
 .vscode/
 
 .claude_ui_data/
+
+.claude_data/
+temp/

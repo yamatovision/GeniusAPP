@@ -26,11 +26,24 @@ export class ClaudeMdService {
   
   /**
    * プロジェクト用のCLAUDE.mdを生成
+   * @param projectPath プロジェクトパス
+   * @param projectNameOrOptions プロジェクト名または設定オブジェクト
+   * @param projectDescription プロジェクトの説明（オプション）
    */
-  public async generateClaudeMd(projectPath: string, projectName: string, projectDescription: string): Promise<string> {
+  public async generateClaudeMd(
+    projectPath: string, 
+    projectNameOrOptions: string | { name: string; description: string }, 
+    projectDescription?: string
+  ): Promise<string> {
     try {
-      this._projectName = projectName;
-      this._projectDescription = projectDescription;
+      // 引数の互換性を保持するための処理
+      if (typeof projectNameOrOptions === 'object') {
+        this._projectName = projectNameOrOptions.name;
+        this._projectDescription = projectNameOrOptions.description;
+      } else {
+        this._projectName = projectNameOrOptions;
+        this._projectDescription = projectDescription || '';
+      }
       
       const templatePath = path.join(__dirname, '..', '..', 'templates', 'claude_md_template.md');
       let template = fs.existsSync(templatePath) 

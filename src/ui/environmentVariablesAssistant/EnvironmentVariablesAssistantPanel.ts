@@ -11,6 +11,7 @@ import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusE
  * 環境変数の検出、表示、編集、検証をサポートする
  */
 export class EnvironmentVariablesAssistantPanel {
+  private _domSnapshotInterval: NodeJS.Timeout | null = null;
   public static currentPanel: EnvironmentVariablesAssistantPanel | undefined;
   private static readonly viewType = 'environmentVariablesAssistant';
   
@@ -2529,20 +2530,20 @@ env.mdファイルには、既に設定済みの環境変数や追加すべき�
 
 ## バックエンド
 
-[ ] `DB_HOST` - データベースホスト
-[ ] `DB_PORT` - データベースポート
-[ ] `DB_USER` - データベースユーザー名
-[ ] `DB_PASSWORD` - データベースパスワード
-[ ] `DB_NAME` - データベース名
-[✓] `PORT` - サーバーポート番号
-[✓] `NODE_ENV` - 実行環境（development/production/test）
-[ ] `JWT_SECRET` - JWT認証用シークレットキー
-[ ] `SESSION_SECRET` - セッション用シークレットキー
+[ ] \`DB_HOST\` - データベースホスト
+[ ] \`DB_PORT\` - データベースポート
+[ ] \`DB_USER\` - データベースユーザー名
+[ ] \`DB_PASSWORD\` - データベースパスワード
+[ ] \`DB_NAME\` - データベース名
+[✓] \`PORT\` - サーバーポート番号
+[✓] \`NODE_ENV\` - 実行環境（development/production/test）
+[ ] \`JWT_SECRET\` - JWT認証用シークレットキー
+[ ] \`SESSION_SECRET\` - セッション用シークレットキー
 
 ## フロントエンド
 
-[ ] `NEXT_PUBLIC_API_URL` - バックエンドAPIのURL
-[✓] `NEXT_PUBLIC_APP_VERSION` - アプリケーションのバージョン
+[ ] \`NEXT_PUBLIC_API_URL\` - バックエンドAPIのURL
+[✓] \`NEXT_PUBLIC_APP_VERSION\` - アプリケーションのバージョン
 
 ## デプロイ環境別設定の詳細はdeploy.mdを参照してください
 \`\`\`
@@ -2556,11 +2557,11 @@ deploy.mdにも環境別設定情報を以下のように更新してくださ�
 
 - **環境変数設定方法**: \`.env\`ファイルに保存
 - **必須環境変数**:
-  - `DB_HOST` = "localhost"
-  - `DB_PORT` = "5432"
-  - `PORT` = "3000"
-  - `NODE_ENV` = "development"
-  - `NEXT_PUBLIC_API_URL` = "http://localhost:3000/api"
+  - \`DB_HOST\` = "localhost"
+  - \`DB_PORT\` = "5432"
+  - \`PORT\` = "3000"
+  - \`NODE_ENV\` = "development"
+  - \`NEXT_PUBLIC_API_URL\` = "http://localhost:3000/api"
 \`\`\`
 
 ※注意: env.mdではチェックマーク([✓])は設定済み、空白([ ])は未設定を示します。
