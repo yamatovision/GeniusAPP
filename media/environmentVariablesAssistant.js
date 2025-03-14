@@ -103,25 +103,7 @@
   
   // イベントリスナーを設定
   function setupEventListeners() {
-    // 自動検出ボタン
-    if (elements.autoDetectButton) {
-      elements.autoDetectButton.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'autoDetectVariables'
-        });
-      });
-    }
-    
-    // 保存ボタン
-    if (elements.saveAllButton) {
-      elements.saveAllButton.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'saveAllVariables'
-        });
-      });
-    }
-    
-    // AIアシスタント起動ボタン
+    // AIアシスタント起動ボタンのみを残す
     if (elements.launchClaudeButton) {
       elements.launchClaudeButton.addEventListener('click', () => {
         vscode.postMessage({
@@ -551,31 +533,34 @@
       }
     });
     
-    // CLAUDE.md情報セクションを追加
-    const claudeInfoSection = document.createElement('div');
-    claudeInfoSection.className = 'claude-info-section';
-    claudeInfoSection.innerHTML = `
-      <div class="section-header">
-        <h2>CLAUDE.md環境変数情報</h2>
-        <div class="section-actions">
-          <button id="sync-claude-md" class="button button-secondary">CLAUDE.mdから同期</button>
+    // サマリー情報を作成 - 一番上に表示
+    const totalVars = Object.keys(activeVars).length;
+    const configuredVars = Object.values(categories).reduce((sum, cat) => sum + cat.items.filter(item => item.isConfigured).length, 0);
+    const needsConfigVars = Object.values(categories).reduce((sum, cat) => sum + cat.items.filter(item => item.needsConfiguration).length, 0);
+    
+    const summarySection = document.createElement('div');
+    summarySection.className = 'env-summary-section';
+    summarySection.innerHTML = `
+      <div class="summary-header">
+        <h3>環境変数設定状況</h3>
+      </div>
+      <div class="summary-content">
+        <div class="summary-item">
+          <div class="summary-label">合計</div>
+          <div class="summary-value">${totalVars}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">設定済み</div>
+          <div class="summary-value ${configuredVars === totalVars ? 'completed' : ''}">${configuredVars}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">要設定</div>
+          <div class="summary-value ${needsConfigVars > 0 ? 'warning' : ''}">${needsConfigVars}</div>
         </div>
       </div>
-      <div class="section-description">
-        これらの環境変数はプロジェクト分析に基づいて特定されました。設定が必要な項目は赤色でマークされています。
-      </div>
     `;
-    elements.envList.appendChild(claudeInfoSection);
-    
-    // イベントリスナーを設定
-    const syncButton = document.getElementById('sync-claude-md');
-    if (syncButton) {
-      syncButton.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'autoDetectVariables'
-        });
-      });
-    }
+    // サマリーセクションをリストの先頭に追加
+    elements.envList.appendChild(summarySection);
     
     // 各カテゴリのセクションを作成し追加
     Object.entries(categories).forEach(([categoryId, categoryData]) => {
@@ -653,47 +638,6 @@
       // セクションをリストに追加
       elements.envList.appendChild(section);
     });
-    
-    // サマリー情報を作成
-    const totalVars = Object.keys(activeVars).length;
-    const configuredVars = Object.values(categories).reduce((sum, cat) => sum + cat.items.filter(item => item.isConfigured).length, 0);
-    const needsConfigVars = Object.values(categories).reduce((sum, cat) => sum + cat.items.filter(item => item.needsConfiguration).length, 0);
-    
-    const summarySection = document.createElement('div');
-    summarySection.className = 'env-summary-section';
-    summarySection.innerHTML = `
-      <div class="summary-header">
-        <h3>環境変数設定状況</h3>
-      </div>
-      <div class="summary-content">
-        <div class="summary-item">
-          <div class="summary-label">合計</div>
-          <div class="summary-value">${totalVars}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">設定済み</div>
-          <div class="summary-value ${configuredVars === totalVars ? 'completed' : ''}">${configuredVars}</div>
-        </div>
-        <div class="summary-item">
-          <div class="summary-label">要設定</div>
-          <div class="summary-value ${needsConfigVars > 0 ? 'warning' : ''}">${needsConfigVars}</div>
-        </div>
-      </div>
-      <div class="summary-action">
-        <button id="add-to-claude-md" class="button button-primary">CLAUDE.mdに環境変数情報を追加</button>
-      </div>
-    `;
-    elements.envList.appendChild(summarySection);
-    
-    // CLAUDE.mdに追加ボタンのイベントリスナー
-    const addToClaudeButton = document.getElementById('add-to-claude-md');
-    if (addToClaudeButton) {
-      addToClaudeButton.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'saveAllVariables'
-        });
-      });
-    }
   }
   
   // 環境変数カードのボタンリスナーを設定

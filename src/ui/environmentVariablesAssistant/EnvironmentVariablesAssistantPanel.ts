@@ -31,6 +31,7 @@ export class EnvironmentVariablesAssistantPanel {
   
   // ファイル監視
   private _fileWatcher: fs.FSWatcher | null = null;
+  private _docsDirWatcher: fs.FSWatcher | null = null;
   
   // サービス
   private _eventBus: AppGeniusEventBus;
@@ -181,6 +182,9 @@ export class EnvironmentVariablesAssistantPanel {
     // 環境変数ファイルの検出
     this._detectEnvFiles();
     
+    // env.mdからの環境変数読み込み
+    await this._loadEnvironmentVariablesFromEnvMd();
+    
     // WebViewの更新
     await this._updateWebview();
   }
@@ -268,13 +272,6 @@ export class EnvironmentVariablesAssistantPanel {
     </header>
     
     <div class="main-content">
-      <div class="env-list">
-        <div id="env-loading" class="loading">
-          <div class="spinner"></div>
-          <div>環境変数を読み込み中...</div>
-        </div>
-      </div>
-      
       <div class="guide-panel">
         <div class="guide-panel-title">環境変数設定ガイド</div>
         <div class="guide-steps">
@@ -288,26 +285,21 @@ export class EnvironmentVariablesAssistantPanel {
           </div>
           <div class="guide-step">
             <span class="step-number">3</span>
-            AIの指示に従って環境変数を設定します。
+            AIの指示に従って環境変数を設定します。AIが設定前にテストを実行します。
           </div>
           <div class="guide-step">
             <span class="step-number">4</span>
-            設定情報をCURRENT_STATUS.mdに追加して、進捗と共に管理します。
+            設定情報が自動的にenv.mdとCURRENT_STATUS.mdに反映されます。
           </div>
         </div>
         
         <div class="ai-suggestion">
           <div id="ai-suggestion-text">
-            ClaudeCodeと連携して、プロジェクトに必要な環境変数を分析・設定しましょう。AIがプロジェクトコードを分析し、必要な環境変数を特定して適切な設定方法を提案します。
+            ClaudeCodeと連携して、プロジェクトに必要な環境変数を設定しましょう。AIが設定前に接続テストを実行し、問題のないことを確認します。
           </div>
           <button id="launch-claude-assistant" class="button button-primary">AIアシスタントを起動</button>
         </div>
       </div>
-    </div>
-    
-    <div class="footer">
-      <button id="auto-detect-variables" class="button button-secondary">プロジェクト分析を開始</button>
-      <button id="save-all-variables" class="button button-success">環境変数情報を保存</button>
     </div>
   </div>
   
@@ -384,8 +376,15 @@ export class EnvironmentVariablesAssistantPanel {
       // 環境変数ファイルの検出
       this._detectEnvFiles();
       
-      // env.mdから環境変数情報を読み込む
-      await this._loadEnvironmentVariablesFromEnvMd();
+      // env.mdから環境変数情報を読み込む - 複数回呼び出しの場合でも問題ないように
+      if (!this._envVariables[this._activeEnvFile!] || Object.keys(this._envVariables[this._activeEnvFile!]).length === 0) {
+        await this._loadEnvironmentVariablesFromEnvMd();
+      }
+      
+      // もし環境変数がロードされていなければ、env.mdをシンプルにパースして表示
+      if (!this._activeEnvFile || !this._envVariables[this._activeEnvFile] || Object.keys(this._envVariables[this._activeEnvFile]).length === 0) {
+        await this._loadEnvironmentVariablesSimple();
+      }
       
       // WebViewを更新
       await this._updateWebview();
@@ -1079,32 +1078,40 @@ export class EnvironmentVariablesAssistantPanel {
       // ファイルの内容を読み込む
       const content = fs.readFileSync(targetEnvMdPath, 'utf8');
       
+      // アクティブファイルを設定
+      this._activeEnvFile = targetEnvMdPath;
+      
+      // 変数を保存するオブジェクトを初期化
+      this._envVariables[targetEnvMdPath] = {};
+      
       // 新形式かどうかを確認
       const isNewFormat = content.includes('[✓]') && content.includes('[!]') && content.includes('実際の値で設定され');
       
-      // 環境変数情報を解析
+      // 従来の方法でパース
       const envVarStatus = this._parseEnvMdFile(content);
       
-      // アクティブファイルがなければスキップ
-      if (!this._activeEnvFile) {
-        return;
-      }
-      
-      // 環境変数の状態を更新
-      envVarStatus.forEach(envVar => {
-        // .envファイルに変数が存在するか確認
-        if (this._envVariables[this._activeEnvFile] && this._envVariables[this._activeEnvFile][envVar.name] !== undefined) {
-          // 状態を更新
-          if (envVar.isConfigured) {
-            // 既に設定済みの場合は状態のみ更新
-            Logger.info(`環境変数 ${envVar.name} は既に${path.basename(targetEnvMdPath)}で設定済みとマークされています`);
-          }
-        } else {
-          // .envファイルに存在しない変数は追加
-          if (!this._envVariables[this._activeEnvFile]) {
-            this._envVariables[this._activeEnvFile] = {};
-          }
+      // 環境変数が見つからない場合は代替のシンプルなパース
+      if (envVarStatus.length === 0) {
+        // シンプルなパターンで環境変数を検出: - [x] `VARIABLE_NAME` - 説明 の形式
+        const envVarRegex = /- \[(x| )\] `([A-Za-z0-9_]+)`\s*-\s*(.*)/g;
+        let match;
+        
+        while ((match = envVarRegex.exec(content)) !== null) {
+          const isConfigured = match[1] === 'x';
+          const variableName = match[2];
+          const description = match[3]?.trim() || '';
           
+          // 設定済み、未設定によって異なるメッセージを設定
+          const valueToSet = isConfigured ? 
+            `env.mdで設定済み` : 
+            `【要設定】${description}`;
+            
+          this._envVariables[targetEnvMdPath][variableName] = valueToSet;
+          Logger.info(`env.mdから環境変数 ${variableName} を追加しました (シンプルパース)`);
+        }
+      } else {
+        // 従来のパース結果を使用
+        envVarStatus.forEach(envVar => {
           // 設定済み、部分的に設定済み、未設定によって異なるメッセージを設定
           let valueToSet;
           
@@ -1119,17 +1126,104 @@ export class EnvironmentVariablesAssistantPanel {
             valueToSet = `【要設定】${envVar.description}`;
           }
           
-          this._envVariables[this._activeEnvFile][envVar.name] = valueToSet;
-            
+          this._envVariables[targetEnvMdPath][envVar.name] = valueToSet;
           Logger.info(`${path.basename(targetEnvMdPath)}から環境変数 ${envVar.name} を追加しました`);
-        }
-      });
+        });
+      }
+      
+      // 変数が一つも見つからなかった場合の処理
+      if (Object.keys(this._envVariables[targetEnvMdPath]).length === 0) {
+        Logger.warn(`env.mdから環境変数を検出できませんでした`);
+        this._createVirtualEnvFileFromTemplate();
+      }
       
       // UIを更新
       await this._updateWebview();
       
     } catch (error) {
       Logger.error(`env.mdからの環境変数読み込みエラー:`, error as Error);
+    }
+  }
+  
+  /**
+   * シンプルな環境変数ロード処理
+   */
+  private async _loadEnvironmentVariablesSimple(): Promise<void> {
+    try {
+      const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
+      
+      if (!fs.existsSync(envMdPath)) {
+        Logger.warn(`env.mdファイルが見つかりません: ${envMdPath}`);
+        this._createVirtualEnvFileFromTemplate();
+        return;
+      }
+      
+      const content = fs.readFileSync(envMdPath, 'utf8');
+      
+      // 環境変数エントリを直接検出: - [x] `VARIABLE_NAME` - 説明 の形式
+      const envVarRegex = /- \[(x| )\] `([A-Za-z0-9_]+)`\s*-\s*(.*)/g;
+      const variables: Record<string, string> = {};
+      let match;
+      
+      while ((match = envVarRegex.exec(content)) !== null) {
+        const isConfigured = match[1] === 'x';
+        const variableName = match[2];
+        const description = match[3]?.trim() || '';
+        
+        variables[variableName] = isConfigured ? 
+          `env.mdで設定済み` : 
+          `【要設定】${description}`;
+      }
+      
+      if (Object.keys(variables).length > 0) {
+        // env.md用の特殊キーとして保存
+        this._envVariables[envMdPath] = variables;
+        this._activeEnvFile = envMdPath;
+        
+        Logger.info(`env.mdから${Object.keys(variables).length}個の環境変数を読み込みました`);
+      } else {
+        Logger.warn(`env.mdから環境変数を検出できませんでした`);
+        this._createVirtualEnvFileFromTemplate();
+      }
+      
+      // UIを更新
+      await this._updateWebview();
+      
+    } catch (error) {
+      Logger.error(`env.mdシンプル読み込みエラー:`, error as Error);
+      this._createVirtualEnvFileFromTemplate();
+    }
+  }
+  
+  /**
+   * テンプレートから仮想的な環境変数ファイルを作成
+   */
+  private _createVirtualEnvFileFromTemplate(): void {
+    try {
+      // 仮想的なファイルパス
+      const virtualPath = path.join(this._projectPath, '.env.virtual');
+      
+      // 仮想的な変数セット
+      const variables: Record<string, string> = {
+        'NODE_ENV': 'development',
+        'PORT': '3000',
+        'DB_HOST': '【要設定】データベースホスト名',
+        'DB_PORT': '【要設定】データベースポート番号',
+        'DB_NAME': '【要設定】データベース名',
+        'DB_USER': '【要設定】データベースユーザー名',
+        'DB_PASSWORD': '【要設定】データベースパスワード',
+        'JWT_SECRET': '【要設定】JWT署名用のシークレットキー',
+        'API_URL': '【要設定】APIサーバーのURL',
+      };
+      
+      // 仮想ファイルを保存
+      this._envVariables[virtualPath] = variables;
+      this._activeEnvFile = virtualPath;
+      this._envFiles.push(virtualPath);
+      
+      Logger.info(`仮想的な環境変数ファイルを作成しました（env.mdが見つからないまたは解析不能のため）`);
+    } catch (error) {
+      Logger.error(`仮想環境変数ファイル作成エラー:`, error as Error);
     }
   }
   
@@ -2415,8 +2509,9 @@ ${this._generateEnvironmentVariablesList('production')}
       const timestamp = Date.now();
       const promptPath = path.join(tempDir, `combined_env_${timestamp}.md`);
       
-      // テンプレートから内容を作成
-      const content = this._generateEnvAssistantPrompt();
+      // 外部プロンプトファイルを読み込む
+      const promptFilePath = path.join(this._projectPath, 'docs/prompts/environment_manager.md');
+      const content = fs.readFileSync(promptFilePath, 'utf8');
       
       // ファイルに書き込み
       fs.writeFileSync(promptPath, content, 'utf8');
@@ -2436,153 +2531,8 @@ ${this._generateEnvironmentVariablesList('production')}
     }
   }
   
-  /**
-   * 環境変数アシスタント用のプロンプトを生成
-   */
-  private _generateEnvAssistantPrompt(): string {
-    // プロンプトファイルがあれば読み込む
-    const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'environment_manager.md');
-    if (fs.existsSync(promptFilePath)) {
-      try {
-        return fs.readFileSync(promptFilePath, 'utf8');
-      } catch (error) {
-        Logger.error(`環境変数アシスタントプロンプトファイルの読み込みに失敗しました: ${promptFilePath}`, error as Error);
-      }
-    }
-    
-    // プロジェクトパスと環境変数ファイルパスを取得
-    const projectPath = this._projectPath;
-    const envFilePath = this._activeEnvFile || path.join(projectPath, '.env');
-    const envMdPath = path.join(projectPath, 'docs', 'env.md');
-    
-    // プロンプトを生成
-    return `# 環境変数設定アシスタント
-
-あなたは、アプリケーション開発を助ける環境変数設定の専門家です。スコープ実装アシスタントと連携して、プロジェクトが必要とする環境変数の設定と管理を支援します。
-
-## プロジェクト情報
-
-- プロジェクトパス: ${projectPath}
-- 環境変数ファイル: ${String(envFilePath)}
-- 環境変数リスト: ${envMdPath}
-
-## env.md/deploy.mdとの連携
-
-env.mdファイルには、既に設定済みの環境変数や追加すべき環境変数の情報が記載されています。この情報を参照し、以下を行ってください：
-
-1. 既存のenv.mdファイルの内容からバックエンドとフロントエンドの環境変数リストを確認
-2. チェック状態（[✓]は設定済み、[ ]は未設定）を把握
-3. deploy.mdファイルから環境別の設定情報を確認
-4. 見つかった情報をもとに、設定すべき環境変数のリストを作成
-
-## プロジェクト分析
-
-プロジェクトのコードを分析して、必要な環境変数を特定してください：
-
-1. package.jsonなどの依存関係から使用技術を特定
-2. 主要なフレームワークやライブラリが必要とする一般的な環境変数を確認
-3. コード内で'process.env'、'env\\('などの環境変数参照を探す
-4. データベース接続設定、API設定、認証情報などの重要設定を確認
-
-## 環境変数設定ガイド
-
-以下のような環境変数カテゴリ別に設定ガイドを提供してください：
-
-### 1. 開発環境設定
-- NODE_ENV, DEBUG等の基本設定
-- ポート番号、ホスト設定
-
-### 2. データベース接続設定
-- データベースURL/接続文字列
-- 認証情報（ユーザー名、パスワード）
-- データベース名、ポート等
-
-### 3. API連携設定
-- APIキー、シークレット
-- エンドポイントURL
-- 認証トークン
-
-### 4. 認証・セキュリティ設定
-- JWTシークレット
-- セッション設定
-- 暗号化キー
-
-### 5. サードパーティサービス設定
-- クラウドサービス認証情報
-- 外部APIキー
-
-## ファイル生成と管理
-
-以下のファイル生成と管理方針に従ってください：
-
-1. \`.env\`ファイル - 実際の値を含む（ローカル開発用）
-2. \`.env.example\`ファイル - サンプル値やプレースホルダーを含む（共有・バージョン管理用）
-3. \`.gitignore\`にこれらのファイルが含まれていることを確認
-
-## env.md/deploy.mdへの情報追加
-
-次の形式で環境変数情報をenv.mdに追加することを提案してください：
-
-\`\`\`markdown
-# 環境変数リスト
-
-このファイルはプロジェクトで使用する環境変数を管理します。チェックマーク [✓] は設定済みの変数を示します。
-
-## バックエンド
-
-[ ] \`DB_HOST\` - データベースホスト
-[ ] \`DB_PORT\` - データベースポート
-[ ] \`DB_USER\` - データベースユーザー名
-[ ] \`DB_PASSWORD\` - データベースパスワード
-[ ] \`DB_NAME\` - データベース名
-[✓] \`PORT\` - サーバーポート番号
-[✓] \`NODE_ENV\` - 実行環境（development/production/test）
-[ ] \`JWT_SECRET\` - JWT認証用シークレットキー
-[ ] \`SESSION_SECRET\` - セッション用シークレットキー
-
-## フロントエンド
-
-[ ] \`NEXT_PUBLIC_API_URL\` - バックエンドAPIのURL
-[✓] \`NEXT_PUBLIC_APP_VERSION\` - アプリケーションのバージョン
-
-## デプロイ環境別設定の詳細はdeploy.mdを参照してください
-\`\`\`
-
-deploy.mdにも環境別設定情報を以下のように更新してください：
-
-\`\`\`markdown
-## 環境別設定
-
-### ローカル開発環境
-
-- **環境変数設定方法**: \`.env\`ファイルに保存
-- **必須環境変数**:
-  - \`DB_HOST\` = "localhost"
-  - \`DB_PORT\` = "5432"
-  - \`PORT\` = "3000"
-  - \`NODE_ENV\` = "development"
-  - \`NEXT_PUBLIC_API_URL\` = "http://localhost:3000/api"
-\`\`\`
-
-※注意: env.mdではチェックマーク([✓])は設定済み、空白([ ])は未設定を示します。
-
-## セキュリティガイドライン
-
-1. 実際の値を含む環境変数ファイルはバージョン管理システムにコミットしないこと
-2. 機密情報（パスワード、APIキーなど）はランダムで強力な値を使用すること
-3. 開発環境と本番環境の設定は分けて管理すること
-4. 環境変数の値はアプリケーション起動時に適切にバリデーションすること
-
-## 具体的な支援内容
-
-1. プロジェクトが必要とする環境変数のリストを作成
-2. 各環境変数の目的と適切な値の例を説明
-3. 安全な値の生成方法（特に機密情報）を提案
-4. 環境変数ファイルの作成と管理方法を案内
-5. スコープ実装アシスタントとの連携方法を説明
-
-プロジェクトの種類や使用技術に応じて、適切な環境変数の設定をサポートしてください。ユーザーの質問に対しては明確で具体的な説明と例を提供してください。`;
-  }
+  // _generateEnvAssistantPromptメソッドは削除され、代わりに
+  // _prepareEnvAssistantPromptメソッド内で直接environment_manager.mdファイルを読み込むようになりました
   
   /**
    * 環境変数ファイルを検出
@@ -2594,25 +2544,81 @@ deploy.mdにも環境別設定情報を以下のように更新してくださ�
         return;
       }
       
+      const allFiles: string[] = [];
+      
       // プロジェクトルートにある.envで始まるファイルを検索
-      const files = fs.readdirSync(this._projectPath)
+      const dotEnvFiles = fs.readdirSync(this._projectPath)
         .filter(file => file.startsWith('.env'))
         .map(file => path.join(this._projectPath, file));
       
-      this._envFiles = files;
+      allFiles.push(...dotEnvFiles);
       
-      // .envファイルが存在する場合は読み込み
-      const defaultEnvPath = path.join(this._projectPath, '.env');
-      if (fs.existsSync(defaultEnvPath)) {
-        this._loadEnvFile(defaultEnvPath);
-        this._activeEnvFile = defaultEnvPath;
-      } else if (files.length > 0) {
-        // .envがなく、他の.envファイルがある場合は最初のものを読み込み
-        this._loadEnvFile(files[0]);
-        this._activeEnvFile = files[0];
+      // env.mdファイルを検索
+      const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
+      const hasEnvMd = fs.existsSync(envMdPath);
+      
+      if (hasEnvMd) {
+        allFiles.push(envMdPath);
       }
       
-      Logger.info(`環境変数ファイルを検出しました: ${files.length}個`);
+      this._envFiles = allFiles;
+      
+      // ファイル選択ロジック:
+      // 1. env.mdが存在する場合はそれを優先
+      // 2. .envファイルが存在する場合はそれを選択
+      // 3. 他の.envファイルがある場合は最初のものを選択
+      if (hasEnvMd) {
+        this._activeEnvFile = envMdPath;
+      } else if (dotEnvFiles.length > 0) {
+        const defaultEnvPath = path.join(this._projectPath, '.env');
+        if (fs.existsSync(defaultEnvPath)) {
+          this._loadEnvFile(defaultEnvPath);
+          this._activeEnvFile = defaultEnvPath;
+        } else {
+          // .envがなく、他の.envファイルがある場合は最初のものを読み込み
+          this._loadEnvFile(dotEnvFiles[0]);
+          this._activeEnvFile = dotEnvFiles[0];
+        }
+      }
+      
+      // ファイル監視を設定（既存のものがあれば閉じる）
+      if (this._fileWatcher) {
+        this._fileWatcher.close();
+        this._fileWatcher = null;
+      }
+      
+      if (this._docsDirWatcher) {
+        this._docsDirWatcher.close();
+        this._docsDirWatcher = null;
+      }
+      
+      // プロジェクトディレクトリを監視
+      this._fileWatcher = fs.watch(this._projectPath, (eventType, filename) => {
+        if (filename && filename.startsWith('.env')) {
+          Logger.info(`環境変数ファイル変更を検出: ${filename}`);
+          this._detectEnvFiles();
+          this._updateWebview();
+        }
+      });
+      
+      // docs ディレクトリの監視（env.md の変更を検出）
+      const docsDir = path.join(this._projectPath, 'docs');
+      if (fs.existsSync(docsDir)) {
+        this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
+          if (filename === 'env.md') {
+            Logger.info(`env.md ファイル変更を検出`);
+            // env.mdファイルを再度選択してロード
+            const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
+            if (fs.existsSync(envMdPath)) {
+              this._activeEnvFile = envMdPath;
+              this._loadEnvironmentVariablesFromEnvMd();
+              this._updateWebview();
+            }
+          }
+        });
+      }
+      
+      Logger.info(`環境変数ファイルを検出: ${allFiles.length}個（.env系: ${dotEnvFiles.length}個, env.md: ${hasEnvMd ? 1 : 0}個）`);
     } catch (error) {
       Logger.error(`環境変数ファイルの検出に失敗しました`, error as Error);
       this._envFiles = [];
