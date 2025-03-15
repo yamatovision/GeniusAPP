@@ -36,6 +36,17 @@ export class KnowledgeBaseManager {
   }
   
   /**
+   * プロジェクトパスを更新
+   */
+  public updateProjectPath(projectPath: string): void {
+    this._projectPath = projectPath;
+    this._debugPath = path.join(projectPath, 'logs', 'debug');
+    this._knowledgePath = path.join(this._debugPath, 'knowledge');
+    
+    Logger.info(`知見ベースマネージャーのプロジェクトパスを更新しました: ${projectPath}`);
+  }
+  
+  /**
    * 初期化
    */
   public async initialize(): Promise<void> {

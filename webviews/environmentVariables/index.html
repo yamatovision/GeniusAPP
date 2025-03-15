@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>環境変数管理</title>
+  <link href="{{reset.css}}" rel="stylesheet">
+  <link href="{{vscode.css}}" rel="stylesheet">
+  <link href="{{style.css}}" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>環境変数管理</h1>
+      <div class="progress-indicator">
+        <div class="progress-text">進捗: <span id="progress-value">0/0</span></div>
+        <div class="progress-bar">
+          <div class="progress-value" style="width: 0%"></div>
+        </div>
+      </div>
+    </header>
+    
+    <div class="main-content">
+      <div class="env-file-selector">
+        <div class="section-header">
+          <h2>環境変数ファイル</h2>
+          <button id="create-env-file" class="button button-secondary">新規作成</button>
+        </div>
+        <div class="env-files-list" id="env-files-container">
+          <div class="loading">ファイルを読み込み中...</div>
+        </div>
+      </div>
+      
+      <div class="env-variables">
+        <div class="section-header">
+          <h2>環境変数 <span id="current-env-file"></span></h2>
+          <div class="action-buttons">
+            <button id="import-variables" class="button button-secondary">インポート</button>
+            <button id="export-variables" class="button button-secondary">エクスポート</button>
+            <button id="detect-variables" class="button button-secondary">変数検出</button>
+          </div>
+        </div>
+        <div id="env-variables-container" class="env-variables-list">
+          <div class="loading">環境変数を読み込み中...</div>
+        </div>
+      </div>
+      
+      <div class="env-groups">
+        <div class="section-header">
+          <h2>変数グループ</h2>
+        </div>
+        <div id="env-groups-container" class="env-groups-list">
+          <div class="env-group" data-group-id="database">
+            <h3>データベース</h3>
+            <div class="group-status">0/0 設定済み</div>
+          </div>
+          <div class="env-group" data-group-id="api">
+            <h3>API連携</h3>
+            <div class="group-status">0/0 設定済み</div>
+          </div>
+          <div class="env-group" data-group-id="security">
+            <h3>セキュリティ</h3>
+            <div class="group-status">0/0 設定済み</div>
+          </div>
+          <div class="env-group" data-group-id="server">
+            <h3>サーバー</h3>
+            <div class="group-status">0/0 設定済み</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <div class="connection-test">
+        <button id="test-database" class="button button-action">データベース接続テスト</button>
+        <button id="test-api" class="button button-action">API接続テスト</button>
+      </div>
+      <button id="save-all-variables" class="button button-success">すべて保存</button>
+      <button id="update-env-md" class="button button-primary">env.mdを更新</button>
+    </div>
+  </div>
+  
+  <script src="{{script.js}}"></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+/* ユーザー詳細画面のスタイル */
+.user-detail-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* カードのスタイル */
+.user-detail-card {
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s;
+}
+
+.user-detail-card:hover {
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* タブのスタイル */
+.nav-tabs .nav-link {
+  font-weight: 500;
+  color: #495057;
+  padding: 0.75rem 1.25rem;
+}
+
+.nav-tabs .nav-link.active {
+  font-weight: 600;
+  color: #0d6efd;
+  border-color: #dee2e6 #dee2e6 #fff;
+}
+
+/* フォーム関連 */
+.form-label {
+  font-weight: 500;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+.form-text {
+  font-size: 0.85rem;
+}
+
+/* 詳細情報パネル */
+.user-info-panel {
+  padding: 1rem;
+}
+
+.info-group {
+  margin-bottom: 2rem;
+}
+
+.info-group h5 {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.info-group dl {
+  margin-bottom: 0;
+}
+
+.info-group dt {
+  font-weight: 600;
+  color: #6c757d;
+}
+
+/* ボタン */
+.btn-primary, .btn-secondary {
+  transition: all 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+/* スピナー */
+.spinner-border {
+  width: 1.5rem;
+  height: 1.5rem;
+}

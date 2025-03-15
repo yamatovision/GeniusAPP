@@ -41,6 +41,18 @@ export class ErrorSessionManager {
   }
   
   /**
+   * プロジェクトパスを更新
+   */
+  public updateProjectPath(projectPath: string): void {
+    this._projectPath = projectPath;
+    this._debugPath = path.join(projectPath, 'logs', 'debug');
+    this._sessionsPath = path.join(this._debugPath, 'sessions');
+    this._archivedPath = path.join(this._debugPath, 'archived');
+    
+    Logger.info(`エラーセッションマネージャーのプロジェクトパスを更新しました: ${projectPath}`);
+  }
+  
+  /**
    * 初期化
    */
   public async initialize(): Promise<void> {

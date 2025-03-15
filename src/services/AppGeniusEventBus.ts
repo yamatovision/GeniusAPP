@@ -15,7 +15,13 @@ export enum AppGeniusEventType {
   PROJECT_SELECTED = 'project-selected',
   PROJECT_DELETED = 'project-deleted',
   PROJECT_UPDATED = 'project-updated',
+  PROJECT_PATH_UPDATED = 'project-path-updated', // 追加: プロジェクトパス更新イベント
   PHASE_COMPLETED = 'phase-completed',
+  
+  // 環境変数関連イベント
+  ENV_VARIABLES_UPDATED = 'env-variables-updated',
+  ENV_FILE_CREATED = 'env-file-created',
+  CURRENT_STATUS_UPDATED = 'current-status-updated',
   
   // ClaudeCode関連イベント
   CLAUDE_CODE_STARTED = 'claude-code-started',
@@ -76,6 +82,17 @@ export class AppGeniusEventBus {
     
     Logger.debug(`Event emitted: ${type} from ${source}${projectId ? ` for project ${projectId}` : ''}`);
     this.eventEmitter.fire(event);
+  }
+  
+  /**
+   * イベントを発行（emit と同等の機能を持つ別名メソッド）
+   * @param type イベントタイプ
+   * @param data イベントデータ
+   * @param source イベント発生元
+   * @param projectId プロジェクトID
+   */
+  public publish<T>(type: AppGeniusEventType, data: T, source: string, projectId?: string): void {
+    this.emit(type, data, source, projectId);
   }
   
   /**

@@ -15,7 +15,7 @@ export class Logger {
   private static logLevel: LogLevel = LogLevel.INFO; // INFO以上のレベルのみ出力するように設定
   private static logFilePath: string | undefined;
 
-  public static initialize(extensionName: string, level: LogLevel = LogLevel.INFO): void {
+  public static initialize(extensionName: string, level: LogLevel = LogLevel.INFO, autoShow: boolean = false): void {
     this.outputChannel = vscode.window.createOutputChannel(extensionName);
     this.logLevel = level;
     
@@ -38,8 +38,10 @@ export class Logger {
     this.info(`Logger initialized with level: ${LogLevel[level]}`);
     this.info(`ログファイル: ${this.logFilePath}`);
     
-    // 常にログウィンドウを表示する（デバッグ用）
-    this.show();
+    // 設定がtrueの場合のみログウィンドウを表示
+    if (autoShow) {
+      this.show();
+    }
   }
 
   public static setLevel(level: LogLevel): void {
@@ -65,7 +67,7 @@ export class Logger {
     }
   }
 
-  public static error(message: string, error?: Error, data?: any): void {
+  public static error(message: string, error?: Error, data?: any, autoShow: boolean = true): void {
     if (this.logLevel <= LogLevel.ERROR) {
       this.log('ERROR', message);
       if (error) {
@@ -78,8 +80,10 @@ export class Logger {
         this.log('ERROR', 'Additional data:', data);
       }
       
-      // エラー時には自動的にログウィンドウを表示
-      this.show();
+      // エラー時には設定に応じてログウィンドウを表示
+      if (autoShow) {
+        this.show();
+      }
     }
   }
 

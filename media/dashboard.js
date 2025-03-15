@@ -71,7 +71,6 @@
     // 定期的な状態更新（1秒ごとに更新）
     setInterval(() => {
       if (state.activeProject) {
-        console.log("定期的な状態更新を実行します");
         vscode.postMessage({
           command: 'refreshProjects'
         });
@@ -481,8 +480,7 @@
       // モックアップファイルの存在チェック (新しい条件) - 常に最新の状態を反映
       const hasMockupFiles = details.hasMockupFiles || false;
       
-      // デバッグ用ログ
-      console.log(`モックアップファイル存在フラグ: ${hasMockupFiles}`);
+      // モックアップファイルの存在フラグを確認
       
       // 計画プロセスのステップ描画
       const planningStepsHtml = `

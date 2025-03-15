@@ -1,0 +1,368 @@
+/* 環境変数管理パネルスタイル */
+
+/* 全体レイアウト */
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.main-content {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr;
+  gap: 16px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--vscode-panel-border);
+}
+
+/* セクションスタイル */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.section-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 環境変数ファイルセレクタ */
+.env-file-selector {
+  background: var(--vscode-sideBar-background);
+  border-radius: 4px;
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.env-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.env-file-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: var(--vscode-list-inactiveSelectionBackground);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.env-file-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.env-file-item.active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.env-file-icon {
+  margin-right: 8px;
+  color: var(--vscode-symbolIcon-variableForeground);
+}
+
+/* 環境変数リスト */
+.env-variables {
+  background: var(--vscode-editor-background);
+  border-radius: 4px;
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.env-variables-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.env-variable-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  padding: 12px;
+  background: var(--vscode-input-background);
+  border-radius: 4px;
+  transition: box-shadow 0.2s;
+}
+
+.env-variable-item:hover {
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.env-variable-item.configured {
+  border-left: 4px solid var(--vscode-terminal-ansiGreen);
+}
+
+.env-variable-item.unconfigured {
+  border-left: 4px solid var(--vscode-errorForeground);
+}
+
+.env-variable-name {
+  font-weight: bold;
+  font-family: var(--vscode-editor-font-family);
+}
+
+.env-variable-value {
+  width: 100%;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  padding: 4px 8px;
+  font-family: var(--vscode-editor-font-family);
+}
+
+.env-variable-value:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.env-variable-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 変数グループ */
+.env-groups {
+  background: var(--vscode-sideBar-background);
+  border-radius: 4px;
+  padding: 12px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.env-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.env-group {
+  padding: 12px;
+  background: var(--vscode-list-inactiveSelectionBackground);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.env-group:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.env-group.active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.env-group h3 {
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+}
+
+.group-status {
+  font-size: 0.9rem;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* プログレスインジケータ */
+.progress-indicator {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  text-align: right;
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--vscode-progressBar-background);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-value {
+  height: 100%;
+  background: var(--vscode-progressBar-foreground);
+  width: 0%;
+  transition: width 0.3s;
+}
+
+/* 接続テスト */
+.connection-test {
+  display: flex;
+  gap: 8px;
+}
+
+/* ボタン */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.button-secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.button-secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.button-success {
+  background: var(--vscode-terminal-ansiGreen);
+  color: var(--vscode-button-foreground);
+}
+
+.button-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.button-action {
+  background: var(--vscode-list-inactiveSelectionBackground);
+  color: var(--vscode-foreground);
+}
+
+.button-action:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.button-icon {
+  padding: 4px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--vscode-foreground);
+}
+
+.button-icon:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+/* エラーメッセージ */
+.error-message {
+  background: var(--vscode-inputValidation-errorBackground);
+  color: var(--vscode-inputValidation-errorForeground);
+  border: 1px solid var(--vscode-inputValidation-errorBorder);
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  border-radius: 4px;
+}
+
+/* ローディング */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+/* トースト通知 */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  background: var(--vscode-notificationToast-background);
+  color: var(--vscode-notificationToast-foreground);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  transition: transform 0.3s, opacity 0.3s;
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast.success {
+  background: var(--vscode-terminal-ansiGreen);
+  color: white;
+}
+
+.toast.error {
+  background: var(--vscode-errorForeground);
+  color: white;
+}
+
+/* レスポンシブデザイン */
+@media (max-width: 1200px) {
+  .main-content {
+    grid-template-columns: 1fr 2fr;
+  }
+  
+  .env-groups {
+    display: none;
+  }
+}
+
+@media (max-width: 800px) {
+  .main-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .env-file-selector {
+    display: none;
+  }
+}

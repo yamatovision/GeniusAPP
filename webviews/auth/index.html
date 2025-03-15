@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppGenius - VSCode認証</title>
+  <link href="${styleUri}" rel="stylesheet">
+</head>
+<body>
+  <div class="auth-container">
+    <div class="auth-header">
+      <div class="logo">AG</div>
+      <h1 class="auth-title">AppGenius</h1>
+      <p class="auth-subtitle">VSCode拡張機能認証</p>
+    </div>
+
+    <form class="auth-form" id="loginForm">
+      <div class="form-group">
+        <label for="email">メールアドレス</label>
+        <input type="email" id="email" placeholder="name@example.com" required />
+        <div class="error-message" id="email-error"></div>
+      </div>
+      <div class="form-group">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" placeholder="••••••••" required />
+        <div class="error-message" id="password-error"></div>
+      </div>
+      <div class="forgot-password">
+        <a href="#" id="resetPassword">パスワードをお忘れですか？</a>
+      </div>
+      <button type="submit" class="auth-button">ログイン</button>
+      <div class="error-message" id="login-error"></div>
+    </form>
+
+    <div class="status-indicator">
+      <div class="status-dot disconnected" id="status-dot"></div>
+      <span id="status-text">サーバーに接続中...</span>
+    </div>
+
+    <div class="auth-footer">
+      <p>ログインすることで、AppGenius APIへのアクセスが許可されます</p>
+    </div>
+  </div>
+
+  <!-- ログイン後のステータス表示 (デフォルトでは非表示) -->
+  <div class="auth-container" id="success-container" style="display: none;">
+    <div class="auth-header">
+      <div class="logo">AG</div>
+      <h1 class="auth-title">認証成功</h1>
+      <p class="auth-subtitle">AppGenius VSCode拡張機能が有効化されました</p>
+    </div>
+
+    <div class="success-message">
+      <div class="success-icon">✓</div>
+      <p class="user-name" id="logged-user-name">ユーザー名</p>
+      <p class="user-email" id="logged-user-email">user@example.com</p>
+    </div>
+
+    <button class="auth-button" id="back-button">VSCodeに戻る</button>
+
+    <div class="status-indicator">
+      <div class="status-dot connected"></div>
+      <span>接続済み</span>
+    </div>
+
+    <div class="auth-footer">
+      <p><a href="#" id="logout-link">ログアウト</a></p>
+    </div>
+  </div>
+
+  <script src="${scriptUri}"></script>
+</body>
+</html>

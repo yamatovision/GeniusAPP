@@ -253,4 +253,25 @@ export class GitManager {
   private escapeShellArg(arg: string): string {
     return `"${arg.replace(/"/g, '\\"')}"`;
   }
+
+  /**
+   * 任意のGitコマンドを実行する
+   * @param command 実行するGitコマンド
+   * @returns コマンドの実行結果
+   */
+  public async executeCommand(command: string): Promise<string> {
+    try {
+      // Gitコマンドかどうかのチェック
+      if (!command.trim().startsWith('git ')) {
+        command = `git ${command}`;
+      }
+      
+      const { stdout } = await this.executeGitCommand(command);
+      Logger.info(`Git command executed: ${command}`);
+      return stdout;
+    } catch (error) {
+      Logger.error(`Git command execution failed: ${command}`, error as Error);
+      throw new Error(`Gitコマンド実行エラー: ${(error as Error).message}`);
+    }
+  }
 }

@@ -175,6 +175,16 @@ export class DashboardPanel {
           Logger.debug(`Requirements updated for project: ${event.projectId}`);
           this._projectRequirements[event.projectId] = event.data;
           
+          // 要件定義が更新されたら、モックアップギャラリーのロック解除を確認
+          const project = this._projectService.getProject(event.projectId);
+          if (project && project.path) {
+            // モックアップフォルダの確認（要件定義更新時に再確認する）
+            const hasMockupFiles = this._checkMockupFolderStatus(project.path, event.projectId);
+            if (hasMockupFiles) {
+              Logger.info(`要件定義更新によりモックアップギャラリーが利用可能になりました: ${event.projectId}`);
+            }
+          }
+          
           // アクティブなプロジェクトの場合、UIを更新
           if (this._activeProject && this._activeProject.id === event.projectId) {
             await this._updateWebview();
@@ -201,6 +211,14 @@ export class DashboardPanel {
             this._projectMockups[event.projectId][existingIndex] = event.data;
           } else {
             this._projectMockups[event.projectId].push(event.data);
+          }
+          
+          // モックアップ作成イベントが発生したら、HTMLファイルの有無を再確認
+          const project = this._projectService.getProject(event.projectId);
+          if (project && project.path) {
+            // モックアップHTMLファイルの有無を確認し、UI更新のフラグを立てる
+            this._checkMockupFolderStatus(project.path, event.projectId);
+            Logger.info(`モックアップ作成イベントを検知: ${event.projectId}, ギャラリー表示を更新します`);
           }
           
           // アクティブなプロジェクトの場合、UIを更新
@@ -312,6 +330,33 @@ export class DashboardPanel {
    * プロジェクト詳細情報を非同期でバックグラウンドロード
    * UI応答性を維持するため、メインのレンダリング後に実行
    */
+  /**
+   * モックアップフォルダの状態をチェックする関数（一元管理のため抽出）
+   * @param projectPath プロジェクトパス
+   * @param projectId プロジェクトID
+   * @returns モックアップHTMLファイルの有無
+   */
+  private _checkMockupFolderStatus(projectPath: string, projectId: string): boolean {
+    let hasMockupFiles = false;
+    
+    try {
+      const mockupsDir = path.join(projectPath, 'mockups');
+      if (fs.existsSync(mockupsDir)) {
+        const files = fs.readdirSync(mockupsDir);
+        hasMockupFiles = files.some(file => file.endsWith('.html'));
+        
+        // 既存のactiveProjectDetailsがない場合は初期化
+        if (!this._projectMockups[projectId]) {
+          this._projectMockups[projectId] = [];
+        }
+      }
+    } catch (err) {
+      Logger.warn(`モックアップフォルダの確認中にエラー: ${(err as Error).message}`);
+    }
+    
+    return hasMockupFiles;
+  }
+
   private async _loadProjectDetails(projectId: string): Promise<void> {
     try {
       const project = this._projectService.getProject(projectId);
@@ -362,23 +407,10 @@ export class DashboardPanel {
         }
       }
 
-      // モックアップファイルの存在を必ず再確認する（リアルタイム更新のため）
+      // モックアップファイルの存在を初回ロード時だけ確認
       if (project.path) {
-        try {
-          const mockupsDir = path.join(project.path, 'mockups');
-          if (fs.existsSync(mockupsDir)) {
-            const files = fs.readdirSync(mockupsDir);
-            const hasMockupFiles = files.some(file => file.endsWith('.html'));
-            Logger.info(`モックアップファイルをリアルタイムチェック: ${mockupsDir}, HTMLファイル存在: ${hasMockupFiles}`);
-            
-            // 既存のactiveProjectDetailsがない場合は初期化
-            if (!this._projectMockups[projectId]) {
-              this._projectMockups[projectId] = [];
-            }
-          }
-        } catch (err) {
-          Logger.warn(`モックアップファイルの再チェック中にエラー: ${(err as Error).message}`);
-        }
+        // 抽出した関数を使用
+        this._checkMockupFolderStatus(project.path, projectId);
       }
       
       // 詳細情報が読み込まれた後、UI更新（ロードインジケータは表示せずに更新）
@@ -445,8 +477,72 @@ export class DashboardPanel {
         throw new Error(`プロジェクトが見つかりません: ${id}`);
       }
 
+      // プロジェクトフォルダの存在確認
+      if (!fs.existsSync(project.path)) {
+        const message = `プロジェクトフォルダが見つかりません: ${project.path}`;
+        Logger.error(message);
+        
+        // フォルダ選択ダイアログを表示
+        const options: vscode.OpenDialogOptions = {
+          canSelectFiles: false,
+          canSelectFolders: true,
+          canSelectMany: false,
+          openLabel: `プロジェクト「${project.name}」のフォルダを選択`
+        };
+        
+        const folderUri = await vscode.window.showOpenDialog(options);
+        if (!folderUri || folderUri.length === 0) {
+          throw new Error('プロジェクトのフォルダパスを更新できませんでした');
+        }
+        
+        // プロジェクトパスを更新（AppGeniusStateManagerを経由）
+        const newPath = folderUri[0].fsPath;
+        const stateManager = AppGeniusStateManager.getInstance();
+        await stateManager.updateProjectPath(id, newPath);
+        Logger.info(`プロジェクトパスを更新しました: ID=${id}, 新しいパス=${newPath}`);
+        
+        // 更新されたプロジェクト情報を取得
+        const updatedProject = this._projectService.getProject(id);
+        if (!updatedProject) {
+          throw new Error(`プロジェクト情報の更新に失敗しました: ${id}`);
+        }
+        
+        // 更新後のパスを使用
+        project.path = updatedProject.path;
+      }
+
+      // CLAUDE.mdファイルの存在チェック - 存在しなくても続行するように変更
+      const claudeMdPath = path.join(project.path, 'CLAUDE.md');
+      if (!fs.existsSync(claudeMdPath)) {
+        // ファイルが存在しないことをログに記録するだけで続行
+        Logger.info(`CLAUDE.mdファイルが見つかりませんが、問題なく続行します: ${claudeMdPath}`);
+      }
+
+      // docs/mockupsディレクトリの存在確認
+      const docsPath = path.join(project.path, 'docs');
+      const mockupsPath = path.join(project.path, 'mockups');
+      
+      if (!fs.existsSync(docsPath)) {
+        fs.mkdirSync(docsPath, { recursive: true });
+        this._createInitialDocuments(project.path);
+      }
+      
+      if (!fs.existsSync(mockupsPath)) {
+        fs.mkdirSync(mockupsPath, { recursive: true });
+      }
+
       // プロジェクトをアクティブに設定
       await this._projectService.setActiveProject(id);
+      
+      // プロジェクト選択イベントを発火
+      this._eventBus.emit(
+        AppGeniusEventType.PROJECT_SELECTED,
+        { id, path: project.path, name: project.name },
+        'DashboardPanel',
+        id
+      );
+      
+      Logger.info(`プロジェクト選択イベント発火: ID=${id}, パス=${project.path}`);
 
       // データを更新
       await this._refreshProjects();
@@ -563,6 +659,13 @@ export class DashboardPanel {
       
       Logger.info(`要件定義エディタを開きます。プロジェクトパス: ${projectPath}`);
 
+      // WebViewにも処理中メッセージを通知
+      await this._panel.webview.postMessage({
+        command: 'showMessage',
+        type: 'info',
+        message: `要件定義エディタを開いています: ${projectPath}`
+      });
+
       // 要件定義エディタを開く（プロジェクトパスを引数として渡す）
       vscode.commands.executeCommand('appgenius-ai.openSimpleChat', projectPath);
     } catch (error) {
@@ -585,7 +688,10 @@ export class DashboardPanel {
       const projectPath = this._activeProject.path;
       
       // プロジェクトパスをパラメータとして渡してモックアップギャラリーを開く
-      vscode.commands.executeCommand('appgenius-ai.openMockupEditor', undefined, projectPath);
+      vscode.commands.executeCommand('appgenius-ai.openMockupGallery', projectPath);
+      
+      // ユーザーに通知
+      Logger.info(`モックアップギャラリーを開きます。プロジェクトパス: ${projectPath}`);
     } catch (error) {
       Logger.error(`モックアップギャラリー起動エラー`, error as Error);
       await this._showError(`モックアップギャラリーの起動に失敗しました: ${(error as Error).message}`);
@@ -611,7 +717,18 @@ export class DashboardPanel {
       
       Logger.info(`スコープマネージャーを開きます。プロジェクトパス: ${projectPath}`);
 
+      // WebViewにも処理中メッセージを通知
+      await this._panel.webview.postMessage({
+        command: 'showMessage',
+        type: 'info',
+        message: `スコープマネージャーを開いています: ${projectPath}`
+      });
+
+      // ユーザーにも通知
+      vscode.window.showInformationMessage(`スコープマネージャーを開きます: ${projectPath}`);
+
       // スコープマネージャーを開く（プロジェクトパスを引数として渡す）
+      Logger.info(`[Debug] openScopeManagerコマンド実行: パラメータ=${projectPath}`);
       vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
     } catch (error) {
       Logger.error(`スコープマネージャー起動エラー`, error as Error);
@@ -738,42 +855,13 @@ export class DashboardPanel {
    * プロジェクトフォルダを検証して読み込む
    */
   private async _validateAndLoadProject(folderPath: string): Promise<void> {
-    // CLAUDE.mdファイルの存在確認
+    // CLAUDE.mdファイルの存在確認 - 存在しなくても続行するように変更
     const claudeMdPath = path.join(folderPath, 'CLAUDE.md');
     let claudeMdExists = fs.existsSync(claudeMdPath);
     
-    // CLAUDE.mdがない場合、作成するか確認
+    // CLAUDE.mdがなくても、常に続行するように修正
     if (!claudeMdExists) {
-      const createFile = await vscode.window.showInformationMessage(
-        `選択されたフォルダにCLAUDE.mdファイルが見つかりません。新しく作成しますか？`,
-        'はい', 'いいえ'
-      );
-      
-      if (createFile !== 'はい') {
-        throw new Error('プロジェクトの読み込みをキャンセルしました。');
-      }
-      
-      // CLAUDE.mdを新規作成
-      try {
-        // ClaudeMdServiceをインポート
-        const { ClaudeMdService } = await import('../../utils/ClaudeMdService');
-        const claudeMdService = ClaudeMdService.getInstance();
-        
-        // フォルダ名をプロジェクト名として使用
-        const folderName = path.basename(folderPath);
-        
-        // テンプレートからCLAUDE.mdを生成
-        await claudeMdService.generateClaudeMd(folderPath, {
-          name: folderName,
-          description: `${folderName} プロジェクト`
-        });
-        
-        claudeMdExists = true;
-        Logger.info(`CLAUDE.mdファイルを作成しました: ${claudeMdPath}`);
-      } catch (e) {
-        Logger.error(`CLAUDE.mdファイルの作成に失敗しました: ${(e as Error).message}`);
-        throw new Error(`CLAUDE.mdファイルの作成に失敗しました: ${(e as Error).message}`);
-      }
+      Logger.info(`CLAUDE.mdファイルが見つかりませんが、問題なく続行します: ${claudeMdPath}`);
     }
     
     // docs/mockupsディレクトリの存在確認
@@ -1135,22 +1223,8 @@ JWT_SECRET=your_jwt_secret_key
         // ファイル進捗情報は使用しない
         let fileProgress = { completed: [], total: [], percentage: 0 };
 
-        // モックアップファイルの存在チェック - 毎回確実に最新状態を確認
-        let hasMockupFiles = false;
-        try {
-          const mockupsDir = path.join(projectPath, 'mockups');
-          if (fs.existsSync(mockupsDir)) {
-            const files = fs.readdirSync(mockupsDir);
-            hasMockupFiles = files.some(file => file.endsWith('.html'));
-            Logger.info(`リアルタイムモックアップ状態チェック: ${mockupsDir}, HTMLファイル存在: ${hasMockupFiles}`);
-            
-            // クリックできるかどうかのログを追加（デバッグ用）
-            Logger.info(`モックアップギャラリーボタンは${hasMockupFiles ? 'クリック可能' : '無効'}になるはずです`);
-          }
-        } catch (err) {
-          Logger.warn(`モックアップフォルダのチェック中にエラー: ${(err as Error).message}`);
-          // エラーがあっても処理を継続
-        }
+        // 共通関数を使用してモックアップの状態を確認（毎回のチェックはせず、既存の値を使用）
+        const hasMockupFiles = this._checkMockupFolderStatus(projectPath, projectId);
         
         activeProjectDetails = {
           requirements: this._projectRequirements[projectId] || {},
@@ -1186,11 +1260,6 @@ JWT_SECRET=your_jwt_secret_key
         };
       }
       
-      // WebViewに状態を送信する前にデバッグ情報を記録
-      if (activeProjectDetails && activeProjectDetails.hasMockupFiles) {
-        Logger.info('モックアップファイルが存在するため、モックアップギャラリーボタンを有効化します');
-      }
-      
       // WebViewに状態更新を送信
       await this._panel.webview.postMessage({
         command: 'updateState',
@@ -1198,9 +1267,6 @@ JWT_SECRET=your_jwt_secret_key
         activeProject: this._activeProject || null,
         activeProjectDetails: activeProjectDetails
       });
-      
-      // 状態更新の確認ログ
-      Logger.info('WebViewへの状態更新を完了しました');
     } catch (error) {
       Logger.error(`WebView状態更新エラー`, error as Error);
       // 最低限のメッセージを送信

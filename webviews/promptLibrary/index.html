@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src {{cspSource}}; script-src 'nonce-{{nonce}}';">
+  <link href="{{styleUri}}" rel="stylesheet">
+  <title>プロンプトライブラリ</title>
+</head>
+<body>
+  <div class="container">
+    <div class="sidebar">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="プロンプトを検索...">
+        <button id="searchButton">検索</button>
+      </div>
+      
+      <div class="category-filter">
+        <h3>カテゴリ</h3>
+        <div id="categoryList">
+          <div class="category-item selected" data-category="">すべて</div>
+          <!-- カテゴリ一覧がここに動的に追加されます -->
+        </div>
+      </div>
+      
+      <div class="action-buttons">
+        <button id="createPromptBtn">新規プロンプト</button>
+        <button id="importBtn">インポート</button>
+        <button id="exportAllBtn">すべてエクスポート</button>
+      </div>
+    </div>
+    
+    <div class="content">
+      <div id="promptListView">
+        <h2>プロンプト一覧</h2>
+        <div id="promptList">
+          <!-- プロンプト一覧がここに動的に追加されます -->
+          <div class="loading-message">読み込み中...</div>
+        </div>
+      </div>
+      
+      <div id="promptEditorView" style="display: none;">
+        <div class="editor-header">
+          <h2 id="editorTitle">プロンプト詳細</h2>
+          <div class="editor-actions">
+            <button id="saveBtn" style="display: none;">保存</button>
+            <button id="editBtn" style="display: none;">編集</button>
+            <button id="exportBtn" style="display: none;">エクスポート</button>
+            <button id="cancelBtn">戻る</button>
+          </div>
+        </div>
+        
+        <div class="editor-form">
+          <div class="form-group">
+            <label for="promptTitle">タイトル</label>
+            <input type="text" id="promptTitle" placeholder="プロンプトのタイトル" disabled>
+          </div>
+          
+          <div class="form-group">
+            <label for="promptType">タイプ</label>
+            <select id="promptType" disabled>
+              <option value="system">システム</option>
+              <option value="user">ユーザー</option>
+              <option value="assistant">アシスタント</option>
+              <option value="template">テンプレート</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="promptCategory">カテゴリ</label>
+            <input type="text" id="promptCategory" placeholder="カテゴリ" disabled>
+          </div>
+          
+          <div class="form-group">
+            <label for="promptTags">タグ（カンマ区切り）</label>
+            <input type="text" id="promptTags" placeholder="タグ1, タグ2, ..." disabled>
+          </div>
+          
+          <div class="form-group">
+            <label for="promptContent">内容</label>
+            <textarea id="promptContent" placeholder="プロンプトの内容" rows="10" disabled></textarea>
+          </div>
+          
+          <div class="form-group">
+            <label>
+              <input type="checkbox" id="promptPublic" disabled>
+              公開する
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="loading-spinner"></div>
+  </div>
+  
+  <script nonce="{{nonce}}" src="{{scriptUri}}"></script>
+</body>
+</html>

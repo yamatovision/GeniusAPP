@@ -25,6 +25,7 @@ export class DebugDetectivePanel {
 
   // 作業状態
   private _projectPath: string = '';
+  private _currentProjectId: string = '';  // プロジェクトID追加
   private _currentErrorSession: any = null;
   private _relatedFiles: string[] = [];
   private _detectedErrorType: string = '';
@@ -32,9 +33,9 @@ export class DebugDetectivePanel {
   /**
    * パネルを作成または表示
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath: string): DebugDetectivePanel {
+  public static createOrShow(extensionUri: vscode.Uri, projectPath: string, projectId?: string): DebugDetectivePanel {
     try {
-      Logger.info(`デバッグ探偵パネル作成開始: projectPath=${projectPath}`);
+      Logger.info(`デバッグ探偵パネル作成開始: projectPath=${projectPath}, projectId=${projectId || 'なし'}`);
       
       // プロジェクトパスのチェック
       if (!projectPath || projectPath.trim() === '') {
@@ -90,7 +91,7 @@ export class DebugDetectivePanel {
   
       Logger.info('デバッグ探偵インスタンスを初期化します');
       try {
-        DebugDetectivePanel.currentPanel = new DebugDetectivePanel(panel, extensionUri, projectPath);
+        DebugDetectivePanel.currentPanel = new DebugDetectivePanel(panel, extensionUri, projectPath, projectId);
         Logger.info('デバッグ探偵パネル作成完了');
         return DebugDetectivePanel.currentPanel;
       } catch (error) {
@@ -110,10 +111,11 @@ export class DebugDetectivePanel {
   /**
    * コンストラクタ
    */
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath: string) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath: string, projectId?: string) {
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._projectPath = projectPath;
+    this._currentProjectId = projectId || '';
     
     // サービスの初期化
     this._eventBus = AppGeniusEventBus.getInstance();
@@ -161,6 +163,29 @@ export class DebugDetectivePanel {
       },
       null,
       this._disposables
+    );
+    
+    // プロジェクトパス更新イベントをリッスン
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.PROJECT_PATH_UPDATED, async (event) => {
+        if (event.data && this._currentProjectId && event.projectId === this._currentProjectId) {
+          const newPath = event.data.projectPath;
+          Logger.info(`プロジェクトパスが更新されました: ${newPath}`);
+          
+          // パスが実際に変更された場合のみ更新処理
+          if (newPath && this._projectPath !== newPath) {
+            Logger.debug(`デバッグ探偵パネルのプロジェクトパスを更新: ${this._projectPath} → ${newPath}`);
+            this._projectPath = newPath;
+            
+            // 各マネージャーのパスも更新
+            this._errorSessionManager.updateProjectPath(newPath);
+            this._knowledgeBaseManager.updateProjectPath(newPath);
+            
+            // UIを更新
+            this._update();
+          }
+        }
+      })
     );
   }
 

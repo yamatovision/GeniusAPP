@@ -1441,6 +1441,8 @@ ${projectName}/
     try {
       // プロジェクトパスが設定されているか確認
       const projectPath = this._projectPath;
+      Logger.info(`_loadInitialData開始: 現在のプロジェクトパス: ${projectPath || 'なし'}`);
+      
       if (!projectPath) {
         Logger.warn('プロジェクトパスが設定されていません。デフォルト値を使用します。');
         
@@ -1536,7 +1538,12 @@ ${projectName}/
       this._panel.webview.postMessage({
         command: 'initialData',
         requirementsContent,
-        projectRoot: basePath
+        projectRoot: basePath,
+        projectPath: this._projectPath || 'パスなし',
+        projectInfo: {
+          path: this._projectPath,
+          source: this._projectPath === basePath ? '直接指定パス' : 'デフォルトパス'
+        }
       });
       
       Logger.info('WebViewに初期データを送信しました');

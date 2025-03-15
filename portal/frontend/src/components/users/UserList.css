@@ -1,0 +1,57 @@
+/* ユーザー一覧画面のスタイル */
+.user-list-container {
+  padding: 1rem;
+}
+
+/* ソート可能なテーブルヘッダーのスタイル */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortable:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* ユーザー統計カードのスタイル */
+.user-stats .card {
+  transition: transform 0.2s, box-shadow 0.2s;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.user-stats .card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* ユーザーテーブルのスタイル */
+.user-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.user-table th {
+  position: relative;
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+.user-table th:after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #dee2e6;
+}
+
+.user-table tr:hover {
+  background-color: rgba(0, 123, 255, 0.05);
+}
+
+/* ページネーションのスタイル */
+.pagination {
+  margin-bottom: 0;
+}

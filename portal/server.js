@@ -1,142 +1,74 @@
+#!/usr/bin/env node
+
 /**
- * AppGenius プロンプト管理ポータルサーバー
- * 認証システムとプロンプト管理機能を提供するバックエンドサーバー
+ * AppGenius Portal バックエンドサーバー
  */
+
+// 環境変数ロード
+require('dotenv').config();
+
+// デバッグ情報
+console.log("Starting AppGenius Portal backend server...");
+console.log("Node version:", process.version);
+console.log("Environment:", process.env.NODE_ENV || 'development');
+console.log("Port:", process.env.PORT || 8080);
+
+// 必要なモジュール
+const http = require("http");
 const express = require('express');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const morgan = require('morgan');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-
-// 環境変数の読み込み
-dotenv.config();
-
-// 設定ファイルの読み込み
-const dbConfig = require('./backend/config/db.config');
-const authConfig = require('./backend/config/auth.config');
-
-// Express アプリケーションの作成
 const app = express();
+const port = process.env.PORT || 8080;
 
-// リクエストボディのパース設定
+// ミドルウェア設定
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  methods: process.env.CORS_METHODS || 'GET,POST,PUT,DELETE,OPTIONS',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// セキュリティ設定
-app.use(helmet());
-
-// CORSの設定
-app.use(cors(authConfig.corsOptions));
-
-// リクエストログ設定
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined'));
-}
-
-// 応答圧縮
-app.use(compression());
-
-// レート制限の設定
-const apiLimiter = rateLimit({
-  windowMs: process.env.RATE_LIMIT_WINDOW || 15 * 60 * 1000, // 15分間
-  max: process.env.RATE_LIMIT_MAX || 100, // IP毎に100リクエストまで
-  standardHeaders: true, // 標準ヘッダー付与
-  legacyHeaders: false, // 古いヘッダーは使用しない
-  message: {
-    error: {
-      code: 'RATE_LIMIT_EXCEEDED',
-      message: 'リクエスト回数の上限に達しました。しばらく経ってから再試行してください。'
-    }
-  }
+// 簡易ルート
+app.get('/', (req, res) => {
+  console.log("Request received:", req.url);
+  res.json({
+    message: "Hello from AppGenius Portal API",
+    status: "OK",
+    timestamp: new Date().toISOString(),
+    nodeVersion: process.version,
+    environment: process.env.NODE_ENV || 'development'
+  });
 });
 
-// レート制限を適用
-app.use('/api/', apiLimiter);
+// ヘルスチェックエンドポイント
+app.get('/health', (req, res) => {
+  res.json({ status: 'UP' });
+});
 
-// ルーターのマウント
-const authRoutes = require('./backend/routes/auth.routes');
-app.use('/api/auth', authRoutes);
-
-// API ルートプレフィックス設定
+// API基本経路
 app.get('/api', (req, res) => {
   res.json({
-    message: 'AppGenius プロンプト管理ポータル API',
-    version: process.env.npm_package_version || '1.0.0',
+    message: "AppGenius Portal API",
+    version: "1.0.0",
     endpoints: [
-      '/api/auth',
-      '/api/users',
-      '/api/prompts',
-      '/api/projects'
+      { path: "/api/auth", description: "認証API" },
+      { path: "/api/users", description: "ユーザー管理API" },
+      { path: "/api/prompts", description: "プロンプト管理API" }
     ]
   });
 });
 
-// ルートエンドポイント
-app.get('/', (req, res) => {
-  res.json({
-    message: 'AppGenius プロンプト管理ポータル バックエンドサーバー',
-    status: 'running',
-    documentation: '/api'
-  });
-});
-
-// エラーハンドリングミドルウェア
+// エラーハンドリング
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  console.error('サーバーエラー:', err);
   res.status(500).json({
-    error: {
-      code: 'SERVER_ERROR',
-      message: 'サーバーエラーが発生しました',
-      details: process.env.NODE_ENV === 'development' ? err.message : undefined
-    }
-  });
-});
-
-// 存在しないルートへのアクセス処理
-app.use((req, res) => {
-  res.status(404).json({
-    error: {
-      code: 'RESOURCE_NOT_FOUND',
-      message: '要求されたリソースが見つかりません'
-    }
+    error: 'サーバーエラーが発生しました',
+    message: process.env.NODE_ENV === 'production' ? null : err.message
   });
 });
 
 // サーバー起動
-const PORT = process.env.PORT || 3000;
-const startServer = async () => {
-  try {
-    // データベース接続
-    await dbConfig.connect(mongoose);
-    
-    // サーバー起動
-    app.listen(PORT, () => {
-      console.log(`サーバーが起動しました - ポート: ${PORT}`);
-      console.log(`環境: ${process.env.NODE_ENV || 'development'}`);
-    });
-  } catch (error) {
-    console.error('サーバー起動エラー:', error);
-    process.exit(1);
-  }
-};
-
-// プロセス終了時の処理
-process.on('SIGINT', async () => {
-  try {
-    console.log('アプリケーションを終了しています...');
-    await dbConfig.disconnect(mongoose);
-    console.log('データベース接続を閉じました');
-    process.exit(0);
-  } catch (error) {
-    console.error('アプリケーション終了中にエラーが発生しました:', error);
-    process.exit(1);
-  }
+const server = app.listen(port, "0.0.0.0", () => {
+  console.log(`AppGenius Portal API running at http://0.0.0.0:${port}/`);
 });
-
-// サーバー起動
-startServer();

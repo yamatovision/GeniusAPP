@@ -184,6 +184,23 @@ export class TerminalInterface {
   }
 
   /**
+   * AIからのレスポンスを処理し表示
+   * @param result 表示する結果
+   */
+  public processResult(result: string): void {
+    try {
+      if (!this.terminal) {
+        this.showTerminal();
+      }
+      this.terminal?.sendText(result);
+      this.terminal?.sendText(`> `);
+      Logger.debug('処理結果を表示しました');
+    } catch (error) {
+      Logger.error(`結果表示中にエラーが発生: ${(error as Error).message}`);
+    }
+  }
+
+  /**
    * リソースを解放
    */
   public dispose(): void {

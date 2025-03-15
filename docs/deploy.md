@@ -16,14 +16,14 @@ AppGeniusのプロンプト管理システムは以下の3つの主要コンポ�
 
 **Option A: クラウドサービス（推奨）**
 - [Vercel](https://vercel.com/) - フロントエンド
-- [Railway](https://railway.app/) または [Render](https://render.com/) - バックエンド
+- [Cloud Run](https://cloud.google.com/run) または [Railway](https://railway.app/) または [Render](https://render.com/) - バックエンド
 - [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) - データベース
 
 **Option B: セルフホスティング**
 - VPS（DigitalOcean, AWS EC2, など）- フロントエンド・バックエンド
 - MongoDB Community Edition - データベース
 
-### デプロイ手順（Vercel + Railway + MongoDB Atlas）
+### デプロイ手順（Vercel + Cloud Run + MongoDB Atlas）
 
 #### MongoDB Atlas セットアップ
 1. [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)でアカウント作成
@@ -32,31 +32,68 @@ AppGeniusのプロンプト管理システムは以下の3つの主要コンポ�
 4. データベースユーザーを作成
 5. 接続文字列を取得（`DB_URI`として保存）
 
-#### バックエンド（Railway）
-1. [Railway](https://railway.app/)でアカウント作成
+#### バックエンド（Cloud Run）
+1. [Google Cloud](https://cloud.google.com/)でアカウント作成
 2. 新規プロジェクト作成
-3. GitHubリポジトリと連携
-4. 環境変数の設定:
-   - `DB_URI` - MongoDB Atlas接続文字列
-   - `JWT_SECRET` - ランダムな文字列
-   - `JWT_EXPIRY` - トークン有効期限（例: "1h"）
-   - `REFRESH_TOKEN_SECRET` - ランダムな文字列
-   - `REFRESH_TOKEN_EXPIRY` - トークン有効期限（例: "7d"）
-   - `PORT` - アプリケーションポート（例: "5000"）
-   - `CORS_ORIGIN` - フロントエンドURL（VercelのURL）
-   - `NODE_ENV` - "production"
+3. Cloud Run APIとContainer Registryを有効化
+4. Dockerfileをプロジェクトのportalディレクトリに作成:
+   ```dockerfile
+   FROM node:16-alpine
+   
+   WORKDIR /app
+   
+   # 依存パッケージのコピーとインストール
+   COPY package*.json ./
+   RUN npm install
+   
+   # アプリケーションのコピー
+   COPY . .
+   
+   # ポートの公開
+   EXPOSE 8080
+   
+   # 環境変数の設定
+   ENV PORT=8080
+   ENV NODE_ENV=production
+   
+   # アプリケーションの起動
+   CMD ["node", "server.js"]
+   ```
 
-5. ビルドコマンド設定:
+5. .dockerignoreファイルの作成:
    ```
-   cd portal/backend && npm install && npm run build
+   node_modules
+   npm-debug.log
+   frontend/
+   .env
+   .git
+   *.md
    ```
 
-6. スタートコマンド設定:
-   ```
-   cd portal/backend && npm run start
+6. Google Cloud SDKをインストールしてログイン:
+   ```bash
+   gcloud auth login
+   gcloud config set project YOUR_PROJECT_ID
    ```
 
-7. デプロイを実行
+7. イメージをビルドしてデプロイ:
+   ```bash
+   # イメージビルド
+   docker build -t gcr.io/YOUR_PROJECT_ID/appgenius-portal-backend .
+   
+   # GCRにプッシュ
+   docker push gcr.io/YOUR_PROJECT_ID/appgenius-portal-backend
+   
+   # Cloud Runにデプロイ
+   gcloud run deploy appgenius-portal-backend \
+     --image gcr.io/YOUR_PROJECT_ID/appgenius-portal-backend \
+     --platform managed \
+     --region asia-northeast1 \
+     --allow-unauthenticated \
+     --memory 512Mi \
+     --set-env-vars="MONGODB_URI=YOUR_MONGODB_URI,JWT_SECRET=YOUR_JWT_SECRET,CORS_ORIGIN=YOUR_VERCEL_URL"
+   ```
+
 8. 発行されたURLを取得（`API_URL`として保存）
 
 #### フロントエンド（Vercel）
@@ -65,16 +102,18 @@ AppGeniusのプロンプト管理システムは以下の3つの主要コンポ�
 3. GitHubリポジトリと連携
 4. プロジェクト設定:
    - Framework Preset: "Create React App"
-   - Build Command: `cd portal/frontend && npm install && npm run build`
-   - Output Directory: `portal/frontend/build`
-   - Install Command: `cd portal/frontend && npm install`
+   - Root Directory: `portal/frontend`
+   - Build Command: `npm install && npm run build`
+   - Output Directory: `build`
+   - Install Command: `npm install`
 
 5. 環境変数の設定:
-   - `REACT_APP_API_URL` - Railway Serverのバックエンドエンドポイント
+   - `REACT_APP_API_URL` - Cloud RunのバックエンドURLを設定（例: https://appgenius-portal-backend-xxxxx.a.run.app/api）
    - `REACT_APP_VERSION` - アプリケーションバージョン
 
 6. デプロイを実行
 7. 発行されたURLを取得（プロンプト管理システムのアクセスURL）
+8. Cloud Runバックエンドの環境変数`CORS_ORIGIN`にVercelのURLを設定して再デプロイ
 
 ### セルフホスティング手順
 

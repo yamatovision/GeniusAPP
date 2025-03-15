@@ -1,0 +1,220 @@
+# 実装状況 (2025/03/12更新)
+
+## 全体進捗
+- 完成予定ファイル数: 8
+- 作成済みファイル数: 0
+- 進捗率: 0%
+- 最終更新日: 2025/03/12
+
+## スコープ状況
+
+### 完了済みスコープ
+- [x] 初期セットアップ (100%)
+- [x] 認証Webアプリ基盤 (100%)
+- [x] 管理ポータルUI (100%)
+- [x] VSCode認証連携 (100%)
+- [x] プロンプト管理モデル (100%)
+- [x] プロンプト管理UI (100%)
+- [x] ClaudeCode連携 (100%)
+- [x] VSCode-プロンプト表示 (100%)
+- [x] ユーザー管理機能 (100%)
+
+### 進行中スコープ
+- [x] 環境変数設定 (100%)
+
+### 未着手スコープ
+- [ ] システム統合テスト (0%)
+
+## 現在のディレクトリ構造
+```
+AppGenius/ (既存)
+├── src/ (VSCode拡張)
+│   ├── api/
+│   │   ├── authClient.ts
+│   │   ├── claudeCodeApiClient.ts
+│   │   ├── claudeProxyClient.ts
+│   │   ├── promptLibraryClient.ts
+│   │   └── usageClient.ts
+│   ├── commands/
+│   │   ├── claudeCodeCommands.ts
+│   │   └── promptLibraryCommands.ts
+│   ├── core/
+│   │   ├── auth/ (新規追加)
+│   │   │   ├── AuthenticationService.ts
+│   │   │   ├── TokenManager.ts
+│   │   │   ├── authCommands.ts
+│   │   │   └── permissionManager.ts
+│   │   └── ...
+│   ├── middleware/
+│   │   └── authMiddleware.ts
+│   ├── services/
+│   │   ├── AuthEventBus.ts
+│   │   ├── ClaudeCodeAuthSync.ts
+│   │   ├── ClaudeCodeIntegrationService.ts
+│   │   ├── UsageMonitor.ts
+│   │   └── ...
+│   ├── ui/
+│   │   ├── auth/ (新規追加)
+│   │   │   ├── LoginWebviewPanel.ts
+│   │   │   ├── AuthStatusBar.ts
+│   │   │   ├── LogoutNotification.ts
+│   │   │   └── UsageIndicator.ts
+│   │   ├── claudeCode/
+│   │   │   ├── ClaudeCodePanel.ts
+│   │   │   └── PromptSelector.ts
+│   │   ├── promptLibrary/
+│   │   │   ├── CategoryManager.ts
+│   │   │   ├── PromptEditor.ts
+│   │   │   ├── PromptImportExport.ts
+│   │   │   └── PromptLibraryPanel.ts
+│   │   ├── userProfile/
+│   │   │   └── UserProfilePanel.ts
+│   │   └── ...
+│   ├── utils/
+│   │   ├── ProxyManager.ts
+│   │   ├── SecureStorageManager.ts
+│   │   └── ...
+│   └── ...
+│
+├── webviews/ (新規追加)
+│   ├── auth/
+│   │   ├── index.html
+│   │   ├── style.css
+│   │   ├── script.js
+│   │   └── usage-details.html
+│   ├── claudeCode/
+│   │   ├── index.html
+│   │   ├── style.css
+│   │   └── script.js
+│   ├── promptLibrary/
+│   │   ├── index.html
+│   │   ├── style.css
+│   │   └── script.js
+│   └── ...
+│
+└── portal/ (既存)
+    ├── frontend/
+    │   ├── public/
+    │   │   └── index.html
+    │   └── src/
+    │       ├── components/
+    │       │   ├── auth/
+    │       │   │   └── Login.js
+    │       │   ├── dashboard/
+    │       │   │   └── Dashboard.js
+    │       │   ├── prompts/
+    │       │   │   ├── PromptList.js
+    │       │   │   ├── PromptDetail.js
+    │       │   │   ├── PromptForm.js
+    │       │   │   └── VersionHistory.js
+    │       │   ├── users/
+    │       │   │   ├── UserList.js
+    │       │   │   ├── UserDetail.js
+    │       │   │   └── UserForm.js
+    │       │   └── projects/
+    │       │       ├── ProjectList.js
+    │       │       ├── ProjectDetail.js
+    │       │       ├── ProjectForm.js
+    │       │       └── MemberManagement.js
+    │       ├── services/
+    │       │   ├── auth.service.js
+    │       │   ├── prompt.service.js
+    │       │   ├── project.service.js
+    │       │   └── user.service.js
+    │       ├── utils/
+    │       │   └── auth-header.js
+    │       ├── App.js
+    │       └── index.js
+    │   ├── .env.example
+    │   └── package.json
+    ├── backend/
+    │   ├── config/
+    │   │   ├── db.config.js
+    │   │   └── auth.config.js
+    │   ├── controllers/
+    │   │   ├── auth.controller.js
+    │   │   ├── prompt.controller.js
+    │   │   ├── project.controller.js
+    │   │   └── user.controller.js
+    │   ├── middlewares/
+    │   │   └── auth.middleware.js
+    │   ├── models/
+    │   │   ├── user.model.js
+    │   │   ├── prompt.model.js
+    │   │   ├── promptVersion.model.js
+    │   │   ├── project.model.js
+    │   │   └── promptUsage.model.js
+    │   ├── routes/
+    │   │   ├── auth.routes.js
+    │   │   ├── prompt.routes.js
+    │   │   ├── project.routes.js
+    │   │   └── user.routes.js
+    │   ├── services/
+    │   │   ├── auth.service.js
+    │   │   ├── prompt.service.js
+    │   │   └── user.service.js
+    │   ├── .env.example
+    │   └── tests/
+    ├── server.js
+    └── package.json
+```
+
+## 実装完了ファイル
+（実装済みファイルはまだありません）
+
+## 実装中ファイル
+- ⏳ src/ui/environmentVariables/EnvVariablesPanel.ts (環境変数設定)
+- ⏳ src/ui/environmentVariables/EnvVariablesEditor.ts (環境変数設定)
+- ⏳ src/ui/environmentVariables/EnvVariablesImportExport.ts (環境変数設定)
+- ⏳ src/commands/environmentCommands.ts (環境変数設定)
+- ⏳ src/services/EnvironmentVariablesService.ts (環境変数設定)
+- ⏳ webviews/environmentVariables/index.html (環境変数設定)
+- ⏳ webviews/environmentVariables/style.css (環境変数設定)
+- ⏳ webviews/environmentVariables/script.js (環境変数設定)
+
+## 引継ぎ情報
+
+### 現在のスコープ: 環境変数設定
+**スコープID**: scope-1741776675335  
+**説明**:   
+**含まれる機能**:
+1. （機能はまだ定義されていません）
+
+**実装すべきファイル**: 
+- [ ] src/ui/environmentVariables/EnvVariablesPanel.ts
+- [ ] src/ui/environmentVariables/EnvVariablesEditor.ts
+- [ ] src/ui/environmentVariables/EnvVariablesImportExport.ts
+- [ ] src/commands/environmentCommands.ts
+- [ ] src/services/EnvironmentVariablesService.ts
+- [ ] webviews/environmentVariables/index.html
+- [ ] webviews/environmentVariables/style.css
+- [ ] webviews/environmentVariables/script.js
+
+## 次回実装予定
+
+### 次のスコープ: システム統合テスト
+**スコープID**: scope-1741776675335  
+**説明**:   
+**含まれる機能**:
+1. （機能はまだ定義されていません）
+
+**依存するスコープ**:
+- 初期セットアップ
+- 認証Webアプリ基盤
+- 管理ポータルUI
+- VSCode認証連携
+- プロンプト管理モデル
+- プロンプト管理UI
+- ClaudeCode連携
+- VSCode-プロンプト表示
+- ユーザー管理機能
+
+**実装完了ファイル**:
+- [x] src/ui/environmentVariables/EnvVariablesPanel.ts
+- [x] src/ui/environmentVariables/EnvVariablesEditor.ts
+- [x] src/ui/environmentVariables/EnvVariablesImportExport.ts
+- [x] src/commands/environmentCommands.ts
+- [x] src/services/EnvironmentVariablesService.ts
+- [x] webviews/environmentVariables/index.html
+- [x] webviews/environmentVariables/style.css
+- [x] webviews/environmentVariables/script.js

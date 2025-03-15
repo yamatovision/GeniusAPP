@@ -1189,6 +1189,68 @@ ${mermaidTimeline}
   }
 
   /**
+   * surfコマンドを設定
+   * ClaudeCode CLIのalias（surf）を設定する
+   */
+  public async configureSurfCommand(): Promise<{success: boolean; message: string}> {
+    try {
+      const platformManager = PlatformManager.getInstance();
+      const isWindows = platformManager.isWindows();
+      const os = isWindows ? 'Windows' : platformManager.isMac() ? 'macOS' : 'Linux';
+      
+      // OSに応じたシェル設定ファイルのパス
+      const homeDir = platformManager.getHomeDir();
+      const shellConfigPath = isWindows 
+        ? path.join(homeDir, 'profile.ps1') 
+        : platformManager.isMac()
+          ? path.join(homeDir, '.zshrc')
+          : path.join(homeDir, '.bashrc');
+      
+      // alias コマンドの内容
+      const aliasCommand = isWindows
+        ? `function surf { claude code $args }`
+        : `alias surf='claude code'`;
+      
+      // シェル設定ファイルが存在するか確認
+      let fileContent = '';
+      let fileExists = false;
+      
+      try {
+        fileContent = fs.readFileSync(shellConfigPath, 'utf8');
+        fileExists = true;
+      } catch (error) {
+        fileExists = false;
+      }
+      
+      // すでにalias設定があるか確認
+      if (fileExists && fileContent.includes(aliasCommand)) {
+        return {
+          success: true,
+          message: `surf コマンドは既に設定されています (${os})`
+        };
+      }
+      
+      // ファイルに追記または新規作成
+      let newContent = fileExists
+        ? fileContent + '\n\n# Added by AppGenius\n' + aliasCommand + '\n'
+        : '# Created by AppGenius\n' + aliasCommand + '\n';
+      
+      fs.writeFileSync(shellConfigPath, newContent, 'utf8');
+      
+      return {
+        success: true,
+        message: `surf コマンドを ${shellConfigPath} に設定しました (${os})`
+      };
+    } catch (error) {
+      Logger.error('surf コマンド設定エラー:', error as Error);
+      return {
+        success: false,
+        message: (error as Error).message
+      };
+    }
+  }
+
+  /**
    * ツールキット全体を更新
    */
   public async updateToolkit(): Promise<boolean> {

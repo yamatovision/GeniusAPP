@@ -150,11 +150,20 @@ export class ScopeManagerPanel {
    * プロジェクトパスを設定する
    */
   public setProjectPath(projectPath: string): void {
+    Logger.info(`[Debug] スコープマネージャー:setProjectPath呼び出し - パラメータ: ${projectPath}`);
+    
+    // スタックトレースを表示（呼び出し元を特定するため）
+    try {
+      throw new Error('スタックトレース確認用');
+    } catch (e) {
+      Logger.debug(`[Debug] setProjectPathの呼び出し元スタック: ${(e as Error).stack?.split('\n').slice(1, 3).join('\n')}`);
+    }
+    
     this._projectPath = projectPath;
     this._statusFilePath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
     
     Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
-    Logger.info(`ステータスファイルパス: ${this._statusFilePath}`);
+    Logger.info(`ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
 
     // 既存のファイルウォッチャーを破棄
     if (this._fileWatcher) {
@@ -167,6 +176,14 @@ export class ScopeManagerPanel {
 
     // パスが設定されたらステータスファイルを読み込む
     this._loadStatusFile();
+    
+    // WebViewにもプロジェクトパス情報を送信
+    this._panel.webview.postMessage({
+      command: 'updateProjectPath',
+      projectPath: this._projectPath,
+      statusFilePath: this._statusFilePath,
+      statusFileExists: fs.existsSync(this._statusFilePath)
+    });
   }
   
   /**
@@ -222,22 +239,223 @@ export class ScopeManagerPanel {
    */
   private async _loadStatusFile(): Promise<void> {
     try {
-      if (!this._statusFilePath || !fs.existsSync(this._statusFilePath)) {
-        Logger.warn(`ステータスファイルが見つかりません: ${this._statusFilePath}`);
+      if (!this._statusFilePath) {
+        Logger.warn(`ステータスファイルのパスが未設定です`);
         return;
+      }
+      
+      // ファイルが存在しない場合、テンプレートを使用してファイルを作成するオプションを表示
+      if (!fs.existsSync(this._statusFilePath)) {
+        Logger.warn(`ステータスファイルが見つかりません: ${this._statusFilePath}`);
+        
+        // ユーザーにテンプレートファイルを作成するか確認
+        const createTemplate = await vscode.window.showInformationMessage(
+          `CURRENT_STATUS.mdファイルが見つかりません。テンプレートから新規作成しますか？`,
+          { modal: true },
+          'はい', 'いいえ'
+        );
+        
+        if (createTemplate === 'はい') {
+          try {
+            // docsディレクトリが存在するか確認し、必要に応じて作成
+            const docsDir = path.dirname(this._statusFilePath);
+            if (!fs.existsSync(docsDir)) {
+              fs.mkdirSync(docsDir, { recursive: true });
+              Logger.info(`ディレクトリを作成しました: ${docsDir}`);
+            }
+            
+            // テンプレートファイルを作成
+            const template = this._getStatusFileTemplate();
+            fs.writeFileSync(this._statusFilePath, template, 'utf8');
+            Logger.info(`CURRENT_STATUS.mdテンプレートを作成しました: ${this._statusFilePath}`);
+            
+            // 作成したファイルを読み込み
+            let content = template;
+          } catch (error) {
+            Logger.error(`テンプレートファイルの作成に失敗しました: ${(error as Error).message}`);
+            vscode.window.showErrorMessage(`テンプレートファイルの作成に失敗しました: ${(error as Error).message}`);
+            return;
+          }
+        } else {
+          // ユーザーがテンプレート作成を拒否した場合
+          this._panel.webview.postMessage({
+            command: 'showError',
+            message: `CURRENT_STATUS.mdファイルが見つかりません。ファイルを手動で作成してください: ${this._statusFilePath}`
+          });
+          return;
+        }
       }
 
       // ファイルの内容を読み込む
-      const content = await this._fileManager.readFileAsString(this._statusFilePath);
+      let content = await this._fileManager.readFileAsString(this._statusFilePath);
       
       // ステータスファイルからスコープ情報を解析
       this._parseStatusFile(content);
+      
+      // フォーマットチェックを行い、問題があればファイルに警告コメントを追加（一度だけ）
+      let needsWarning = false;
+      let warningMessage = '';
+      
+      // 必要なセクションが存在するか確認
+      const hasUnstartedSection = content.includes('### 未着手スコープ');
+      const hasInProgressSection = content.includes('### 進行中スコープ');
+      const hasCompletedSection = content.includes('### 完了済みスコープ');
+      
+      // 未着手スコープセクションがない
+      if (!hasUnstartedSection) {
+        Logger.warn('「未着手スコープ」セクションが見つかりません。');
+        needsWarning = true;
+        warningMessage += `\n### 未着手スコープ\n`;
+      }
+      
+      // 進行中スコープセクションがない
+      if (!hasInProgressSection) {
+        Logger.warn('「進行中スコープ」セクションが見つかりません。');
+        needsWarning = true;
+        warningMessage += `\n### 進行中スコープ\n（実装中のスコープはまだありません）\n`;
+      }
+      
+      // 完了済みスコープセクションがない
+      if (!hasCompletedSection) {
+        Logger.warn('「完了済みスコープ」セクションが見つかりません。');
+        needsWarning = true;
+        warningMessage += `\n### 完了済みスコープ\n（完了したスコープはまだありません）\n`;
+      }
+      
+      // 箇条書きフォーマットチェック
+      const completedScopeSection = content.match(/### 完了済みスコープ\s*\n((?:.*\n)*?)(?:\n###|$)/);
+      const inProgressScopeSection = content.match(/### 進行中スコープ\s*\n((?:.*\n)*?)(?:\n###|$)/);
+      const pendingScopeSection = content.match(/### 未着手スコープ\s*\n((?:.*\n)*?)(?:\n###|$)/);
+      
+      const hasCompletedBullets = completedScopeSection && completedScopeSection[1].trim().match(/^- \[x\]/m);
+      const hasInProgressBullets = inProgressScopeSection && inProgressScopeSection[1].trim().match(/^- \[ \]/m);
+      const hasPendingBullets = pendingScopeSection && pendingScopeSection[1].trim().match(/^- \[ \]/m);
+      
+      // 警告が既に存在するか確認（重複追加を防ぐ）
+      const hasExistingWarning = content.includes('<!-- スコープマネージャー警告:');
+      
+      // 問題があり、かつ既存の警告がない場合のみ、ファイルに警告を追加
+      if ((needsWarning || !hasCompletedBullets || !hasInProgressBullets || !hasPendingBullets) && !hasExistingWarning) {
+        Logger.warn('フォーマットに問題があります。ファイルに警告を追加します。');
+        
+        // 警告メッセージを作成
+        const warningTemplate = `\n\n<!-- スコープマネージャー警告: 以下のフォーマット推奨事項を確認してください -->
+<!-- 
+スコープマネージャーが正しく動作するには、以下のセクションとフォーマットが必要です：
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+または
+- [x] 完了したスコープ名 (100%)
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+または
+- [ ] 進行中のスコープ名 (50%)
+
+### 未着手スコープ
+- [ ] スコープ名
+  - 説明: スコープの説明
+  - 優先度: 高/中/低
+  - 関連ファイル: ファイルパス1, ファイルパス2
+-->
+
+${warningMessage}`;
+        
+        // ファイルに警告を追加
+        try {
+          // 不足している必須セクションを追加しつつ、警告メッセージも追記
+          let updatedContent = content;
+          
+          // スコープ状況セクションの有無をチェック
+          if (!content.includes('## スコープ状況')) {
+            // ファイルの末尾にスコープ状況セクションを追加
+            updatedContent = updatedContent.trim() + `\n\n## スコープ状況`;
+          }
+          
+          // 警告を追加（ファイルの末尾）
+          updatedContent = updatedContent.trim() + warningTemplate;
+          
+          // 更新したファイルを保存
+          await fs.promises.writeFile(this._statusFilePath, updatedContent, 'utf8');
+          Logger.info('CURRENT_STATUS.mdファイルにフォーマット警告とサンプルを追加しました');
+          
+          // 更新した内容を再読み込み
+          content = updatedContent;
+          // 修正したファイルを再解析
+          this._parseStatusFile(content);
+        } catch (writeError) {
+          Logger.error(`警告の追加に失敗しました: ${(writeError as Error).message}`);
+        }
+      } else if (!needsWarning && hasCompletedBullets && hasInProgressBullets && hasPendingBullets) {
+        // 全ての条件を満たしている場合、既存の警告があれば削除
+        if (hasExistingWarning) {
+          try {
+            // 既存の警告を削除
+            const updatedContent = content.replace(/\n*<!-- スコープマネージャー警告:[\s\S]*?-->[\s\S]*?(?=\n\n|$)/g, '');
+            
+            // 更新したファイルを保存
+            await fs.promises.writeFile(this._statusFilePath, updatedContent, 'utf8');
+            Logger.info('フォーマットが修正されたため、警告を削除しました');
+            
+            // 更新した内容を再読み込み
+            content = updatedContent;
+          } catch (removeError) {
+            Logger.error(`警告の削除に失敗しました: ${(removeError as Error).message}`);
+          }
+        }
+      }
       
       // WebViewを更新
       this._updateWebview();
     } catch (error) {
       Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error as Error);
     }
+  }
+  
+  /**
+   * CURRENT_STATUS.mdファイルのテンプレートを取得（新規作成用）
+   * このメソッドは直接ファイルを変更せず、テンプレート文字列を返すだけ
+   */
+  private _getStatusFileTemplate(): string {
+    return `# プロジェクト現状
+
+## 全体進捗
+- 要件定義: 未完了
+- モックアップ: 未完了
+- ディレクトリ構造: 未完了
+- 実装: 未開始
+- テスト: 未開始
+- デプロイ: 未開始
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+（未着手のスコープはまだありません。スコープを追加するには次の形式を使用してください）
+
+- [ ] スコープ名
+  - 説明: スコープの説明
+  - 優先度: 高/中/低
+  - 関連ファイル: ファイルパス1, ファイルパス2
+
+## 環境変数設定状況
+
+必要な環境変数:
+- API_KEY: 未設定
+- DATABASE_URL: 未設定
+
+## API設計
+
+APIエンドポイントはまだ定義されていません。
+`;
   }
 
   /**
@@ -263,7 +481,7 @@ export class ScopeManagerPanel {
       while (i < lines.length) {
         const line = lines[i];
         
-        // セクションヘッダーを検出
+        // セクションヘッダーを検出 (## や ### 両方に対応)
         if (line.startsWith('## ')) {
           currentSection = line.substring(3).trim();
           i++;
@@ -272,10 +490,12 @@ export class ScopeManagerPanel {
         
         // スコープセクションの処理
         if (currentSection === 'スコープ状況') {
+          // 見出しを検出する正規表現を拡張
           if (line.startsWith('### 完了済みスコープ')) {
             i++;
             while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const scopeLine = lines[i].trim();
+              // 完了スコープの箇条書きパターンを検出 ([x])
               const match = scopeLine.match(/- \[x\] (.+?) \(100%\)/);
               if (match) {
                 const name = match[1];
@@ -292,6 +512,7 @@ export class ScopeManagerPanel {
             i++;
             while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const scopeLine = lines[i].trim();
+              // 進行中スコープの箇条書きパターンを検出 ([ ] + 進捗率)
               const match = scopeLine.match(/- \[ \] (.+?) \((\d+)%\)/);
               if (match) {
                 const name = match[1];
@@ -309,13 +530,47 @@ export class ScopeManagerPanel {
             i++;
             while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
               const scopeLine = lines[i].trim();
-              const match = scopeLine.match(/- \[ \] (.+?) \(0%\)/);
+              // より柔軟な未着手スコープの検出パターン：
+              // 1. 標準形式 ([ ] スコープ名 (0%))
+              // 2. ダッシュボード形式 ([ ] スコープ名) - 進捗情報なし
+              // 3. ID付き形式 ([ ] スコープ名 (scope-xxx-xxx))
+              let match = scopeLine.match(/- \[ \] (.+?) \(0%\)/);
+              
+              if (!match) {
+                // 進捗情報のない形式を検出
+                match = scopeLine.match(/^- \[ \] ([^(]+)(?:\s|$)/);
+              }
+              
+              if (!match && scopeLine.includes('(scope-')) {
+                // スコープID付きの形式を検出
+                match = scopeLine.match(/^- \[ \] (.+?) \(scope-[^)]+\)/);
+              }
+              
               if (match) {
-                const name = match[1];
+                const name = match[1].trim();
+                
+                // ロギングを追加（デバッグ用）
+                Logger.info(`未着手スコープを検出: "${name}" (行: ${scopeLine})`);
+                
+                // スコープID抽出を試みる (スコープIDパターンがあれば)
+                let scopeId = '';
+                const idMatch = scopeLine.match(/\(scope-([^)]+)\)/);
+                if (idMatch) {
+                  scopeId = `scope-${idMatch[1]}`;
+                }
+                
+                // 説明の抽出を試みる（次の行がインデントされている場合）
+                let description = '';
+                if (i + 1 < lines.length && lines[i + 1].trim().startsWith('- 説明:')) {
+                  description = lines[i + 1].trim().substring('- 説明:'.length).trim();
+                }
+                
                 pendingScopes.push({
                   name,
                   status: 'pending',
-                  progress: 0
+                  progress: 0,
+                  id: scopeId,
+                  description: description
                 });
               }
               i++;
@@ -454,18 +709,46 @@ export class ScopeManagerPanel {
                   i++;
                 }
                 continue;
-              } else if (currentLine.startsWith('**実装すべきファイル**:') || currentLine.startsWith('**実装予定ファイル**:')) {
+              } else if (currentLine.startsWith('**実装すべきファイル**:') || 
+                         currentLine.startsWith('**実装予定ファイル**:') || 
+                         currentLine.includes('実装すべきファイル') || 
+                         currentLine.includes('実装予定ファイル')) {
+                
                 sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
                 i++;
-                while (i < lines.length && lines[i].trim().startsWith('- [')) {
-                  const fileMatch = lines[i].match(/- \[([ x])\] (.+)/);
-                  if (fileMatch) {
-                    const completed = fileMatch[1] === 'x';
-                    const filePath = fileMatch[2];
+                
+                // ファイルリストを処理（空行までまたは別のセクションまで）
+                while (i < lines.length && 
+                       (lines[i].trim().startsWith('- ') || lines[i].trim().length === 0) && 
+                       !lines[i].startsWith('**') && 
+                       !lines[i].startsWith('##')) {
+                  
+                  const line = lines[i].trim();
+                  if (line.length === 0) {
+                    i++;
+                    continue;
+                  }
+                  
+                  // 箇条書きチェックボックス形式 (- [ ] path)
+                  const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
+                  if (checkboxMatch) {
+                    const completed = checkboxMatch[1] === 'x';
+                    const filePath = checkboxMatch[2].trim();
                     files.push({
                       path: filePath,
                       completed
                     });
+                  } 
+                  // 単純な箇条書き形式 (- path)
+                  else if (line.startsWith('- ')) {
+                    const filePath = line.substring(2).trim();
+                    // 「（ファイルはまだ定義されていません）」はスキップ
+                    if (!filePath.includes('ファイルはまだ定義されていません')) {
+                      files.push({
+                        path: filePath,
+                        completed: false
+                      });
+                    }
                   }
                   i++;
                 }
@@ -548,18 +831,46 @@ export class ScopeManagerPanel {
                   i++;
                 }
                 continue;
-              } else if (currentLine.startsWith('**実装予定ファイル**:') || currentLine.startsWith('**実装すべきファイル**:')) {
+              } else if (currentLine.startsWith('**実装予定ファイル**:') || 
+                         currentLine.startsWith('**実装すべきファイル**:') || 
+                         currentLine.includes('実装すべきファイル') || 
+                         currentLine.includes('実装予定ファイル')) {
+                
                 sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
                 i++;
-                while (i < lines.length && lines[i].trim().startsWith('- [')) {
-                  const fileMatch = lines[i].match(/- \[([ x])\] (.+)/);
-                  if (fileMatch) {
-                    const completed = fileMatch[1] === 'x';
-                    const filePath = fileMatch[2];
+                
+                // ファイルリストを処理（空行までまたは別のセクションまで）
+                while (i < lines.length && 
+                       (lines[i].trim().startsWith('- ') || lines[i].trim().length === 0) && 
+                       !lines[i].startsWith('**') && 
+                       !lines[i].startsWith('##')) {
+                  
+                  const line = lines[i].trim();
+                  if (line.length === 0) {
+                    i++;
+                    continue;
+                  }
+                  
+                  // 箇条書きチェックボックス形式 (- [ ] path)
+                  const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
+                  if (checkboxMatch) {
+                    const completed = checkboxMatch[1] === 'x';
+                    const filePath = checkboxMatch[2].trim();
                     files.push({
                       path: filePath,
                       completed
                     });
+                  } 
+                  // 単純な箇条書き形式 (- path)
+                  else if (line.startsWith('- ')) {
+                    const filePath = line.substring(2).trim();
+                    // 「（ファイルはまだ定義されていません）」はスキップ
+                    if (!filePath.includes('ファイルはまだ定義されていません')) {
+                      files.push({
+                        path: filePath,
+                        completed: false
+                      });
+                    }
                   }
                   i++;
                 }
@@ -601,12 +912,134 @@ export class ScopeManagerPanel {
         i++;
       }
       
+      // 詳細情報からもスコープを検出（代替方法）
+      // より柔軟なパターンマッチングを使用
+      let detailedScopeMatches = [...content.matchAll(/#### ([^:\n]+)[\s\S]*?スコープID[^:]*?: ([^\n]*)/g)];
+      
+      // 別形式のスコープも検出 (### 現在のスコープ: や ### 次のスコープ: の形式)
+      const currentScopeMatch = content.match(/### 現在のスコープ:\s*([^\n]+)[\s\S]*?スコープID[^:]*?:\s*([^\n]*)/);
+      const nextScopeMatch = content.match(/### 次のスコープ:\s*([^\n]+)[\s\S]*?スコープID[^:]*?:\s*([^\n]*)/);
+      
+      if (currentScopeMatch) {
+        // RegExpExecArray型として扱うために変換
+        const execArray = Object.assign([null, currentScopeMatch[1], currentScopeMatch[2]], {
+          index: 0,
+          input: '',
+          groups: undefined
+        }) as RegExpExecArray;
+        detailedScopeMatches.push(execArray);
+      }
+      
+      if (nextScopeMatch) {
+        // RegExpExecArray型として扱うために変換
+        const execArray = Object.assign([null, nextScopeMatch[1], nextScopeMatch[2]], {
+          index: 0,
+          input: '',
+          groups: undefined
+        }) as RegExpExecArray;
+        detailedScopeMatches.push(execArray);
+      }
+      
+      // 詳細情報からスコープを補完
+      for (const match of detailedScopeMatches) {
+        const scopeName = match[1].trim();
+        const scopeId = match[2] ? match[2].trim() : `scope-${Date.now()}`;
+        
+        // 既存のスコープリストに存在しなければ未着手スコープとして追加
+        const existingScope = [...completedScopes, ...inProgressScopes, ...pendingScopes]
+          .find(s => s.name === scopeName);
+        
+        if (!existingScope) {
+          Logger.info(`詳細情報から新たなスコープを検出: ${scopeName}`);
+          pendingScopes.push({
+            name: scopeName,
+            id: scopeId,
+            status: 'pending',
+            progress: 0
+          });
+        }
+      }
+      
+      // スコープの「実装予定ファイル」や「実装すべきファイル」セクションからファイル情報を抽出
+      // 実装予定/実装すべきファイルセクションを検出するより汎用的なパターン
+      const fileListPatterns = [
+        // #### スコープ名\n...\n**実装予定ファイル**:
+        new RegExp(`#### ([^:\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
+        // ### 現在のスコープ: スコープ名\n...\n**実装すべきファイル**:
+        new RegExp(`### 現在のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
+        // ### 次のスコープ: スコープ名\n...\n**実装予定ファイル**:
+        new RegExp(`### 次のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
+      ];
+      
+      for (const pattern of fileListPatterns) {
+        const matches = [...content.matchAll(pattern)];
+        for (const match of matches) {
+          const scopeName = match[1].trim();
+          const fileListText = match[2];
+          
+          // 対象のスコープを見つける
+          const targetScope = [...completedScopes, ...inProgressScopes, ...pendingScopes]
+            .find(s => s.name === scopeName);
+          
+          if (targetScope) {
+            // ファイルリストを解析
+            const fileLines = fileListText.split('\n').filter(line => line.trim().startsWith('- '));
+            const files = fileLines.map(line => {
+              const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
+              if (checkboxMatch) {
+                return {
+                  path: checkboxMatch[2].trim(),
+                  completed: checkboxMatch[1] === 'x'
+                };
+              } else {
+                // 単純な箇条書き形式の場合
+                return {
+                  path: line.replace(/^- /, '').trim(),
+                  completed: false
+                };
+              }
+            }).filter(file => 
+              file.path && !file.path.includes('ファイルはまだ定義されていません')
+            );
+            
+            // スコープにファイル情報を追加
+            if (files.length > 0) {
+              if (!targetScope.files) {
+                targetScope.files = [];
+              }
+              
+              // 重複を避けて追加
+              for (const file of files) {
+                if (!targetScope.files.some(f => f.path === file.path)) {
+                  targetScope.files.push(file);
+                }
+              }
+              
+              Logger.info(`スコープ "${scopeName}" に ${files.length} 個のファイルを追加しました`);
+            }
+          }
+        }
+      }
+      
       // すべてのスコープをまとめる
       this._scopes = [...completedScopes, ...inProgressScopes, ...pendingScopes];
       
       // スコープにインデックス情報を追加
       this._scopes.forEach((scope, index) => {
         scope.index = index;
+        
+        // スコープ詳細情報の関連付け
+        const detailMatch = content.match(new RegExp(`#### [^:\n]*${scope.name}[^:\n]*\\s*\\n\\s*\\*\\*スコープID\\*\\*: ([^\\n]*)`, 'i'));
+        if (detailMatch) {
+          scope.id = detailMatch[1].trim();
+          
+          // 機能一覧を抽出
+          const featuresSection = content.match(new RegExp(`#### [^:\n]*${scope.name}[^:\n]*[\\s\\S]*?\\*\\*含まれる機能\\*\\*:[\\s\\S]*?(\\d+\\. .*?)\\n\\n`, 'i'));
+          if (featuresSection) {
+            const featuresText = featuresSection[1];
+            scope.features = featuresText.split('\n').map(line => line.replace(/^\d+\. /, '').trim());
+          }
+        }
         
         // 現在のスコープを特定
         if (this._currentScope && scope.name.includes(this._currentScope.name)) {

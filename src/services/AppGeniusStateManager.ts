@@ -1209,6 +1209,89 @@ project/
   }
   
   /**
+   * プロジェクトパスを更新
+   * @param projectId プロジェクトID
+   * @param projectPath プロジェクトパス
+   */
+  public async updateProjectPath(projectId: string, projectPath: string): Promise<void> {
+    try {
+      if (!projectId || !projectPath) {
+        throw new Error('プロジェクトIDとパスは必須です');
+      }
+      
+      Logger.debug(`プロジェクトパス更新開始: ID=${projectId}, パス=${projectPath}`);
+      
+      // プロジェクトの存在確認
+      const project = this.projectService.getProject(projectId);
+      if (!project) {
+        throw new Error(`プロジェクトが見つかりません: ${projectId}`);
+      }
+      
+      // 既存のパスと同じ場合は何もしない
+      if (project.path === projectPath) {
+        Logger.debug(`プロジェクトパスは既に設定されています: ${projectPath}`);
+        return;
+      }
+      
+      // パス更新
+      await this.projectService.updateProject(projectId, { path: projectPath });
+      
+      // イベント発火
+      this.eventBus.emit(
+        AppGeniusEventType.PROJECT_PATH_UPDATED,
+        { projectId, projectPath },
+        'AppGeniusStateManager',
+        projectId
+      );
+      
+      Logger.info(`プロジェクトパスを更新しました: ID=${projectId}, パス=${projectPath}`);
+    } catch (error) {
+      Logger.error(`プロジェクトパス更新エラー: ${(error as Error).message}`);
+      throw error;
+    }
+  }
+  
+  /**
+   * 現在アクティブなプロジェクトのパスを取得
+   * @returns プロジェクトパス。アクティブなプロジェクトがない場合は空文字列を返す
+   */
+  public getCurrentProjectPath(): string {
+    try {
+      const activeProject = this.projectService.getActiveProject();
+      if (!activeProject) {
+        return '';
+      }
+      return activeProject.path || '';
+    } catch (error) {
+      Logger.error(`アクティブプロジェクトパス取得エラー: ${(error as Error).message}`);
+      return '';
+    }
+  }
+  
+  /**
+   * 指定したプロジェクトIDのパスを取得
+   * @param projectId プロジェクトID
+   * @returns プロジェクトパス。プロジェクトが見つからない場合は空文字列を返す
+   */
+  public getProjectPath(projectId: string): string {
+    try {
+      if (!projectId) {
+        return '';
+      }
+      
+      const project = this.projectService.getProject(projectId);
+      if (!project) {
+        return '';
+      }
+      
+      return project.path || '';
+    } catch (error) {
+      Logger.error(`プロジェクトパス取得エラー: ID=${projectId}, エラー=${(error as Error).message}`);
+      return '';
+    }
+  }
+  
+  /**
    * イベントハンドラの登録
    */
   private registerEventHandlers(): void {

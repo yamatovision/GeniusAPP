@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClaudeCode連携</title>
+  <link rel="stylesheet" href="style.css">
+  <script>
+    // VSCodeのwebviewライブラリをアクセスするための取得
+    const vscode = acquireVsCodeApi();
+  </script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>ClaudeCode連携</h1>
+      <p class="subtitle">VSCode拡張とClaudeCode CLIの連携を管理します</p>
+    </header>
+
+    <section class="status-panel">
+      <h2>システム状態</h2>
+      <div class="status-container">
+        <div class="status-item">
+          <div class="status-icon" id="auth-status-icon">⚪</div>
+          <div class="status-text">
+            <div class="status-label">認証状況</div>
+            <div class="status-value" id="auth-status">確認中...</div>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-icon" id="claude-status-icon">⚪</div>
+          <div class="status-text">
+            <div class="status-label">ClaudeCode</div>
+            <div class="status-value" id="claude-status">確認中...</div>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-icon" id="proxy-status-icon">⚪</div>
+          <div class="status-text">
+            <div class="status-label">APIプロキシ</div>
+            <div class="status-value" id="proxy-status">確認中...</div>
+          </div>
+        </div>
+        <div class="status-item">
+          <div class="status-icon" id="sync-status-icon">⚪</div>
+          <div class="status-text">
+            <div class="status-label">プロンプト同期</div>
+            <div class="status-value" id="sync-status">確認中...</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="prompt-section">
+      <h2>プロンプトライブラリ</h2>
+      <div class="tools-bar">
+        <button id="sync-prompts-btn" class="primary-btn">プロンプトを同期</button>
+        <button id="open-library-btn" class="secondary-btn">ライブラリを開く</button>
+      </div>
+      <div class="prompts-container">
+        <div class="prompts-list" id="prompts-list">
+          <div class="loading">読み込み中...</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="actions-section">
+      <h2>機能</h2>
+      <div class="action-buttons">
+        <button id="check-claude-btn" class="action-btn">
+          <span class="action-icon">🔍</span>
+          <span class="action-text">ClaudeCodeを確認</span>
+        </button>
+        <button id="install-claude-btn" class="action-btn">
+          <span class="action-icon">📥</span>
+          <span class="action-text">ClaudeCodeをインストール</span>
+        </button>
+        <!-- プロンプトセレクター関連の機能は削除されました -->
+        <button id="update-env-btn" class="action-btn">
+          <span class="action-icon">🔄</span>
+          <span class="action-text">環境変数を更新</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="help-section">
+      <h2>ヘルプ</h2>
+      <div class="help-accordion">
+        <div class="accordion-item">
+          <div class="accordion-header">ClaudeCode連携とは？</div>
+          <div class="accordion-content">
+            <p>
+              ClaudeCode連携により、VSCode内で編集した設計情報やスコープ定義をもとに、
+              ClaudeCode CLIでスムーズに実装作業を進めることができます。
+              認証情報やプロンプトライブラリの共有、APIプロキシ機能を提供します。
+            </p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header">プロンプトライブラリの使い方</div>
+          <div class="accordion-content">
+            <p>
+              プロンプトライブラリを使うと、よく使うAIプロンプトを管理・共有できます。
+              「プロンプトを同期」ボタンをクリックして最新のプロンプトを取得し、
+              「プロンプトで起動」ボタンを使ってClaudeCodeを特定のプロンプトで起動できます。
+            </p>
+          </div>
+        </div>
+        <div class="accordion-item">
+          <div class="accordion-header">連携のトラブルシューティング</div>
+          <div class="accordion-content">
+            <p>
+              連携に問題がある場合は以下を確認してください：
+            </p>
+            <ul>
+              <li>VSCode拡張とPortalサービスが正しく認証されているか</li>
+              <li>ClaudeCode CLIがインストールされ、正しくPATHに設定されているか</li>
+              <li>必要な環境変数が設定されているか</li>
+              <li>ネットワーク接続が正常か</li>
+            </ul>
+            <p>
+              「ClaudeCodeを確認」ボタンをクリックして状態を診断できます。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>AppGenius AI - ClaudeCode連携</p>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

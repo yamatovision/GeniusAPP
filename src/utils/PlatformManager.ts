@@ -185,4 +185,32 @@ export class PlatformManager {
     
     return sharedPath;
   }
+
+  /**
+   * OSがWindowsかどうかを判定
+   */
+  public isWindows(): boolean {
+    return os.platform() === 'win32';
+  }
+
+  /**
+   * OSがmacOSかどうかを判定
+   */
+  public isMac(): boolean {
+    return os.platform() === 'darwin';
+  }
+
+  /**
+   * OSがLinuxかどうかを判定
+   */
+  public isLinux(): boolean {
+    return os.platform() === 'linux';
+  }
+
+  /**
+   * ホームディレクトリのパスを取得
+   */
+  public getHomeDir(): string {
+    return os.homedir();
+  }
 }

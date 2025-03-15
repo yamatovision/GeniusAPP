@@ -1,0 +1,322 @@
+/* サイト全体のスタイル */
+:root {
+  --background-color: #1e1e1e;
+  --primary-color: #007acc;
+  --secondary-color: #0098fa;
+  --text-color: #e0e0e0;
+  --light-gray: #4d4d4d;
+  --dark-gray: #2d2d2d;
+  --hover-color: #2b88d9;
+  --border-radius: 5px;
+  --success-color: #6ac259;
+  --warning-color: #e6a23c;
+  --danger-color: #f56c6c;
+  --default-color: #909399;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  line-height: 1.6;
+  padding: 20px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+h1, h2, h3 {
+  margin-bottom: 15px;
+  font-weight: 500;
+}
+
+h1 {
+  font-size: 28px;
+  color: var(--primary-color);
+}
+
+h2 {
+  font-size: 20px;
+  border-bottom: 1px solid var(--light-gray);
+  padding-bottom: 10px;
+  margin-top: 15px;
+}
+
+p {
+  margin-bottom: 15px;
+}
+
+button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: var(--hover-color);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+.primary-btn {
+  background-color: var(--primary-color);
+}
+
+.secondary-btn {
+  background-color: var(--light-gray);
+}
+
+.secondary-btn:hover {
+  background-color: var(--dark-gray);
+}
+
+/* ヘッダー */
+header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.subtitle {
+  color: var(--default-color);
+  margin-top: -10px;
+  font-size: 15px;
+}
+
+/* ステータスパネル */
+.status-panel {
+  background-color: var(--dark-gray);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.status-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+}
+
+.status-icon {
+  font-size: 24px;
+  margin-right: 15px;
+}
+
+.status-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.status-label {
+  font-size: 12px;
+  color: var(--default-color);
+}
+
+.status-value {
+  font-size: 16px;
+}
+
+/* プロンプトセクション */
+.prompt-section {
+  background-color: var(--dark-gray);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.tools-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.prompts-container {
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  min-height: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.prompts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.prompt-item {
+  background-color: var(--dark-gray);
+  border-radius: var(--border-radius);
+  padding: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.prompt-item:hover {
+  background-color: var(--light-gray);
+}
+
+.prompt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.prompt-title {
+  font-weight: 500;
+}
+
+.prompt-category {
+  font-size: 12px;
+  background-color: var(--primary-color);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.prompt-tags {
+  font-size: 12px;
+  color: var(--default-color);
+}
+
+.loading {
+  text-align: center;
+  padding: 30px;
+  color: var(--default-color);
+  font-style: italic;
+}
+
+/* アクションセクション */
+.actions-section {
+  background-color: var(--dark-gray);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.action-buttons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  text-align: center;
+  transition: background-color 0.2s;
+}
+
+.action-btn:hover {
+  background-color: var(--light-gray);
+}
+
+.action-icon {
+  font-size: 24px;
+  margin-bottom: 10px;
+}
+
+.action-text {
+  font-size: 14px;
+}
+
+/* ヘルプセクション */
+.help-section {
+  background-color: var(--dark-gray);
+  border-radius: var(--border-radius);
+  padding: 20px;
+  margin-bottom: 30px;
+}
+
+.help-accordion {
+  background-color: var(--background-color);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+.accordion-item {
+  border-bottom: 1px solid var(--light-gray);
+}
+
+.accordion-item:last-child {
+  border-bottom: none;
+}
+
+.accordion-header {
+  padding: 15px;
+  background-color: var(--background-color);
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.accordion-header:hover {
+  background-color: var(--light-gray);
+}
+
+.accordion-content {
+  padding: 0 15px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.2s ease-out;
+  background-color: var(--background-color);
+}
+
+.accordion-content.active {
+  max-height: 500px;
+  padding: 15px;
+}
+
+.accordion-content ul {
+  padding-left: 20px;
+  margin-bottom: 15px;
+}
+
+/* フッター */
+footer {
+  text-align: center;
+  margin-top: 30px;
+  color: var(--default-color);
+  font-size: 12px;
+}
+
+/* ステータスアイコンの色 */
+.status-success {
+  color: var(--success-color);
+}
+
+.status-warning {
+  color: var(--warning-color);
+}
+
+.status-error {
+  color: var(--danger-color);
+}
+
+.status-default {
+  color: var(--default-color);
+}

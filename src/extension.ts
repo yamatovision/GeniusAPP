@@ -23,10 +23,16 @@ import { MessageBroker } from './utils/MessageBroker';
 import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
 import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
 import { EnvironmentVariablesAssistantPanel } from './ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel';
+import { TokenManager } from './core/auth/TokenManager';
+import { AuthenticationService } from './core/auth/AuthenticationService';
+import { registerAuthCommands } from './core/auth/authCommands';
+import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
+import { registerEnvironmentCommands } from './commands/environmentCommands';
+import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
 
 export function activate(context: vscode.ExtensionContext) {
-	// ロガーの初期化
-	Logger.initialize('AppGenius AI', LogLevel.DEBUG);
+	// ロガーの初期化（自動表示をオフにする）
+	Logger.initialize('AppGenius AI', LogLevel.DEBUG, false);
 	Logger.info('AppGenius AI が起動しました');
 	
 	// PlatformManagerの初期化
@@ -37,6 +43,31 @@ export function activate(context: vscode.ExtensionContext) {
 	// ScopeExporterの初期化
 	ScopeExporter.getInstance();
 	Logger.info('ScopeExporter initialized successfully');
+	
+	// 認証関連の初期化
+	try {
+		// TokenManagerの初期化
+		TokenManager.getInstance(context);
+		Logger.info('TokenManager initialized successfully');
+		
+		// AuthenticationServiceの初期化
+		AuthenticationService.getInstance();
+		Logger.info('AuthenticationService initialized successfully');
+		
+		// 認証コマンドの登録
+		registerAuthCommands(context);
+		Logger.info('Auth commands registered successfully');
+		
+		// プロンプトライブラリコマンドの登録
+		registerPromptLibraryCommands(context);
+		Logger.info('Prompt library commands registered successfully');
+		
+		// 環境変数管理コマンドの登録
+		registerEnvironmentCommands(context);
+		Logger.info('Environment commands registered successfully');
+	} catch (error) {
+		Logger.error(`Authentication initialization failed: ${(error as Error).message}`);
+	}
 	
 	// ToolkitManagerとToolkitUpdaterの初期化
 	import('./utils/ToolkitManager').then(({ ToolkitManager }) => {
@@ -104,9 +135,11 @@ export function activate(context: vscode.ExtensionContext) {
 						'モックアップギャラリーを開く',
 						'実装スコープ選択を開く',
 						'スコープマネージャーを開く',
-												'デバッグ探偵を開く',
+						'デバッグ探偵を開く',
 						'環境変数アシスタントを開く',
-						'リファレンスマネージャーを開く'
+						'環境変数管理を開く',
+						'リファレンスマネージャーを開く',
+						'プロンプトライブラリを開く'
 					],
 					{
 						placeHolder: 'AppGenius AI メニュー'
@@ -131,8 +164,12 @@ export function activate(context: vscode.ExtensionContext) {
 					vscode.commands.executeCommand('appgenius-ai.openDebugDetective');
 				} else if (selection === '環境変数アシスタントを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant');
+				} else if (selection === '環境変数管理を開く') {
+					vscode.commands.executeCommand('appgenius-ai.openEnvVariablesPanel');
 				} else if (selection === 'リファレンスマネージャーを開く') {
 					vscode.commands.executeCommand('appgenius-ai.openReferenceManager');
+				} else if (selection === 'プロンプトライブラリを開く') {
+					vscode.commands.executeCommand('appgenius.openPromptLibrary');
 				}
 			} catch (error) {
 				Logger.error(`メインメニュー表示エラー: ${(error as Error).message}`);
@@ -171,26 +208,17 @@ export function activate(context: vscode.ExtensionContext) {
 					async (progress) => {
 						progress.report({ increment: 0 });
 						
-						const analysis = await projectAnalyzer.analyzeProject();
+						// プロジェクト分析
+						const result = await projectAnalyzer.analyzeProject();
 						
-						progress.report({ increment: 100 });
-						
-						// 分析結果を表示
-						let resultMessage = `
-プロジェクト分析結果:
-- ファイル数: ${analysis.stats.totalFiles}
-- ディレクトリ数: ${analysis.stats.totalDirectories}
-- 推定コード行数: ${analysis.stats.lineCount}
-
-言語別ファイル数:
-${Object.entries(analysis.stats.languageBreakdown)
-	.sort(([, a], [, b]) => (b as number) - (a as number))
-	.map(([lang, count]) => `- ${lang}: ${count}`)
-	.join('\n')}
-`;
+						progress.report({ increment: 50 });
 						
 						// 分析結果をターミナルに表示
-						terminalInterface.processQuery(resultMessage);
+						terminalInterface.processResult(JSON.stringify(result, null, 2));
+						
+						progress.report({ increment: 50 });
+						
+						return result;
 					}
 				);
 			} catch (error) {
@@ -199,549 +227,304 @@ ${Object.entries(analysis.stats.languageBreakdown)
 		})
 	);
 
-	// ファイル作成コマンド（ターミナルからの自動実行用）
+	// コード生成コマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.createFile', async (filePath: string, content: string) => {
-			await fileOperationManager.createFile(filePath, content);
+		vscode.commands.registerCommand('appgenius-ai.generateCode', async () => {
+			try {
+				const query = await vscode.window.showInputBox({
+					prompt: '生成するコードの説明を入力してください',
+					placeHolder: '例: React コンポーネントを作成して...'
+				});
+				
+				if (query) {
+					terminalInterface.showTerminal();
+					terminalInterface.processQuery(query);
+					
+					vscode.window.withProgress(
+						{
+							location: vscode.ProgressLocation.Notification,
+							title: 'コードを生成中...',
+							cancellable: false
+						},
+						async (progress) => {
+							progress.report({ increment: 0 });
+							
+							// コード生成
+							const options: {
+								language: string;
+								description: string;
+							} = {
+								language: "javascript",
+								description: query
+							};
+							const result = await codeGenerator.generateCode(options);
+							
+							progress.report({ increment: 100 });
+							
+							// 生成結果をターミナルに表示
+							terminalInterface.processResult(JSON.stringify(result, null, 2));
+							
+							return result;
+						}
+					);
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`コード生成エラー: ${(error as Error).message}`);
+			}
 		})
 	);
 	
-	// ファイル更新コマンド（ターミナルからの自動実行用）
+	// Git 操作コマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.updateFile', async (filePath: string, oldContent: string, newContent: string) => {
-			await fileOperationManager.updateFile(filePath, oldContent, newContent);
-		})
-	);
-	
-	// ファイル削除コマンド（ターミナルからの自動実行用）
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.deleteFile', async (filePath: string) => {
-			await fileOperationManager.deleteFile(filePath);
+		vscode.commands.registerCommand('appgenius-ai.executeGitCommand', async () => {
+			try {
+				const command = await vscode.window.showInputBox({
+					prompt: '実行する Git コマンドを入力してください',
+					placeHolder: '例: git status'
+				});
+				
+				if (command) {
+					terminalInterface.showTerminal();
+					terminalInterface.processQuery(command);
+					
+					// Git コマンド実行
+					const result = await gitManager.executeCommand(command);
+					
+					// 実行結果をターミナルに表示
+					terminalInterface.processResult(JSON.stringify(result, null, 2));
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`Git コマンド実行エラー: ${(error as Error).message}`);
+			}
 		})
 	);
 
-	// ウェルカムメッセージ表示コマンド - 削除済み
-	
 	// ダッシュボードを開くコマンド
 	context.subscriptions.push(
 		vscode.commands.registerCommand('appgenius-ai.openDashboard', () => {
 			try {
-				Logger.info('ダッシュボードを開きます');
 				DashboardPanel.createOrShow(context.extensionUri, aiService);
 			} catch (error) {
-				Logger.error(`ダッシュボード起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`ダッシュボードの起動に失敗しました: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`ダッシュボード表示エラー: ${(error as Error).message}`);
 			}
 		})
 	);
-
-	// コマンドが登録されたことを確認するためにログ出力
-	const commands = vscode.commands.getCommands();
-	commands.then(commandList => {
-		const appGeniusCommands = commandList.filter(cmd => cmd.startsWith('appgenius-ai.'));
-		Logger.info(`AppGenius AI コマンド一覧: ${appGeniusCommands.join(', ')}`);
-	});
-
-	// APIキーの確認（環境変数からの読み込みは自動的に試みられる）
-	if (!aiService.hasApiKey()) {
-		// API キーが設定されていない場合は通知
-		vscode.window.showWarningMessage(
-			'Claude API キーが設定されていません。再試行します。',
-			'API キーを設定'
-		).then(selection => {
-			if (selection === 'API キーを設定') {
-				vscode.commands.executeCommand('appgenius-ai.setApiKey');
-			}
-		});
-		
-		// 環境変数からの自動ロードを試みる
-		setTimeout(async () => {
-			// 少し待ってからAPIキーの存在を再確認
-			if (!aiService.hasApiKey()) {
-				try {
-					// APIキーを設定ファイルから再ロード
-					const success = await aiService.setApiKey();
-					if (success) {
-						Logger.info('API キーを設定しました');
-						vscode.window.showInformationMessage('Claude API キーが設定されました');
-					} else {
-						// ユーザーが入力をキャンセルした場合
-						Logger.warn('API キーの設定がキャンセルされました');
-					}
-				} catch (error) {
-					Logger.error(`API キーの設定中にエラー: ${(error as Error).message}`);
-				}
-			} else {
-				// 自動的にAPIキーが読み込まれた場合
-				Logger.info('API キーが自動的に設定されました');
-				vscode.window.showInformationMessage('Claude API キーが自動的に設定されました');
-			}
-		}, 1000);
-	}
-
-	// モックアップデザイナーを開くコマンド（廃止予定）
-	/* 
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openMockupDesigner', () => {
-			try {
-				Logger.info('モックアップデザイナーを開きます');
-				MockupDesignerPanel.createOrShow(context.extensionUri, aiService);
-			} catch (error) {
-				Logger.error(`モックアップデザイナー起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`モックアップデザイナーの起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	*/
 	
+	// 拡張機能起動時に自動でダッシュボードを開く
+	DashboardPanel.createOrShow(context.extensionUri, aiService);
+
+	// Claude MD エディタを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openClaudeMdEditor', () => {
+			try {
+				ClaudeMdEditorPanel.createOrShow(context.extensionUri);
+			} catch (error) {
+				vscode.window.showErrorMessage(`Claude MD エディタ表示エラー: ${(error as Error).message}`);
+			}
+		})
+	);
+
 	// モックアップギャラリーを開くコマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openMockupEditor', (mockupId?: string, projectPath?: string) => {
+		vscode.commands.registerCommand('appgenius-ai.openMockupGallery', (projectPath?: string) => {
 			try {
-				Logger.info('モックアップギャラリーを開きます');
-				
-				if (mockupId) {
-					// 特定のモックアップを開く
-					MockupGalleryPanel.openWithMockup(context.extensionUri, aiService, mockupId, projectPath);
-				} else {
-					// 通常のモックアップギャラリーを開く
-					MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
-				}
+				Logger.info(`モックアップギャラリーを開きます: ${projectPath || 'プロジェクトパスなし'}`);
+				MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
 			} catch (error) {
-				Logger.error(`モックアップギャラリー起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`モックアップギャラリーの起動に失敗しました: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`モックアップギャラリー表示エラー: ${(error as Error).message}`);
 			}
 		})
 	);
 
+	// スコープマネージャーを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openScopeManager', (providedProjectPath?: string) => {
+			try {
+				// 引数から提供されたパスを優先
+				let projectPath = providedProjectPath;
+				
+				// パスが提供されていない場合はアクティブプロジェクトから取得
+				if (!projectPath) {
+					const { AppGeniusStateManager } = require('./services/AppGeniusStateManager');
+					const stateManager = AppGeniusStateManager.getInstance();
+					projectPath = stateManager.getCurrentProjectPath();
+					
+					// アクティブプロジェクトパスがない場合は警告
+					if (!projectPath) {
+						Logger.warn('アクティブプロジェクトがありません。プロジェクトを選択してください。');
+					}
+				}
+				
+				// パスが有効かログ出力
+				Logger.debug(`スコープマネージャーパネル起動: projectPath=${projectPath}`);
+				// 詳細なデバッグ情報
+				Logger.info(`[Debug] スコープマネージャーコマンド: 引数=${providedProjectPath}, 使用パス=${projectPath}`);
+				
+				ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
+			} catch (error) {
+				vscode.window.showErrorMessage(`スコープマネージャー表示エラー: ${(error as Error).message}`);
+			}
+		})
+	);
 
-	// 要件定義ビジュアライザーを開くコマンド
+	// 要件定義チャットを開くコマンド
 	context.subscriptions.push(
 		vscode.commands.registerCommand('appgenius-ai.openSimpleChat', (projectPath?: string) => {
 			try {
-				Logger.info('要件定義ビジュアライザーを開きます');
-				if (projectPath) {
-					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
-				}
 				SimpleChatPanel.createOrShow(context.extensionUri, aiService, projectPath);
 			} catch (error) {
-				Logger.error(`要件定義ビジュアライザー起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`要件定義ビジュアライザーの起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	
-	// 実装スコープ選択コマンドは削除済み（スコープマネージャーに統合）
-
-	// ディレクトリ構造取得コマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.getDirectoryStructure', async () => {
-			try {
-				// ワークスペースのルートパスを取得
-				const workspaceFolders = vscode.workspace.workspaceFolders;
-				if (!workspaceFolders) {
-					return 'ワークスペースが開かれていません';
-				}
-				
-				const rootPath = workspaceFolders[0].uri.fsPath;
-				
-				// プロジェクト分析器を使用してディレクトリ構造を取得
-				Logger.info('ディレクトリ構造を取得します');
-				const structure = await projectAnalyzer.analyzeProject();
-				
-				// 簡易表示用の文字列を生成
-				let structureText = `プロジェクトディレクトリ構造:\n${rootPath}\n\n`;
-				structureText += `言語別ファイル数:\n`;
-				
-				Object.entries(structure.stats.languageBreakdown)
-					.sort(([, a], [, b]) => (b as number) - (a as number))
-					.forEach(([lang, count]) => {
-						structureText += `- ${lang}: ${count}\n`;
-					});
-					
-				structureText += `\n主要ディレクトリ:\n`;
-				// ディレクトリ情報が存在する場合のみ処理
-				if (structure.directories && Array.isArray(structure.directories)) {
-					structure.directories.slice(0, 10).forEach((dir: string) => {
-						structureText += `- ${dir}\n`;
-					});
-				}
-				
-				return structureText;
-			} catch (error) {
-				Logger.error(`ディレクトリ構造取得エラー: ${(error as Error).message}`);
-				return `ディレクトリ構造の取得に失敗しました: ${(error as Error).message}`;
+				vscode.window.showErrorMessage(`要件定義チャット表示エラー: ${(error as Error).message}`);
 			}
 		})
 	);
 
-	// ウェルカムメッセージは削除済み
-	
-	// リファレンスマネージャーを開くコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openReferenceManager', async () => {
-			try {
-				// 現在のワークスペースパスを取得
-				const workspaceFolders = vscode.workspace.workspaceFolders;
-				if (!workspaceFolders) {
-					vscode.window.showErrorMessage('プロジェクトが開かれていません');
-					return;
-				}
-				const workspacePath = workspaceFolders[0].uri.fsPath;
-				
-				// パネルを作成
-				const { ReferenceManagerPanel } = await import('./ui/referenceManager/ReferenceManagerPanel');
-				ReferenceManagerPanel.createOrShow(context.extensionUri, workspacePath);
-				Logger.info('リファレンスマネージャーを起動しました');
-			} catch (error) {
-				Logger.error('リファレンスマネージャーの起動に失敗しました', error as Error);
-				vscode.window.showErrorMessage(`リファレンスマネージャーの起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	
-	// ツールキットダッシュボードを開くコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openToolkitDashboard', async () => {
-			try {
-				const { ToolkitManager } = await import('./utils/ToolkitManager');
-				const toolkitManager = ToolkitManager.getInstance();
-				
-				// ダッシュボードの更新
-				await toolkitManager.updateDashboard();
-				
-				// 拡張機能のパスを取得
-				const platformManager = PlatformManager.getInstance();
-				const extensionPath = platformManager.getExtensionPath();
-				const dashboardPath = path.join(extensionPath, 'toolkit-dashboard.html');
-				
-				// ファイルURI形式に変換
-				const dashboardUri = vscode.Uri.file(dashboardPath);
-				
-				// ブラウザで開く
-				vscode.env.openExternal(dashboardUri);
-				
-				Logger.info('ツールキットダッシュボードを起動しました');
-			} catch (error) {
-				Logger.error('ツールキットダッシュボードの起動に失敗しました', error as Error);
-				vscode.window.showErrorMessage(`ツールキットダッシュボードの起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	
-	// ツールキットを更新するコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.updateToolkit', async () => {
-			try {
-				const { ToolkitUpdater, UpdateStatus } = await import('./utils/ToolkitUpdater');
-				const toolkitUpdater = ToolkitUpdater.getInstance();
-				
-				// ツールキットの更新
-				const result = await toolkitUpdater.updateToolkit();
-				
-				if (result.status === UpdateStatus.COMPLETED) {
-					vscode.window.showInformationMessage('ツールキットの更新が完了しました');
-				} else if (result.status === UpdateStatus.FAILED) {
-					vscode.window.showErrorMessage(`ツールキットの更新に失敗しました: ${result.errorMessage || '不明なエラー'}`);
-				}
-				
-				Logger.info(`ツールキット更新結果: ${result.status}`);
-			} catch (error) {
-				Logger.error('ツールキットの更新に失敗しました', error as Error);
-				vscode.window.showErrorMessage(`ツールキットの更新に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	
-	// ツールキットの整合性を検証するコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.validateToolkit', async () => {
-			try {
-				const { ToolkitManager } = await import('./utils/ToolkitManager');
-				const toolkitManager = ToolkitManager.getInstance();
-				
-				// 依存関係の分析
-				const result = toolkitManager.analyzeDependencies();
-				
-				// 結果表示
-				let message = '';
-				
-				if (result.missingDependencies.length > 0) {
-					message += `見つからない依存関係: ${result.missingDependencies.join(', ')}\n`;
-				}
-				
-				if (result.circularDependencies.length > 0) {
-					message += `循環依存関係: ${result.circularDependencies.join(', ')}\n`;
-				}
-				
-				if (result.outdatedDependencies.length > 0) {
-					message += `古い依存関係: ${result.outdatedDependencies.join(', ')}\n`;
-				}
-				
-				if (message === '') {
-					vscode.window.showInformationMessage('ツールキットの整合性検証に成功しました。問題は見つかりませんでした。');
-				} else {
-					// 詳細メッセージをアウトプットパネルに表示
-					const outputChannel = vscode.window.createOutputChannel('AppGenius ツールキット検証');
-					outputChannel.clear();
-					outputChannel.appendLine('# ツールキット整合性検証結果');
-					outputChannel.appendLine(message);
-					outputChannel.show();
-					
-					vscode.window.showWarningMessage('ツールキットの整合性検証で問題が見つかりました。詳細はアウトプットパネルをご確認ください。');
-				}
-				
-				Logger.info('ツールキットの整合性検証が完了しました');
-			} catch (error) {
-				Logger.error('ツールキットの整合性検証に失敗しました', error as Error);
-				vscode.window.showErrorMessage(`ツールキットの整合性検証に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	
-	// スコープマネージャーを開くコマンド
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openScopeManager', (projectPath?: string) => {
-			try {
-				Logger.info('スコープマネージャーを開きます');
-				if (projectPath) {
-					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
-				}
-				ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
-			} catch (error) {
-				Logger.error(`スコープマネージャー起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`スコープマネージャーの起動に失敗しました: ${(error as Error).message}`);
-			}
-		})
-	);
-	
 	// デバッグ探偵を開くコマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openDebugDetective', (projectPath?: string) => {
+		vscode.commands.registerCommand('appgenius-ai.openDebugDetective', (providedProjectPath?: string) => {
 			try {
-				Logger.info('デバッグ探偵を開きます');
+				// 引数から提供されたパスを優先
+				let projectPath = providedProjectPath;
 				
-				// プロジェクトパスの取得
+				// パスが提供されていない場合はアクティブプロジェクトから取得
 				if (!projectPath) {
-					// アクティブなプロジェクトを確認
-					const projectService = ProjectManagementService.getInstance();
-					const activeProject = projectService.getActiveProject();
+					const { AppGeniusStateManager } = require('./services/AppGeniusStateManager');
+					const stateManager = AppGeniusStateManager.getInstance();
+					projectPath = stateManager.getCurrentProjectPath();
 					
-					if (activeProject && activeProject.path) {
-						projectPath = activeProject.path;
-						Logger.info(`アクティブプロジェクトのパスを使用: ${projectPath}`);
-					} else {
-						// ワークスペースのパスを使用
-						const workspaceFolders = vscode.workspace.workspaceFolders;
-						if (workspaceFolders && workspaceFolders.length > 0) {
-							projectPath = workspaceFolders[0].uri.fsPath;
-							Logger.info(`ワークスペースのパスを使用: ${projectPath}`);
-						} else {
-							throw new Error('プロジェクトパスが指定されていません。ダッシュボードからプロジェクトを選択してください。');
-						}
+					// アクティブプロジェクトパスがない場合は警告
+					if (!projectPath) {
+						Logger.warn('アクティブプロジェクトがありません。プロジェクトを選択してください。');
 					}
-				} else {
-					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
 				}
 				
-				// デバッグ探偵パネルを表示
+				// パスが有効かログ出力
+				Logger.debug(`デバッグ探偵パネル起動: projectPath=${projectPath}`);
+				
 				DebugDetectivePanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
-				Logger.error(`デバッグ探偵起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`デバッグ探偵の起動に失敗しました: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`デバッグ探偵表示エラー: ${(error as Error).message}`);
 			}
 		})
 	);
 
 	// 環境変数アシスタントを開くコマンド
 	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius-ai.openEnvironmentVariablesAssistant', (projectPath?: string) => {
+		vscode.commands.registerCommand('appgenius-ai.openEnvironmentVariablesAssistant', (providedProjectPath?: string) => {
 			try {
-				Logger.info('環境変数アシスタントを開きます');
+				// 引数から提供されたパスを優先
+				let projectPath = providedProjectPath;
 				
-				// プロジェクトパスの取得
+				// パスが提供されていない場合はアクティブプロジェクトから取得
 				if (!projectPath) {
-					// アクティブなプロジェクトを確認
-					const projectService = ProjectManagementService.getInstance();
-					const activeProject = projectService.getActiveProject();
+					const { AppGeniusStateManager } = require('./services/AppGeniusStateManager');
+					const stateManager = AppGeniusStateManager.getInstance();
+					projectPath = stateManager.getCurrentProjectPath();
 					
-					if (activeProject && activeProject.path) {
-						projectPath = activeProject.path;
-						Logger.info(`アクティブプロジェクトのパスを使用: ${projectPath}`);
-					} else {
-						// ワークスペースのパスを使用
-						const workspaceFolders = vscode.workspace.workspaceFolders;
-						if (workspaceFolders && workspaceFolders.length > 0) {
-							projectPath = workspaceFolders[0].uri.fsPath;
-							Logger.info(`ワークスペースのパスを使用: ${projectPath}`);
-						} else {
-							throw new Error('プロジェクトパスが指定されていません。ダッシュボードからプロジェクトを選択してください。');
-						}
+					// アクティブプロジェクトパスがない場合は警告
+					if (!projectPath) {
+						Logger.warn('アクティブプロジェクトがありません。プロジェクトを選択してください。');
 					}
-				} else {
-					Logger.info(`プロジェクトパス指定あり: ${projectPath}`);
 				}
 				
-				// 環境変数アシスタントパネルを表示
+				// パスが有効かログ出力
+				Logger.debug(`環境変数アシスタントパネル起動: projectPath=${projectPath}`);
+				
 				EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
-				Logger.error(`環境変数アシスタント起動エラー: ${(error as Error).message}`);
-				vscode.window.showErrorMessage(`環境変数アシスタントの起動に失敗しました: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`環境変数アシスタント表示エラー: ${(error as Error).message}`);
 			}
 		})
 	);
 
-	// AppGeniusEventBusとStateManagerを初期化
-	try {
-		// AppGeniusEventBusを初期化
-		import('./services/AppGeniusEventBus').then(({ AppGeniusEventBus }) => {
-			AppGeniusEventBus.getInstance();
-			Logger.info('AppGeniusEventBus initialized successfully');
-		});
-		
-		// AppGeniusStateManagerを初期化
-		import('./services/AppGeniusStateManager').then(({ AppGeniusStateManager }) => {
-			AppGeniusStateManager.getInstance();
-			Logger.info('AppGeniusStateManager initialized successfully');
-		});
-		
-		// ClaudeCode関連サービスの初期化
-		const isClaudeCodeEnabled = vscode.workspace.getConfiguration('appgeniusAI').get<boolean>('enableClaudeCode', true);
-		if (isClaudeCodeEnabled) {
-			// ClaudeCodeLauncherServiceを初期化
-			import('./services/ClaudeCodeLauncherService').then(({ ClaudeCodeLauncherService }) => {
-				ClaudeCodeLauncherService.getInstance();
-				Logger.info('ClaudeCodeLauncherService initialized successfully');
-			});
-			
-			// CLI起動コマンドを登録（ClaudeCodeを起動）
-			context.subscriptions.push(
-				vscode.commands.registerCommand('appgenius-ai.launchCli', async () => {
-					try {
-						// 現在のプロジェクトIDを取得
-						const projectId = vscode.workspace.getConfiguration('appgeniusAI').get<string>('currentProjectId');
-						
-						if (!projectId) {
-							vscode.window.showWarningMessage('プロジェクトが選択されていません。先にダッシュボードからプロジェクトを選択してください。');
-							return;
-						}
-						
-						// ステートマネージャーとClaudeCodeランチャーを動的にロード
-						const { AppGeniusStateManager } = await import('./services/AppGeniusStateManager');
-						const { ClaudeCodeLauncherService } = await import('./services/ClaudeCodeLauncherService');
-						
-						const stateManager = AppGeniusStateManager.getInstance();
-						const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
-						
-						// 実装スコープを取得
-						const scope = await stateManager.getImplementationScope(projectId);
-						
-						if (!scope) {
-							vscode.window.showWarningMessage('実装スコープが設定されていません。先に実装スコープを選択してください。');
-							return;
-						}
-						
-						// ClaudeCodeを起動
-						const success = await claudeCodeLauncher.launchClaudeCode(scope);
-						
-						if (success) {
-							vscode.window.showInformationMessage('ClaudeCodeを起動しました');
-						}
-					} catch (error) {
-						Logger.error('ClaudeCodeの起動に失敗しました', error as Error);
-						vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${(error as Error).message}`);
-					}
-				})
-			);
-			
-			// CLI停止コマンドを登録（ClaudeCodeをリセット）
-			context.subscriptions.push(
-				vscode.commands.registerCommand('appgenius-ai.stopCli', async () => {
-					try {
-						const { ClaudeCodeLauncherService } = await import('./services/ClaudeCodeLauncherService');
-						const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
-						
-						// resetStatusメソッドを使用
-						claudeCodeLauncher.resetStatus();
-						vscode.window.showInformationMessage('ClaudeCodeの状態をリセットしました');
-					} catch (error) {
-						Logger.error('ClaudeCodeの停止に失敗しました', error as Error);
-						vscode.window.showErrorMessage(`ClaudeCodeの停止に失敗しました: ${(error as Error).message}`);
-					}
-				})
-			);
-			
-			// CLI進捗表示コマンドを登録（ClaudeCodeの進捗表示）
-			context.subscriptions.push(
-				vscode.commands.registerCommand('appgenius-ai.showCliProgress', async () => {
-					try {
-						vscode.window.showInformationMessage('ClaudeCodeの進捗状況をVSCode上で表示します');
-						
-						// ステータスの取得
-						const { ClaudeCodeLauncherService } = await import('./services/ClaudeCodeLauncherService');
-						const claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
-						
-						const status = claudeCodeLauncher.getStatus();
-						vscode.window.showInformationMessage(`現在のClaudeCode状態: ${status}`);
-					} catch (error) {
-						Logger.error('ClaudeCode進捗表示に失敗しました', error as Error);
-						vscode.window.showErrorMessage(`ClaudeCode進捗表示に失敗しました: ${(error as Error).message}`);
-					}
-				})
-			);
-		}
-	} catch (error) {
-		Logger.error(`Failed to initialize AppGenius services: ${(error as Error).message}`);
-	}
-	
-	// 起動時に自動的にターミナルを表示（遅延させて他の初期化が完了してから実行）
-	const shouldAutoStart = vscode.workspace.getConfiguration('appgeniusAI').get('autoStartTerminal', true);
-	if (shouldAutoStart) {
-		Logger.debug('自動起動設定が有効です。ターミナルを表示します。');
-		setTimeout(() => {
+	// リファレンスマネージャーを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openReferenceManager', async (providedProjectPath?: string) => {
 			try {
-				statusBar.update('Active');
-				vscode.commands.executeCommand('appgenius-ai.showTerminal');
-				Logger.info('AppGenius AI ターミナルを自動的に表示しました');
+				// ダイナミックインポートで遅延ロード
+				const { ReferenceManagerPanel } = await import('./ui/referenceManager/ReferenceManagerPanel');
+				
+				// 引数から提供されたパスを優先
+				let projectPath = providedProjectPath;
+				
+				// パスが提供されていない場合はアクティブプロジェクトから取得
+				if (!projectPath) {
+					const { AppGeniusStateManager } = require('./services/AppGeniusStateManager');
+					const stateManager = AppGeniusStateManager.getInstance();
+					projectPath = stateManager.getCurrentProjectPath();
+					
+					// アクティブプロジェクトパスがない場合は警告
+					if (!projectPath) {
+						Logger.warn('アクティブプロジェクトがありません。プロジェクトを選択してください。');
+					}
+				}
+				
+				// パスが有効かログ出力
+				Logger.debug(`リファレンスマネージャーパネル起動: projectPath=${projectPath}`);
+					
+				ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
-				Logger.error(`ターミナル自動表示中にエラーが発生: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`リファレンスマネージャー表示エラー: ${(error as Error).message}`);
 			}
-		}, 1500);
-	}
-	
-	// 拡張機能起動時、ダッシュボードを自動的に開くオプション
-	const shouldAutoOpenDashboard = vscode.workspace.getConfiguration('appgeniusAI').get('autoOpenDashboard', true);
-	if (shouldAutoOpenDashboard) {
-		Logger.debug('ダッシュボード自動起動設定が有効です。ダッシュボードを表示します。');
-		setTimeout(() => {
+		})
+	);
+
+	// ワークスペースルートのCurrentStatusを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openCurrentStatus', async () => {
 			try {
-				vscode.commands.executeCommand('appgenius-ai.openDashboard');
-				Logger.info('ダッシュボードを自動的に表示しました');
+				if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+					const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+					const currentStatusPath = path.join(workspaceRoot, 'docs', 'CURRENT_STATUS.md');
+					
+					const currentStatusUri = vscode.Uri.file(currentStatusPath);
+					await vscode.commands.executeCommand('vscode.open', currentStatusUri);
+				} else {
+					vscode.window.showErrorMessage('ワークスペースが開かれていません');
+				}
 			} catch (error) {
-				Logger.error(`ダッシュボード自動表示中にエラーが発生: ${(error as Error).message}`);
+				vscode.window.showErrorMessage(`CurrentStatus表示エラー: ${(error as Error).message}`);
 			}
-		}, 2000); // ターミナル表示の後に遅延して実行
-	}
+		})
+	);
+
+	// サーフコマンド設定コマンド (Claude Code CLI 連携)
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.configureSurfCommand', async () => {
+			try {
+				const { ToolkitManager } = await import('./utils/ToolkitManager');
+				const toolkitManager = ToolkitManager.getInstance();
+				const result = await toolkitManager.configureSurfCommand();
+				
+				if (result.success) {
+					vscode.window.showInformationMessage('surf コマンドが正常に設定されました');
+				} else {
+					vscode.window.showErrorMessage(`surf コマンド設定エラー: ${result.message}`);
+				}
+			} catch (error) {
+				vscode.window.showErrorMessage(`surf コマンド設定エラー: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// ClaudeCode連携UI
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius.openClaudeCodePanel', () => {
+			try {
+				const { ClaudeCodePanel } = require('./ui/claudeCode/ClaudeCodePanel');
+				ClaudeCodePanel.createOrShow(context.extensionUri);
+			} catch (error) {
+				vscode.window.showErrorMessage(`ClaudeCode連携表示エラー: ${(error as Error).message}`);
+			}
+		})
+	);
+
+	// 環境変数パネルコマンドはcommands/environmentCommands.tsで登録されているため
+	// ここでの重複登録は削除
+
+	Logger.info('AppGenius AI の初期化が完了しました');
 }
 
+// this method is called when your extension is deactivated
 export function deactivate() {
-	Logger.info('AppGenius AI が停止しました');
-	
-	// ClaudeCode関連サービスの停止
-	try {
-		import('./services/ClaudeCodeLauncherService').then(({ ClaudeCodeLauncherService }) => {
-			try {
-				ClaudeCodeLauncherService.getInstance().dispose();
-				Logger.info('ClaudeCodeLauncherService disposed successfully');
-			} catch (e) {
-				// 既に破棄されている可能性があるため、エラーは無視
-			}
-		}).catch(() => {
-			// モジュールロードエラーは無視
-		});
-	} catch (error) {
-		// 終了処理のエラーは無視
-	}
-	
-	Logger.dispose();
+	Logger.info('AppGenius AI を終了しました');
 }

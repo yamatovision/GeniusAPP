@@ -103,7 +103,7 @@ const vscode = acquireVsCodeApi();
       scopeItem.setAttribute('data-index', index.toString());
       scopeItem.innerHTML = `
         <div style="flex-grow: 1;">
-          <div>${scope.name}</div>
+          <div>${scope.name.replace(/^実装スコープ\s*/, '')}</div>
           <div class="scope-progress">
             <div class="scope-progress-bar ${statusClass}" style="width: ${progress}%;"></div>
           </div>

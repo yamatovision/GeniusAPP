@@ -1,0 +1,18 @@
+{
+  "framework": "create-react-app",
+  "buildCommand": "npm run build",
+  "outputDirectory": "build",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://RAILWAY_APP_URL/api/:path*"
+    }
+  ],
+  "env": {
+    "REACT_APP_API_URL": "https://RAILWAY_APP_URL/api"
+  },
+  "github": {
+    "enabled": true,
+    "silent": false
+  }
+}
