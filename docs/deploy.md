@@ -233,7 +233,103 @@ VSCode拡張を使用するには以下の設定が必要です:
 | REACT_APP_API_URL | バックエンドAPI URL | https://geniemon-portal-backend-production.up.railway.app/api |
 | REACT_APP_VERSION | アプリバージョン | 1.0.0 |
 
-## 6. トラブルシューティング
+## 6. デプロイ前の検証手順
+
+### コミット前チェック
+
+コードをコミット・プッシュする前に以下の検証を行うことで、デプロイエラーを未然に防ぐことができます：
+
+1. **ESLintによる構文チェック**:
+   ```bash
+   # フロントエンドのJavaScript/JSXファイルのチェック
+   cd portal/frontend
+   npx eslint src/**/*.js src/**/*.jsx --no-ignore
+   
+   # バックエンドのJavaScriptファイルのチェック
+   cd portal
+   npx eslint backend/**/*.js --no-ignore
+   ```
+
+2. **ビルドテスト**:
+   ```bash
+   # フロントエンドのビルドテスト
+   cd portal/frontend
+   npm run build
+   
+   # バックエンドのビルドテスト（必要に応じて）
+   cd portal
+   npm run build
+   ```
+
+3. **型エラーチェック**:
+   フロントエンドがTypeScriptを採用している場合や、今後TypeScriptに移行する場合：
+   ```bash
+   cd portal/frontend
+   npx tsc --noEmit
+   ```
+
+4. **特定のファイルの構文チェック**:
+   最近修正したファイルのみをチェックする場合：
+   ```bash
+   cd portal/frontend
+   npx eslint src/components/dashboard/Dashboard.js src/services/prompt.service.js
+   ```
+
+### チェックの自動化
+
+以下のgitフックを使用して自動化することもできます：
+
+1. **pre-commit フック**:
+   `.git/hooks/pre-commit`（または`.husky/pre-commit`）を作成して実行権限を付与：
+   ```bash
+   #!/bin/sh
+   cd portal/frontend && npx eslint src/**/*.js src/**/*.jsx
+   if [ $? -ne 0 ]; then
+     echo "ESLintエラーがあります。修正してからコミットしてください。"
+     exit 1
+   fi
+   ```
+
+2. **husky + lint-staged の導入**:
+   ```bash
+   npm install --save-dev husky lint-staged
+   ```
+   
+   `package.json`に以下を追加：
+   ```json
+   {
+     "husky": {
+       "hooks": {
+         "pre-commit": "lint-staged"
+       }
+     },
+     "lint-staged": {
+       "portal/frontend/src/**/*.{js,jsx}": [
+         "eslint --fix",
+         "git add"
+       ]
+     }
+   }
+   ```
+
+### 典型的なエラーと確認ポイント
+
+以下のポイントを特に注意してチェックしましょう：
+
+1. **構文エラー**:
+   - カンマやセミコロンの誤用
+   - 閉じられていない括弧やタグ
+   - 無効なJSX構文
+
+2. **安全でないプロパティアクセス**:
+   - `object.property`の代わりに`object?.property`を使用
+   - nullチェックとフォールバック値の追加（例: `value || defaultValue`）
+
+3. **パッケージ依存関係**:
+   - package.jsonに必要なすべての依存関係が含まれているか確認
+   - バージョンの不整合がないか確認
+
+## 7. トラブルシューティング
 
 ### デプロイ時の問題
 
