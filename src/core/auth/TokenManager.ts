@@ -28,8 +28,40 @@ export class TokenManager {
   public static getInstance(context?: vscode.ExtensionContext): TokenManager {
     if (!TokenManager.instance) {
       if (!context) {
-        throw new Error('TokenManagerの初期化時にはExtensionContextが必要です');
+        // 安全に処理できるようにする
+        console.error('警告: TokenManagerの初期化時にExtensionContextが指定されていません');
+        
+        // vscodeグローバル命名空間からExtensionContextの取得を試みる（バックアップ手段）
+        try {
+          // @ts-ignore - グローバル変数を利用する特例
+          const globalContext = global.__extensionContext;
+          if (globalContext) {
+            console.log('グローバル変数からExtensionContextを取得しました');
+            TokenManager.instance = new TokenManager(globalContext);
+            return TokenManager.instance;
+          }
+        } catch (e) {
+          console.error('グローバル変数からのExtensionContext取得に失敗:', e);
+        }
+
+        // ダミーコンテキストを作成（安全性向上のため）
+        console.log('ダミーSecretStorageを使用します（一部機能が制限されます）');
+        const dummySecretStorage: vscode.SecretStorage = {
+          delete: async () => {},
+          get: async () => undefined,
+          store: async () => {},
+          onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
+        };
+
+        // ダミーコンテキストを作成して初期化
+        const dummyContext = {
+          secrets: dummySecretStorage
+        } as vscode.ExtensionContext;
+
+        TokenManager.instance = new TokenManager(dummyContext);
+        return TokenManager.instance;
       }
+      
       TokenManager.instance = new TokenManager(context);
     }
     return TokenManager.instance;

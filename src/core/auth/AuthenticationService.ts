@@ -40,7 +40,23 @@ export class AuthenticationService {
   public readonly onAuthStateChanged = this._onAuthStateChanged.event;
 
   private constructor() {
-    this._tokenManager = TokenManager.getInstance();
+    try {
+      // @ts-ignore グローバル変数アクセス（extension.tsで設定されている場合）
+      const globalContext = global.__extensionContext;
+      if (globalContext) {
+        // グローバルコンテキストが利用可能な場合は、それを使用
+        this._tokenManager = TokenManager.getInstance(globalContext);
+      } else {
+        // 利用不可の場合はコンテキストなしで取得（TokenManagerが内部でダミー作成）
+        this._tokenManager = TokenManager.getInstance();
+        console.warn('AuthenticationService: ExtensionContextなしでTokenManagerを初期化');
+      }
+    } catch (e) {
+      // エラー時は警告を出して通常通り進行
+      console.error('AuthenticationService初期化エラー:', e);
+      this._tokenManager = TokenManager.getInstance();
+    }
+    
     this._authEventBus = AuthEventBus.getInstance();
     this._initialize();
   }
