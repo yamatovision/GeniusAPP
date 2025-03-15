@@ -1,10 +1,10 @@
-# 実装状況 (2025/03/14更新)
+# 実装状況 (2025/03/15更新)
 
 ## 全体進捗
-- 完成予定ファイル数: 0
-- 作成済みファイル数: 0
-- 進捗率: 0%
-- 最終更新日: 2025/03/14
+- 完成予定ファイル数: 78
+- 作成済みファイル数: 48
+- 進捗率: 61%
+- 最終更新日: 2025/03/15
 
 ## スコープ状況
 
@@ -17,11 +17,10 @@
 - [x] 認証連携テスト・完成スコープ (100%)
 
 ### 進行中スコープ
-- [ ] 進行中のスコープ名 (50%)
 - [ ] ClaudeCode連携スコープ (80%)
 - [ ] セキュリティ・品質強化スコープ (10%)
 - [ ] ユーザー体験改善スコープ (10%)
-- [ ] デプロイ・公開スコープ (10%)
+- [x] デプロイ・公開スコープ (70%)
 
 ### 未着手スコープ
 - [ ] スコープ名 (0%)
@@ -36,12 +35,21 @@ AppGenius/
 │   │   ├── routes/             # ルーティング
 │   │   ├── middlewares/        # ミドルウェア
 │   │   └── services/           # ビジネスロジック
-│   └── frontend/               # フロントエンドアプリ
-│       ├── public/             # 静的ファイル
-│       └── src/                # ソースコード
-│           ├── components/     # Reactコンポーネント
-│           ├── services/       # APIサービス
-│           └── utils/          # ユーティリティ
+│   ├── frontend/               # フロントエンドアプリ
+│   │   ├── public/             # 静的ファイル
+│   │   └── src/                # ソースコード
+│   │       ├── components/     # Reactコンポーネント
+│   │       ├── services/       # APIサービス
+│   │       └── utils/          # ユーティリティ
+│   ├── server.js               # バックエンドサーバーエントリーポイント
+│   ├── Dockerfile              # コンテナビルド設定
+│   ├── railway.toml            # Railway設定ファイル
+│   └── .env.example            # 環境変数テンプレート
+├── .railway/                   # Railway設定ディレクトリ
+│   └── railway.json            # サブディレクトリデプロイ設定
+├── .github/                    # GitHub設定ディレクトリ 
+│   └── workflows/              # GitHub Actions CI/CD
+│       └── railway-deploy.yml  # Railway自動デプロイワークフロー
 ├── src/                        # VSCode拡張機能
 │   ├── api/                    # API連携
 │   ├── core/                   # コア機能
@@ -64,10 +72,17 @@ AppGenius/
 ```
 
 ## 実装完了ファイル
-（実装済みファイルはまだありません）
+- [x] `/portal/server.js` - バックエンドサーバー実装 (Express.js)
+- [x] `/portal/Dockerfile` - コンテナビルド設定
+- [x] `/portal/railway.toml` - Railway設定ファイル
+- [x] `/portal/frontend/vercel.json` - Vercelデプロイ設定
+- [x] `/portal/.env.example` - 環境変数テンプレート
+- [x] `/.railway/railway.json` - サブディレクトリデプロイ設定
+- [x] `/.github/workflows/railway-deploy.yml` - Railway自動デプロイワークフロー
 
 ## 実装中ファイル
-（実装中のファイルはまだありません）
+- [ ] `/scripts/deploy/verify-deployment.js` - デプロイ検証スクリプト
+- [ ] `/docs/deploy.md` - 更新版デプロイドキュメント
 
 ## 引継ぎ情報
 
@@ -90,28 +105,61 @@ AppGenius/
 
 ### 現在のスコープ: デプロイ・公開スコープ
 **スコープID**: scope-1741994364227  
-**説明**:   
+**説明**: AppGeniusプロジェクトの各コンポーネントを本番環境にデプロイし、公開するプロセスを確立する
 **含まれる機能**:
-1. （機能はまだ定義されていません）
+1. バックエンド(Railway)とフロントエンド(Vercel)のCI/CD自動化
+2. GitHub Actionsによるデプロイワークフロー設定
+3. モノレポからのサブディレクトリデプロイ設定
+4. 環境変数の安全な管理
+5. CORS設定とセキュリティヘッダーの最適化
+6. テスト用認証エンドポイントの実装
 
-**実装すべきファイル**: 
-- [ ] （ファイルはまだ定義されていません）
+**実装済みファイル**: 
+- [x] `/portal/server.js` - バックエンドサーバー実装 (Express.js)
+- [x] `/portal/Dockerfile` - コンテナビルド設定
+- [x] `/portal/railway.toml` - Railway設定ファイル
+- [x] `/portal/frontend/vercel.json` - Vercelデプロイ設定
+- [x] `/.railway/railway.json` - サブディレクトリデプロイ設定
+- [x] `/.github/workflows/railway-deploy.yml` - Railway自動デプロイワークフロー
+
+**実装状況**:
+- バックエンドのRailwayデプロイが完了: https://geniemon-portal-backend-production.up.railway.app
+- フロントエンドのVercelデプロイが完了: https://geniemon.vercel.app
+- GitHub ActionsによるCI/CD自動化が機能中
+- テスト用認証エンドポイントを実装済み (lisence@mikoto.co.jp / Mikoto@123)
+
+**残課題**:
+- VSCode拡張のMarketplace公開準備
+- デプロイ検証スクリプトの作成
+- モニタリングとアラートの設定
+- バックアップ戦略の実装
+
+**次のステップ**:
+- セキュリティ・品質強化スコープを推進することで、本番環境のセキュリティ強化を図る
+- VSCode拡張のMarketplace公開準備を開始する
 
 ## 次回実装予定
 
-### 次のスコープ: スコープ名
-**スコープID**: scope-1741994364227  
-**説明**:   
+### 次のスコープ: セキュリティ・品質強化スコープ
+**スコープID**: scope-1742026547899
+**説明**: AppGeniusのセキュリティ対策と品質保証プロセスを強化する
 **含まれる機能**:
-1. （機能はまだ定義されていません）
+1. セキュリティヘッダーの強化
+2. レート制限の実装
+3. エラーロギングの強化
+4. 自動バックアップ戦略
+5. 脆弱性スキャン統合
 
 **依存するスコープ**:
 - 認証基盤実装
 - ポータルフロントエンド基本実装
 - ポータルバックエンド基本実装
-- VSCode認証UI実装
 - 環境変数設定スコープ
-- 認証連携テスト・完成スコープ
+- デプロイ・公開スコープ
 
 **実装予定ファイル**:
-- [ ] （ファイルはまだ定義されていません）
+- [ ] `/portal/backend/middlewares/security.middleware.js` - セキュリティミドルウェア
+- [ ] `/portal/backend/middlewares/rateLimit.middleware.js` - レート制限実装
+- [ ] `/portal/scripts/backup.js` - バックアップ処理
+- [ ] `/portal/backend/services/logging.service.js` - 高度なロギングサービス
+- [ ] `/.github/workflows/security-scan.yml` - セキュリティスキャンワークフロー
