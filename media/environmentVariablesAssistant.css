@@ -1,57 +1,61 @@
-:root {
-  --primary: #4a6da7;
-  --primary-light: #eef3fa;
-  --success: #42b883;
-  --warning: #f9a825;
-  --error: #e74c3c;
-  --gray: #f5f5f5;
-  --text: #333;
-  --border: #e0e0e0;
-  --shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
+/**
+ * 環境変数アシスタント スタイル
+ * 
+ * このCSSファイルは環境変数アシスタントの
+ * 特有のスタイルを定義します。
+ * デザインシステムとコンポーネントライブラリを活用しています。
+ */
 
+/* 共通スタイル変数とコンポーネントの読み込み */
+@import url('./design-system.css');
+@import url('./components.css');
+@import url('./accessibility.css');
+
+/* 基本スタイル */
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: var(--vscode-font-family);
+  font-family: var(--app-font-family);
 }
 
 body {
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
-  line-height: 1.6;
+  line-height: var(--app-line-height);
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--app-spacing-md);
 }
 
+/* ヘッダー */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 30px;
-  padding-bottom: 10px;
+  margin-bottom: var(--app-spacing-lg);
+  padding-bottom: var(--app-spacing-sm);
   border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .header h1 {
-  font-size: 24px;
+  font-size: var(--app-font-size-xl);
   color: var(--vscode-editor-foreground);
-  font-weight: 500;
+  font-weight: var(--app-font-weight-medium);
 }
 
+/* 進捗表示 */
 .progress-indicator {
   display: flex;
   align-items: center;
 }
 
 .progress-indicator .progress-text {
-  margin-right: 10px;
-  font-size: 14px;
+  margin-right: var(--app-spacing-sm);
+  font-size: var(--app-font-size-sm);
   color: var(--vscode-descriptionForeground);
 }
 
@@ -59,37 +63,38 @@ body {
   width: 100px;
   height: 10px;
   background-color: var(--vscode-progressBar-background);
-  border-radius: 5px;
+  border-radius: var(--app-border-radius-sm);
   overflow: hidden;
 }
 
 .progress-value {
   height: 100%;
-  background-color: var(--success);
+  background-color: var(--app-success);
   width: 40%; /* 進捗に合わせて変更 */
 }
 
+/* メインコンテンツレイアウト */
 .main-content {
   display: flex;
-  gap: 20px;
+  gap: var(--app-spacing-md);
 }
 
 .env-list {
   flex: 3;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--app-spacing-md);
   max-height: calc(100vh - 180px);
   overflow-y: auto;
-  padding-right: 10px;
+  padding-right: var(--app-spacing-sm);
 }
 
 /* 環境変数セクション */
 .env-section {
   background: var(--vscode-sideBar-background);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
+  border-radius: var(--app-border-radius);
+  padding: var(--app-spacing-md);
+  margin-bottom: var(--app-spacing-md);
   border: 1px solid var(--vscode-panel-border);
 }
 
@@ -97,75 +102,77 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: var(--app-spacing-sm);
+  padding-bottom: var(--app-spacing-xs);
   border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .env-section-header h3 {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--app-font-size-md);
+  font-weight: var(--app-font-weight-medium);
   color: var(--vscode-editor-foreground);
 }
 
 .section-status {
-  font-size: 12px;
+  font-size: var(--app-font-size-xs);
   color: var(--vscode-descriptionForeground);
   background: var(--vscode-badge-background);
   padding: 2px 8px;
   border-radius: 12px;
 }
 
+/* Claude情報セクション */
 .claude-info-section {
-  background: var(--primary-light);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 16px;
-  border: 1px solid var(--primary);
+  background: var(--app-primary-light);
+  border-radius: var(--app-border-radius);
+  padding: var(--app-spacing-md);
+  margin-bottom: var(--app-spacing-md);
+  border: 1px solid var(--app-primary);
 }
 
 .section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: var(--app-spacing-sm);
 }
 
 .section-header h2 {
-  font-size: 18px;
-  color: var(--primary);
-  font-weight: 500;
+  font-size: var(--app-font-size-lg);
+  color: var(--app-primary);
+  font-weight: var(--app-font-weight-medium);
 }
 
 .section-description {
-  font-size: 14px;
+  font-size: var(--app-font-size-sm);
   color: var(--vscode-descriptionForeground);
-  margin-bottom: 10px;
+  margin-bottom: var(--app-spacing-sm);
 }
 
+/* 環境変数サマリーセクション */
 .env-summary-section {
   background: var(--vscode-sideBar-background);
-  border-radius: 8px;
-  padding: 16px;
-  margin-top: 20px;
+  border-radius: var(--app-border-radius);
+  padding: var(--app-spacing-md);
+  margin-top: var(--app-spacing-md);
   border: 1px solid var(--vscode-panel-border);
 }
 
 .summary-header {
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: var(--app-spacing-sm);
+  padding-bottom: var(--app-spacing-xs);
   border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .summary-header h3 {
-  font-size: 16px;
-  font-weight: 500;
+  font-size: var(--app-font-size-md);
+  font-weight: var(--app-font-weight-medium);
 }
 
 .summary-content {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16px;
+  margin-bottom: var(--app-spacing-md);
 }
 
 .summary-item {
@@ -174,22 +181,22 @@ body {
 }
 
 .summary-label {
-  font-size: 12px;
+  font-size: var(--app-font-size-xs);
   color: var(--vscode-descriptionForeground);
-  margin-bottom: 4px;
+  margin-bottom: var(--app-spacing-xs);
 }
 
 .summary-value {
-  font-size: 24px;
-  font-weight: 600;
+  font-size: var(--app-font-size-xl);
+  font-weight: var(--app-font-weight-bold);
 }
 
 .summary-value.completed {
-  color: var(--success);
+  color: var(--app-success);
 }
 
 .summary-value.warning {
-  color: var(--warning);
+  color: var(--app-warning);
 }
 
 .summary-action {
@@ -197,85 +204,92 @@ body {
   justify-content: center;
 }
 
+/* ガイドパネル */
 .guide-panel {
   flex: 2;
   background: var(--vscode-sideBar-background);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  padding: 20px;
+  border-radius: var(--app-border-radius);
+  box-shadow: var(--app-box-shadow);
+  padding: var(--app-spacing-md);
   height: fit-content;
   position: sticky;
   top: 20px;
   border: 1px solid var(--vscode-panel-border);
 }
 
+/* 環境変数カード */
 .env-card {
   background: var(--vscode-editor-background);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
-  padding: 20px;
-  margin-bottom: 16px;
-  border-left: 4px solid var(--primary);
-  transition: all 0.3s ease;
+  border-radius: var(--app-border-radius);
+  box-shadow: var(--app-box-shadow);
+  padding: var(--app-spacing-md);
+  margin-bottom: var(--app-spacing-md);
+  border-left: 4px solid var(--app-primary);
+  transition: all var(--app-transition);
   border: 1px solid var(--vscode-panel-border);
 }
 
 .env-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: var(--app-box-shadow-hover);
 }
 
 .env-card.required {
-  border-left: 4px solid var(--error);
+  border-left: 4px solid var(--app-danger);
 }
 
 .env-card.optional {
-  border-left: 4px solid var(--warning);
+  border-left: 4px solid var(--app-warning);
 }
 
 .env-card.completed {
-  border-left: 4px solid var(--success);
-  background-color: var(--primary-light);
+  border-left: 4px solid var(--app-success);
+  background-color: var(--app-primary-light);
 }
 
 .env-card.needs-config {
-  border-left: 4px solid var(--warning);
-  background-color: rgba(249, 168, 37, 0.1);
+  border-left: 4px solid var(--app-warning);
+  background-color: var(--app-accent-light);
+}
+
+.env-card.verified {
+  border-left: 4px solid var(--app-primary);
+  background-color: var(--app-primary-light);
 }
 
 .env-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: var(--app-spacing-sm);
 }
 
 .env-name {
-  font-weight: 600;
-  font-size: 18px;
+  font-weight: var(--app-font-weight-bold);
+  font-size: var(--app-font-size-lg);
   display: flex;
   align-items: center;
 }
 
 .badge {
-  font-size: 12px;
+  font-size: var(--app-font-size-xs);
   padding: 3px 8px;
   border-radius: 12px;
-  margin-left: 8px;
+  margin-left: var(--app-spacing-xs);
   color: white;
   font-weight: normal;
 }
 
 .badge.required {
-  background-color: var(--error);
+  background-color: var(--app-danger);
 }
 
 .badge.optional {
-  background-color: var(--warning);
+  background-color: var(--app-warning);
 }
 
 .env-status {
-  font-size: 14px;
+  font-size: var(--app-font-size-sm);
   color: var(--vscode-descriptionForeground);
   display: flex;
   align-items: center;
@@ -285,21 +299,25 @@ body {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  margin-right: 6px;
-  background-color: var(--gray);
+  margin-right: var(--app-spacing-xs);
+  background-color: var(--app-gray-300);
+  position: relative;
 }
 
 .status-icon.completed {
-  background-color: var(--success);
-  position: relative;
+  background-color: var(--app-success);
 }
 
 .status-icon.warning {
-  background-color: var(--warning);
-  position: relative;
+  background-color: var(--app-warning);
 }
 
-.status-icon.completed::after {
+.status-icon.verified {
+  background-color: var(--app-primary);
+}
+
+.status-icon.completed::after,
+.status-icon.verified::after {
   content: "✓";
   color: white;
   position: absolute;
@@ -321,52 +339,59 @@ body {
 }
 
 .env-description {
-  margin-bottom: 16px;
-  font-size: 14px;
+  margin-bottom: var(--app-spacing-md);
+  font-size: var(--app-font-size-sm);
   color: var(--vscode-descriptionForeground);
 }
 
 .env-input-group {
   display: flex;
-  margin-bottom: 16px;
+  margin-bottom: var(--app-spacing-md);
 }
 
 .env-input {
   flex: 1;
-  padding: 10px;
+  padding: var(--app-spacing-sm);
   border: 1px solid var(--vscode-input-border);
-  border-radius: 4px;
-  font-size: 14px;
-  font-family: var(--vscode-editor-font-family);
+  border-radius: var(--app-border-radius-sm);
+  font-size: var(--app-font-size-sm);
+  font-family: var(--app-font-family);
   background-color: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
 }
 
 .env-input:focus {
   outline: none;
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px var(--app-primary-light);
 }
 
 .env-actions {
   display: flex;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--app-spacing-xs);
 }
 
+/* ボタンスタイル - VSCode互換 */
 .button {
-  padding: 8px 16px;
+  padding: var(--app-spacing-xs) var(--app-spacing-md);
   border: none;
-  border-radius: 4px;
+  border-radius: var(--app-border-radius-sm);
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s;
+  font-size: var(--app-font-size-sm);
+  font-weight: var(--app-font-weight-medium);
+  transition: all var(--app-transition);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
 }
 
 .button-primary {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background-color: var(--app-vscode-button-bg);
+  color: var(--app-vscode-button-fg);
 }
 
 .button-primary:hover {
@@ -384,7 +409,7 @@ body {
 }
 
 .button-success {
-  background-color: var(--success);
+  background-color: var(--app-success);
   color: white;
 }
 
@@ -392,65 +417,79 @@ body {
   background-color: #389e70;
 }
 
+.button.verified {
+  background-color: var(--app-success);
+  color: white;
+}
+
+/* ガイドパネルのスタイル */
 .guide-panel-title {
-  font-size: 18px;
-  font-weight: 500;
-  margin-bottom: 16px;
+  font-size: var(--app-font-size-lg);
+  font-weight: var(--app-font-weight-medium);
+  margin-bottom: var(--app-spacing-md);
   color: var(--vscode-editor-foreground);
   border-bottom: 1px solid var(--vscode-panel-border);
-  padding-bottom: 8px;
+  padding-bottom: var(--app-spacing-xs);
 }
 
 .guide-steps {
-  margin-bottom: 20px;
+  margin-bottom: var(--app-spacing-md);
 }
 
 .guide-step {
-  margin-bottom: 12px;
+  margin-bottom: var(--app-spacing-sm);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--app-spacing-xs);
 }
 
 .step-number {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 24px;
   height: 24px;
-  background-color: var(--primary);
+  background-color: var(--app-primary);
   color: white;
   border-radius: 50%;
   text-align: center;
   line-height: 24px;
-  margin-right: 8px;
-  font-weight: 500;
+  font-weight: var(--app-font-weight-medium);
+  flex-shrink: 0;
 }
 
+/* AI提案スタイル */
 .ai-suggestion {
-  background-color: var(--primary-light);
-  border-radius: 4px;
-  padding: 12px;
-  margin-top: 20px;
-  font-size: 14px;
-  color: var(--primary);
+  background-color: var(--app-primary-light);
+  border-radius: var(--app-border-radius-sm);
+  padding: var(--app-spacing-sm);
+  margin-top: var(--app-spacing-md);
+  font-size: var(--app-font-size-sm);
+  color: var(--app-primary);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--app-spacing-sm);
 }
 
 .ai-suggestion::before {
   content: "💡";
-  margin-right: 8px;
+  margin-right: var(--app-spacing-xs);
 }
 
+/* フッターエリア */
 .footer {
-  margin-top: 40px;
+  margin-top: var(--app-spacing-xl);
   display: flex;
   justify-content: space-between;
 }
 
+/* ローディング状態 */
 .loading {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 0;
+  padding: var(--app-spacing-xl) 0;
   color: var(--vscode-descriptionForeground);
 }
 
@@ -458,9 +497,9 @@ body {
   width: 40px;
   height: 40px;
   border: 4px solid var(--vscode-progressBar-background);
-  border-top: 4px solid var(--primary);
+  border-top: 4px solid var(--app-primary);
   border-radius: 50%;
-  margin-bottom: 16px;
+  margin-bottom: var(--app-spacing-md);
   animation: spin 1s linear infinite;
 }
 
@@ -469,12 +508,13 @@ body {
   100% { transform: rotate(360deg); }
 }
 
+/* メッセージ表示 */
 .no-file-message,
 .no-variables-message {
-  padding: 20px;
+  padding: var(--app-spacing-md);
   background-color: var(--vscode-editor-background);
   border: 1px solid var(--vscode-panel-border);
-  border-radius: 8px;
+  border-radius: var(--app-border-radius);
   color: var(--vscode-descriptionForeground);
   text-align: center;
 }
@@ -483,64 +523,67 @@ body {
   background-color: var(--vscode-inputValidation-errorBackground);
   border: 1px solid var(--vscode-inputValidation-errorBorder);
   color: var(--vscode-inputValidation-errorForeground);
-  padding: 10px;
-  margin-bottom: 20px;
-  border-radius: 4px;
+  padding: var(--app-spacing-sm);
+  margin-bottom: var(--app-spacing-md);
+  border-radius: var(--app-border-radius-sm);
 }
 
+/* 接続テスト結果表示 */
 .connection-test-result {
-  margin-top: 12px;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 14px;
+  margin-top: var(--app-spacing-sm);
+  padding: var(--app-spacing-xs) var(--app-spacing-sm);
+  border-radius: var(--app-border-radius-sm);
+  font-size: var(--app-font-size-sm);
 }
 
 .connection-test-result.success {
-  background-color: rgba(66, 184, 131, 0.1);
-  border: 1px solid var(--success);
-  color: var(--success);
+  background-color: var(--app-secondary-light);
+  border: 1px solid var(--app-success);
+  color: var(--app-success);
 }
 
 .connection-test-result.error {
   background-color: rgba(231, 76, 60, 0.1);
-  border: 1px solid var(--error);
-  color: var(--error);
+  border: 1px solid var(--app-danger);
+  color: var(--app-danger);
 }
 
 .connection-test-result.testing {
-  background-color: rgba(74, 109, 167, 0.1);
-  border: 1px solid var(--primary);
-  color: var(--primary);
+  background-color: var(--app-primary-light);
+  border: 1px solid var(--app-primary);
+  color: var(--app-primary);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--app-spacing-sm);
 }
 
+/* 小さなローダー */
 .spinner-small {
   width: 16px;
   height: 16px;
   border: 2px solid var(--vscode-progressBar-background);
-  border-top: 2px solid var(--primary);
+  border-top: 2px solid var(--app-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
 
+/* 検証バッジ */
 .verification-badge {
-  margin-top: 8px;
+  margin-top: var(--app-spacing-xs);
   display: inline-block;
   padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: bold;
+  border-radius: var(--app-border-radius-sm);
+  font-size: var(--app-font-size-xs);
+  font-weight: var(--app-font-weight-bold);
 }
 
 .verification-badge.verified {
-  background-color: var(--success);
+  background-color: var(--app-success);
   color: white;
 }
 
 .verification-badge.format-only {
-  background-color: var(--warning);
+  background-color: var(--app-warning);
   color: white;
 }
 
@@ -550,30 +593,11 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
-.button.verified {
-  background-color: var(--success);
-  color: white;
-}
-
-.status-icon.verified {
-  background-color: var(--primary);
-}
-
-.status-icon.verified::after {
-  content: "✓";
-  color: white;
-}
-
-.env-card.verified {
-  border-left: 4px solid var(--primary);
-  background-color: rgba(74, 109, 167, 0.1);
-}
-
 /* オーバーレイ表示用スタイル（AI操作ガイダンス用） */
 .guidance-overlay {
   position: absolute;
-  border: 2px solid var(--primary);
-  border-radius: 4px;
+  border: 2px solid var(--app-primary);
+  border-radius: var(--app-border-radius-sm);
   pointer-events: none;
   z-index: 1000;
   animation: pulse 2s infinite;
@@ -581,11 +605,11 @@ body {
 
 .guidance-message {
   position: absolute;
-  background-color: var(--primary);
+  background-color: var(--app-primary);
   color: white;
-  padding: 8px 12px;
-  border-radius: 4px;
-  font-size: 14px;
+  padding: var(--app-spacing-xs) var(--app-spacing-sm);
+  border-radius: var(--app-border-radius-sm);
+  font-size: var(--app-font-size-sm);
   z-index: 1001;
   max-width: 300px;
 }
@@ -594,4 +618,33 @@ body {
   0% { box-shadow: 0 0 0 0 rgba(74, 109, 167, 0.4); }
   70% { box-shadow: 0 0 0 10px rgba(74, 109, 167, 0); }
   100% { box-shadow: 0 0 0 0 rgba(74, 109, 167, 0); }
+}
+
+/* アクセシビリティ強化 */
+.app-button:focus-visible,
+.button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--app-primary-light);
+}
+
+.env-input:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .main-content {
+    flex-direction: column;
+  }
+  
+  .guide-panel {
+    position: static;
+    margin-bottom: var(--app-spacing-md);
+  }
+  
+  .env-list {
+    max-height: none;
+  }
 }

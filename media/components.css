@@ -1,0 +1,459 @@
+/**
+ * AppGenius コンポーネントライブラリ
+ * 
+ * このCSSファイルはAppGeniusアプリケーション全体で使用される
+ * 共通UIコンポーネントのスタイルを定義します。
+ * 
+ * - ボタン
+ * - カード
+ * - フォーム要素
+ * - ヘッダー
+ * - その他の基本コンポーネント
+ */
+
+/* 共通スタイル変数の読み込みが必要: design-system.css */
+
+/* ===== ボタンコンポーネント ===== */
+
+/* ボタン共通スタイル - 全てのボタンの基本スタイル */
+.app-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--app-spacing-xs);
+  padding: var(--app-spacing-sm) var(--app-spacing-md);
+  border: none;
+  border-radius: var(--app-border-radius);
+  font-size: var(--app-font-size-md);
+  font-family: var(--app-font-family);
+  font-weight: var(--app-font-weight-medium);
+  cursor: pointer;
+  transition: all var(--app-transition);
+  position: relative;
+  overflow: hidden;
+}
+
+/* フォーカス状態 - アクセシビリティ対応 */
+.app-button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--app-primary-light);
+}
+
+/* 無効状態 */
+.app-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* プライマリボタン - 最も重要なアクション用 */
+.app-button-primary {
+  background-color: var(--app-primary);
+  color: white;
+}
+
+.app-button-primary:hover:not(:disabled) {
+  background-color: var(--app-primary-dark);
+  box-shadow: var(--app-box-shadow);
+  transform: translateY(-1px);
+}
+
+.app-button-primary:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+/* セカンダリボタン - 補助的なアクション用 */
+.app-button-secondary {
+  background-color: transparent;
+  color: var(--app-primary);
+  border: 1px solid var(--app-primary);
+}
+
+.app-button-secondary:hover:not(:disabled) {
+  background-color: var(--app-primary-light);
+}
+
+/* テキストボタン - 軽量なアクション用 */
+.app-button-text {
+  background: none;
+  color: var(--app-primary);
+  padding: var(--app-spacing-xs) var(--app-spacing-sm);
+  border-radius: var(--app-border-radius-sm);
+}
+
+.app-button-text:hover:not(:disabled) {
+  background-color: var(--app-gray-100);
+  text-decoration: underline;
+}
+
+/* 危険アクション用ボタン */
+.app-button-danger {
+  background-color: var(--app-danger);
+  color: white;
+}
+
+.app-button-danger:hover:not(:disabled) {
+  filter: brightness(0.9);
+  box-shadow: var(--app-box-shadow);
+}
+
+/* 成功アクション用ボタン */
+.app-button-success {
+  background-color: var(--app-success);
+  color: white;
+}
+
+.app-button-success:hover:not(:disabled) {
+  filter: brightness(0.9);
+  box-shadow: var(--app-box-shadow);
+}
+
+/* ボタンサイズバリエーション */
+.app-button-sm {
+  padding: calc(var(--app-spacing-xs) * 0.75) var(--app-spacing-sm);
+  font-size: var(--app-font-size-sm);
+}
+
+.app-button-lg {
+  padding: var(--app-spacing-md) var(--app-spacing-lg);
+  font-size: var(--app-font-size-lg);
+}
+
+/* アイコン付きボタン */
+.app-button-icon {
+  padding: var(--app-spacing-sm);
+  border-radius: 50%;
+}
+
+/* VSCode互換ボタン */
+.app-button-vscode {
+  background-color: var(--app-vscode-button-bg);
+  color: var(--app-vscode-button-fg);
+}
+
+.app-button-vscode:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+/* ===== ヘッダーコンポーネント ===== */
+
+/* ヘッダー共通スタイル */
+.app-header {
+  height: var(--app-header-height);
+  padding: 0 var(--app-spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--app-primary);
+  background-image: linear-gradient(to right, var(--app-primary), var(--app-primary-dark));
+  color: white;
+  box-shadow: var(--app-box-shadow);
+  z-index: 100; /* スクロールコンテンツ上に表示 */
+  position: relative;
+}
+
+.app-header h1, 
+.app-header h2 {
+  margin: 0;
+  font-size: var(--app-font-size-xl);
+  font-weight: var(--app-font-weight-bold);
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+}
+
+.app-header-actions {
+  display: flex;
+  gap: var(--app-spacing-sm);
+  align-items: center;
+}
+
+/* ヘッダーアクション用ボタン */
+.app-header-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: var(--app-border-radius);
+  padding: calc(var(--app-spacing-xs) * 1.5) var(--app-spacing-sm);
+  font-size: var(--app-font-size-sm);
+  cursor: pointer;
+  transition: all var(--app-transition);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--app-spacing-xs) * 1.5);
+}
+
+.app-header-button:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.app-header-button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+/* ===== カードコンポーネント ===== */
+
+.app-card {
+  background-color: white;
+  border-radius: var(--app-border-radius);
+  box-shadow: var(--app-box-shadow);
+  padding: var(--app-spacing-lg);
+  transition: transform var(--app-transition), box-shadow var(--app-transition);
+  border: 1px solid var(--app-gray-200);
+}
+
+.app-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-box-shadow-hover);
+}
+
+.app-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--app-spacing-md);
+}
+
+.app-card-title {
+  font-size: var(--app-font-size-lg);
+  font-weight: var(--app-font-weight-bold);
+  margin: 0;
+  color: var(--app-gray-900);
+}
+
+.app-card-body {
+  margin-bottom: var(--app-spacing-md);
+  line-height: var(--app-line-height);
+}
+
+.app-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--app-spacing-sm);
+  margin-top: var(--app-spacing-md);
+}
+
+/* ステータス付きカード */
+.app-card-success {
+  border-left: 4px solid var(--app-success);
+}
+
+.app-card-warning {
+  border-left: 4px solid var(--app-warning);
+}
+
+.app-card-danger {
+  border-left: 4px solid var(--app-danger);
+}
+
+.app-card-info {
+  border-left: 4px solid var(--app-info);
+}
+
+/* ダークモード対応 */
+.vscode-dark .app-card {
+  background-color: var(--app-dark-card-bg);
+  border-color: var(--app-gray-300);
+}
+
+/* ===== フォーム要素 ===== */
+
+.app-form-group {
+  margin-bottom: var(--app-spacing-lg);
+}
+
+.app-form-label {
+  display: block;
+  margin-bottom: var(--app-spacing-xs);
+  font-weight: var(--app-font-weight-medium);
+  color: var(--app-gray-800);
+}
+
+.app-form-required::after {
+  content: "*";
+  color: var(--app-danger);
+  margin-left: var(--app-spacing-xs);
+}
+
+.app-form-input,
+.app-form-select,
+.app-form-textarea {
+  width: 100%;
+  padding: var(--app-spacing-sm);
+  border: 1px solid var(--app-gray-300);
+  border-radius: var(--app-border-radius-sm);
+  font-family: var(--app-font-family);
+  font-size: var(--app-font-size-md);
+  background-color: white;
+  transition: border-color var(--app-transition), box-shadow var(--app-transition);
+}
+
+.app-form-input:focus,
+.app-form-select:focus,
+.app-form-textarea:focus {
+  outline: none;
+  border-color: var(--app-primary);
+  box-shadow: 0 0 0 3px var(--app-primary-light);
+}
+
+.app-form-hint {
+  margin-top: var(--app-spacing-xs);
+  font-size: var(--app-font-size-sm);
+  color: var(--app-gray-600);
+}
+
+.app-form-error {
+  margin-top: var(--app-spacing-xs);
+  font-size: var(--app-font-size-sm);
+  color: var(--app-danger);
+}
+
+.app-form-textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+/* 無効状態 */
+.app-form-input:disabled,
+.app-form-select:disabled,
+.app-form-textarea:disabled {
+  background-color: var(--app-gray-100);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+/* エラー状態 */
+.app-form-input.error,
+.app-form-select.error,
+.app-form-textarea.error {
+  border-color: var(--app-danger);
+}
+
+.app-form-input.error:focus,
+.app-form-select.error:focus,
+.app-form-textarea.error:focus {
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+}
+
+/* チェックボックスとラジオボタン */
+.app-form-checkbox,
+.app-form-radio {
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+  cursor: pointer;
+  margin-bottom: var(--app-spacing-sm);
+}
+
+.app-form-checkbox input[type="checkbox"],
+.app-form-radio input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+/* ダークモード対応 */
+.vscode-dark .app-form-input,
+.vscode-dark .app-form-select,
+.vscode-dark .app-form-textarea {
+  background-color: var(--app-dark-surface);
+  border-color: var(--app-gray-400);
+  color: var(--app-gray-800);
+}
+
+/* ===== タブコンポーネント ===== */
+
+.app-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--app-gray-300);
+  margin-bottom: var(--app-spacing-lg);
+}
+
+.app-tab {
+  padding: var(--app-spacing-sm) var(--app-spacing-lg);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  font-weight: var(--app-font-weight-medium);
+  transition: all var(--app-transition);
+}
+
+.app-tab:hover {
+  background-color: var(--app-gray-100);
+}
+
+.app-tab.active {
+  border-bottom-color: var(--app-primary);
+  color: var(--app-primary);
+}
+
+.app-tab-content {
+  display: none;
+}
+
+.app-tab-content.active {
+  display: block;
+}
+
+/* ===== 通知・アラート ===== */
+
+.app-alert {
+  padding: var(--app-spacing-md);
+  border-radius: var(--app-border-radius);
+  margin-bottom: var(--app-spacing-lg);
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+}
+
+.app-alert-success {
+  background-color: rgba(46, 204, 113, 0.1);
+  border-left: 4px solid var(--app-success);
+  color: var(--app-success);
+}
+
+.app-alert-warning {
+  background-color: rgba(243, 156, 18, 0.1);
+  border-left: 4px solid var(--app-warning);
+  color: var(--app-warning);
+}
+
+.app-alert-danger {
+  background-color: rgba(231, 76, 60, 0.1);
+  border-left: 4px solid var(--app-danger);
+  color: var(--app-danger);
+}
+
+.app-alert-info {
+  background-color: rgba(52, 152, 219, 0.1);
+  border-left: 4px solid var(--app-info);
+  color: var(--app-info);
+}
+
+.app-alert-icon {
+  font-size: var(--app-font-size-lg);
+}
+
+.app-alert-content {
+  flex: 1;
+}
+
+.app-alert-title {
+  font-weight: var(--app-font-weight-bold);
+  margin-bottom: var(--app-spacing-xs);
+}
+
+.app-alert-close {
+  background: none;
+  border: none;
+  font-size: var(--app-font-size-lg);
+  cursor: pointer;
+  color: currentColor;
+  opacity: 0.7;
+  transition: opacity var(--app-transition);
+}
+
+.app-alert-close:hover {
+  opacity: 1;
+}

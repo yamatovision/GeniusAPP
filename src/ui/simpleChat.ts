@@ -9,13 +9,19 @@ import { ProjectManagementService } from '../services/ProjectManagementService';
 import { AppGeniusStateManager, Requirements } from '../services/AppGeniusStateManager';
 import { ClaudeMdService } from '../utils/ClaudeMdService';
 import { ClaudeCodeLauncherService } from '../services/ClaudeCodeLauncherService';
+import { ClaudeCodeIntegrationService } from '../services/ClaudeCodeIntegrationService';
+import { ProtectedPanel } from './auth/ProtectedPanel';
+import { Feature } from '../core/auth/roles';
 
 /**
  * シンプルなチャットパネルを管理するクラス
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class SimpleChatPanel implements vscode.Disposable {
+export class SimpleChatPanel extends ProtectedPanel implements vscode.Disposable {
   public static currentPanel: SimpleChatPanel | undefined;
   private static readonly viewType = 'simpleChat';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.SIMPLE_CHAT;
   
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -29,9 +35,10 @@ export class SimpleChatPanel implements vscode.Disposable {
   private _fileWatcher?: vscode.FileSystemWatcher; // ファイル監視用
   
   /**
-   * シンプルチャットパネルを作成または表示する
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -45,7 +52,7 @@ export class SimpleChatPanel implements vscode.Disposable {
         SimpleChatPanel.currentPanel._projectPath = projectPath;
         SimpleChatPanel.currentPanel._loadInitialData();
       }
-      return;
+      return SimpleChatPanel.currentPanel;
     }
     
     // 新しいパネルを作成
@@ -63,6 +70,19 @@ export class SimpleChatPanel implements vscode.Disposable {
     );
     
     SimpleChatPanel.currentPanel = new SimpleChatPanel(panel, extensionUri, aiService, projectPath);
+    return SimpleChatPanel.currentPanel;
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   */
+  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): SimpleChatPanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, aiService, projectPath);
+    
+    // 権限チェックが成功した場合はcurrentPanelが設定されている
+    return SimpleChatPanel.currentPanel;
   }
   
   /**
@@ -1926,9 +1946,7 @@ project/
         Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
         
         // ClaudeCodeIntegrationServiceのインスタンスを取得
-        const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
-          module => module.ClaudeCodeIntegrationService.getInstance()
-        );
+        const integrationService = ClaudeCodeIntegrationService.getInstance();
         
         // 公開URLからClaudeCodeを起動（要件分析内容を追加コンテンツとして渡す）
         const success = await integrationService.launchWithPublicUrl(

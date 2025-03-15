@@ -100,13 +100,17 @@ async function cleanupTestEnvironment() {
 }
 
 suite('認証フロー統合テスト', () => {
+  let clock: sinon.SinonFakeTimers;
   
   // 各テストの前後で実行
   setup(async () => {
     await setupTestEnvironment();
+    // 時間を固定して、タイムスタンプが一貫するようにする
+    clock = sinon.useFakeTimers(new Date('2025-03-15T12:00:00Z').getTime());
   });
   
   teardown(async () => {
+    clock.restore();
     await cleanupTestEnvironment();
   });
   
@@ -291,5 +295,265 @@ suite('認証フロー統合テスト', () => {
     
     // ClaudeCode認証クリアが呼ばれたことを検証
     assert.ok(clearSpy.called, 'ログアウト後にClaudeCode認証クリアが呼ばれるべき');
+  });
+  
+  test('セキュアな権限チェックフロー', async () => {
+    // ログイン成功時のAPIレスポンスをモック
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/login').resolves({
+      status: 200,
+      data: {
+        accessToken: 'test-access-token',
+        refreshToken: 'test-refresh-token',
+        user: { 
+          id: 'user1', 
+          name: 'Test User', 
+          email: 'test@example.com',
+          role: 'user',
+          permissions: ['read', 'write']
+        }
+      }
+    });
+    
+    // ユーザー情報取得APIをモック
+    mockAxios.get.withArgs('http://test-api.example.com/api/users/me').resolves({
+      status: 200,
+      data: {
+        user: { 
+          id: 'user1', 
+          name: 'Test User', 
+          email: 'test@example.com', 
+          role: 'user',
+          permissions: ['read', 'write'] 
+        }
+      }
+    });
+    
+    // ログイン実行
+    await authService.login('test@example.com', 'password123');
+    
+    // 権限チェック
+    const canRead = authService.hasPermissions(['read']);
+    const canWrite = authService.hasPermissions(['write']);
+    const canDelete = authService.hasPermissions(['delete']);
+    const canReadWrite = authService.hasPermissions(['read', 'write']);
+    const canReadWriteDelete = authService.hasPermissions(['read', 'write', 'delete']);
+    
+    // 検証
+    assert.strictEqual(canRead, true, '読み取り権限を持つべき');
+    assert.strictEqual(canWrite, true, '書き込み権限を持つべき');
+    assert.strictEqual(canDelete, false, '削除権限を持たないべき');
+    assert.strictEqual(canReadWrite, true, '読み取りと書き込み権限を持つべき');
+    assert.strictEqual(canReadWriteDelete, false, '削除権限がないため失敗すべき');
+    
+    // 管理者ログインのモック
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/login').resolves({
+      status: 200,
+      data: {
+        accessToken: 'admin-access-token',
+        refreshToken: 'admin-refresh-token',
+        user: { 
+          id: 'admin1', 
+          name: 'Admin User', 
+          email: 'admin@example.com',
+          role: 'admin',
+          permissions: []
+        }
+      }
+    });
+    
+    // 管理者情報取得APIをモック
+    mockAxios.get.withArgs('http://test-api.example.com/api/users/me').resolves({
+      status: 200,
+      data: {
+        user: { 
+          id: 'admin1', 
+          name: 'Admin User', 
+          email: 'admin@example.com', 
+          role: 'admin',
+          permissions: []
+        }
+      }
+    });
+    
+    // 一度ログアウト
+    await authService.logout();
+    
+    // 管理者としてログイン
+    await authService.login('admin@example.com', 'adminpass');
+    
+    // 権限チェック
+    const adminCanRead = authService.hasPermissions(['read']);
+    const adminCanWrite = authService.hasPermissions(['write']);
+    const adminCanDelete = authService.hasPermissions(['delete']);
+    const adminCanAll = authService.hasPermissions(['read', 'write', 'delete', 'admin']);
+    
+    // 検証
+    assert.strictEqual(adminCanRead, true, '管理者は読み取り権限を持つべき');
+    assert.strictEqual(adminCanWrite, true, '管理者は書き込み権限を持つべき');
+    assert.strictEqual(adminCanDelete, true, '管理者は削除権限を持つべき');
+    assert.strictEqual(adminCanAll, true, '管理者はすべての権限を持つべき');
+  });
+  
+  test('セキュアなアクセス制御 - 認証ヘッダー生成', async () => {
+    // ログイン状態にする
+    mockTokenManager.getAccessToken.resolves('secure-token-123');
+    (authService as any)._isAuthenticated = true;
+    
+    // 認証ヘッダーを取得
+    const authHeader = await authService.getAuthHeader();
+    
+    // 検証
+    assert.deepStrictEqual(
+      authHeader, 
+      { 'Authorization': 'Bearer secure-token-123' }, 
+      '正しい認証ヘッダーが生成されるべき'
+    );
+    
+    // トークンが変わった場合
+    mockTokenManager.getAccessToken.resolves('updated-token-456');
+    
+    // 認証ヘッダーを再取得
+    const updatedHeader = await authService.getAuthHeader();
+    
+    // 検証
+    assert.deepStrictEqual(
+      updatedHeader, 
+      { 'Authorization': 'Bearer updated-token-456' }, 
+      '最新のトークンで認証ヘッダーが生成されるべき'
+    );
+    
+    // トークンが存在しない場合
+    mockTokenManager.getAccessToken.resolves(undefined);
+    
+    // 認証ヘッダーを再取得
+    const emptyHeader = await authService.getAuthHeader();
+    
+    // 検証
+    assert.strictEqual(emptyHeader, null, 'トークンがない場合はnullを返すべき');
+  });
+  
+  test('多段リトライと冪等性の検証', async () => {
+    // 初回のみ成功するプロファイル更新をモック
+    mockAxios.put.withArgs('http://test-api.example.com/api/users/profile')
+      .onFirstCall().resolves({
+        status: 200,
+        data: {
+          user: {
+            id: 'user1',
+            name: 'Updated User',
+            email: 'updated@example.com'
+          }
+        }
+      })
+      .onSecondCall().resolves({
+        status: 200,
+        data: {
+          user: {
+            id: 'user1',
+            name: 'Updated User',
+            email: 'updated@example.com'
+          }
+        }
+      });
+    
+    // トークンを設定
+    mockTokenManager.getAccessToken.resolves('valid-token');
+    (authService as any)._isAuthenticated = true;
+    
+    // プロファイル更新データ
+    const profileData = {
+      name: 'Updated User',
+      email: 'updated@example.com'
+    };
+    
+    // 1回目の更新
+    const result1 = await authService.updateProfile(profileData);
+    
+    // 2回目の更新（同じデータ）
+    const result2 = await authService.updateProfile(profileData);
+    
+    // 検証
+    assert.strictEqual(result1, true, '1回目のプロファイル更新は成功すべき');
+    assert.strictEqual(result2, true, '2回目のプロファイル更新も成功すべき（冪等性）');
+    assert.strictEqual(mockAxios.put.callCount, 2, 'APIは2回呼び出されるべき');
+    
+    // ユーザー情報が正しく更新されていることを確認
+    assert.deepStrictEqual((authService as any)._currentUser, {
+      id: 'user1',
+      name: 'Updated User',
+      email: 'updated@example.com'
+    }, 'ユーザー情報が更新されるべき');
+  });
+  
+  test('認証エラーイベント連携とエラーリカバリー', async () => {
+    // エラーイベントのスパイ
+    const errorEventSpy = sinon.spy();
+    const errorHandlerSpy = sinon.spy();
+    
+    // エラーイベントリスナーを登録
+    authEventBus.on(AuthEventType.AUTH_ERROR, errorEventSpy);
+    
+    // VSCodeのエラーメッセージ表示をモック
+    mockVscode.window.showErrorMessage = errorHandlerSpy;
+    
+    // 認証エラーのシナリオをセットアップ
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/login')
+      .rejects({
+        response: {
+          status: 401,
+          data: {
+            error: 'invalid_credentials',
+            message: '認証情報が無効です'
+          }
+        }
+      });
+    
+    // ログイン試行
+    const result = await authService.login('test@example.com', 'wrong-password');
+    
+    // 検証
+    assert.strictEqual(result, false, 'ログインは失敗を返すべき');
+    assert.ok(errorEventSpy.called, 'エラーイベントが発行されるべき');
+    assert.ok((authService.getLastError() as any).code === 'invalid_credentials', 'エラーコードが設定されるべき');
+    
+    // レート制限エラーのシナリオ
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/login')
+      .onSecondCall().rejects({
+        response: {
+          status: 429,
+          data: {
+            error: 'rate_limited',
+            message: 'リクエスト回数が多すぎます。しばらく待ってから再試行してください'
+          }
+        }
+      });
+    
+    // 再度ログイン試行
+    const result2 = await authService.login('test@example.com', 'password123');
+    
+    // 検証
+    assert.strictEqual(result2, false, 'ログインは失敗を返すべき');
+    const lastError = authService.getLastError();
+    assert.ok(lastError, 'エラー情報が設定されるべき');
+    assert.strictEqual((lastError as any).code, 'rate_limited', 'レート制限エラーコードが設定されるべき');
+    assert.strictEqual((lastError as any).isRetryable, true, 'リトライ可能フラグがtrueに設定されるべき');
+    
+    // 成功ケースのセットアップ
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/login')
+      .onThirdCall().resolves({
+        status: 200,
+        data: {
+          accessToken: 'recovery-token',
+          refreshToken: 'recovery-refresh-token',
+          user: { id: 'user1', name: 'Recovery User' }
+        }
+      });
+    
+    // 3回目の試行（成功するはず）
+    const result3 = await authService.login('test@example.com', 'correct-password');
+    
+    // 検証
+    assert.strictEqual(result3, true, '3回目のログインは成功を返すべき');
+    assert.strictEqual(authService.isAuthenticated(), true, '認証状態がtrueになるべき');
   });
 });

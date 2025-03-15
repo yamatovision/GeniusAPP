@@ -412,9 +412,43 @@ export class ClaudeCodeIntegrationService {
 
   /**
    * ClaudeCodeが利用可能か確認
+   * ユーザーの認証状態・ロール・APIアクセス権限を考慮して判定します
    */
   public async isClaudeCodeAvailable(): Promise<boolean> {
-    return await this._authSync.isClaudeCodeAvailable();
+    try {
+      // 認証状態をチェック
+      if (!this._authService.isAuthenticated()) {
+        Logger.warn('未認証ユーザーはClaudeCodeを利用できません');
+        return false;
+      }
+      
+      // ユーザー情報を取得
+      const user = this._authService.getCurrentUser();
+      
+      // ユーザー情報がない場合はアクセス不可
+      if (!user) {
+        Logger.warn('ユーザー情報が取得できないためClaudeCodeを利用できません');
+        return false;
+      }
+      
+      // ロールチェック - unsubscribeユーザーはアクセス不可
+      if (user.role === 'unsubscribe') {
+        Logger.warn('退会済みユーザーはClaudeCodeを利用できません');
+        return false;
+      }
+      
+      // APIアクセスチェック - 無効化されている場合はアクセス不可
+      if (user.apiAccess && user.apiAccess.enabled === false) {
+        Logger.warn('APIアクセスが無効化されているユーザーはClaudeCodeを利用できません');
+        return false;
+      }
+      
+      // ClaudeCodeが実際にインストールされているかチェック
+      return await this._authSync.isClaudeCodeAvailable();
+    } catch (error) {
+      Logger.error('ClaudeCode利用可否チェック中にエラーが発生しました', error as Error);
+      return false;
+    }
   }
   
   /**
@@ -423,7 +457,7 @@ export class ClaudeCodeIntegrationService {
    * @param projectPath プロジェクトパス
    * @returns 起動成功したかどうか
    */
-  public async launchWithPublicUrl(promptUrl: string, projectPath: string): Promise<boolean> {
+  public async launchWithPublicUrl(promptUrl: string, projectPath: string, additionalContent?: string): Promise<boolean> {
     try {
       // URLからプロンプト情報を取得
       const prompt = await this._apiClient.getPromptFromPublicUrl(promptUrl);
@@ -435,15 +469,25 @@ export class ClaudeCodeIntegrationService {
       const tempDir = os.tmpdir();
       const promptFileName = `prompt_${Date.now()}.md`;
       const promptFilePath = path.join(tempDir, promptFileName);
+      
+      // ユーザーにパスをログで表示（デバッグ用）
+      Logger.info(`一時プロンプトファイルを作成します: ${promptFilePath}`);
 
       // マークダウン形式でプロンプト内容を生成
       let content = `# ${prompt.title}\n\n`;
       if (prompt.description) content += `${prompt.description}\n\n`;
       if (prompt.tags && prompt.tags.length > 0) content += `タグ: ${prompt.tags.join(', ')}\n`;
       content += `\n---\n\n${prompt.content}`;
+      
+      // 追加コンテンツがあれば追加（デバッグ探偵からのエラー情報など）
+      if (additionalContent) {
+        content += `\n\n${additionalContent}`;
+        Logger.info('追加コンテンツをプロンプトに追加しました');
+      }
 
       // ファイルに書き込み
       fs.writeFileSync(promptFilePath, content, 'utf8');
+      Logger.info('プロンプトファイルに内容を書き込みました');
 
       // 使用履歴を記録（可能であれば）
       if (prompt.id) {
@@ -457,11 +501,14 @@ export class ClaudeCodeIntegrationService {
         });
       }
 
-      // ClaudeCodeを起動
+      // ClaudeCodeを起動（プロンプトファイル即時削除オプション付き）
       return await this._launcher.launchClaudeCodeWithPrompt(
         projectPath,
         promptFilePath,
-        { title: `ClaudeCode - ${prompt.title}` }
+        { 
+          title: `ClaudeCode - ${prompt.title}`,
+          deletePromptFile: true // セキュリティ対策としてプロンプトファイルを即時削除
+        }
       );
     } catch (error) {
       Logger.error('公開URLでのClaudeCode起動に失敗しました', error as Error);

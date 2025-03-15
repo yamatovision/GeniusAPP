@@ -29,6 +29,8 @@ ${PROJECT_NAME}は非技術者がClaudeCodeを活用して開発できるアプ�
 - 生成コンテンツの自動保存と管理
 - CLAUDE.mdを中心とした設計情報管理
 - VSCodeで設計・ClaudeCodeで実装の連携
+- 中央ポータル管理によるプロンプト共有と版管理
+- セキュリティ対策済みのプロンプト連携方式
 
 ## 技術スタック
 
@@ -67,11 +69,13 @@ ${PROJECT_NAME}は非技術者がClaudeCodeを活用して開発できるアプ�
 - **requirements_advisor.md**
   - 全体の要件定義をより明確にするアシスタント
   - 初期データモデル要件を特定
+  - 中央ポータルURL: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39
 
 - **mockup_analyzer.md**
   - 個別のモックアップをブラッシュアップする
   - ページごとの詳細な要件定義を書く
   - UIから必要なデータモデル属性を特定して提案
+  - 中央ポータルURL: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb
 
 - **scope_manager.md**
   - CURRENT_STATUS.mdを更新してフェーズごとにスコープ管理できるようにする
@@ -81,19 +85,24 @@ ${PROJECT_NAME}は非技術者がClaudeCodeを活用して開発できるアプ�
   - data_models.mdを管理し、単一の真実源として維持する
   - データモデルの変更を承認・実施する責任者
   - スコープごとに使用するデータモデルを明示
+  - 中央ポータルURL: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704
 
 - **scope_implementer.md**
   - CURRENT_STATUS.mdをベースにスコープごとの実装を担当
   - data_models.mdからモデル定義を利用（変更は不可）
   - モデル変更が必要な場合は変更提案のみ行う
+  - 中央ポータルURL: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a
 
-- **debug_detective.md**
-  - デバックを担当
-  - データモデル関連の問題を診断
+- **debug_detective.md** 
+  - デバッグエラーを検出・分析
+  - エラー問題を診断し、解決策を提案
+  - 安全なプロンプト連携を使用（情報漏洩防止）
+  - 中央ポータルURL: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09
 
 - **environment_manager.md**
   - 環境変数を担当
   - データベース接続情報を管理
+  - 中央ポータルURL: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589
 
 ## ドキュメントリンク
 

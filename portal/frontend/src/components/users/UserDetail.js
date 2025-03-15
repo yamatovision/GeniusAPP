@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, Form, Button, Alert, Spinner, Tab, Tabs, Badge, Row, Col } from 'react-bootstrap';
-import { FaUser, FaEnvelope, FaKey, FaShieldAlt, FaHistory, FaCheck, FaTimes, FaSave, FaArrowLeft } from 'react-icons/fa';
+import { FaUser, FaEnvelope, FaKey, FaShieldAlt, FaHistory, FaCheck, FaTimes, FaSave, FaArrowLeft, FaBan } from 'react-icons/fa';
 import userService from '../../services/user.service';
 import './UserDetail.css';
 
@@ -21,7 +21,10 @@ const UserDetail = () => {
     email: '',
     password: '',
     role: 'user',
-    isActive: true
+    apiAccess: {
+      enabled: true,
+      accessLevel: 'basic'
+    }
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(!isNewUser);
@@ -31,6 +34,8 @@ const UserDetail = () => {
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [activeTab, setActiveTab] = useState('general');
   const [validationErrors, setValidationErrors] = useState({});
+  const [tokenUsage, setTokenUsage] = useState(null);
+  const [loadingUsage, setLoadingUsage] = useState(false);
   
   // 初期データの読み込み
   useEffect(() => {
@@ -57,11 +62,31 @@ const UserDetail = () => {
       const userData = await userService.getUserById(id);
       setUser(userData);
       setError(null);
+      
+      // 管理者の場合はトークン使用量も取得
+      if (currentUserRole === 'admin' && !isNewUser) {
+        await fetchTokenUsage();
+      }
     } catch (err) {
       setError('ユーザー情報の取得に失敗しました: ' + (err.message || '不明なエラー'));
       console.error('ユーザー詳細取得エラー:', err);
     } finally {
       setLoading(false);
+    }
+  };
+  
+  // トークン使用量データの取得
+  const fetchTokenUsage = async () => {
+    if (isNewUser) return;
+    
+    setLoadingUsage(true);
+    try {
+      const data = await userService.getUserTokenUsage(id, 'month');
+      setTokenUsage(data);
+    } catch (err) {
+      console.error('トークン使用量取得エラー:', err);
+    } finally {
+      setLoadingUsage(false);
     }
   };
   
@@ -167,18 +192,32 @@ const UserDetail = () => {
   // 管理者かどうかを判定
   const isAdmin = currentUserRole === 'admin';
   
-  // アクティブ状態のバッジを表示
-  const renderStatusBadge = (isActive) => {
-    return isActive 
-      ? <Badge bg="success"><FaCheck /> 有効</Badge>
-      : <Badge bg="secondary"><FaTimes /> 無効</Badge>;
+  // ユーザーの状態表示（ロールベース）
+  const renderStatusBadge = () => {
+    switch (user.role) {
+      case 'inactive':
+      case 'unsubscribed':
+        return <Badge bg="secondary"><FaTimes /> 無効</Badge>;
+      case 'unpaid':
+        return <Badge bg="warning"><FaCheck /> 有効（未払い）</Badge>;
+      default:
+        return <Badge bg="success"><FaCheck /> 有効</Badge>;
+    }
   };
   
   // 役割のバッジを表示
   const renderRoleBadge = (role) => {
-    return role === 'admin'
-      ? <Badge bg="danger"><FaShieldAlt /> 管理者</Badge>
-      : <Badge bg="primary"><FaUser /> 一般ユーザー</Badge>;
+    switch (role) {
+      case 'admin':
+        return <Badge bg="danger"><FaShieldAlt /> 管理者</Badge>;
+      case 'unpaid':
+        return <Badge bg="warning"><FaBan /> 未払いユーザー</Badge>;
+      case 'inactive':
+      case 'unsubscribed':
+        return <Badge bg="secondary"><FaBan /> 退会済みユーザー</Badge>;
+      default:
+        return <Badge bg="primary"><FaUser /> 一般ユーザー</Badge>;
+    }
   };
   
   if (loading) {
@@ -322,23 +361,63 @@ const UserDetail = () => {
                           >
                             <option value="user">一般ユーザー</option>
                             <option value="admin">管理者</option>
+                            <option value="unpaid">未払いユーザー</option>
+                            <option value="unsubscribed">退会済みユーザー</option>
                           </Form.Select>
+                          <Form.Text className="text-muted">
+                            「未払いユーザー」はUIアクセスのみ可能、「退会済みユーザー」は全機能利用停止
+                          </Form.Text>
                         </Form.Group>
                       </Col>
                       
                       <Col md={6}>
                         <Form.Group className="mb-3">
-                          <Form.Label>ステータス</Form.Label>
+                          <Form.Label>アカウント状態</Form.Label>
+                          <div className="mt-2">
+                            {renderStatusBadge()}
+                            <div className="small text-muted mt-1">
+                              アカウント状態は役割設定で自動的に変更されます
+                            </div>
+                          </div>
+                        </Form.Group>
+                      </Col>
+                    </Row>
+                    
+                    <hr />
+                    <h5>API設定</h5>
+                    <Row>
+                      <Col md={6}>
+                        <Form.Group className="mb-3">
+                          <Form.Label>ClaudeCode API アクセス</Form.Label>
                           <div>
                             <Form.Check
                               type="switch"
-                              id="user-active-switch"
-                              label={user.isActive ? '有効' : '無効'}
-                              name="isActive"
-                              checked={user.isActive}
+                              id="user-api-access-switch"
+                              label={user.apiAccess?.enabled ? 'API利用可能' : 'API利用不可'}
+                              name="apiAccess.enabled"
+                              checked={user.apiAccess?.enabled || false}
                               onChange={handleChange}
                             />
                           </div>
+                          <Form.Text className="text-muted">
+                            OFFにするとClaudeCode APIを利用できなくなります
+                          </Form.Text>
+                        </Form.Group>
+                      </Col>
+                      
+                      <Col md={6}>
+                        <Form.Group className="mb-3">
+                          <Form.Label>APIアクセスレベル</Form.Label>
+                          <Form.Select
+                            name="apiAccess.accessLevel"
+                            value={user.apiAccess?.accessLevel || 'basic'}
+                            onChange={handleChange}
+                            disabled={!user.apiAccess?.enabled}
+                          >
+                            <option value="basic">基本（basic）</option>
+                            <option value="advanced">高度（advanced）</option>
+                            <option value="full">フル（full）</option>
+                          </Form.Select>
                         </Form.Group>
                       </Col>
                     </Row>
@@ -383,9 +462,9 @@ const UserDetail = () => {
               </Form>
             </Tab>
             
-            {!isNewUser && (
-              <Tab eventKey="info" title="詳細情報">
-                <div className="user-info-panel">
+            <Tab eventKey="info" title="詳細情報" disabled={isNewUser}>
+              <div className="user-info-panel">
+                {!isNewUser && (
                   <Row>
                     <Col md={6}>
                       <div className="info-group">
@@ -404,7 +483,20 @@ const UserDetail = () => {
                           <dd className="col-sm-8">{renderRoleBadge(user.role)}</dd>
                           
                           <dt className="col-sm-4">ステータス：</dt>
-                          <dd className="col-sm-8">{renderStatusBadge(user.isActive)}</dd>
+                          <dd className="col-sm-8">{renderStatusBadge()}</dd>
+                          
+                          <dt className="col-sm-4">API利用状態：</dt>
+                          <dd className="col-sm-8">
+                            {user.role === 'inactive' || user.role === 'unsubscribed' ? (
+                              <span className="badge bg-secondary">利用停止中（ロールによる制限）</span>
+                            ) : user.role === 'unpaid' ? (
+                              <span className="badge bg-warning">利用不可（未払い）</span>
+                            ) : user.apiAccess?.enabled ? (
+                              <span className="badge bg-success">利用可能 ({user.apiAccess.accessLevel})</span>
+                            ) : (
+                              <span className="badge bg-danger">利用不可</span>
+                            )}
+                          </dd>
                         </dl>
                       </div>
                     </Col>
@@ -437,9 +529,145 @@ const UserDetail = () => {
                       </div>
                     </Col>
                   </Row>
-                </div>
-              </Tab>
-            )}
+                )}
+              </div>
+            </Tab>
+            
+            <Tab eventKey="usage" title="使用量情報" disabled={isNewUser}>
+              <div className="token-usage-panel p-3">
+                {!isNewUser && (
+                  loadingUsage ? (
+                    <div className="text-center my-5">
+                      <Spinner animation="border" role="status">
+                        <span className="visually-hidden">読み込み中...</span>
+                      </Spinner>
+                    </div>
+                  ) : tokenUsage ? (
+                    <>
+                      <h5 className="mb-4">トークン使用量サマリー（過去30日間）</h5>
+                      
+                      <Row>
+                        <Col md={4}>
+                          <Card className="mb-3">
+                            <Card.Body>
+                              <Card.Title>合計トークン</Card.Title>
+                              <h3 className="text-primary">
+                                {tokenUsage.overall?.totalTokens?.toLocaleString() || 0}
+                              </h3>
+                              <Card.Text className="text-muted">
+                                入力: {tokenUsage.overall?.inputTokens?.toLocaleString() || 0}<br />
+                                出力: {tokenUsage.overall?.outputTokens?.toLocaleString() || 0}
+                              </Card.Text>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                        
+                        <Col md={4}>
+                          <Card className="mb-3">
+                            <Card.Body>
+                              <Card.Title>API使用量</Card.Title>
+                              <h3 className="text-info">
+                                {tokenUsage.bySource?.apiUsage?.totalTokens?.toLocaleString() || 0}
+                              </h3>
+                              <Card.Text className="text-muted">
+                                入力: {tokenUsage.bySource?.apiUsage?.inputTokens?.toLocaleString() || 0}<br />
+                                出力: {tokenUsage.bySource?.apiUsage?.outputTokens?.toLocaleString() || 0}
+                              </Card.Text>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                        
+                        <Col md={4}>
+                          <Card className="mb-3">
+                            <Card.Body>
+                              <Card.Title>プロンプト使用量</Card.Title>
+                              <h3 className="text-success">
+                                {tokenUsage.bySource?.promptUsage?.totalTokens?.toLocaleString() || 0}
+                              </h3>
+                              <Card.Text className="text-muted">
+                                入力: {tokenUsage.bySource?.promptUsage?.inputTokens?.toLocaleString() || 0}<br />
+                                出力: {tokenUsage.bySource?.promptUsage?.outputTokens?.toLocaleString() || 0}
+                              </Card.Text>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                      </Row>
+                      
+                      <h5 className="mb-3 mt-4">使用制限</h5>
+                      <Row>
+                        <Col md={6}>
+                          <Card>
+                            <Card.Body>
+                              <Card.Title>月間使用量上限</Card.Title>
+                              <div className="d-flex justify-content-between align-items-center mb-2">
+                                <span>使用中: {tokenUsage.overall?.totalTokens?.toLocaleString() || 0}</span>
+                                <span>上限: {tokenUsage.limits?.monthly?.toLocaleString() || '無制限'}</span>
+                              </div>
+                              
+                              {tokenUsage.limits?.monthly && (
+                                <div className="progress">
+                                  <div 
+                                    className={`progress-bar ${
+                                      (tokenUsage.overall?.totalTokens / tokenUsage.limits.monthly) > 0.9 ? 'bg-danger' : 
+                                      (tokenUsage.overall?.totalTokens / tokenUsage.limits.monthly) > 0.7 ? 'bg-warning' : 'bg-success'
+                                    }`}
+                                    role="progressbar" 
+                                    style={{ width: `${Math.min(100, (tokenUsage.overall?.totalTokens / tokenUsage.limits.monthly) * 100)}%` }}
+                                  >
+                                    {Math.round((tokenUsage.overall?.totalTokens / tokenUsage.limits.monthly) * 100)}%
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <Card.Text className="text-muted mt-2">
+                                次回リセット: {tokenUsage.limits?.nextReset ? new Date(tokenUsage.limits.nextReset).toLocaleDateString() : '情報なし'}
+                              </Card.Text>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                        
+                        <Col md={6}>
+                          <Card>
+                            <Card.Body>
+                              <Card.Title>利用状況サマリー</Card.Title>
+                              <dl className="row mb-0">
+                                <dt className="col-sm-6">リクエスト数:</dt>
+                                <dd className="col-sm-6">{tokenUsage.overall?.requests || 0}回</dd>
+                                
+                                <dt className="col-sm-6">平均応答時間:</dt>
+                                <dd className="col-sm-6">
+                                  {Math.round(tokenUsage.bySource?.promptUsage?.avgResponseTime || 0)}ms
+                                </dd>
+                                
+                                <dt className="col-sm-6">成功率:</dt>
+                                <dd className="col-sm-6">
+                                  {Math.round(tokenUsage.bySource?.promptUsage?.successRate || 0)}%
+                                </dd>
+                              </dl>
+                            </Card.Body>
+                          </Card>
+                        </Col>
+                      </Row>
+                      
+                      <div className="d-flex justify-content-end mt-3">
+                        <Button 
+                          variant="outline-primary" 
+                          size="sm"
+                          onClick={fetchTokenUsage}
+                          disabled={loadingUsage}
+                        >
+                          {loadingUsage ? '更新中...' : '使用量を更新'}
+                        </Button>
+                      </div>
+                    </>
+                  ) : (
+                    <Alert variant="info">
+                      トークン使用量データがありません
+                    </Alert>
+                  )
+                )}
+              </div>
+            </Tab>
           </Tabs>
         </Card.Body>
       </Card>

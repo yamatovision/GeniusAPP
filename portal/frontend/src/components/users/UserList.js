@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Table, Button, Form, InputGroup, Dropdown, DropdownButton, Pagination, Card, Alert, Modal, Spinner } from 'react-bootstrap';
-import { FaSearch, FaEdit, FaTrash, FaPlus, FaUserCog, FaUserShield, FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
+import { FaSearch, FaEdit, FaTrash, FaPlus, FaUserCog, FaUserShield, FaSort, FaSortUp, FaSortDown, FaBan, FaToggleOn, FaToggleOff } from 'react-icons/fa';
 import userService from '../../services/user.service';
 import './UserList.css';
 
@@ -25,6 +25,7 @@ const UserList = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userStats, setUserStats] = useState(null);
+  const [apiToggleLoading, setApiToggleLoading] = useState({});
   
   const navigate = useNavigate();
   
@@ -109,6 +110,32 @@ const UserList = () => {
     }
   };
   
+  // APIアクセス切り替え処理
+  const handleToggleApiAccess = async (userId, currentState) => {
+    setApiToggleLoading(prev => ({...prev, [userId]: true}));
+    try {
+      await userService.toggleApiAccess(userId, !currentState);
+      // ユーザーリストを更新して変更を反映
+      setUsers(users.map(user => {
+        if (user._id === userId) {
+          return {
+            ...user,
+            apiAccess: {
+              ...user.apiAccess,
+              enabled: !currentState
+            }
+          };
+        }
+        return user;
+      }));
+    } catch (err) {
+      setError('APIアクセス設定の変更に失敗しました: ' + (err.message || '不明なエラー'));
+      console.error('APIアクセス設定エラー:', err);
+    } finally {
+      setApiToggleLoading(prev => ({...prev, [userId]: false}));
+    }
+  };
+  
   // ページネーションアイテムを生成
   const renderPaginationItems = () => {
     const items = [];
@@ -178,10 +205,14 @@ const UserList = () => {
   
   // ユーザー役割のラベルを表示
   const renderRoleLabel = (role) => {
-    if (role === 'admin') {
-      return <span className="badge bg-danger"><FaUserShield /> 管理者</span>;
+    switch(role) {
+      case 'admin':
+        return <span className="badge bg-danger"><FaUserShield /> 管理者</span>;
+      case 'unsubscribe':
+        return <span className="badge bg-secondary"><FaBan /> 利用停止ユーザー</span>;
+      default:
+        return <span className="badge bg-primary"><FaUserCog /> 一般ユーザー</span>;
     }
-    return <span className="badge bg-primary"><FaUserCog /> 一般ユーザー</span>;
   };
   
   // 統計カードを表示
@@ -219,6 +250,10 @@ const UserList = () => {
                 <div className="d-flex justify-content-between mb-2">
                   <span>一般ユーザー</span>
                   <span className="badge bg-primary">{userStats.userCount}</span>
+                </div>
+                <div className="d-flex justify-content-between mb-2">
+                  <span>利用停止ユーザー</span>
+                  <span className="badge bg-secondary">{userStats.unsubscribeCount || 0}</span>
                 </div>
                 <div className="d-flex justify-content-between">
                   <span>アクティブユーザー</span>
@@ -290,6 +325,7 @@ const UserList = () => {
                 <option value="">すべての役割</option>
                 <option value="admin">管理者</option>
                 <option value="user">一般ユーザー</option>
+                <option value="unsubscribe">利用停止ユーザー</option>
               </Form.Select>
             </div>
             
@@ -341,6 +377,9 @@ const UserList = () => {
               <th onClick={() => handleSort('isActive')} className="sortable">
                 ステータス {renderSortIcon('isActive')}
               </th>
+              <th onClick={() => handleSort('apiAccess.enabled')} className="sortable">
+                API利用 {renderSortIcon('apiAccess.enabled')}
+              </th>
               <th className="text-center">操作</th>
             </tr>
           </thead>
@@ -375,6 +414,31 @@ const UserList = () => {
                     {user.isActive 
                       ? <span className="badge bg-success">有効</span>
                       : <span className="badge bg-secondary">無効</span>}
+                  </td>
+                  <td>
+                    {user.role === 'unsubscribe' ? (
+                      <span className="badge bg-secondary">利用不可</span>
+                    ) : (
+                      <div className="d-flex align-items-center">
+                        <span className={`badge ${user.apiAccess?.enabled ? 'bg-success' : 'bg-danger'} me-2`}>
+                          {user.apiAccess?.enabled ? '利用可' : '無効'}
+                        </span>
+                        <Button
+                          variant={user.apiAccess?.enabled ? 'outline-danger' : 'outline-success'}
+                          size="sm"
+                          disabled={apiToggleLoading[user._id]}
+                          onClick={() => handleToggleApiAccess(user._id, user.apiAccess?.enabled)}
+                        >
+                          {apiToggleLoading[user._id] ? (
+                            <Spinner animation="border" size="sm" />
+                          ) : user.apiAccess?.enabled ? (
+                            <FaToggleOff title="APIアクセスを無効化" />
+                          ) : (
+                            <FaToggleOn title="APIアクセスを有効化" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </td>
                   <td className="text-center">
                     <div className="btn-group">

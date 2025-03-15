@@ -1,0 +1,128 @@
+/**
+ * AppGenius デザインシステム
+ * 
+ * このCSSファイルはAppGeniusアプリケーション全体で使用される
+ * 共通デザイン変数を定義します。
+ * 
+ * - 色彩スキーム
+ * - スペーシング
+ * - タイポグラフィ
+ * - レイアウト変数
+ * - アニメーションと効果
+ */
+
+:root {
+  /* ===== ブランドカラー ===== */
+  /* プライマリカラー: AppGeniusのメインカラー */
+  --app-primary: #4a69bd;           /* ダッシュボードメインカラーをベースに統一 */
+  --app-primary-light: rgba(74, 105, 189, 0.1);
+  --app-primary-dark: #3a59ad;
+
+  /* セカンダリカラー */
+  --app-secondary: #00b894;         /* アクセントグリーン: 成功・完了状態 */
+  --app-secondary-light: rgba(0, 184, 148, 0.1);
+  --app-secondary-dark: #00a382;
+
+  /* アクセントカラー */
+  --app-accent: #fdcb6e;            /* 注目・ハイライト用 */
+  --app-accent-light: rgba(253, 203, 110, 0.1);
+  --app-accent-dark: #f0b445;
+
+  /* ===== ステータスカラー ===== */
+  --app-success: #2ecc71;           /* 成功状態 */
+  --app-warning: #f39c12;           /* 警告状態 */
+  --app-danger: #e74c3c;            /* エラー状態 */
+  --app-info: #3498db;              /* 情報表示 */
+
+  /* ===== グレースケール ===== */
+  --app-gray-100: #f7f7f7;          /* 最も明るい背景色 */
+  --app-gray-200: #e9e9e9;
+  --app-gray-300: #d5d5d5;
+  --app-gray-400: #c4c4c4;
+  --app-gray-500: #a0a0a0;          /* 中間グレー・無効状態 */
+  --app-gray-600: #717171;
+  --app-gray-700: #4a4a4a;          /* テキスト用 */
+  --app-gray-800: #2d2d2d;
+  --app-gray-900: #1a1a1a;          /* 最も暗いテキスト色 */
+
+  /* ===== レイアウト変数 ===== */
+  /* スペーシング: 一貫したスペーシング */ 
+  --app-spacing-xs: 4px;
+  --app-spacing-sm: 8px;
+  --app-spacing-md: 16px;
+  --app-spacing-lg: 24px;
+  --app-spacing-xl: 32px;
+  
+  /* ヘッダーとナビゲーション変数 */
+  --app-header-height: 60px;
+  --app-sidebar-width: 280px;
+  --app-sidebar-collapsed-width: 70px;
+
+  /* コンポーネント形状変数 */
+  --app-border-radius: 6px;         /* 全てのUIに統一された丸み */
+  --app-border-radius-lg: 8px;      /* より大きなコンポーネント用 */
+  --app-border-radius-sm: 4px;      /* 小さなコンポーネント用 */
+  --app-box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --app-box-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --app-transition: 0.2s ease;
+
+  /* ===== タイポグラフィ ===== */
+  /* フォント: 一貫したタイポグラフィ */
+  --app-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  --app-font-family-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  --app-font-size-xs: 0.75rem;      /* 12px */
+  --app-font-size-sm: 0.875rem;     /* 14px */
+  --app-font-size-md: 1rem;         /* 16px - 基本サイズ */
+  --app-font-size-lg: 1.25rem;      /* 20px */
+  --app-font-size-xl: 1.5rem;       /* 24px */
+  --app-font-size-xxl: 2rem;        /* 32px */
+  --app-line-height: 1.5;
+  --app-font-weight-normal: 400;
+  --app-font-weight-medium: 500;
+  --app-font-weight-bold: 600;
+  
+  /* ===== VSCode連携変数 ===== */
+  /* VSCode互換変数 - VSCode UI連携用 */
+  --app-vscode-bg: var(--vscode-editor-background, #1e1e1e);
+  --app-vscode-fg: var(--vscode-editor-foreground, #d4d4d4);
+  --app-vscode-button-bg: var(--vscode-button-background, #0e639c);
+  --app-vscode-button-fg: var(--vscode-button-foreground, #ffffff);
+  --app-vscode-border: var(--vscode-panel-border, #808080);
+  --app-vscode-focus-border: var(--vscode-focusBorder, #007fd4);
+}
+
+/* ダークモード対応 */
+.vscode-dark {
+  /* ダークモード時のカラー調整 */
+  --app-gray-100: #252525;
+  --app-gray-200: #2d2d2d;
+  --app-gray-300: #353535;
+  --app-gray-400: #454545;
+  --app-gray-500: #5a5a5a;
+  --app-gray-600: #858585;
+  --app-gray-700: #adadad;
+  --app-gray-800: #d2d2d2;
+  --app-gray-900: #f0f0f0;
+  
+  /* ダークモード用の特別変数 */
+  --app-dark-card-bg: #333333;
+  --app-dark-surface: #252525;
+  --app-dark-bg: #1e1e1e;
+}
+
+/* 高コントラストモード対応 */
+@media (forced-colors: active) {
+  :root {
+    --app-box-shadow: none; /* 高コントラストモードでは影は見えないため無効化 */
+  }
+}
+
+/* ブレークポイント変数 */
+:root {
+  --breakpoint-xs: 480px;   /* モバイル縦向き */
+  --breakpoint-sm: 640px;   /* モバイル横向き */
+  --breakpoint-md: 768px;   /* タブレット縦向き */
+  --breakpoint-lg: 1024px;  /* タブレット横向き/小型デスクトップ */
+  --breakpoint-xl: 1280px;  /* 標準デスクトップ */
+  --breakpoint-xxl: 1536px; /* 大型デスクトップ */
+}

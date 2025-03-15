@@ -36,12 +36,17 @@ const UserSchema = new mongoose.Schema({
     minlength: [8, 'パスワードは8文字以上である必要があります']
   },
   
-  // ユーザー権限（'user'または'admin'）
+  // ユーザー権限（'user'、'admin'、'unpaid'、'unsubscribed'）
   role: {
     type: String,
     enum: {
-      values: [authConfig.roles.USER, authConfig.roles.ADMIN],
-      message: '権限は"user"または"admin"である必要があります'
+      values: [
+        authConfig.roles.USER, 
+        authConfig.roles.ADMIN, 
+        authConfig.roles.UNPAID, 
+        authConfig.roles.INACTIVE
+      ],
+      message: '権限は"user"、"admin"、"unpaid"または"unsubscribed"である必要があります'
     },
     default: authConfig.roles.USER
   },
@@ -52,10 +57,10 @@ const UserSchema = new mongoose.Schema({
     default: null
   },
   
-  // アカウント有効フラグ
-  isActive: {
-    type: Boolean,
-    default: true
+  // 最終ステータス変更日時
+  statusChangedAt: {
+    type: Date,
+    default: null
   },
   
   // 最終ログイン日時
@@ -90,6 +95,40 @@ const UserSchema = new mongoose.Schema({
         date.setMonth(date.getMonth() + 1);
         return date;
       }
+    }
+  },
+  
+  // API使用制限情報
+  usageLimits: {
+    // 日次トークン制限（nullの場合は制限なし）
+    tokensPerDay: {
+      type: Number,
+      default: null
+    },
+    // 月次トークン制限（nullの場合はplanの制限を使用）
+    tokensPerMonth: {
+      type: Number,
+      default: null
+    }
+  },
+  
+  // APIアクセス制御情報
+  apiAccess: {
+    // API使用許可フラグ
+    enabled: {
+      type: Boolean,
+      default: true
+    },
+    // アクセスレベル（'basic', 'advanced', 'full'）
+    accessLevel: {
+      type: String,
+      enum: ['basic', 'advanced', 'full'],
+      default: 'basic'
+    },
+    // 最終APIアクセス日時
+    lastAccessAt: {
+      type: Date,
+      default: null
     }
   }
 }, {

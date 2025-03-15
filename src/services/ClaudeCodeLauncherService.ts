@@ -278,7 +278,7 @@ export class ClaudeCodeLauncherService {
   public async launchClaudeCodeWithPrompt(
     projectPath: string,
     promptFilePath: string,
-    options?: { title?: string, additionalParams?: string }
+    options?: { title?: string, additionalParams?: string, deletePromptFile?: boolean }
   ): Promise<boolean> {
     try {
       // プロジェクトパスの確認
@@ -328,6 +328,40 @@ export class ClaudeCodeLauncherService {
       // プロンプトファイルを指定してClaude CLIを起動
       terminal.sendText(`echo "\n" && claude ${escapedPromptFilePath}${additionalParams}`);
       Logger.info(`ClaudeCode起動コマンド: claude ${escapedPromptFilePath}${additionalParams}`);
+      
+      // プロンプトファイルを即時削除（セキュリティ対策）
+      if (options?.deletePromptFile) {
+        try {
+          // Windowsでは使用中のファイルは削除できないため、Linuxとmacのみ遅延削除
+          if (process.platform !== 'win32') {
+            setTimeout(() => {
+              if (fs.existsSync(promptFilePath)) {
+                fs.unlinkSync(promptFilePath);
+                Logger.info(`プロンプトファイルを削除しました: ${promptFilePath}`);
+              }
+            }, 25000); // ファイルが読み込まれる時間を考慮して25秒後に削除
+          }
+          
+          // ターミナル終了時のイベントリスナーを設定（全プラットフォーム対応）
+          const disposable = vscode.window.onDidCloseTerminal(closedTerminal => {
+            if (closedTerminal === terminal) {
+              setTimeout(() => {
+                try {
+                  if (fs.existsSync(promptFilePath)) {
+                    fs.unlinkSync(promptFilePath);
+                    Logger.info(`プロンプトファイルを削除しました（ターミナル終了時）: ${promptFilePath}`);
+                  }
+                } catch (unlinkError) {
+                  Logger.error(`ファイル削除エラー（ターミナル終了時）: ${unlinkError}`);
+                }
+              }, 500);
+              disposable.dispose(); // リスナーの破棄
+            }
+          });
+        } catch (deleteError) {
+          Logger.warn(`プロンプトファイルの即時削除に失敗しました: ${deleteError}`);
+        }
+      }
       
       // 状態更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;

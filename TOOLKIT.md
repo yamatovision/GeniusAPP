@@ -232,34 +232,56 @@ AppGeniusプラットフォームは4つの主要AIアシスタントと連携�
 
 ## ファイル連携メカニズム
 
-### 1. 結合ファイル連携方式
+### 1. 中央ポータル連携方式（安全版）
 
-最も推奨される連携方式。複数のファイルを一時的な結合ファイルにまとめてClaudeCodeに提供します。
+最も推奨される連携方式。中央ポータルからプロンプトを取得し、必要に応じて追加情報を結合してClaudeCodeに提供します。セキュリティ対策として一時ファイルは使用後に自動削除されます。
 
 ```typescript
-// 結合ファイル方式の実装例
-const combinedFilePath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
-   
-// ファイル内容を結合
-const promptContent = fs.readFileSync(promptFilePath, 'utf8');
-const secondContent = fs.readFileSync(secondFilePath, 'utf8');
-   
-// 結合ファイルを作成（セクション見出しなどで構造化）
-const combinedContent = 
-  promptContent + 
-  '\n\n# 追加情報\n\n' +
-  secondContent;
-   
-fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
-   
-// ClaudeCodeの起動
-const launcher = ClaudeCodeLauncherService.getInstance();
-await launcher.launchClaudeCodeWithPrompt(
-  projectPath,
-  combinedFilePath,
-  { title: 'ClaudeCode - 処理名' }
-);
+// 中央ポータル連携方式の実装例
+async function launchWithSecurePrompt(promptUrl, projectPath, additionalContent) {
+  try {
+    // ポータルからプロンプト情報を取得
+    const integrationService = ClaudeCodeIntegrationService.getInstance();
+    
+    // 追加コンテンツがある場合はそれも含めて起動
+    const result = await integrationService.launchWithPublicUrl(
+      promptUrl,           // 中央ポータルのプロンプトURL
+      projectPath,         // プロジェクトパス
+      additionalContent    // 追加情報（エラーログなど）
+    );
+    
+    return result;
+  } catch (error) {
+    Logger.error('プロンプト起動エラー:', error);
+    return false;
+  }
+}
+
+// ClaudeCodeIntegrationService内の実装
+public async launchWithPublicUrl(promptUrl, projectPath, additionalContent) {
+  // プロンプト取得、一時ファイル作成
+  const promptFilePath = path.join(os.tmpdir(), `prompt_${Date.now()}.md`);
+  
+  // 内容にadditionalContentを追加して保存
+  // ...
+  
+  // 一時ファイルを安全に扱う設定でClaudeCodeを起動
+  return await this._launcher.launchClaudeCodeWithPrompt(
+    projectPath,
+    promptFilePath,
+    { 
+      title: `ClaudeCode - ${prompt.title}`,
+      deletePromptFile: true  // セキュリティ対策：使用後に自動削除
+    }
+  );
+}
 ```
+
+この方式は以下の利点があります：
+1. **セキュリティ**: プロンプトファイルが一時的にのみ存在し、使用後自動削除
+2. **一元管理**: プロンプト内容が中央ポータルで管理され、常に最新
+3. **柔軟性**: 追加情報（エラーログなど）を動的に結合可能
+4. **共有**: チーム間でプロンプトを共有しやすい
 
 ### 2. UI情報連携方式 (環境変数アシスタント用)
 

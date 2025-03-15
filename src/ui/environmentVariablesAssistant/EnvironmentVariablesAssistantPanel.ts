@@ -6,15 +6,20 @@ import { Logger } from '../../utils/logger';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 import { PlatformManager } from '../../utils/PlatformManager';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
+import { ProtectedPanel } from '../auth/ProtectedPanel';
+import { Feature } from '../../core/auth/roles';
 
 /**
  * 環境変数アシスタントのメインパネルクラス
  * 環境変数の検出、表示、編集、検証をサポートする
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class EnvironmentVariablesAssistantPanel {
+export class EnvironmentVariablesAssistantPanel extends ProtectedPanel {
   private _domSnapshotInterval: NodeJS.Timeout | null = null;
   public static currentPanel: EnvironmentVariablesAssistantPanel | undefined;
   private static readonly viewType = 'environmentVariablesAssistant';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.ENV_ASSISTANT;
   
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -38,9 +43,10 @@ export class EnvironmentVariablesAssistantPanel {
   private _eventBus: AppGeniusEventBus;
   
   /**
-   * パネルの作成または表示（シングルトンパターン）
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): EnvironmentVariablesAssistantPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, projectPath?: string): EnvironmentVariablesAssistantPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -73,6 +79,18 @@ export class EnvironmentVariablesAssistantPanel {
     );
     
     EnvironmentVariablesAssistantPanel.currentPanel = new EnvironmentVariablesAssistantPanel(panel, extensionUri, projectPath);
+    return EnvironmentVariablesAssistantPanel.currentPanel;
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   */
+  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): EnvironmentVariablesAssistantPanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, projectPath);
+    
+    // 権限チェックが成功した場合はcurrentPanelが設定されている
     return EnvironmentVariablesAssistantPanel.currentPanel;
   }
   

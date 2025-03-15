@@ -6,14 +6,20 @@ import { Logger } from '../../utils/logger';
 import { FileOperationManager } from '../../utils/fileOperationManager';
 import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../../types';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
+import { ClaudeCodeIntegrationService } from '../../services/ClaudeCodeIntegrationService';
+import { ProtectedPanel } from '../auth/ProtectedPanel';
+import { Feature } from '../../core/auth/roles';
 
 /**
  * スコープマネージャーパネルクラス
  * CURRENT_STATUS.mdファイルと連携して実装スコープの管理を行う
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class ScopeManagerPanel {
+export class ScopeManagerPanel extends ProtectedPanel {
   public static currentPanel: ScopeManagerPanel | undefined;
   private static readonly viewType = 'scopeManager';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.SCOPE_MANAGER;
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -29,9 +35,10 @@ export class ScopeManagerPanel {
   private _fileWatcher: vscode.FileSystemWatcher | null = null;
 
   /**
-   * パネルを作成または表示
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -65,6 +72,18 @@ export class ScopeManagerPanel {
     );
 
     ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, projectPath);
+    return ScopeManagerPanel.currentPanel;
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   */
+  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, projectPath);
+    
+    // 権限チェックが成功した場合はcurrentPanelが設定されている
     return ScopeManagerPanel.currentPanel;
   }
 
@@ -1223,13 +1242,21 @@ APIエンドポイントはまだ定義されていません。
       
       if (fs.existsSync(statusFilePath)) {
         const statusContent = fs.readFileSync(statusFilePath, 'utf8');
-        additionalContent = `# 現在の状態\n\n${statusContent}`;
+        additionalContent = `# 追加情報\n\n## CURRENT_STATUS.md\n\n\`\`\`markdown\n${statusContent}\n\`\`\``;
       }
       
-      // インテグレーションサービスを取得
-      const integrationService = ClaudeCodeIntegrationService.getInstance();
+      // インテグレーションサービスを動的importで安全に取得
+      const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+        module => module.ClaudeCodeIntegrationService.getInstance()
+      );
       
       try {
+        // 一時ファイルにも保存（デバッグ用・参照用）
+        const tempDir = os.tmpdir();
+        const analysisFilePath = path.join(tempDir, `scope_creator_${Date.now()}.md`);
+        fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
+        Logger.info(`スコープ作成用の分析ファイルを作成しました: ${analysisFilePath}`);
+        
         // 公開URLから起動（追加情報も渡す）
         Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
         await integrationService.launchWithPublicUrl(
@@ -1305,14 +1332,25 @@ APIエンドポイントはまだ定義されていません。
       const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
       
       if (fs.existsSync(statusFilePath)) {
+        // Fileのコンテンツを現在のステータスとして渡す
         const statusContent = fs.readFileSync(statusFilePath, 'utf8');
-        additionalContent = `# 現在の状態\n\n${statusContent}`;
+        additionalContent = `# 追加情報\n\n## CURRENT_STATUS.md\n\n\`\`\`markdown\n${statusContent}\n\`\`\``;
+      } else {
+        Logger.warn('CURRENT_STATUS.mdファイルが見つかりません: ' + statusFilePath);
       }
       
-      // インテグレーションサービスを取得
-      const integrationService = ClaudeCodeIntegrationService.getInstance();
+      // インテグレーションサービスを動的importで安全に取得
+      const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+        module => module.ClaudeCodeIntegrationService.getInstance()
+      );
       
       try {
+        // 一時ファイルにも保存（デバッグ用・参照用）
+        const tempDir = os.tmpdir();
+        const analysisFilePath = path.join(tempDir, `implementer_content_${Date.now()}.md`);
+        fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
+        Logger.info(`実装アシスタント用の分析ファイルを作成しました: ${analysisFilePath}`);
+        
         // 公開URLから起動（追加情報も渡す）
         Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
         await integrationService.launchWithPublicUrl(
@@ -1347,6 +1385,7 @@ APIエンドポイントはまだ定義されていません。
         
         // 一時的なテンプレートファイルを作成
         fs.writeFileSync(tempFilePath, promptContent, 'utf8');
+        Logger.info(`フォールバック用プロンプトを作成しました: ${tempFilePath}`);
         
         // ClaudeCodeの起動
         const launcher = ClaudeCodeLauncherService.getInstance();
@@ -1443,9 +1482,15 @@ APIエンドポイントはまだ定義されていません。
       const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
       
       // 追加情報（現在の実装状況など）
-      const additionalContent = `# 現在の実装状況\n\n以下は現在の実装状況です。この情報を参考にして実装を進めてください。\n\n${statusContent}\n\n# 選択されたスコープ\n\n現在選択されているスコープ: **${this._currentScope.name}**\n\n説明: ${this._currentScope.description || '説明が設定されていません'}\n\n進捗: ${this._currentScope.progress || 0}%`;
+      const additionalContent = `# 追加情報\n\n## CURRENT_STATUS.md\n\n\`\`\`markdown\n${statusContent}\n\`\`\`\n\n## 選択されたスコープ\n\n現在選択されているスコープ: **${this._currentScope.name}**\n\n説明: ${this._currentScope.description || '説明が設定されていません'}\n\n進捗: ${this._currentScope.progress || 0}%`;
       
       try {
+        // 一時ファイルにも保存（デバッグ用・参照用）
+        const tempDir = os.tmpdir();
+        const analysisFilePath = path.join(tempDir, `scope_implementation_${Date.now()}.md`);
+        fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
+        Logger.info(`実装用の分析ファイルを作成しました: ${analysisFilePath}`);
+        
         // インテグレーションサービスを動的importで安全に取得
         const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
           module => module.ClaudeCodeIntegrationService.getInstance()
@@ -1477,10 +1522,12 @@ APIエンドポイントはまだ定義されていません。
             // 結合ファイルを作成
             const combinedContent = 
               promptContent + 
-              '\n\n# 現在の実装状況\n\n' +
-              '以下は現在の実装状況です。この情報を参考にして実装を進めてください。\n\n' +
+              '\n\n# 追加情報\n\n' +
+              '## CURRENT_STATUS.md\n\n' +
+              '```markdown\n' +
               statusContent + 
-              '\n\n# 選択されたスコープ\n\n' +
+              '\n```\n\n' +
+              '## 選択されたスコープ\n\n' +
               `現在選択されているスコープ: **${this._currentScope.name}**\n\n` +
               `説明: ${this._currentScope.description || '説明が設定されていません'}\n\n` +
               `進捗: ${this._currentScope.progress || 0}%`;

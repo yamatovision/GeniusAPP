@@ -198,7 +198,7 @@ exports.updateUser = async (req, res) => {
     }
     
     // リクエストボディから更新情報を取得
-    const { name, email, password, role, isActive } = req.body;
+    const { name, email, password, role } = req.body;
     
     // メールアドレス変更時の重複チェック
     if (email && email !== user.email) {
@@ -213,10 +213,9 @@ exports.updateUser = async (req, res) => {
     if (name) user.name = name;
     if (password) user.password = password;
     
-    // 管理者のみがロールと有効フラグを変更可能
+    // 管理者のみがロールを変更可能
     if (req.userRole === authConfig.roles.ADMIN) {
       if (role) user.role = role;
-      if (isActive !== undefined) user.isActive = isActive;
     }
     
     // ユーザー情報を保存
@@ -483,25 +482,114 @@ exports.getUserTokenUsage = async (req, res) => {
     }
     
     const PromptUsage = require('../models/promptUsage.model');
+    const ApiUsage = require('../models/apiUsage.model');
     
     // 統計データ取得
-    const [overallStats, timeSeriesData] = await Promise.all([
-      // 全体統計
+    const [overallStats, timeSeriesData, apiUsageStats] = await Promise.all([
+      // プロンプト使用量全体統計
       PromptUsage.getUserTokenUsage(userId, timeRange),
       // 時系列データ
-      PromptUsage.getUserTimeSeriesStats(userId, interval)
+      PromptUsage.getUserTimeSeriesStats(userId, interval),
+      // API使用量（Claude API経由の利用）
+      ApiUsage.getUserTokenUsage(userId, timeRange)
     ]);
     
     // ユーザー情報も取得
-    const user = await User.findById(userId).select('name email role plan').lean();
+    const user = await User.findById(userId).select('name email role plan apiAccess usageLimits').lean();
+    
+    // 合計使用量を計算
+    const totalStats = {
+      totalTokens: (overallStats?.totalTokens || 0) + (apiUsageStats?.totalTokens || 0),
+      inputTokens: (overallStats?.inputTokens || 0) + (apiUsageStats?.inputTokens || 0),
+      outputTokens: (overallStats?.outputTokens || 0) + (apiUsageStats?.outputTokens || 0),
+      requests: (overallStats?.count || 0) + (apiUsageStats?.count || 0)
+    };
     
     res.json({
       user,
-      overall: overallStats,
-      timeSeries: timeSeriesData
+      overall: totalStats,
+      bySource: {
+        promptUsage: overallStats,
+        apiUsage: apiUsageStats
+      },
+      timeSeries: timeSeriesData,
+      limits: {
+        daily: user?.usageLimits?.tokensPerDay || null,
+        monthly: user?.usageLimits?.tokensPerMonth || user?.plan?.tokenLimit || 100000,
+        nextReset: user?.plan?.nextResetDate
+      }
     });
   } catch (error) {
     console.error('ユーザートークン使用量取得エラー:', error);
     res.status(500).json({ message: 'トークン使用量の取得中にエラーが発生しました' });
+  }
+};
+
+// ユーザーのAPIアクセス設定を更新
+exports.toggleApiAccess = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { enabled, accessLevel } = req.body;
+    
+    // 管理者権限チェック
+    if (req.userRole !== authConfig.roles.ADMIN) {
+      return res.status(403).json({
+        error: {
+          code: 'PERMISSION_DENIED',
+          message: 'APIアクセス設定を変更する権限がありません'
+        }
+      });
+    }
+    
+    // ユーザーを取得
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'ユーザーが見つかりません'
+        }
+      });
+    }
+    
+    // APIアクセス設定を更新
+    if (!user.apiAccess) {
+      user.apiAccess = {};
+    }
+    
+    // enabledフラグが指定されている場合は更新
+    if (enabled !== undefined) {
+      user.apiAccess.enabled = enabled;
+    }
+    
+    // accessLevelが指定されている場合は更新（値チェック付き）
+    if (accessLevel && ['basic', 'advanced', 'full'].includes(accessLevel)) {
+      user.apiAccess.accessLevel = accessLevel;
+    }
+    
+    // 最終アクセス更新日時を設定
+    user.apiAccess.lastAccessAt = new Date();
+    
+    await user.save();
+    
+    return res.status(200).json({
+      message: `APIアクセスが${user.apiAccess.enabled ? '有効' : '無効'}に設定されました`,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        apiAccess: user.apiAccess
+      }
+    });
+  } catch (error) {
+    console.error('APIアクセス設定変更エラー:', error);
+    return res.status(500).json({
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'APIアクセス設定の変更中にエラーが発生しました',
+        details: error.message
+      }
+    });
   }
 };

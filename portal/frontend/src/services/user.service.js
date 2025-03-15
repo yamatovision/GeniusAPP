@@ -109,6 +109,25 @@ class UserService {
   }
   
   /**
+   * ユーザーのAPIアクセス設定を切り替え
+   * @param {string} userId - ユーザーID
+   * @param {boolean} enabled - 有効/無効状態
+   * @returns {Promise} 更新結果
+   */
+  async toggleApiAccess(userId, enabled) {
+    try {
+      const response = await axios.put(
+        `${API_URL}/users/${userId}/api-access`,
+        { enabled },
+        { headers: authHeader() }
+      );
+      return response.data;
+    } catch (error) {
+      throw this._handleError(error);
+    }
+  }
+  
+  /**
    * ユーザーを削除（管理者用）
    */
   async deleteUser(userId) {

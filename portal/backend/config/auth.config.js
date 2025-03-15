@@ -22,8 +22,10 @@ module.exports = {
 
   // ユーザーロール定義
   roles: {
-    ADMIN: 'admin',
-    USER: 'user'
+    ADMIN: 'admin',      // 管理者
+    USER: 'user',        // 通常ユーザー
+    UNPAID: 'unpaid',    // 料金未払いユーザー(APIは利用禁止だがUIは見れる)
+    INACTIVE: 'unsubscribed' // 退会済みユーザー
   },
 
   // JWT設定
