@@ -1881,16 +1881,10 @@ project/
       
       Logger.info(`プロジェクトパスを使用: ${this._projectPath}`);
       
-      // ClaudeCodeLauncherServiceを使用
-      const claudeCodeLauncher = this._claudeCodeLauncherService;
-      
       // 要件定義ファイルの絶対パスを取得
       const fullPath = path.isAbsolute(filePath)
         ? filePath
         : path.join(this._projectPath, filePath);
-      
-      // 要件定義アドバイザーファイルのパスを取得
-      const adviserPath = path.join(this._projectPath, 'docs/requirementsadvicer.md');
 
       if (!fs.existsSync(fullPath)) {
         this._panel.webview.postMessage({
@@ -1900,36 +1894,105 @@ project/
         return false;
       }
       
-      // アドバイザーファイルの存在確認
-      if (!fs.existsSync(adviserPath)) {
-        Logger.warn(`要件定義アドバイザーファイルが見つかりません: ${adviserPath}`);
-        // 警告は表示するが、処理は続行する
-      } else {
-        Logger.info(`要件定義アドバイザーファイルを使用: ${adviserPath}`);
-      }
-      
       // WebViewに起動中メッセージを表示
       this._panel.webview.postMessage({
         command: 'showMessage',
         text: `AIを起動しています: ${filePath}`
       });
       
-      // 要件定義ファイルのみでClaudeCodeを起動
-      const success = await claudeCodeLauncher.launchClaudeCodeWithMockup(
-        fullPath, 
-        this._projectPath,
-        { source: 'requirementsVisualizer' }
-      );
+      // 要件定義ファイルの内容を読み込み
+      const fileContent = fs.readFileSync(fullPath, 'utf8');
       
-      if (success) {
-        // 成功メッセージを表示
-        this._panel.webview.postMessage({
-          command: 'showMessage',
-          text: `AIと相談・編集を開始しました: ${filePath}`
-        });
+      // 中央ポータルURL（要件定義アドバイザー）
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
+      
+      // 一時ファイルに保存（デバッグ用・参照用）
+      const tempDir = os.tmpdir();
+      
+      try {
+        // 追加情報として要件定義ファイルの内容を設定
+        let analysisContent = '# 追加情報\n\n';
+        analysisContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
+        analysisContent += '```markdown\n';
+        analysisContent += fileContent;
+        analysisContent += '\n```\n\n';
+        
+        // 一時ファイルに保存（デバッグ用・参照用）
+        const analysisFilePath = path.join(tempDir, `requirements_analysis_${Date.now()}.md`);
+        fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
+        Logger.info(`要件分析ファイルを作成しました: ${analysisFilePath}`);
+        
+        // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
+        
+        // ClaudeCodeIntegrationServiceのインスタンスを取得
+        const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+          module => module.ClaudeCodeIntegrationService.getInstance()
+        );
+        
+        // 公開URLからClaudeCodeを起動（要件分析内容を追加コンテンツとして渡す）
+        const success = await integrationService.launchWithPublicUrl(
+          portalUrl, 
+          this._projectPath,
+          analysisContent // 重要：要件分析内容を追加コンテンツとして渡す
+        );
+        
+        if (success) {
+          // 成功メッセージを表示
+          this._panel.webview.postMessage({
+            command: 'showMessage',
+            text: `AIと相談・編集を開始しました: ${filePath}`
+          });
+          Logger.info(`要件定義アドバイザーを起動しました`);
+        }
+        
+        return success;
+      } catch (error) {
+        // 中央ポータル連携に失敗した場合の処理
+        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
+        
+        // ローカルのプロンプトファイルをチェック
+        const localPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'requirements_advisor.md');
+        
+        // プロンプトファイルの存在確認
+        if (!fs.existsSync(localPromptPath)) {
+          Logger.error(`要件定義アドバイザーファイルが見つかりません: ${localPromptPath}`);
+          throw new Error(`要件定義アドバイザーファイル（requirements_advisor.md）が見つかりません。docs/prompts/requirements_advisor.mdを確認してください。`);
+        }
+        
+        Logger.info(`要件定義アドバイザーファイルを読み込みます: ${localPromptPath}`);
+        let combinedContent = fs.readFileSync(localPromptPath, 'utf8');
+        combinedContent += '\n\n# 追加情報\n\n';
+        combinedContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
+        combinedContent += '```markdown\n';
+        combinedContent += fileContent;
+        combinedContent += '\n```\n\n';
+        
+        const combinedPromptPath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
+        Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
+        fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+        
+        // ClaudeCodeを起動（フォールバック）
+        Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
+        const success = await this._claudeCodeLauncherService.launchClaudeCodeWithPrompt(
+          this._projectPath,
+          combinedPromptPath,
+          { 
+            title: `要件定義アドバイザー - ${path.basename(fullPath)}`,
+            deletePromptFile: true // セキュリティ対策として自動削除
+          }
+        );
+        
+        if (success) {
+          // 成功メッセージを表示
+          this._panel.webview.postMessage({
+            command: 'showMessage',
+            text: `AIと相談・編集を開始しました: ${filePath} (ローカルフォールバック)`
+          });
+        }
+        
+        return success;
       }
-      
-      return success;
     } catch (error) {
       Logger.error(`AI起動エラー: ${filePath}`, error as Error);
       

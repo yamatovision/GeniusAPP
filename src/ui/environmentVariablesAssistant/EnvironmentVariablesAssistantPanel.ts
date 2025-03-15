@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { Logger } from '../../utils/logger';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 import { PlatformManager } from '../../utils/PlatformManager';
@@ -2137,25 +2138,117 @@ ${this._generateEnvironmentVariablesList('production')}
    */
   private async _handleLaunchClaudeCodeAssistant(): Promise<void> {
     try {
-      // プロンプトファイルを準備
-      const promptFilePath = await this._prepareEnvAssistantPrompt();
+      // 中央ポータルURL（環境変数アシスタント）
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589';
       
-      // ClaudeCodeを起動
-      const launcher = ClaudeCodeLauncherService.getInstance();
-      const success = await launcher.launchClaudeCodeWithPrompt(
-        this._projectPath,
-        promptFilePath,
-        { title: 'ClaudeCode - 環境変数アシスタント' }
-      );
+      // 現在の環境変数情報を収集
+      let environmentInfo = '';
       
-      if (success) {
-        vscode.window.showInformationMessage('環境変数アシスタント用のClaudeCodeを起動しました');
-      } else {
-        vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました');
+      // 環境変数ファイルの情報を取得
+      if (this._activeEnvFile && this._envVariables[this._activeEnvFile]) {
+        environmentInfo += `## 環境変数ファイル: ${path.basename(this._activeEnvFile)}\n\n`;
+        environmentInfo += '```\n';
+        for (const [key, value] of Object.entries(this._envVariables[this._activeEnvFile])) {
+          environmentInfo += `${key}=${value}\n`;
+        }
+        environmentInfo += '```\n\n';
+      }
+      
+      // env.mdファイルの情報を取得
+      const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
+      if (fs.existsSync(envMdPath)) {
+        const envMdContent = fs.readFileSync(envMdPath, 'utf8');
+        environmentInfo += `## env.mdファイル:\n\n`;
+        environmentInfo += '```markdown\n';
+        environmentInfo += envMdContent;
+        environmentInfo += '\n```\n\n';
+      }
+      
+      // 一時ファイルに保存（デバッグ用・参照用）
+      const tempDir = path.join(os.tmpdir());
+      
+      try {
+        // 追加情報として環境変数情報を設定
+        let analysisContent = '# 追加情報\n\n';
+        analysisContent += `## プロジェクト情報\n\n`;
+        analysisContent += `プロジェクトパス: ${this._projectPath}\n\n`;
+        analysisContent += environmentInfo;
+        
+        // 一時ファイルに保存（デバッグ用・参照用）
+        const analysisFilePath = path.join(tempDir, `env_analysis_${Date.now()}.md`);
+        fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
+        Logger.info(`環境変数分析ファイルを作成しました: ${analysisFilePath}`);
+        
+        // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
+        
+        // ClaudeCodeIntegrationServiceのインスタンスを取得
+        const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+          module => module.ClaudeCodeIntegrationService.getInstance()
+        );
+        
+        // 公開URLからClaudeCodeを起動（環境変数情報を追加コンテンツとして渡す）
+        const success = await integrationService.launchWithPublicUrl(
+          portalUrl, 
+          this._projectPath,
+          analysisContent // 重要：環境変数情報を追加コンテンツとして渡す
+        );
+        
+        if (success) {
+          vscode.window.showInformationMessage('環境変数アシスタント用のClaudeCodeを起動しました');
+          Logger.info(`環境変数アシスタントを起動しました`);
+        } else {
+          vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました');
+        }
+        
+        return success;
+      } catch (error) {
+        // 中央ポータル連携に失敗した場合の処理
+        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
+        
+        // プロンプトファイルを準備（フォールバック）
+        const promptFilePath = await this._prepareEnvAssistantPrompt();
+        
+        if (!fs.existsSync(promptFilePath)) {
+          Logger.error(`環境変数アシスタントファイルが見つかりません: ${promptFilePath}`);
+          throw new Error(`環境変数アシスタントファイル（environment_manager.md）が見つかりません。docs/prompts/environment_manager.mdを確認してください。`);
+        }
+        
+        Logger.info(`環境変数アシスタントファイルを読み込みます: ${promptFilePath}`);
+        let combinedContent = fs.readFileSync(promptFilePath, 'utf8');
+        combinedContent += '\n\n# 追加情報\n\n';
+        combinedContent += `## プロジェクト情報\n\n`;
+        combinedContent += `プロジェクトパス: ${this._projectPath}\n\n`;
+        combinedContent += environmentInfo;
+        
+        const combinedPromptPath = path.join(tempDir, `combined_env_prompt_${Date.now()}.md`);
+        Logger.info(`フォールバック用プロンプトを作成します: ${combinedPromptPath}`);
+        fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+        
+        // ClaudeCodeを起動（フォールバック）
+        Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
+        const launcher = ClaudeCodeLauncherService.getInstance();
+        const success = await launcher.launchClaudeCodeWithPrompt(
+          this._projectPath,
+          combinedPromptPath,
+          { 
+            title: `環境変数アシスタント`,
+            deletePromptFile: true // セキュリティ対策として自動削除
+          }
+        );
+        
+        if (success) {
+          vscode.window.showInformationMessage('環境変数アシスタント用のClaudeCodeを起動しました（フォールバック）');
+        } else {
+          vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました');
+        }
+        
+        return success;
       }
     } catch (error) {
       Logger.error(`ClaudeCodeアシスタント起動エラー:`, error as Error);
       await this._showError(`ClaudeCodeアシスタントの起動に失敗しました: ${(error as Error).message}`);
+      return false;
     }
   }
   
