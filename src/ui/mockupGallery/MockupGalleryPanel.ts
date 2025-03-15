@@ -1,20 +1,27 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
 import { MockupStorageService, Mockup } from '../../services/mockupStorageService';
 import { RequirementsParser, PageInfo } from '../../core/requirementsParser';
 import { MockupQueueManager } from './MockupQueueManager';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
+import { ClaudeCodeIntegrationService } from '../../services/ClaudeCodeIntegrationService';
+import { ProtectedPanel } from '../auth/ProtectedPanel';
+import { Feature } from '../../core/auth/roles';
 
 /**
  * モックアップギャラリーパネル
  * モックアップの一覧表示、編集、プレビューを提供するウェブビューパネル
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class MockupGalleryPanel {
+export class MockupGalleryPanel extends ProtectedPanel {
   public static currentPanel: MockupGalleryPanel | undefined;
   private static readonly viewType = 'mockupGallery';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.MOCKUP_GALLERY;
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -33,9 +40,10 @@ export class MockupGalleryPanel {
   private _claudeCodeLauncher: any; // 型定義がない場合は any として扱う
 
   /**
-   * パネルを作成または表示
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): MockupGalleryPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): MockupGalleryPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -70,6 +78,18 @@ export class MockupGalleryPanel {
     );
 
     MockupGalleryPanel.currentPanel = new MockupGalleryPanel(panel, extensionUri, aiService, projectPath);
+    return MockupGalleryPanel.currentPanel;
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   */
+  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): MockupGalleryPanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, aiService, projectPath);
+    
+    // 権限チェックが成功した場合はcurrentPanelが設定されている
     return MockupGalleryPanel.currentPanel;
   }
 
@@ -612,108 +632,129 @@ export class MockupGalleryPanel {
       
       const mockupFilePath = path.join(mockupDir, mockupFileName);
       
-      // モックアップHTMLの保存は不要なため削除
-      
       // スコープディレクトリが存在しない場合は作成
       const scopesDir = path.join(this._projectPath, 'docs', 'scopes');
       if (!fs.existsSync(scopesDir)) {
         fs.mkdirSync(scopesDir, { recursive: true });
       }
       
-      // テンプレートパスの構築
-      const templatePath = path.join(this._projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
-      
       // 要件定義ファイルの存在確認
       const requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
       const requirementsExists = fs.existsSync(requirementsPath);
       
-      // ターミナルの作成
-      const terminal = vscode.window.createTerminal({
-        name: `ClaudeCode - ${mockup.name}の解析`,
-        cwd: this._projectPath // プロジェクトのルートディレクトリで起動
-      });
+      // 追加情報を準備
+      let additionalContent = `# 追加情報\n\n## モックアップ情報\n\n`;
+      additionalContent += `- モックアップ名: ${mockup.name}\n`;
+      additionalContent += `- モックアップパス: ${mockupFilePath}\n`;
+      additionalContent += `- プロジェクトパス: ${this._projectPath}\n\n`;
       
-      // ターミナルの表示
-      terminal.show(true);
-      
-      // ガイダンスメッセージを表示
-      terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
-      terminal.sendText('sleep 1'); // 1秒待機
-      
-      // macOSの場合は環境変数の設定（必要に応じて）
-      if (process.platform === 'darwin') {
-        terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "" > /dev/null 2>&1');
-        terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+      // 要件定義ファイルが存在する場合、その内容を追加
+      if (requirementsExists) {
+        const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
+        additionalContent += `## プロジェクト要件定義\n\n\`\`\`markdown\n${requirementsContent}\n\`\`\`\n`;
+        Logger.info(`要件定義ファイルの内容を追加しました: ${requirementsPath}`);
       }
       
-      // ファイルパスをエスケープ（スペースを含む場合）
-      const escapedMockupPath = mockupFilePath.replace(/ /g, '\\ ');
+      // インテグレーションサービスを取得
+      const integrationService = ClaudeCodeIntegrationService.getInstance();
       
-      // テンプレートファイルが存在するか確認
-      if (fs.existsSync(templatePath)) {
-        // テンプレートファイルを一時的に修正してモックアップパスを埋め込む
-        try {
-          const tempDir = path.join(this._projectPath, 'temp');
-          // tempディレクトリが存在しない場合は作成
-          if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-          }
-          
-          // 一時的なテンプレートファイルパス
-          const tempTemplatePath = path.join(tempDir, `combined_mockup_${Date.now()}.md`);
-          
-          // テンプレートファイルの内容を読み込む
-          let templateContent = fs.readFileSync(templatePath, 'utf8');
-          
-          // モックアップパスと変数を置換
-          templateContent = templateContent
-            .replace(/{{MOCKUP_PATH}}/g, mockupFilePath)
-            .replace(/{{PROJECT_PATH}}/g, this._projectPath)
-            .replace(/{{MOCKUP_NAME}}/g, mockup.name)
-            .replace(/{{SOURCE}}/g, 'mockupGallery');
-          
-          // 要件定義ファイルが存在する場合、その内容を追加
-          if (requirementsExists) {
-            const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
-            // 要件定義の内容をテンプレートに追加
-            templateContent += '\n\n## プロジェクト要件定義\n\n```markdown\n' + requirementsContent + '\n```\n';
-            Logger.info(`要件定義ファイルの内容を追加しました: ${requirementsPath}`);
-          }
-          
-          // 一時的なテンプレートファイルを作成
-          fs.writeFileSync(tempTemplatePath, templateContent, 'utf8');
-          
-          // エスケープされたパス
-          const escapedTempTemplatePath = tempTemplatePath.replace(/ /g, '\\ ');
-          
-          // コマンド実行
-          terminal.sendText(`echo "テンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
-          terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
-          if (requirementsExists) {
-            terminal.sendText(`echo "要件定義ファイルも含めて解析します: ${requirementsPath}"`);
-          }
-          terminal.sendText(`claude ${escapedTempTemplatePath}`);
-          
-          Logger.info(`一時的なテンプレートファイルを作成しました: ${tempTemplatePath}`);
-        } catch (err) {
-          Logger.error(`テンプレート処理中にエラー: ${(err as Error).message}`);
-          
-          // エラー時は直接ファイルを渡す
-          terminal.sendText(`echo "エラーが発生したため、モックアップファイルを直接解析します"`);
-          terminal.sendText(`claude ${escapedMockupPath}`);
+      // 中央ポータルURL
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+      
+      try {
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
+        // 公開URLから起動（追加情報も渡す）
+        await integrationService.launchWithPublicUrl(
+          portalUrl,
+          this._projectPath,
+          additionalContent
+        );
+        
+        Logger.info(`モックアップ「${mockup.name}」の分析のため中央ポータル経由でClaudeCodeを起動しました`);
+        vscode.window.showInformationMessage(
+          `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
+          `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
+        );
+      } catch (error) {
+        Logger.error(`中央ポータル経由の起動に失敗: ${(error as Error).message}`);
+        
+        // ローカルファイルにフォールバック
+        Logger.warn(`ローカルプロンプトファイルにフォールバックします`);
+        
+        const templatePath = path.join(this._projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
+        if (!fs.existsSync(templatePath)) {
+          throw new Error(`モックアップ解析テンプレートが見つかりません: ${templatePath}`);
         }
-      } else {
-        // テンプレートがなければ直接モックアップファイルを渡す
-        terminal.sendText(`echo "モックアップファイルを直接解析します: ${path.basename(mockupFilePath)}"`);
+        
+        // ターミナルの作成
+        const terminal = vscode.window.createTerminal({
+          name: `ClaudeCode - ${mockup.name}の解析 (ローカル)`,
+          cwd: this._projectPath // プロジェクトのルートディレクトリで起動
+        });
+        
+        // ターミナルの表示
+        terminal.show(true);
+        
+        // ガイダンスメッセージを表示
+        terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+        terminal.sendText('sleep 1'); // 1秒待機
+        
+        // macOSの場合は環境変数の設定（必要に応じて）
+        if (process.platform === 'darwin') {
+          terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "" > /dev/null 2>&1');
+          terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+        }
+        
+        // テンプレートファイルを一時的に修正してモックアップパスを埋め込む
+        const tempDir = os.tmpdir(); // 一時ディレクトリに保存（25秒後に自動削除）
+        
+        // 一時的なテンプレートファイルパス
+        const tempTemplatePath = path.join(tempDir, `combined_mockup_${Date.now()}.md`);
+        
+        // テンプレートファイルの内容を読み込む
+        let templateContent = fs.readFileSync(templatePath, 'utf8');
+        
+        // モックアップパスと変数を置換
+        templateContent = templateContent
+          .replace(/{{MOCKUP_PATH}}/g, mockupFilePath)
+          .replace(/{{PROJECT_PATH}}/g, this._projectPath)
+          .replace(/{{MOCKUP_NAME}}/g, mockup.name)
+          .replace(/{{SOURCE}}/g, 'mockupGallery');
+        
+        // 要件定義の内容も追加
+        if (requirementsExists) {
+          templateContent += additionalContent;
+        }
+        
+        // 一時的なテンプレートファイルを作成
+        fs.writeFileSync(tempTemplatePath, templateContent, 'utf8');
+        
+        // エスケープされたパス
+        const escapedTempTemplatePath = tempTemplatePath.replace(/ /g, '\\ ');
+        
+        // コマンド実行
+        terminal.sendText(`echo "ローカルテンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
         terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
-        terminal.sendText(`claude ${escapedMockupPath}`);
+        terminal.sendText(`claude ${escapedTempTemplatePath}`);
+        
+        // 一時ファイルの自動削除（25秒後）
+        setTimeout(() => {
+          try {
+            if (fs.existsSync(tempTemplatePath)) {
+              fs.unlinkSync(tempTemplatePath);
+              Logger.info(`一時プロンプトファイルを削除しました: ${tempTemplatePath}`);
+            }
+          } catch (err) {
+            Logger.error(`一時ファイル削除エラー: ${(err as Error).message}`);
+          }
+        }, 25000);
+        
+        Logger.info(`モックアップ「${mockup.name}」の分析のためローカルプロンプトでClaudeCodeを起動しました`);
+        vscode.window.showInformationMessage(
+          `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました（ローカルモード）。` +
+          `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
+        );
       }
-      
-      Logger.info(`モックアップ「${mockup.name}」の分析のためターミナルを起動しました`);
-      vscode.window.showInformationMessage(
-        `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
-        `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
-      );
       
     } catch (error) {
       Logger.error(`モックアップAI分析エラー: ${(error as Error).message}`);

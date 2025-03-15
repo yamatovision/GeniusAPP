@@ -40,7 +40,23 @@ export class AuthenticationService {
   public readonly onAuthStateChanged = this._onAuthStateChanged.event;
 
   private constructor() {
-    this._tokenManager = TokenManager.getInstance();
+    try {
+      // @ts-ignore グローバル変数アクセス（extension.tsで設定されている場合）
+      const globalContext = global.__extensionContext;
+      if (globalContext) {
+        // グローバルコンテキストが利用可能な場合は、それを使用
+        this._tokenManager = TokenManager.getInstance(globalContext);
+      } else {
+        // 利用不可の場合はコンテキストなしで取得（TokenManagerが内部でダミー作成）
+        this._tokenManager = TokenManager.getInstance();
+        console.warn('AuthenticationService: ExtensionContextなしでTokenManagerを初期化');
+      }
+    } catch (e) {
+      // エラー時は警告を出して通常通り進行
+      console.error('AuthenticationService初期化エラー:', e);
+      this._tokenManager = TokenManager.getInstance();
+    }
+    
     this._authEventBus = AuthEventBus.getInstance();
     this._initialize();
   }
@@ -352,6 +368,7 @@ export class AuthenticationService {
   
   /**
    * 外部トークンの直接設定（ClaudeCode連携用）
+   * このメソッドはClaudeCodeとの統合時や、テスト目的でも使用されます
    */
   public async setAuthTokenDirectly(token: string): Promise<boolean> {
     try {
@@ -435,47 +452,18 @@ export class AuthenticationService {
   }
   
   /**
-   * トークンを直接設定（テスト用）
+   * 認証情報をリセット（テスト用）
    * 警告: このメソッドは主にテストのために使用されます
    */
-  public async setAuthTokenDirectly(token: string): Promise<boolean> {
-    try {
-      // トークンの有効性を検証
-      const isValid = await this._verifyToken(token);
-      if (!isValid) {
-        Logger.warn('設定しようとしたトークンは無効です');
-        return false;
-      }
-      
-      // トークンを設定
-      await this._tokenManager.setAccessToken(token);
-      
-      // ユーザー情報を取得
-      await this._fetchUserInfo();
-      
-      // 認証状態を更新
-      this._isAuthenticated = true;
-      
-      // 認証チェックインターバルを開始
-      this._startAuthCheckInterval();
-      
-      // 認証状態が変更されたことを通知
-      this._onAuthStateChanged.fire(true);
-      this._authEventBus.publish(AuthEventType.LOGIN_SUCCESS, {
-        userId: this._currentUser?.id,
-        username: this._currentUser?.name
-      }, 'AuthenticationService');
-      
-      return true;
-    } catch (error) {
-      Logger.error('外部トークン設定中にエラーが発生しました:', error as Error);
-      this._setLastError({
-        code: 'token_validation_failed',
-        message: `外部トークンの検証に失敗しました: ${(error as Error).message}`,
-        isRetryable: false
-      });
-      return false;
-    }
+  public async resetAuthState(): Promise<void> {
+    await this._tokenManager.clearTokens();
+    this._isAuthenticated = false;
+    this._currentUser = null;
+    this._lastError = null;
+    
+    // 認証状態が変更されたことを通知
+    this._onAuthStateChanged.fire(false);
+    this._authEventBus.publish(AuthEventType.LOGOUT, {}, 'AuthenticationService');
   }
   
   /**

@@ -2,9 +2,9 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import axios from 'axios';
-import { AuthenticationService } from '../../../src/core/auth/AuthenticationService';
+import { AuthenticationService, AuthError } from '../../../src/core/auth/AuthenticationService';
 import { TokenManager } from '../../../src/core/auth/TokenManager';
-import { AuthEventBus } from '../../../src/services/AuthEventBus';
+import { AuthEventBus, AuthEventType } from '../../../src/services/AuthEventBus';
 
 // モック化のためのヘルパー
 let mockTokenManager: any;
@@ -93,13 +93,17 @@ async function cleanupTestEnvironment() {
 }
 
 suite('AuthenticationService Unit Tests', () => {
+  let clock: sinon.SinonFakeTimers;
   
   // 各テストの前後で実行
   setup(async () => {
     await setupTestEnvironment();
+    // 時間を固定して、タイムスタンプが一貫するようにする
+    clock = sinon.useFakeTimers(new Date('2025-03-15T12:00:00Z').getTime());
   });
   
   teardown(async () => {
+    clock.restore();
     await cleanupTestEnvironment();
   });
   
@@ -295,5 +299,266 @@ suite('AuthenticationService Unit Tests', () => {
     sinon.assert.calledWith(mockTokenManager.setAccessToken, 'external-token');
     assert.strictEqual(authService.isAuthenticated(), true, '認証状態がtrueになるべき');
     sinon.assert.calledOnce(mockAuthEventBus.publish);
+  });
+  
+  // セキュリティ強化関連のテスト追加
+  
+  test('リトライメカニズム - 一時的なエラーのリトライ処理テスト', async () => {
+    // 最初の2回はエラー、3回目は成功を返すようにモック
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/verify')
+      .onFirstCall().rejects({ response: { status: 503 } })
+      .onSecondCall().rejects({ response: { status: 503 } })
+      .onThirdCall().resolves({ status: 200 });
+    
+    // _isRetryableErrorメソッドをモック
+    const authService = AuthenticationService.getInstance();
+    sinon.stub(authService as any, '_isRetryableError').returns(true);
+    
+    // _delayメソッドをモックして待機をスキップ
+    sinon.stub(authService as any, '_delay').resolves();
+    
+    // テスト実行
+    const result = await (authService as any)._verifyToken('token-with-server-error');
+    
+    // 検証
+    assert.strictEqual(result, true, 'サーバーエラー後のリトライで成功すべき');
+    assert.strictEqual(mockAxios.post.callCount, 3, '3回呼び出されるべき');
+  });
+  
+  test('リトライメカニズム - 最大リトライ回数を超えた場合のテスト', async () => {
+    // すべての呼び出しでエラーを返すようにモック
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/verify')
+      .rejects({ response: { status: 503 } });
+    
+    // _isRetryableErrorメソッドをモック
+    const authService = AuthenticationService.getInstance();
+    sinon.stub(authService as any, '_isRetryableError').returns(true);
+    
+    // _delayメソッドをモックして待機をスキップ
+    sinon.stub(authService as any, '_delay').resolves();
+    
+    // メソッドのスパイを作成
+    const verifyTokenSpy = sinon.spy(authService as any, '_verifyToken');
+    
+    // テスト実行
+    const result = await (authService as any)._verifyToken('token-with-persistent-error');
+    
+    // 検証
+    assert.strictEqual(result, false, '最大リトライ回数を超えた後は失敗を返すべき');
+    assert.ok(mockAxios.post.callCount > 1, '複数回呼び出されるべき');
+  });
+  
+  test('hasPermissions - 複数権限チェックテスト', () => {
+    const authService = AuthenticationService.getInstance();
+    
+    // ログインしていない場合
+    assert.strictEqual(authService.hasPermissions(['read', 'write']), false, '未ログイン状態では権限チェックはfalseを返すべき');
+    
+    // 一般ユーザーの場合（指定された権限を持つ）
+    (authService as any)._isAuthenticated = true;
+    (authService as any)._currentUser = { 
+      id: 'user1', 
+      name: 'Test User', 
+      role: 'user',
+      permissions: ['read', 'write']
+    };
+    assert.strictEqual(authService.hasPermissions(['read']), true, '必要な権限を持っているべき');
+    assert.strictEqual(authService.hasPermissions(['read', 'write']), true, '必要なすべての権限を持っているべき');
+    assert.strictEqual(authService.hasPermissions(['read', 'write', 'delete']), false, '不足している権限があるとfalseを返すべき');
+    
+    // 一般ユーザーの場合（権限が未定義）
+    (authService as any)._currentUser = { 
+      id: 'user2', 
+      name: 'Limited User', 
+      role: 'user'
+      // permissionsが未定義
+    };
+    assert.strictEqual(authService.hasPermissions(['read']), false, '権限が未定義の場合はfalseを返すべき');
+    
+    // 管理者の場合
+    (authService as any)._currentUser = { 
+      id: 'admin1', 
+      name: 'Admin User', 
+      role: 'admin',
+      permissions: [] // 空の権限リストでも管理者はすべての権限を持つ
+    };
+    assert.strictEqual(authService.hasPermissions(['read', 'write', 'delete', 'admin']), true, '管理者はすべての権限を持つべき');
+  });
+  
+  test('同時に複数のリフレッシュリクエストがあった場合は1つのリクエストのみ実行される', async () => {
+    // リフレッシュ成功時のAPIレスポンスをモック
+    mockAxios.post.withArgs('http://test-api.example.com/api/auth/refresh-token').resolves({
+      status: 200,
+      data: {
+        accessToken: 'concurrent-refresh-token',
+        refreshToken: 'concurrent-refresh-token'
+      }
+    });
+    
+    const authService = AuthenticationService.getInstance();
+    
+    // 同時に3つのリフレッシュリクエストを実行
+    const promise1 = authService.refreshToken();
+    const promise2 = authService.refreshToken();
+    const promise3 = authService.refreshToken();
+    
+    // すべて解決されるまで待機
+    const results = await Promise.all([promise1, promise2, promise3]);
+    
+    // 検証
+    assert.deepStrictEqual(results, [true, true, true], 'すべてのリクエストが成功を返すべき');
+    assert.strictEqual(mockAxios.post.callCount, 1, '実際のAPIリクエストは1回だけ実行されるべき');
+    sinon.assert.calledOnce(mockTokenManager.setAccessToken);
+  });
+  
+  test('セキュアな通信 - 認証ヘッダーの生成が適切に行われる', async () => {
+    const authService = AuthenticationService.getInstance();
+    
+    // トークンが存在する場合
+    mockTokenManager.getAccessToken.resolves('secure-access-token');
+    const header = await authService.getAuthHeader();
+    
+    // 検証
+    assert.deepStrictEqual(header, { 'Authorization': 'Bearer secure-access-token' }, '正しい認証ヘッダーが生成されるべき');
+    
+    // トークンが存在しない場合
+    mockTokenManager.getAccessToken.resolves(undefined);
+    const emptyHeader = await authService.getAuthHeader();
+    
+    // 検証
+    assert.strictEqual(emptyHeader, null, 'トークンが存在しない場合はnullを返すべき');
+  });
+  
+  test('updateProfile - プロファイル更新成功テスト', async () => {
+    // API成功応答をモック
+    mockAxios.put.withArgs('http://test-api.example.com/api/users/profile').resolves({
+      status: 200,
+      data: {
+        user: {
+          id: 'user1',
+          name: 'Updated User',
+          email: 'updated@example.com'
+        }
+      }
+    });
+    
+    const authService = AuthenticationService.getInstance();
+    
+    // プロファイル更新データ
+    const profileData = {
+      name: 'Updated User',
+      email: 'updated@example.com'
+    };
+    
+    const result = await authService.updateProfile(profileData);
+    
+    // 検証
+    assert.strictEqual(result, true, 'プロファイル更新は成功を返すべき');
+    assert.deepStrictEqual((authService as any)._currentUser, {
+      id: 'user1',
+      name: 'Updated User',
+      email: 'updated@example.com'
+    }, 'ユーザー情報が更新されるべき');
+  });
+  
+  test('updateProfile - トークン期限切れ時の自動リフレッシュテスト', async () => {
+    // 初回呼び出しで401エラー
+    mockAxios.put.withArgs('http://test-api.example.com/api/users/profile')
+      .onFirstCall().rejects({
+        response: { status: 401 }
+      })
+      .onSecondCall().resolves({
+        status: 200,
+        data: {
+          user: {
+            id: 'user1',
+            name: 'Refreshed User',
+            email: 'refreshed@example.com'
+          }
+        }
+      });
+    
+    const authService = AuthenticationService.getInstance();
+    
+    // リフレッシュトークン成功をモック
+    sinon.stub(authService, 'refreshToken').resolves(true);
+    
+    // プロファイル更新データ
+    const profileData = {
+      name: 'Refreshed User',
+      email: 'refreshed@example.com'
+    };
+    
+    const result = await authService.updateProfile(profileData);
+    
+    // 検証
+    assert.strictEqual(result, true, 'トークンリフレッシュ後のプロファイル更新は成功を返すべき');
+    sinon.assert.calledOnce(authService.refreshToken as sinon.SinonStub);
+    assert.strictEqual(mockAxios.put.callCount, 2, '認証エラー後に再試行されるべき');
+  });
+  
+  test('_isRetryableError - 適切なエラー分類テスト', () => {
+    const authService = AuthenticationService.getInstance();
+    
+    // ネットワークエラー
+    const networkError = {
+      isAxiosError: true,
+      response: undefined
+    };
+    assert.strictEqual((authService as any)._isRetryableError(networkError), true, 'ネットワークエラーはリトライ可能');
+    
+    // レート制限エラー
+    const rateLimitError = {
+      isAxiosError: true,
+      response: { status: 429 }
+    };
+    assert.strictEqual((authService as any)._isRetryableError(rateLimitError), true, 'レート制限エラーはリトライ可能');
+    
+    // サーバーエラー
+    const serverError = {
+      isAxiosError: true,
+      response: { status: 500 }
+    };
+    assert.strictEqual((authService as any)._isRetryableError(serverError), true, 'サーバーエラーはリトライ可能');
+    
+    // クライアントエラー
+    const clientError = {
+      isAxiosError: true,
+      response: { status: 400 }
+    };
+    assert.strictEqual((authService as any)._isRetryableError(clientError), false, 'クライアントエラーはリトライ不可');
+    
+    // 認証エラー
+    const authError = {
+      isAxiosError: true,
+      response: { status: 401 }
+    };
+    assert.strictEqual((authService as any)._isRetryableError(authError), false, '認証エラーはリトライ不可');
+  });
+  
+  test('dispose - リソースが正しく解放されること', () => {
+    const authService = AuthenticationService.getInstance();
+    
+    // 認証チェックインターバルを設定
+    (authService as any)._authCheckInterval = 12345;
+    
+    // StatusBarItemをモック
+    (authService as any)._statusBarItem = {
+      dispose: sinon.stub()
+    };
+    
+    // イベントエミッターをモック
+    (authService as any)._onAuthStateChanged = {
+      dispose: sinon.stub()
+    };
+    
+    // クリーンアップを実行
+    authService.dispose();
+    
+    // 検証
+    sinon.assert.calledWith(global.clearInterval as sinon.SinonStub, 12345);
+    assert.strictEqual((authService as any)._authCheckInterval, null, 'インターバルがnullにリセットされるべき');
+    sinon.assert.calledOnce((authService as any)._statusBarItem.dispose);
+    sinon.assert.calledOnce((authService as any)._onAuthStateChanged.dispose);
   });
 });

@@ -4,13 +4,18 @@ import * as fs from 'fs';
 import { ReferenceStorageService, ReferenceType, Reference } from '../../services/referenceStorageService';
 import { Logger } from '../../utils/logger';
 import { PlatformManager } from '../../utils/PlatformManager';
+import { ProtectedPanel } from '../auth/ProtectedPanel';
+import { Feature } from '../../core/auth/roles';
 
 /**
  * リファレンスマネージャーパネル
  * テキストや画像を入力して、自動的に分類・保存するUI
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class ReferenceManagerPanel {
+export class ReferenceManagerPanel extends ProtectedPanel {
   public static readonly viewType = 'appgenius.referenceManager';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.REFERENCE_MANAGER;
   
   private static instance: ReferenceManagerPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
@@ -20,11 +25,12 @@ export class ReferenceManagerPanel {
   private _storageService: ReferenceStorageService;
   
   /**
-   * パネルシングルトンの作成
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    * @param extensionUri 拡張機能のURI
    * @param projectPath プロジェクトパス
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath: string): ReferenceManagerPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, projectPath: string): ReferenceManagerPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -52,6 +58,20 @@ export class ReferenceManagerPanel {
     );
     
     ReferenceManagerPanel.instance = new ReferenceManagerPanel(panel, extensionUri, projectPath);
+    return ReferenceManagerPanel.instance;
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   * @param extensionUri 拡張機能のURI
+   * @param projectPath プロジェクトパス
+   */
+  public static createOrShow(extensionUri: vscode.Uri, projectPath: string): ReferenceManagerPanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, projectPath);
+    
+    // 権限チェックが成功した場合はinstanceが設定されている
     return ReferenceManagerPanel.instance;
   }
   

@@ -25,10 +25,13 @@ import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
 import { EnvironmentVariablesAssistantPanel } from './ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel';
 import { TokenManager } from './core/auth/TokenManager';
 import { AuthenticationService } from './core/auth/AuthenticationService';
+import { PermissionManager } from './core/auth/PermissionManager';
 import { registerAuthCommands } from './core/auth/authCommands';
 import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
 import { registerEnvironmentCommands } from './commands/environmentCommands';
 import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
+import { AuthGuard } from './ui/auth/AuthGuard';
+import { Feature } from './core/auth/roles';
 
 // グローバル変数としてExtensionContextを保持（安全対策）
 declare global {
@@ -64,6 +67,10 @@ export function activate(context: vscode.ExtensionContext) {
 		AuthenticationService.getInstance();
 		Logger.info('AuthenticationService initialized successfully');
 		
+		// PermissionManagerの初期化
+		PermissionManager.getInstance();
+		Logger.info('PermissionManager initialized successfully');
+		
 		// 認証コマンドの登録
 		registerAuthCommands(context);
 		Logger.info('Auth commands registered successfully');
@@ -75,6 +82,45 @@ export function activate(context: vscode.ExtensionContext) {
 		// 環境変数管理コマンドの登録
 		registerEnvironmentCommands(context);
 		Logger.info('Environment commands registered successfully');
+		
+		// ClaudeCode連携コマンドの登録
+		import('./commands/claudeCodeCommands').then(({ registerClaudeCodeCommands }) => {
+			registerClaudeCodeCommands(context);
+			Logger.info('ClaudeCode commands registered successfully');
+		}).catch(error => {
+			Logger.error(`ClaudeCode commands registration failed: ${(error as Error).message}`);
+		});
+		
+		// URLプロトコルハンドラーの登録
+		context.subscriptions.push(
+			vscode.window.registerUriHandler({
+				handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+					if (uri.path === '/launch-claude-code') {
+						try {
+							// URLパラメータからプロンプトURLを取得
+							const queryParams = new URLSearchParams(uri.query);
+							const promptUrl = queryParams.get('url');
+							
+							if (promptUrl) {
+								// デコードしてURLを取得
+								const decodedUrl = decodeURIComponent(promptUrl);
+								Logger.info(`外部URLからClaudeCodeを起動: ${decodedUrl}`);
+								
+								// ClaudeCodeを起動
+								vscode.commands.executeCommand('appgenius.claudeCode.launchFromUrl', decodedUrl);
+							} else {
+								Logger.error('URLパラメータが指定されていません');
+								vscode.window.showErrorMessage('URLパラメータが指定されていません');
+							}
+						} catch (error) {
+							Logger.error(`URLプロトコルハンドリングエラー: ${(error as Error).message}`);
+							vscode.window.showErrorMessage(`URLプロトコルハンドリングエラー: ${(error as Error).message}`);
+						}
+					}
+				}
+			})
+		);
+		Logger.info('URL protocol handler registered successfully');
 	} catch (error) {
 		Logger.error(`Authentication initialization failed: ${(error as Error).message}`);
 	}
@@ -309,10 +355,11 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
-	// ダッシュボードを開くコマンド
+	// ダッシュボードを開くコマンド（権限チェック付き）
 	context.subscriptions.push(
 		vscode.commands.registerCommand('appgenius-ai.openDashboard', () => {
 			try {
+				// 権限チェック済みの基底クラスメソッドを呼び出す
 				DashboardPanel.createOrShow(context.extensionUri, aiService);
 			} catch (error) {
 				vscode.window.showErrorMessage(`ダッシュボード表示エラー: ${(error as Error).message}`);
@@ -320,8 +367,11 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 	
-	// 拡張機能起動時に自動でダッシュボードを開く
-	DashboardPanel.createOrShow(context.extensionUri, aiService);
+	// 拡張機能起動時に自動でダッシュボードを開く（権限チェック付き）
+	// ゲストユーザーもダッシュボードは閲覧可能
+	if (AuthGuard.checkAccess(Feature.DASHBOARD)) {
+		DashboardPanel.createOrShow(context.extensionUri, aiService);
+	}
 
 	// Claude MD エディタを開くコマンド
 	context.subscriptions.push(
@@ -339,7 +389,10 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('appgenius-ai.openMockupGallery', (projectPath?: string) => {
 			try {
 				Logger.info(`モックアップギャラリーを開きます: ${projectPath || 'プロジェクトパスなし'}`);
-				MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
+				// 権限チェックを行う
+				if (AuthGuard.checkAccess(Feature.MOCKUP_GALLERY)) {
+					MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
+				}
 			} catch (error) {
 				vscode.window.showErrorMessage(`モックアップギャラリー表示エラー: ${(error as Error).message}`);
 			}
@@ -370,7 +423,10 @@ export function activate(context: vscode.ExtensionContext) {
 				// 詳細なデバッグ情報
 				Logger.info(`[Debug] スコープマネージャーコマンド: 引数=${providedProjectPath}, 使用パス=${projectPath}`);
 				
-				ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
+				// 権限チェックを行う
+				if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+					ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
+				}
 			} catch (error) {
 				vscode.window.showErrorMessage(`スコープマネージャー表示エラー: ${(error as Error).message}`);
 			}
@@ -439,7 +495,10 @@ export function activate(context: vscode.ExtensionContext) {
 				// パスが有効かログ出力
 				Logger.debug(`環境変数アシスタントパネル起動: projectPath=${projectPath}`);
 				
-				EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
+				// 権限チェックを行う
+				if (AuthGuard.checkAccess(Feature.ENV_ASSISTANT)) {
+					EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
+				}
 			} catch (error) {
 				vscode.window.showErrorMessage(`環境変数アシスタント表示エラー: ${(error as Error).message}`);
 			}
@@ -471,7 +530,40 @@ export function activate(context: vscode.ExtensionContext) {
 				// パスが有効かログ出力
 				Logger.debug(`リファレンスマネージャーパネル起動: projectPath=${projectPath}`);
 					
-				ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
+					// 権限チェックを行う
+					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
+						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
+					}
 			} catch (error) {
 				vscode.window.showErrorMessage(`リファレンスマネージャー表示エラー: ${(error as Error).message}`);
 			}

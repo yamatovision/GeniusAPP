@@ -265,3 +265,96 @@ export const UserRolePermissions: Record<PermissionLevel, Permission[]> = {
 
 - 工数: 7人日
 - 優先度: 高（認証システム強化とUIアクセス制御）
+
+認証・アクセス制御システム 実装進捗と引き継ぎ
+
+  実装完了部分
+
+  1. 基盤機能:
+    - roles.ts:
+  権限システムの基本定義（GUEST/USER/ADMIN/UNSUBSCRIBE）
+    - PermissionManager.ts: 権限管理の中核ロジック
+    - AuthGuard.ts: UI向け権限チェック
+    - ProtectedPanel.ts: 権限保護付きパネル基底クラス
+    - permission.ts: 権限チェックデコレータ
+  2. 適用済みコンポーネント:
+    - DashboardPanel.ts: ProtectedPanel継承完了
+    - DebugDetectivePanel.ts: 修正進行中
+
+  残作業
+
+  1. 他UI修正:
+    - ScopeManagerPanel,
+  MockupGalleryPanel等の全てのパネルにProtectedPanel継承を適用
+  2. コマンド制御:
+    - extension.tsの各コマンド登録箇所にAuthGuardチェックを追加
+  3. テスト:
+    - 単体テスト作成
+    - 権限チェックの統合テスト
+
+  実装方針
+
+  1. 各UIパネル修正手順:
+    - ProtectedPanel継承・Feature指定
+    - createOrShow→_createOrShowPanelに改名
+    - 外部向けcreateOrShowメソッド追加
+  2. コマンド修正手順:
+  // 例: デバッグ探偵コマンド
+  context.subscriptions.push(
+
+  vscode.commands.registerCommand('appgenius-ai.openDebugDetective',
+   (projectPath) => {
+      if (AuthGuard.checkAccess(Feature.DEBUG_DETECTIVE)) {
+        DebugDetectivePanel.createOrShow(context.extensionUri,
+  projectPath);
+      }
+    })
+  );
+
+  注意点
+
+  - 既存のAuthenticationServiceとの連携はすでに確立
+  - ロール情報は中央ポータルから取得され、MongoDB管理
+  - ユーザー管理はportalサイドで実装済み
+
+  以上、次の担当者は残りUIパネル修正とコマンドの権限チェック追加を行
+  ってください。
+
+  1. ロール定義の明確化：
+    - MongoDBのユーザーモデルに「admin」「user」「unsubscribe」「guest」
+  の4つのロールを定義
+  2. アクセス制御の実装：
+    - ロールベースの単純な権限チェックを実装
+    - VSCode拡張の各UIコンポーネント表示前にロールチェック
+    ▶︎これアーキテクチャー的に美しいファイル構造にしてもらいたいです。可能ですか？各UIごとに同じようなコードバンバン貼っていくような形じゃないようにしてもらいたい
+
+  3. ユーザー管理：
+    - ポータル側に管理者用のユーザー作成・編集機能を実装
+    - ユーザーの状態変更（アクティブ/非アクティブ）機能
+    ▶︎これするとロールで管理するのか状態で管理するのか混乱するのでよくない。ロール定義をinactiveからunsubscribeに変えました。unsubscribeであるとアクセス不可にしてください。つまりinactive。ただしinactiveにするとactiveとセットでONOFFみたいな二重実装考えがちなので名称変えた。
+  4. 認証フロー：
+    - VSCode拡張からポータルへの既存の認証フローを活用
+    - ログイン時にユーザーのロール情報を取得して権限判定に使用
+    OK
+
+
+
+ ログインフローは以下のように動作しています：
+
+  1. appgenius.auth.loginコマンドが実行される
+  2. LoginWebviewPanelクラスでWebviewパネルが作成・表示される
+  3. ユーザーが認証情報（メールアドレス/パスワード）を入力
+  4. WebviewからVSCode拡張にメッセージが送信される
+  5. AuthenticationService.login()メソッドが呼び出され、ポータルサー
+  バーの認証APIと通信
+  6. 認証成功時、トークンが保存され、認証状態が更新される
+
+  このログイン機能は、我々が設計しているアクセス制御システムと直接連
+  携させることができます。ログイン後、AuthenticationServiceから取得
+  したユーザーのロール情報をPermissionManagerに渡し、アクセス権限を
+  更新するという流れになります。
+
+  既存のログイン機能を活用することで、新たなログイン画面の作成は不要
+  で、権限管理システムとの統合だけを行えばよいことになります。
+
+> OKです。ではそれで実装を進めてください。

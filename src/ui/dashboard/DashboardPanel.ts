@@ -6,14 +6,19 @@ import { Logger } from '../../utils/logger';
 import { ProjectManagementService, Project } from '../../services/ProjectManagementService';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
 import { AppGeniusStateManager } from '../../services/AppGeniusStateManager';
+import { ProtectedPanel } from '../auth/ProtectedPanel';
+import { Feature } from '../../core/auth/roles';
 
 /**
  * ダッシュボードパネル
  * プロジェクト管理と機能選択のためのWebViewインターフェース
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class DashboardPanel {
+export class DashboardPanel extends ProtectedPanel {
   public static currentPanel: DashboardPanel | undefined;
   private static readonly viewType = 'dashboard';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.DASHBOARD;
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -31,9 +36,10 @@ export class DashboardPanel {
   private _projectScopes: any = {};
 
   /**
-   * パネルを作成または表示
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService): DashboardPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, aiService: AIService): DashboardPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -63,6 +69,18 @@ export class DashboardPanel {
     );
 
     DashboardPanel.currentPanel = new DashboardPanel(panel, extensionUri, aiService);
+    return DashboardPanel.currentPanel;
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   */
+  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService): DashboardPanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, aiService);
+    
+    // 権限チェックが成功した場合はcurrentPanelが設定されている
     return DashboardPanel.currentPanel;
   }
 

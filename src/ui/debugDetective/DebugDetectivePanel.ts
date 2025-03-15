@@ -6,14 +6,19 @@ import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusE
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 import { ErrorSessionManager } from './ErrorSessionManager';
 import { KnowledgeBaseManager } from './KnowledgeBaseManager';
+import { ProtectedPanel } from '../auth/ProtectedPanel';
+import { Feature } from '../../core/auth/roles';
 
 /**
  * デバッグ探偵パネル
  * エラー検出と解決を支援するシャーロックホームズ風デバッグアシスタント
+ * 権限保護されたパネルの基底クラスを継承
  */
-export class DebugDetectivePanel {
+export class DebugDetectivePanel extends ProtectedPanel {
   public static currentPanel: DebugDetectivePanel | undefined;
   private static readonly viewType = 'debugDetective';
+  // 必要な権限を指定
+  protected static readonly _feature: Feature = Feature.DEBUG_DETECTIVE;
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -31,9 +36,10 @@ export class DebugDetectivePanel {
   private _detectedErrorType: string = '';
 
   /**
-   * パネルを作成または表示
+   * 実際のパネル作成・表示ロジック
+   * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath: string, projectId?: string): DebugDetectivePanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, projectPath: string, projectId?: string): DebugDetectivePanel {
     try {
       Logger.info(`デバッグ探偵パネル作成開始: projectPath=${projectPath}, projectId=${projectId || 'なし'}`);
       
@@ -44,11 +50,11 @@ export class DebugDetectivePanel {
         throw new Error('プロジェクトパスが指定されていません');
       }
       
-      // デバッグプロンプトファイルの存在を確認
+      // 注意：中央サーバーのプロンプトURLを使用するため、ローカルファイルの存在チェックは警告のみ
       const debugPromptPath = path.join(projectPath, 'docs', 'prompts', 'debug_detective.md');
       if (!fs.existsSync(debugPromptPath)) {
-        Logger.warn(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
-        vscode.window.showWarningMessage(`デバッグプロンプトファイル（debug_detective.md）が見つかりません。調査機能が制限されます。`);
+        Logger.warn(`ローカルデバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
+        // 警告メッセージは表示しない（中央サーバーのプロンプトを使用するため）
       }
       
       const column = vscode.window.activeTextEditor
@@ -106,6 +112,18 @@ export class DebugDetectivePanel {
       vscode.window.showErrorMessage(`デバッグ探偵パネルの作成に失敗しました: ${(error as Error).message}`);
       throw error;
     }
+  }
+  
+  /**
+   * 外部向けのパネル作成・表示メソッド
+   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   */
+  public static createOrShow(extensionUri: vscode.Uri, projectPath: string, projectId?: string): DebugDetectivePanel | undefined {
+    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
+    super.createOrShow(extensionUri, projectPath, projectId);
+    
+    // 権限チェックが成功した場合はcurrentPanelが設定されている
+    return DebugDetectivePanel.currentPanel;
   }
 
   /**
@@ -213,15 +231,19 @@ export class DebugDetectivePanel {
       // 知見ベース初期化
       await this._knowledgeBaseManager.initialize();
       
-      // デバッグプロンプトファイルの存在を確認
+      // デバッグプロンプトファイルの存在を確認（フォールバック用）
       const debugPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'debug_detective.md');
-      Logger.info(`デバッグプロンプトファイルをチェックします: ${debugPromptPath}`);
+      Logger.info(`ローカルデバッグプロンプトファイルをチェックします（フォールバック用）: ${debugPromptPath}`);
       if (!fs.existsSync(debugPromptPath)) {
-        Logger.warn(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
-        vscode.window.showWarningMessage(`デバッグプロンプトファイルが見つかりません: debug_detective.md`);
+        Logger.warn(`ローカルデバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
+        // 警告メッセージは表示しない（中央サーバーのプロンプトを使用するため）
       } else {
-        Logger.info(`デバッグプロンプトファイルを確認しました: ${debugPromptPath}`);
+        Logger.info(`ローカルデバッグプロンプトファイルを確認しました（フォールバック用）: ${debugPromptPath}`);
       }
+      
+      // 中央サーバーのデバッグ探偵プロンプトURLをチェック
+      Logger.info(`中央サーバーのデバッグ探偵プロンプトURLを使用します: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09`);
+      
       
       Logger.info(`デバッグ探偵を初期化しました。プロジェクトパス: ${this._projectPath}`);
     } catch (error) {
@@ -340,15 +362,6 @@ export class DebugDetectivePanel {
       
       Logger.info(`エラーセッションを作成しました: ${sessionId}`);
       
-      // 調査用プロンプトを作成
-      const debugPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'debug_detective.md');
-      
-      // プロンプトファイルの存在確認
-      if (!fs.existsSync(debugPromptPath)) {
-        Logger.error(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
-        throw new Error(`デバッグプロンプトファイル（debug_detective.md）が見つかりません。docs/prompts/debug_detective.mdを確認してください。`);
-      }
-      
       // 実際のファイル内容を読み込み
       const relatedFilesContent = await this._loadRelatedFilesContent(detectedFiles);
       
@@ -363,30 +376,89 @@ export class DebugDetectivePanel {
         `combined_debug_${Date.now()}.md`
       );
       
-      Logger.info(`デバッグプロンプトファイルを読み込みます: ${debugPromptPath}`);
-      let combinedContent = fs.readFileSync(debugPromptPath, 'utf8');
-      combinedContent += '\n\n# エラー情報\n\n```\n';
-      combinedContent += errorLog;
-      combinedContent += '\n```\n\n';
+      // 中央サーバーのデバッグ探偵プロンプトURL
+      const debugDetectivePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09';
       
-      combinedContent += '# 関連ファイル\n\n';
-      for (const [filePath, content] of Object.entries(relatedFilesContent)) {
-        combinedContent += `## ${filePath}\n\n`;
-        combinedContent += '```\n';
-        combinedContent += content;
+      // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
+      try {
+        // VSCodeのlaunchFromUrlコマンドを実行（このコマンドはすでに実装済み）
+        Logger.info(`ClaudeCodeをURL経由で起動します: ${debugDetectivePromptUrl}`);
+        
+        // ClaudeCodeIntegrationServiceのインスタンスを取得
+        const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+          module => module.ClaudeCodeIntegrationService.getInstance()
+        );
+        
+        // エラー情報と関連ファイル内容を一時ファイルに保存
+        let analysisContent = '# エラー情報\n\n```\n';
+        analysisContent += errorLog;
+        analysisContent += '\n```\n\n';
+        
+        analysisContent += '# 関連ファイル\n\n';
+        for (const [filePath, content] of Object.entries(relatedFilesContent)) {
+          analysisContent += `## ${filePath}\n\n`;
+          analysisContent += '```\n';
+          analysisContent += content;
+          analysisContent += '\n```\n\n';
+        }
+        
+        // 一時ファイルに保存（デバッグ用・参照用）
+        const analysisFilePath = path.join(tempDir, `error_analysis_${Date.now()}.md`);
+        fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
+        Logger.info(`エラー分析ファイルを作成しました: ${analysisFilePath}`);
+        
+        // 公開URLからClaudeCodeを起動（エラー分析内容を追加コンテンツとして渡す）
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${debugDetectivePromptUrl}`);
+        await integrationService.launchWithPublicUrl(
+          debugDetectivePromptUrl, 
+          this._projectPath,
+          analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す
+        );
+        
+        // 解析データのファイルを作成するだけで開かず、通知も表示しない
+        Logger.info(`エラー分析ファイルを作成しました: ${analysisFilePath}`);
+        
+      } catch (error) {
+        // URL起動に失敗した場合、ローカルファイルにフォールバック
+        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
+        
+        // ローカルのプロンプトファイルをチェック
+        const debugPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'debug_detective.md');
+        
+        // プロンプトファイルの存在確認
+        if (!fs.existsSync(debugPromptPath)) {
+          Logger.error(`デバッグプロンプトファイルが見つかりません: ${debugPromptPath}`);
+          throw new Error(`デバッグプロンプトファイル（debug_detective.md）が見つかりません。docs/prompts/debug_detective.mdを確認してください。`);
+        }
+        
+        Logger.info(`デバッグプロンプトファイルを読み込みます: ${debugPromptPath}`);
+        let combinedContent = fs.readFileSync(debugPromptPath, 'utf8');
+        combinedContent += '\n\n# エラー情報\n\n```\n';
+        combinedContent += errorLog;
         combinedContent += '\n```\n\n';
+        
+        combinedContent += '# 関連ファイル\n\n';
+        for (const [filePath, content] of Object.entries(relatedFilesContent)) {
+          combinedContent += `## ${filePath}\n\n`;
+          combinedContent += '```\n';
+          combinedContent += content;
+          combinedContent += '\n```\n\n';
+        }
+        
+        Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
+        fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+        
+        // ClaudeCodeを起動（フォールバック）
+        Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
+        await this._claudeCodeLauncher.launchClaudeCodeWithPrompt(
+          this._projectPath,
+          combinedPromptPath,
+          { 
+            title: `デバッグ探偵 - 調査中: ${errorType || '不明なエラー'}`,
+            deletePromptFile: true // セキュリティ対策として自動削除
+          }
+        );
       }
-      
-      Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
-      fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
-      
-      // ClaudeCodeを起動
-      Logger.info(`ClaudeCodeを起動します: ${combinedPromptPath}`);
-      await this._claudeCodeLauncher.launchClaudeCodeWithPrompt(
-        this._projectPath,
-        combinedPromptPath,
-        { title: `デバッグ探偵 - 調査中: ${errorType || '不明なエラー'}` }
-      );
       
       // UI更新
       await this._updateWebview();
