@@ -1,10 +1,10 @@
 [build]
 builder = "nixpacks"
-watchPatterns = ["portal/**"]
-buildCommand = "cd portal && npm install"
+watchPatterns = ["**"]
+buildCommand = "npm install"
 
 [deploy]
-startCommand = "cd portal && npm start"
+startCommand = "npm start"
 healthcheckPath = "/"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
