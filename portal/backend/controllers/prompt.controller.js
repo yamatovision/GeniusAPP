@@ -829,9 +829,11 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // 権限チェック（所有者のみ共有リンク生成可能）
+      // 権限チェック（所有者または管理者が共有リンク生成可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
-      if (!isOwner) {
+      const isAdmin = req.userRole === 'admin';
+      
+      if (!isOwner && !isAdmin) {
         return res.status(403).json({ message: '共有リンクを生成する権限がありません' });
       }
       
