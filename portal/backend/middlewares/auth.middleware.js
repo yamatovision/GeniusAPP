@@ -27,13 +27,11 @@ exports.verifyToken = (req, res, next) => {
 
   try {
     // トークンを検証
-    const decoded = jwt.verify(token, authConfig.jwtSecret, {
-      issuer: authConfig.jwtOptions.issuer,
-      audience: authConfig.jwtOptions.audience
-    });
+    const decoded = jwt.verify(token, authConfig.jwtSecret);
     
     // デコードされたユーザーIDをリクエストオブジェクトに追加
     req.userId = decoded.id;
+    req.userRole = decoded.role || 'user';
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -124,29 +122,17 @@ exports.verifyRefreshToken = async (req, res, next) => {
  */
 exports.isAdmin = async (req, res, next) => {
   try {
-    // ユーザーを検索
-    const user = await User.findById(req.userId);
-    
-    if (!user) {
-      return res.status(404).json({
-        error: {
-          code: 'USER_NOT_FOUND',
-          message: 'ユーザーが見つかりません'
-        }
-      });
+    // JWTトークンから取得したロールを使用する
+    if (req.userRole === authConfig.roles.ADMIN) {
+      return next();
     }
     
-    // 管理者権限をチェック
-    if (user.role !== authConfig.roles.ADMIN) {
-      return res.status(403).json({
-        error: {
-          code: 'PERMISSION_DENIED',
-          message: '管理者権限が必要です'
-        }
-      });
-    }
-    
-    next();
+    return res.status(403).json({
+      error: {
+        code: 'PERMISSION_DENIED',
+        message: '管理者権限が必要です'
+      }
+    });
   } catch (error) {
     return res.status(500).json({
       error: {
@@ -164,29 +150,12 @@ exports.isAdmin = async (req, res, next) => {
  */
 exports.loadUser = async (req, res, next) => {
   try {
-    // ユーザーを検索してリクエストに追加
-    const user = await User.findById(req.userId);
-    
-    if (!user) {
-      return res.status(404).json({
-        error: {
-          code: 'USER_NOT_FOUND',
-          message: 'ユーザーが見つかりません'
-        }
-      });
-    }
-    
-    // ユーザーのアクティブ状態をチェック
-    if (!user.isActive) {
-      return res.status(401).json({
-        error: {
-          code: 'ACCOUNT_DISABLED',
-          message: 'アカウントが無効化されています'
-        }
-      });
-    }
-    
-    req.user = user;
+    // トークンからユーザー情報を作成
+    req.user = {
+      _id: req.userId,
+      role: req.userRole,
+      isActive: true
+    };
     next();
   } catch (error) {
     return res.status(500).json({

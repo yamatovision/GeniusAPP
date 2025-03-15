@@ -1,8 +1,10 @@
 import axios from 'axios';
 import authHeader from '../utils/auth-header';
+import { refreshTokenService } from '../utils/token-refresh';
 
 // APIのベースURL
-const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/projects`;
+// プロジェクト関連の操作はプロンプトAPIに統合
+const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/prompts/projects`;
 
 /**
  * プロジェクトサービス
@@ -34,7 +36,14 @@ class ProjectService {
         headers: authHeader()
       });
       
-      return response.data;
+      // 新しいAPI形式に合わせて戻り値を調整
+      return {
+        projects: response.data.projects,
+        totalItems: response.data.total,
+        page: options.page || 1,
+        limit: options.limit || 10,
+        totalPages: Math.ceil(response.data.total / (options.limit || 10))
+      };
     } catch (error) {
       console.error('プロジェクト一覧取得エラー:', error);
       
@@ -354,37 +363,14 @@ class ProjectService {
   
   /**
    * トークンのリフレッシュ
-   * auth.service.jsのリフレッシュトークン機能を呼び出す
-   * @returns {Promise} 新しいアクセストークン
+   * 共通リフレッシュトークンサービスを呼び出す
+   * @returns {Promise<string>} 新しいアクセストークン
    */
   async refreshToken() {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      
-      if (!refreshToken) {
-        throw new Error('リフレッシュトークンがありません');
-      }
-      
-      const response = await axios.post(
-        `/api/auth/refresh-token`, 
-        { refreshToken }
-      );
-      
-      if (response.data.accessToken) {
-        localStorage.setItem('accessToken', response.data.accessToken);
-      }
-      
-      return response.data;
+      return await refreshTokenService.refreshToken();
     } catch (error) {
       console.error('Token refresh error:', error);
-      
-      // リフレッシュトークンが無効な場合はローカルストレージをクリア
-      if (error.response?.status === 401) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-      }
-      
       throw error;
     }
   }

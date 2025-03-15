@@ -15,13 +15,19 @@ import {
   createTheme 
 } from '@mui/material';
 import { 
-  Menu as MenuIcon, 
-  ExitToApp as LogoutIcon 
+  Home as HomeIcon, 
+  ExitToApp as LogoutIcon,
+  Dashboard as DashboardIcon
 } from '@mui/icons-material';
 
 // コンポーネント
 import Login from './components/auth/Login';
 import Dashboard from './components/dashboard/Dashboard';
+import PromptList from './components/prompts/PromptList';
+import PromptDetail from './components/prompts/PromptDetail';
+import PromptForm from './components/prompts/PromptForm';
+import UserList from './components/users/UserList';
+import UserDetail from './components/users/UserDetail';
 
 // サービス
 import authService from './services/auth.service';
@@ -120,10 +126,12 @@ const App = () => {
               <IconButton
                 edge="start"
                 color="inherit"
-                aria-label="menu"
+                aria-label="home"
                 sx={{ mr: 2 }}
+                onClick={() => window.location.href = '/dashboard'}
+                title="ダッシュボードへ"
               >
-                <MenuIcon />
+                <HomeIcon />
               </IconButton>
               
               <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
@@ -158,6 +166,50 @@ const App = () => {
             <Route path="/dashboard" element={
               <PrivateRoute>
                 <Dashboard />
+              </PrivateRoute>
+            } />
+            
+            {/* プロンプト管理ルート */}
+            <Route path="/prompts" element={
+              <PrivateRoute>
+                <PromptList />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/prompts/create" element={
+              <PrivateRoute>
+                <PromptForm />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/prompts/edit/:id" element={
+              <PrivateRoute>
+                <PromptForm />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/prompts/:id" element={
+              <PrivateRoute>
+                <PromptDetail />
+              </PrivateRoute>
+            } />
+            
+            {/* ユーザー管理ルート */}
+            <Route path="/users" element={
+              <PrivateRoute>
+                <UserList />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/users/new" element={
+              <PrivateRoute>
+                <UserDetail />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/users/:id" element={
+              <PrivateRoute>
+                <UserDetail />
               </PrivateRoute>
             } />
             

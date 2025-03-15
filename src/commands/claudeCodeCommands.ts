@@ -35,6 +35,10 @@ export function registerClaudeCodeCommands(context: vscode.ExtensionContext): vo
   context.subscriptions.push(
     vscode.commands.registerCommand('appgenius.claudeCode.syncPrompts', syncPrompts)
   );
+  
+  context.subscriptions.push(
+    vscode.commands.registerCommand('appgenius.claudeCode.launchFromUrl', launchFromUrl)
+  );
 
   // ClaudeCodeインストール確認
   async function checkClaudeCodeInstallation(): Promise<boolean> {
@@ -291,6 +295,99 @@ export function registerClaudeCodeCommands(context: vscode.ExtensionContext): vo
     } catch (error) {
       Logger.error('プロンプト同期中にエラーが発生しました', error as Error);
       vscode.window.showErrorMessage(`プロンプト同期中にエラーが発生しました: ${(error as Error).message}`);
+    }
+  }
+  
+  // 公開URLからClaudeCodeを起動
+  async function launchFromUrl(): Promise<void> {
+    try {
+      // URLの入力を求める
+      const url = await vscode.window.showInputBox({
+        prompt: 'プロンプトの公開URLを入力してください',
+        placeHolder: 'https://example.com/api/prompts/public/abcd1234'
+      });
+
+      if (!url) {
+        return; // ユーザーがキャンセルした場合
+      }
+      
+      // ClaudeCodeの確認
+      const isAvailable = await integrationService.isClaudeCodeAvailable();
+      if (!isAvailable) {
+        const answer = await vscode.window.showInformationMessage(
+          'ClaudeCodeがインストールされていないようです。インストールしますか？',
+          'インストール',
+          'キャンセル'
+        );
+        
+        if (answer === 'インストール') {
+          const installed = await installClaudeCode();
+          if (!installed) {
+            return;
+          }
+        } else {
+          return;
+        }
+      }
+
+      // 現在のワークスペースフォルダを取得
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders || workspaceFolders.length === 0) {
+        vscode.window.showErrorMessage('ワークスペースフォルダが開かれていません。');
+        return;
+      }
+
+      // 複数のワークスペースがある場合は選択させる
+      let projectPath: string;
+      if (workspaceFolders.length === 1) {
+        projectPath = workspaceFolders[0].uri.fsPath;
+      } else {
+        const folderItems = workspaceFolders.map(folder => ({
+          label: folder.name,
+          description: folder.uri.fsPath,
+          path: folder.uri.fsPath
+        }));
+
+        const selectedFolder = await vscode.window.showQuickPick(folderItems, {
+          placeHolder: 'プロジェクトフォルダを選択してください'
+        });
+
+        if (!selectedFolder) {
+          return; // ユーザーがキャンセルした場合
+        }
+
+        projectPath = selectedFolder.path;
+      }
+
+      // URLを検証
+      try {
+        new URL(url); // URLとして妥当かチェック
+      } catch (e) {
+        vscode.window.showErrorMessage('無効なURLです。正しいプロンプト共有URLを入力してください。');
+        return;
+      }
+
+      // ClaudeCode起動
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'ClaudeCodeを起動しています...',
+          cancellable: false
+        },
+        async (progress) => {
+          progress.report({ increment: 50, message: 'プロンプトを読み込み中...' });
+          const result = await integrationService.launchWithPublicUrl(url, projectPath);
+          
+          if (!result) {
+            throw new Error('ClaudeCodeの起動に失敗しました');
+          }
+          
+          progress.report({ increment: 50, message: 'ClaudeCodeを起動しました' });
+        }
+      );
+    } catch (error) {
+      Logger.error('公開URLからのClaudeCode起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`公開URLからのClaudeCode起動に失敗しました: ${(error as Error).message}`);
     }
   }
 }

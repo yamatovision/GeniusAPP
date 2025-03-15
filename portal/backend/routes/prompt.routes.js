@@ -7,8 +7,17 @@ const authMiddleware = require('../middlewares/auth.middleware');
  * プロンプト関連のAPI定義
  */
 
+// 公開プロンプト取得（認証不要）
+router.get('/public/:token', promptController.getPublicPrompt);
+
 // 認証必須のルートにミドルウェアを適用
 router.use(authMiddleware.verifyToken);
+
+// カテゴリーとタグのメタデータ取得
+router.get('/metadata/categories-tags', promptController.getCategoriesAndTags);
+
+// VSCode拡張用のプロンプト内容を取得するエンドポイント
+router.get('/:id/content', promptController.getPromptContent);
 
 // プロンプト一覧取得
 router.get('/', promptController.getAllPrompts);
@@ -42,5 +51,11 @@ router.post('/:id/usage', promptController.recordPromptUsage);
 
 // ユーザーフィードバック登録
 router.post('/usage/:usageId/feedback', promptController.recordUserFeedback);
+
+// プロンプト複製
+router.post('/:id/clone', promptController.clonePrompt);
+
+// 共有リンク生成
+router.post('/:id/share', promptController.createShareLink);
 
 module.exports = router;

@@ -4,6 +4,7 @@
  */
 import axios from 'axios';
 import authHeader from '../utils/auth-header';
+import { refreshTokenService } from '../utils/token-refresh';
 
 // APIのベースURL
 const API_URL = process.env.REACT_APP_API_URL || '/api';
@@ -138,16 +139,75 @@ class UserService {
   }
   
   /**
+   * 現在のユーザーのトークン使用量を取得
+   * @param {string} period - 期間（today, yesterday, week, month, year, all, custom）
+   * @param {string} interval - 間隔（hour, day, week, month）
+   * @param {string} startDate - 開始日（periodがcustomの場合）
+   * @param {string} endDate - 終了日（periodがcustomの場合）
+   * @returns {Promise} - 使用量データ
+   */
+  async getTokenUsage(period = 'month', interval = 'day', startDate = null, endDate = null) {
+    try {
+      const params = { period, interval };
+      if (period === 'custom') {
+        if (startDate) params.start = startDate;
+        if (endDate) params.end = endDate;
+      }
+      
+      const response = await axios.get(
+        `${API_URL}/users/token-usage`,
+        { 
+          params,
+          headers: authHeader() 
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw this._handleError(error);
+    }
+  }
+  
+  /**
+   * 特定ユーザーのトークン使用量を取得（管理者用）
+   * @param {string} userId - ユーザーID
+   * @param {string} period - 期間（today, yesterday, week, month, year, all, custom）
+   * @param {string} interval - 間隔（hour, day, week, month）
+   * @returns {Promise} - 使用量データ
+   */
+  async getUserTokenUsage(userId, period = 'month', interval = 'day') {
+    try {
+      const response = await axios.get(
+        `${API_URL}/users/${userId}/token-usage`,
+        { 
+          params: { period, interval },
+          headers: authHeader() 
+        }
+      );
+      return response.data;
+    } catch (error) {
+      throw this._handleError(error);
+    }
+  }
+  
+  /**
    * エラーハンドリング
    */
-  _handleError(error) {
+  async _handleError(error) {
     if (error.response) {
       // サーバーからのレスポンスがある場合
       const { status, data } = error.response;
       
+      // 認証エラーの場合はトークンリフレッシュを試みる
       if (status === 401) {
-        // 認証エラー
-        return new Error('認証エラー：ログインが必要です');
+        try {
+          // 共通リフレッシュトークンサービスを使用
+          await refreshTokenService.refreshToken();
+          // トークンリフレッシュに成功した場合はtrue（再試行可能）を返す
+          return { retryable: true };
+        } catch (refreshError) {
+          // リフレッシュに失敗した場合は401エラーとして処理
+          return new Error('認証セッションの有効期限が切れました。再ログインしてください。');
+        }
       } else if (status === 403) {
         // 権限エラー
         return new Error('権限エラー：この操作を行う権限がありません');
@@ -157,13 +217,33 @@ class UserService {
           message: data.message || 'バリデーションエラー',
           errors: data.errors
         };
+      } else if (status === 429) {
+        // レート制限エラー
+        return {
+          message: 'リクエスト回数が多すぎます。しばらく待ってから再試行してください。',
+          retryable: true,
+          retryAfter: parseInt(error.response.headers['retry-after'] || '5', 10)
+        };
+      } else if (status >= 500) {
+        // サーバーエラー（再試行可能）
+        return {
+          message: 'サーバーエラーが発生しました。しばらくしてから再試行してください。',
+          retryable: true
+        };
       } else {
         // その他のエラー
         return new Error(data.message || 'リクエスト処理中にエラーが発生しました');
       }
+    } else if (error.request) {
+      // リクエストは送信されたがレスポンスが受信されなかった
+      // ネットワークエラーと見なして再試行可能
+      return {
+        message: 'ネットワーク接続エラー。インターネット接続を確認してください。',
+        retryable: true
+      };
     }
     
-    // ネットワークエラーなど
+    // その他のエラー
     return error;
   }
 }

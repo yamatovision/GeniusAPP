@@ -62,6 +62,35 @@ const UserSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: null
+  },
+  
+  // トークン使用プラン情報
+  plan: {
+    // プランタイプ（basic/standard/premium/custom）
+    type: {
+      type: String,
+      enum: ['basic', 'standard', 'premium', 'custom'],
+      default: 'basic'
+    },
+    // トークン上限
+    tokenLimit: {
+      type: Number,
+      default: 100000 // デフォルト: 10万トークン
+    },
+    // 最終リセット日
+    lastResetDate: {
+      type: Date,
+      default: Date.now
+    },
+    // 次回リセット日
+    nextResetDate: {
+      type: Date,
+      default: () => {
+        const date = new Date();
+        date.setMonth(date.getMonth() + 1);
+        return date;
+      }
+    }
   }
 }, {
   // タイムスタンプフィールド（作成日時・更新日時）

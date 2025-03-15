@@ -1,0 +1,65 @@
+ttp://0.0.0.0:5000/
+プロンプト一覧取得エラー: CastError: Cast to ObjectId failed for value "mikoto-001" (type string) at path "ownerId" for model "Prompt"
+    at ObjectId.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schema/objectid.js:250:11)
+    at SchemaType.applySetters (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1219:12)
+    at SchemaType.castForQuery (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1633:15)
+    at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:389:32)
+    at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:75:20)
+    at Query.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:4927:12)
+    at Query._castConditions (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2237:10)
+    at model.Query._find (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2263:8)
+    at model.Query.exec (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:4447:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  stringValue: '"mikoto-001"',
+  messageFormat: undefined,
+  kind: 'ObjectId',
+  value: 'mikoto-001',
+  path: 'ownerId',
+  reason: BSONError: Argument passed in must be a string of 12 bytes or a string of 24 hex characters or an integer
+      at new ObjectId (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/bson/lib/bson.cjs:2055:23)
+      at castObjectId (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast/objectid.js:25:12)
+      at ObjectId.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schema/objectid.js:248:12)
+      at SchemaType.applySetters (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1219:12)
+      at SchemaType.castForQuery (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1633:15)
+      at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:389:32)
+      at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:75:20)
+      at Query.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:4927:12)
+      at Query._castConditions (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2237:10)
+      at model.Query._find (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2263:8),
+  valueType: 'string',
+  model: Model { Prompt }
+}
+プロンプト一覧取得エラー: CastError: Cast to ObjectId failed for value "mikoto-001" (type string) at path "ownerId" for model "Prompt"
+    at ObjectId.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schema/objectid.js:250:11)
+    at SchemaType.applySetters (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1219:12)
+    at SchemaType.castForQuery (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1633:15)
+    at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:389:32)
+    at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:75:20)
+    at Query.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:4927:12)
+    at Query._castConditions (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2237:10)
+    at model.Query._find (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2263:8)
+    at model.Query.exec (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:4447:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  stringValue: '"mikoto-001"',
+  messageFormat: undefined,
+  kind: 'ObjectId',
+  value: 'mikoto-001',
+  path: 'ownerId',
+  reason: BSONError: Argument passed in must be a string of 12 bytes or a string of 24 hex characters or an integer
+      at new ObjectId (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/bson/lib/bson.cjs:2055:23)
+      at castObjectId (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast/objectid.js:25:12)
+      at ObjectId.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schema/objectid.js:248:12)
+      at SchemaType.applySetters (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1219:12)
+      at SchemaType.castForQuery (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/schematype.js:1633:15)
+      at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:389:32)
+      at cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/cast.js:75:20)
+      at Query.cast (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:4927:12)
+      at Query._castConditions (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2237:10)
+      at model.Query._find (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/query.js:2263:8),
+  valueType: 'string',
+  model: Model { Prompt }
+}
+カテゴリーとタグの集計取得エラー: MongooseError: Operation `prompts.aggregate()` buffering timed out after 10000ms
+    at Timeout.<anonymous> (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/portal/node_modules/mongoose/lib/drivers/node-mongodb-native/collection.js:185:23)
+    at listOnTimeout (node:internal/timers:569:17)
+    at process.processTimers (node:internal/timers:512:7)

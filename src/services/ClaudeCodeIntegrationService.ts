@@ -416,6 +416,59 @@ export class ClaudeCodeIntegrationService {
   public async isClaudeCodeAvailable(): Promise<boolean> {
     return await this._authSync.isClaudeCodeAvailable();
   }
+  
+  /**
+   * 公開URLを指定してClaudeCodeを起動
+   * @param promptUrl 公開プロンプトURL
+   * @param projectPath プロジェクトパス
+   * @returns 起動成功したかどうか
+   */
+  public async launchWithPublicUrl(promptUrl: string, projectPath: string): Promise<boolean> {
+    try {
+      // URLからプロンプト情報を取得
+      const prompt = await this._apiClient.getPromptFromPublicUrl(promptUrl);
+      if (!prompt) {
+        throw new Error(`URLからプロンプトを取得できませんでした: ${promptUrl}`);
+      }
+
+      // プロンプトファイルを一時的に作成
+      const tempDir = os.tmpdir();
+      const promptFileName = `prompt_${Date.now()}.md`;
+      const promptFilePath = path.join(tempDir, promptFileName);
+
+      // マークダウン形式でプロンプト内容を生成
+      let content = `# ${prompt.title}\n\n`;
+      if (prompt.description) content += `${prompt.description}\n\n`;
+      if (prompt.tags && prompt.tags.length > 0) content += `タグ: ${prompt.tags.join(', ')}\n`;
+      content += `\n---\n\n${prompt.content}`;
+
+      // ファイルに書き込み
+      fs.writeFileSync(promptFilePath, content, 'utf8');
+
+      // 使用履歴を記録（可能であれば）
+      if (prompt.id) {
+        await this._apiClient.recordPromptUsage(
+          prompt.id,
+          '1',
+          'public-url'
+        ).catch(err => {
+          // エラーでも処理は続行
+          Logger.warn('プロンプト使用履歴の記録に失敗しました', err as Error);
+        });
+      }
+
+      // ClaudeCodeを起動
+      return await this._launcher.launchClaudeCodeWithPrompt(
+        projectPath,
+        promptFilePath,
+        { title: `ClaudeCode - ${prompt.title}` }
+      );
+    } catch (error) {
+      Logger.error('公開URLでのClaudeCode起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`公開URLでのClaudeCode起動に失敗しました: ${(error as Error).message}`);
+      return false;
+    }
+  }
 
   /**
    * リソースの解放

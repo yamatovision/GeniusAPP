@@ -24,7 +24,13 @@ import {
   Skeleton,
   Alert,
   Tooltip,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Snackbar
 } from '@mui/material';
 import { 
   Search as SearchIcon,
@@ -33,7 +39,8 @@ import {
   ContentCopy as CopyIcon,
   Add as AddIcon,
   FilterList as FilterIcon,
-  Description as PromptIcon
+  Description as PromptIcon,
+  Share as ShareIcon
 } from '@mui/icons-material';
 import promptService from '../../services/prompt.service';
 import { useNavigate } from 'react-router-dom';
@@ -43,23 +50,26 @@ const PromptList = () => {
   const [prompts, setPrompts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareUrl, setShareUrl] = useState('');
+  const [claudeCodeUrl, setClaudeCodeUrl] = useState('');
+  // カテゴリーフィルターを削除
   const [tags, setTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
   const [sortOrder, setSortOrder] = useState('updatedAt:desc');
   const navigate = useNavigate();
 
-  // メタデータ（カテゴリーとタグ）取得
+  // タグデータの取得
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
         const data = await promptService.getCategoriesAndTags();
-        setCategories(data.categories || []);
+        // カテゴリー取得を削除
         setTags(data.tags || []);
       } catch (err) {
         console.error('メタデータ取得エラー:', err);
@@ -81,7 +91,7 @@ const PromptList = () => {
           limit: rowsPerPage,
           sort: sortOrder,
           search: searchQuery || undefined,
-          category: selectedCategory || undefined,
+          // カテゴリーフィルターを削除
           tags: selectedTags.length > 0 ? selectedTags.join(',') : undefined
         };
 
@@ -97,7 +107,7 @@ const PromptList = () => {
     };
 
     fetchPrompts();
-  }, [page, rowsPerPage, sortOrder, searchQuery, selectedCategory, selectedTags]);
+  }, [page, rowsPerPage, sortOrder, searchQuery, selectedTags]);
 
   // ページ変更ハンドラ
   const handleChangePage = (event, newPage) => {
@@ -116,11 +126,7 @@ const PromptList = () => {
     setPage(0); // 検索時は1ページ目に戻す
   };
 
-  // カテゴリー選択ハンドラ
-  const handleCategoryChange = (event) => {
-    setSelectedCategory(event.target.value);
-    setPage(0);
-  };
+  // カテゴリー選択ハンドラは削除
 
   // タグ選択ハンドラ
   const handleTagToggle = (tag) => {
@@ -137,7 +143,7 @@ const PromptList = () => {
   // フィルターリセットハンドラ
   const handleResetFilters = () => {
     setSearchQuery('');
-    setSelectedCategory('');
+    // カテゴリーリセットを削除
     setSelectedTags([]);
     setPage(0);
   };
@@ -154,11 +160,18 @@ const PromptList = () => {
 
   // プロンプト削除ハンドラ
   const handleDeletePrompt = async (id) => {
+    // IDの存在確認
+    if (!id) {
+      setError('プロンプトIDが不明なため削除できません');
+      console.error('プロンプト削除エラー: プロンプトIDがundefinedです');
+      return;
+    }
+    
     if (window.confirm('このプロンプトを削除してもよろしいですか？')) {
       try {
         await promptService.deletePrompt(id);
         // 成功後に一覧を更新
-        setPrompts(prevPrompts => prevPrompts.filter(prompt => prompt._id !== id));
+        setPrompts(prevPrompts => prevPrompts.filter(prompt => (prompt.id || prompt._id) !== id));
       } catch (err) {
         setError('プロンプトの削除に失敗しました');
         console.error('プロンプト削除エラー:', err);
@@ -176,6 +189,41 @@ const PromptList = () => {
       setError('プロンプトの複製に失敗しました');
       console.error('プロンプト複製エラー:', err);
     }
+  };
+  
+  // プロンプト共有ハンドラ
+  const handleSharePrompt = async (id) => {
+    try {
+      if (!id) {
+        setError('プロンプトIDが不明なため共有できません');
+        return;
+      }
+      
+      const result = await promptService.createShareLink(id);
+      
+      // 共有URLを設定
+      setShareUrl(result.shareUrl);
+      setClaudeCodeUrl(result.claudeCodeUrl);
+      
+      // ダイアログを開く
+      setShareDialogOpen(true);
+    } catch (err) {
+      setError('プロンプトの共有リンク生成に失敗しました');
+      console.error('プロンプト共有エラー:', err);
+    }
+  };
+  
+  // URLコピーハンドラ
+  const handleCopyUrl = (url) => {
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        setSuccess('URLをクリップボードにコピーしました');
+        setTimeout(() => setSuccess(''), 3000);
+      })
+      .catch(err => {
+        console.error('コピーエラー:', err);
+        setError('URLのコピーに失敗しました');
+      });
   };
 
   // 新規プロンプト作成ページへ遷移
@@ -217,12 +265,87 @@ const PromptList = () => {
     );
   }
 
+  // 共有URLダイアログのレンダリング
+  const renderShareDialog = () => (
+    <Dialog 
+      open={shareDialogOpen} 
+      onClose={() => setShareDialogOpen(false)}
+      maxWidth="md"
+      fullWidth
+    >
+      <DialogTitle>プロンプト共有リンク</DialogTitle>
+      <DialogContent>
+        <DialogContentText sx={{ mb: 2 }}>
+          以下のリンクを使用して、このプロンプトを共有できます：
+        </DialogContentText>
+        
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="subtitle1" gutterBottom>公開API URL:</Typography>
+          <TextField
+            fullWidth
+            variant="outlined"
+            value={shareUrl}
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  onClick={() => handleCopyUrl(shareUrl)}
+                  sx={{ ml: 1 }}
+                >
+                  コピー
+                </Button>
+              )
+            }}
+          />
+        </Box>
+        
+        <Box>
+          <Typography variant="subtitle1" gutterBottom>VSCode拡張用URL:</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            このURLをクリックすると、VSCode拡張のClaudeCodeがこのプロンプトを使用して起動します。
+          </Typography>
+          <TextField
+            fullWidth
+            variant="outlined"
+            value={claudeCodeUrl}
+            InputProps={{
+              readOnly: true,
+              endAdornment: (
+                <Button 
+                  variant="contained" 
+                  size="small" 
+                  onClick={() => handleCopyUrl(claudeCodeUrl)}
+                  sx={{ ml: 1 }}
+                >
+                  コピー
+                </Button>
+              )
+            }}
+          />
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={() => setShareDialogOpen(false)} color="primary">
+          閉じる
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   return (
     <Container maxWidth="lg">
       <Box my={4}>
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
+          </Alert>
+        )}
+        
+        {success && (
+          <Alert severity="success" sx={{ mb: 3 }}>
+            {success}
           </Alert>
         )}
 
@@ -254,7 +377,7 @@ const PromptList = () => {
 
         <Paper elevation={1} sx={{ p: 3, mb: 4 }}>
           <Grid container spacing={2} alignItems="center">
-            <Grid item xs={12} md={4}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
                 variant="outlined"
@@ -270,27 +393,8 @@ const PromptList = () => {
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12} md={3}>
-              <FormControl fullWidth variant="outlined">
-                <InputLabel id="category-filter-label">カテゴリー</InputLabel>
-                <Select
-                  labelId="category-filter-label"
-                  value={selectedCategory}
-                  onChange={handleCategoryChange}
-                  label="カテゴリー"
-                >
-                  <MenuItem value="">すべて</MenuItem>
-                  {categories.map((cat) => (
-                    <MenuItem key={cat.name} value={cat.name}>
-                      {cat.name} ({cat.count})
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
 
-            <Grid item xs={12} md={3}>
+            <Grid item xs={12} md={4}>
               <FormControl fullWidth variant="outlined">
                 <InputLabel id="sort-order-label">並び替え</InputLabel>
                 <Select
@@ -368,7 +472,7 @@ const PromptList = () => {
                 ) : prompts.length > 0 ? (
                   // プロンプト一覧表示
                   prompts.map((prompt) => (
-                    <TableRow key={prompt._id} hover>
+                    <TableRow key={prompt.id || prompt._id} hover>
                       <TableCell>
                         <Box 
                           sx={{ 
@@ -376,7 +480,7 @@ const PromptList = () => {
                             fontWeight: 'medium',
                             '&:hover': { color: 'primary.main' }
                           }}
-                          onClick={() => handleViewPrompt(prompt._id)}
+                          onClick={() => handleViewPrompt(prompt.id || prompt._id)}
                         >
                           {prompt.title}
                         </Box>
@@ -422,7 +526,7 @@ const PromptList = () => {
                           <Tooltip title="編集">
                             <IconButton 
                               color="primary" 
-                              onClick={() => handleEditPrompt(prompt._id)}
+                              onClick={() => handleEditPrompt(prompt.id || prompt._id)}
                             >
                               <EditIcon />
                             </IconButton>
@@ -430,15 +534,23 @@ const PromptList = () => {
                           <Tooltip title="複製">
                             <IconButton 
                               color="info" 
-                              onClick={() => handleClonePrompt(prompt._id)}
+                              onClick={() => handleClonePrompt(prompt.id || prompt._id)}
                             >
                               <CopyIcon />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="共有">
+                            <IconButton 
+                              color="primary" 
+                              onClick={() => handleSharePrompt(prompt.id || prompt._id)}
+                            >
+                              <ShareIcon />
                             </IconButton>
                           </Tooltip>
                           <Tooltip title="削除">
                             <IconButton 
                               color="error" 
-                              onClick={() => handleDeletePrompt(prompt._id)}
+                              onClick={() => (prompt.id || prompt._id) ? handleDeletePrompt(prompt.id || prompt._id) : setError('プロンプトIDが不明なため削除できません')}
                             >
                               <DeleteIcon />
                             </IconButton>
@@ -455,7 +567,7 @@ const PromptList = () => {
                         <Typography variant="subtitle1" color="textSecondary">
                           プロンプトが見つかりませんでした
                         </Typography>
-                        {(searchQuery || selectedCategory || selectedTags.length > 0) && (
+                        {(searchQuery || selectedTags.length > 0) && (
                           <Button 
                             variant="text" 
                             color="primary" 
@@ -487,6 +599,9 @@ const PromptList = () => {
             }
           />
         </Paper>
+        
+        {/* 共有ダイアログ */}
+        {renderShareDialog()}
       </Box>
     </Container>
   );

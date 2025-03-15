@@ -17,12 +17,55 @@ console.log("Port:", process.env.PORT || 8080);
 const http = require("http");
 const express = require('express');
 const cors = require('cors');
+const mongoose = require('mongoose');
+const dbConfig = require('./backend/config/db.config');
 const app = express();
+
+// MongoDBに接続
+(async () => {
+  try {
+    if (process.env.SKIP_DB_CONNECTION === 'true') {
+      console.log("データベース接続をスキップしました（開発モード）");
+    } else {
+      await mongoose.connect(dbConfig.url, dbConfig.options);
+      console.log("MongoDB データベースに接続しました");
+    }
+  } catch (err) {
+    console.error("MongoDB 接続エラー:", err);
+    console.warn("開発モードでデータベース接続エラーが発生しましたが、サーバーは起動します");
+  }
+})();
 const port = process.env.PORT || 8080;
 
 // ミドルウェア設定
+// 環境変数のCORS_ORIGINをカンマ区切りで配列に変換
+const corsOrigins = process.env.CORS_ORIGIN ? 
+  process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : 
+  ['*'];
+
+// 環境変数の値と明示的な許可リストをマージ
+const allowedOrigins = [
+  'https://geniemon.vercel.app', 
+  'https://geniemon-yamatovisions-projects.vercel.app', 
+  'http://localhost:3000', 
+  'http://localhost:3001',
+  ...corsOrigins
+].filter(origin => origin !== '*'); // 重複を許容し、'*'は明示的リストがある場合は除外
+
+console.log('Allowed CORS origins:', allowedOrigins);
+
 app.use(cors({
-  origin: ['https://geniemon.vercel.app', 'https://geniemon-yamatovisions-projects.vercel.app', 'http://localhost:3000', 'http://localhost:3001', process.env.CORS_ORIGIN || '*'],
+  origin: function(origin, callback) {
+    // origin が undefined の場合はサーバー間リクエスト
+    if (!origin) return callback(null, true);
+    
+    // 明示的な許可リストに含まれているか、corsOriginsに'*'が含まれている場合は許可
+    if (allowedOrigins.includes(origin) || corsOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
   methods: process.env.CORS_METHODS || 'GET,POST,PUT,DELETE,OPTIONS',
   credentials: true
 }));
@@ -59,148 +102,159 @@ app.get('/api', (req, res) => {
   });
 });
 
-// テスト用認証エンドポイント
+// APIルート登録
+// プロンプト管理API
+const promptRoutes = require('./backend/routes/prompt.routes');
+app.use('/api/prompts', promptRoutes);
+
+// ユーザー管理API
+const userRoutes = require('./backend/routes/user.routes');
+app.use('/api/users', userRoutes);
+
+// 認証ルート
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-
-// マスターアカウント情報
-const masterAccount = {
-  username: "admin",
-  password: bcrypt.hashSync("AppGenius2025", 10),
-  name: "管理者",
-  email: "admin@appgenius.dev",
-  role: "admin"
-};
-
-// 追加アカウント
-const additionalAccount = {
-  username: "lisence@mikoto.co.jp",
-  password: bcrypt.hashSync("Mikoto@123", 10),
-  name: "Mikoto",
-  email: "lisence@mikoto.co.jp",
-  role: "admin"
-};
+const User = require('./backend/models/user.model');
+const authConfig = require('./backend/config/auth.config');
 
 // ログインAPI
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  // フロントエンドからはemailとして送信されるのでusernameとして扱う
-  const username = email;
-  
-  console.log("ログイン試行:", username);
-  
-  // マスターアカウントチェック
-  if (username === masterAccount.username && bcrypt.compareSync(password, masterAccount.password)) {
-    // JWTトークン生成
-    const token = jwt.sign(
-      { id: "master-001", username, role: masterAccount.role },
-      process.env.JWT_SECRET || "appgenius_jwt_secret_dev",
-      { expiresIn: process.env.JWT_EXPIRY || "1h" }
-    );
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
     
-    // リフレッシュトークン生成
-    const refreshToken = jwt.sign(
-      { id: "master-001", username },
-      process.env.REFRESH_TOKEN_SECRET || "appgenius_refresh_token_secret_dev",
-      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "14d" }
-    );
+    console.log("ログイン試行:", email);
     
-    res.json({
-      message: "ログインに成功しました",
-      user: {
-        id: "master-001",
-        username: masterAccount.username,
-        name: masterAccount.name,
-        email: masterAccount.email,
-        role: masterAccount.role
-      },
-      accessToken: token,
-      refreshToken: refreshToken
+    // まずMongoDBからユーザーを探す
+    const user = await User.findOne({ email: email.toLowerCase() });
+    
+    if (user) {
+      console.log("ユーザーがDBに見つかりました:", user.email);
+      
+      // パスワードチェック
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      if (isPasswordValid) {
+        console.log("パスワード検証成功");
+        
+        // JWTトークン生成
+        const token = jwt.sign(
+          { id: user._id.toString(), role: user.role },
+          authConfig.jwtSecret,
+          { expiresIn: authConfig.jwtExpiry }
+        );
+        
+        // リフレッシュトークン生成
+        const refreshToken = jwt.sign(
+          { id: user._id.toString() },
+          authConfig.refreshTokenSecret,
+          { expiresIn: authConfig.refreshTokenExpiry }
+        );
+        
+        // ユーザーのリフレッシュトークンを更新
+        user.refreshToken = refreshToken;
+        user.lastLogin = new Date();
+        await user.save();
+        
+        return res.json({
+          message: "ログインに成功しました",
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            isActive: user.isActive,
+            lastLogin: user.lastLogin,
+            createdAt: user.createdAt
+          },
+          accessToken: token,
+          refreshToken: refreshToken
+        });
+      } else {
+        console.log("パスワード検証失敗");
+      }
+    } else {
+      console.log("ユーザーがDBに見つかりませんでした");
+    }
+    
+    // MongoDB認証に失敗した場合はエラー
+    return res.status(401).json({
+      error: {
+        code: "INVALID_CREDENTIALS",
+        message: "メールアドレスまたはパスワードが正しくありません"
+      }
     });
-  } 
-  // 追加アカウントチェック
-  else if (username === additionalAccount.username && bcrypt.compareSync(password, additionalAccount.password)) {
-    // JWTトークン生成
-    const token = jwt.sign(
-      { id: "mikoto-001", username, role: additionalAccount.role },
-      process.env.JWT_SECRET || "appgenius_jwt_secret_dev",
-      { expiresIn: process.env.JWT_EXPIRY || "1h" }
-    );
-    
-    // リフレッシュトークン生成
-    const refreshToken = jwt.sign(
-      { id: "mikoto-001", username },
-      process.env.REFRESH_TOKEN_SECRET || "appgenius_refresh_token_secret_dev",
-      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "14d" }
-    );
-    
-    res.json({
-      message: "ログインに成功しました",
-      user: {
-        id: "mikoto-001",
-        username: additionalAccount.username,
-        name: additionalAccount.name,
-        email: additionalAccount.email,
-        role: additionalAccount.role
-      },
-      accessToken: token,
-      refreshToken: refreshToken
-    });
-  } else {
-    // ログイン失敗
-    res.status(401).json({
-      message: "ユーザー名またはパスワードが正しくありません"
+  } catch (error) {
+    console.error("ログインエラー:", error);
+    return res.status(500).json({
+      error: {
+        code: "SERVER_ERROR",
+        message: "サーバーエラーが発生しました",
+        details: error.message
+      }
     });
   }
 });
 
 // 現在のユーザー情報取得API
-app.get('/api/auth/users/me', (req, res) => {
-  // 認証ヘッダーを取得
-  const authHeader = req.headers.authorization;
-  
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: "認証が必要です" });
-  }
-  
-  // トークン取得
-  const token = authHeader.split(' ')[1];
-  
+app.get('/api/auth/users/me', async (req, res) => {
   try {
-    // トークン検証
-    const decoded = jwt.verify(
-      token, 
-      process.env.JWT_SECRET || "appgenius_jwt_secret_dev"
-    );
+    // 認証ヘッダーを取得
+    const authHeader = req.headers.authorization;
     
-    // ユーザー情報返却
-    if (decoded.id === "master-001") {
-      res.json({
-        user: {
-          id: decoded.id,
-          username: decoded.username,
-          name: masterAccount.name,
-          email: masterAccount.email,
-          role: decoded.role
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ 
+        error: {
+          code: "AUTH_REQUIRED",
+          message: "認証が必要です"
         }
       });
-    } else if (decoded.id === "mikoto-001") {
-      res.json({
-        user: {
-          id: decoded.id,
-          username: decoded.username,
-          name: additionalAccount.name,
-          email: additionalAccount.email,
-          role: decoded.role
-        }
-      });
-    } else {
-      res.status(404).json({ message: "ユーザーが見つかりません" });
     }
-  } catch (err) {
-    res.status(401).json({ message: "トークンが無効です" });
+    
+    // トークン取得
+    const token = authHeader.split(' ')[1];
+    
+    // トークン検証
+    const decoded = jwt.verify(token, authConfig.jwtSecret);
+    
+    // MongoDBからユーザー情報を取得
+    const user = await User.findById(decoded.id).select('-password -refreshToken');
+    
+    if (!user) {
+      return res.status(404).json({ 
+        error: {
+          code: "USER_NOT_FOUND",
+          message: "ユーザーが見つかりません"
+        }
+      });
+    }
+    
+    // ユーザー情報を返却
+    res.json({
+      user: user
+    });
+  } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: {
+          code: "TOKEN_EXPIRED",
+          message: "トークンの有効期限が切れています"
+        }
+      });
+    }
+    
+    return res.status(401).json({
+      error: {
+        code: "INVALID_TOKEN",
+        message: "トークンが無効です",
+        details: error.message
+      }
+    });
   }
 });
+
+// 他の認証関連ルート
+const authRoutes = require('./backend/routes/auth.routes');
+app.use('/api/auth', authRoutes);
 
 // エラーハンドリング
 app.use((err, req, res, next) => {

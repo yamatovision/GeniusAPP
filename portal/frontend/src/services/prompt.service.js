@@ -1,5 +1,9 @@
 import axios from 'axios';
 import authHeader from '../utils/auth-header';
+import { refreshTokenService } from '../utils/token-refresh';
+import { withRetry, withLoading } from '../utils/api-retry';
+import { formatTimeSeriesForChart, formatVersionStatsForPieChart, formatOverallStats } from '../utils/stats-formatter';
+import WebSocketManager, { EventTypes } from '../utils/websocket-manager';
 
 // APIのベースURL
 const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/prompts`;
@@ -9,6 +13,59 @@ const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/prompts`;
  * プロンプト関連のAPI呼び出しを管理します
  */
 class PromptService {
+  constructor() {
+    // WebSocketリスナーの登録
+    this._setupWebSocketListeners();
+    
+    // プロンプト更新コールバック
+    this.onPromptUpdated = null;
+    this.onPromptCreated = null;
+    this.onPromptDeleted = null;
+    this.onUsageRecorded = null;
+  }
+  
+  /**
+   * WebSocketリスナーをセットアップ
+   */
+  _setupWebSocketListeners() {
+    // プロンプト更新イベント
+    WebSocketManager.on(EventTypes.PROMPT_UPDATED, (data) => {
+      if (this.onPromptUpdated) {
+        this.onPromptUpdated(data);
+      }
+    });
+    
+    // プロンプト作成イベント
+    WebSocketManager.on(EventTypes.PROMPT_CREATED, (data) => {
+      if (this.onPromptCreated) {
+        this.onPromptCreated(data);
+      }
+    });
+    
+    // プロンプト削除イベント
+    WebSocketManager.on(EventTypes.PROMPT_DELETED, (data) => {
+      if (this.onPromptDeleted) {
+        this.onPromptDeleted(data);
+      }
+    });
+    
+    // プロンプト使用記録イベント
+    WebSocketManager.on(EventTypes.PROMPT_USAGE_RECORDED, (data) => {
+      if (this.onUsageRecorded) {
+        this.onUsageRecorded(data);
+      }
+    });
+  }
+  
+  /**
+   * WebSocketリスナーを登録
+   * @param {string} event - イベントタイプ
+   * @param {Function} callback - コールバック関数
+   * @returns {Function} リスナー登録解除用の関数
+   */
+  subscribe(event, callback) {
+    return WebSocketManager.on(event, callback);
+  }
   /**
    * プロンプト一覧を取得
    * @param {Object} options - 検索オプション
@@ -61,6 +118,11 @@ class PromptService {
    * @returns {Promise} プロンプト詳細
    */
   async getPromptById(id) {
+    // IDが無効の場合はエラーを返す
+    if (!id) {
+      return Promise.reject(new Error('無効なプロンプトIDです'));
+    }
+    
     try {
       const response = await axios.get(`${API_URL}/${id}`, {
         headers: authHeader()
@@ -160,21 +222,33 @@ class PromptService {
    */
   async deletePrompt(id) {
     try {
+      console.log(`プロンプト削除API呼び出し: ${API_URL}/${id}`);
+      
+      if (!id) {
+        throw new Error('プロンプトIDが指定されていません');
+      }
+      
       const response = await axios.delete(`${API_URL}/${id}`, {
         headers: authHeader()
       });
       
+      console.log('プロンプト削除API応答:', response.data);
       return response.data;
     } catch (error) {
       console.error('プロンプト削除エラー:', error);
+      console.error('エラー詳細:', error.response?.data || 'レスポンスなし');
+      console.error('リクエストURL:', `${API_URL}/${id}`);
       
       // トークンが無効な場合、リフレッシュを試みる
       if (error.response?.status === 401) {
         try {
+          console.log('トークンリフレッシュを試みます');
           await this.refreshToken();
+          console.log('トークンリフレッシュ成功、再度削除を試みます');
           // リフレッシュ成功後に再度削除を試みる
           return this.deletePrompt(id);
         } catch (refreshError) {
+          console.error('トークンリフレッシュ失敗:', refreshError);
           throw refreshError;
         }
       }
@@ -314,10 +388,11 @@ class PromptService {
    * @param {Object} options - オプション
    * @param {string} options.period - 期間（'today', 'week', 'month', 'year', 'all'）
    * @param {string} options.interval - 間隔（'hour', 'day', 'week', 'month'）
-   * @returns {Promise} 統計データ
+   * @param {Object} loadingOptions - ローディング状態管理オプション
+   * @returns {Promise} 統計データ（フォーマット済み）
    */
-  async getPromptUsageStats(id, options = {}) {
-    try {
+  async getPromptUsageStats(id, options = {}, loadingOptions = {}) {
+    const fetchStats = async () => {
       const queryParams = new URLSearchParams();
       
       // オプションをクエリパラメータに追加
@@ -327,25 +402,63 @@ class PromptService {
         }
       });
       
-      const response = await axios.get(`${API_URL}/${id}/stats?${queryParams.toString()}`, {
-        headers: authHeader()
+      // 再試行ロジックを適用してAPIを呼び出し
+      const response = await withRetry(
+        () => axios.get(`${API_URL}/${id}/stats?${queryParams.toString()}`, {
+          headers: authHeader()
+        }),
+        {
+          maxRetries: 3,
+          onRetry: ({ attempt, waitTime }) => {
+            console.log(`統計取得リトライ中 (${attempt}/3) - ${waitTime}ms後に再試行`);
+          }
+        }
+      );
+      
+      // 生の統計データ
+      const rawStats = response.data;
+      
+      // UIで使いやすい形式にフォーマット
+      return {
+        raw: rawStats,
+        formatted: {
+          overall: formatOverallStats(rawStats.overall),
+          versionChart: formatVersionStatsForPieChart(rawStats.versions),
+          timeSeriesChart: formatTimeSeriesForChart(rawStats.timeSeries, options.interval || 'day')
+        }
+      };
+    };
+    
+    // ローディング状態管理
+    return withLoading(fetchStats, loadingOptions);
+  }
+  
+  /**
+   * プロンプト使用統計の詳細取得（バージョン別比較など）
+   * @param {string} id - プロンプトID
+   * @param {Array<string>} versionIds - 比較するバージョンID配列
+   * @param {Object} options - オプション
+   * @returns {Promise} 詳細統計データ
+   */
+  async getPromptUsageComparison(id, versionIds = [], options = {}) {
+    try {
+      // バージョンIDをカンマ区切りの文字列に変換
+      const versionParam = versionIds.join(',');
+      const queryParams = new URLSearchParams({
+        versions: versionParam,
+        ...options
       });
+      
+      // 再試行ロジックを適用してAPIを呼び出し
+      const response = await withRetry(
+        () => axios.get(`${API_URL}/${id}/stats/comparison?${queryParams.toString()}`, {
+          headers: authHeader()
+        })
+      );
       
       return response.data;
     } catch (error) {
-      console.error('プロンプト使用統計取得エラー:', error);
-      
-      // トークンが無効な場合、リフレッシュを試みる
-      if (error.response?.status === 401) {
-        try {
-          await this.refreshToken();
-          // リフレッシュ成功後に再度取得を試みる
-          return this.getPromptUsageStats(id, options);
-        } catch (refreshError) {
-          throw refreshError;
-        }
-      }
-      
+      console.error('プロンプト使用比較データ取得エラー:', error);
       throw error;
     }
   }
@@ -418,21 +531,29 @@ class PromptService {
    */
   async clonePrompt(id, options = {}) {
     try {
+      console.log(`プロンプト複製API呼び出し: ${API_URL}/${id}/clone`, options);
+      
       const response = await axios.post(`${API_URL}/${id}/clone`, options, {
         headers: authHeader()
       });
       
+      console.log('プロンプト複製API応答:', response.data);
       return response.data;
     } catch (error) {
       console.error('プロンプト複製エラー:', error);
+      console.error('エラー詳細:', error.response?.data || 'レスポンスなし');
+      console.error('リクエストURL:', `${API_URL}/${id}/clone`);
       
       // トークンが無効な場合、リフレッシュを試みる
       if (error.response?.status === 401) {
         try {
+          console.log('トークンリフレッシュを試みます');
           await this.refreshToken();
+          console.log('トークンリフレッシュ成功、再度複製を試みます');
           // リフレッシュ成功後に再度複製を試みる
           return this.clonePrompt(id, options);
         } catch (refreshError) {
+          console.error('トークンリフレッシュ失敗:', refreshError);
           throw refreshError;
         }
       }
@@ -443,35 +564,50 @@ class PromptService {
   
   /**
    * トークンのリフレッシュ
-   * auth.service.jsのリフレッシュトークン機能を呼び出す
-   * @returns {Promise} 新しいアクセストークン
+   * 共通リフレッシュトークンサービスを呼び出す
+   * @returns {Promise<string>} 新しいアクセストークン
    */
   async refreshToken() {
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
-      
-      if (!refreshToken) {
-        throw new Error('リフレッシュトークンがありません');
-      }
-      
-      const response = await axios.post(
-        `/api/auth/refresh-token`, 
-        { refreshToken }
-      );
-      
-      if (response.data.accessToken) {
-        localStorage.setItem('accessToken', response.data.accessToken);
-      }
-      
-      return response.data;
+      return await refreshTokenService.refreshToken();
     } catch (error) {
       console.error('Token refresh error:', error);
+      throw error;
+    }
+  },
+  
+  /**
+   * プロンプトの共有リンクを生成
+   * @param {string} id - プロンプトID
+   * @returns {Promise} - 共有リンク情報
+   */
+  async createShareLink(id) {
+    try {
+      console.log(`共有リンク生成API呼び出し: ${API_URL}/${id}/share`);
       
-      // リフレッシュトークンが無効な場合はローカルストレージをクリア
+      if (!id) {
+        throw new Error('プロンプトIDが指定されていません');
+      }
+      
+      const response = await axios.post(`${API_URL}/${id}/share`, {}, {
+        headers: authHeader()
+      });
+      
+      console.log('共有リンク生成API応答:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('共有リンク生成エラー:', error);
+      console.error('エラー詳細:', error.response?.data || 'レスポンスなし');
+      
+      // トークンが無効な場合、リフレッシュを試みる
       if (error.response?.status === 401) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
+        try {
+          await this.refreshToken();
+          // リフレッシュ成功後に再度生成を試みる
+          return this.createShareLink(id);
+        } catch (refreshError) {
+          throw refreshError;
+        }
       }
       
       throw error;

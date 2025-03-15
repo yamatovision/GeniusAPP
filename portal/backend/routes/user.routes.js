@@ -16,6 +16,9 @@ router.get('/profile', userController.getCurrentUser);
 // プロフィール設定の更新
 router.put('/profile', userController.updateProfile);
 
+// 現在のユーザーのトークン使用量を取得
+router.get('/token-usage', userController.getUserTokenUsage);
+
 // 管理者向けエンドポイント
 // すべてのユーザー一覧を取得（管理者のみ）
 router.get('/', authMiddleware.isAdmin, userController.getUsers);
@@ -43,5 +46,8 @@ router.put('/:id', userController.updateUser);
 
 // ユーザーを削除（管理者のみ）
 router.delete('/:id', authMiddleware.isAdmin, userController.deleteUser);
+
+// 特定ユーザーのトークン使用量を取得（管理者のみ）
+router.get('/:id/token-usage', authMiddleware.isAdmin, userController.getUserTokenUsage);
 
 module.exports = router;

@@ -208,4 +208,35 @@ export class ClaudeCodeApiClient {
       vscode.window.showErrorMessage(`API呼び出し中にエラーが発生しました: ${errorMessage}`);
     }
   }
+  
+  /**
+   * 公開URLからプロンプトを取得
+   * @param url プロンプトの公開URL
+   * @returns プロンプト情報
+   */
+  public async getPromptFromPublicUrl(url: string): Promise<any | null> {
+    try {
+      // URLからトークンを抽出（例: https://example.com/api/prompts/public/abcd1234 からabcd1234を抽出）
+      const token = url.split('/').pop();
+
+      if (!token) {
+        throw new Error('Invalid prompt URL format');
+      }
+
+      // トークンを使用して公開APIからプロンプト情報を取得
+      // 認証不要のため、通常のaxiosインスタンスを使用
+      const baseUrl = new URL(url).origin + '/api';
+      const response = await axios.get(`${baseUrl}/prompts/public/${token}`);
+
+      if (response.status === 200 && response.data) {
+        return response.data;
+      }
+
+      return null;
+    } catch (error) {
+      console.error(`公開URLからのプロンプト取得に失敗しました (URL: ${url}):`, error);
+      this._handleApiError(error);
+      return null;
+    }
+  }
 }

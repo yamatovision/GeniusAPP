@@ -153,11 +153,25 @@ const PromptDetail = () => {
     handleMenuClose();
     
     try {
+      console.log('プロンプト削除開始:', id);
+      
+      // IDの検証
+      if (!id) {
+        console.error('プロンプトIDがありません');
+        setError('プロンプトの削除に失敗しました: IDが無効です');
+        return;
+      }
+      
+      // 削除API呼び出し
       await promptService.deletePrompt(id);
+      console.log('プロンプト削除成功:', id);
+      
+      // 一覧ページに戻る
       navigate('/prompts');
     } catch (err) {
       console.error('プロンプト削除エラー:', err);
-      setError('プロンプトの削除に失敗しました');
+      const errorMsg = err.response?.data?.message || '不明なエラー';
+      setError(`プロンプトの削除に失敗しました: ${errorMsg}`);
     }
   };
 
@@ -166,11 +180,33 @@ const PromptDetail = () => {
     handleMenuClose();
     
     try {
+      setError(null); // 前回のエラーをクリア
+      
+      // 安全なID確認
+      if (!id) {
+        console.error('プロンプトIDがありません');
+        setError('プロンプトの複製に失敗しました: IDが無効です');
+        return;
+      }
+      
+      console.log('複製を開始します: プロンプトID:', id);
       const result = await promptService.clonePrompt(id);
-      navigate(`/prompts/edit/${result.prompt._id}`);
+      console.log('複製API応答:', result);
+      
+      // 厳密な結果確認（idまたは_idを許容）
+      if (result && typeof result === 'object' && result.prompt && 
+          typeof result.prompt === 'object' && (result.prompt.id || result.prompt._id)) {
+        const promptId = result.prompt.id || result.prompt._id;
+        console.log('複製成功:', promptId);
+        navigate(`/prompts/edit/${promptId}`);
+      } else {
+        console.error('無効な応答構造:', result);
+        setError('プロンプトの複製に失敗しました: サーバーからの応答が不正です');
+      }
     } catch (err) {
       console.error('プロンプト複製エラー:', err);
-      setError('プロンプトの複製に失敗しました');
+      const errorMsg = err.response?.data?.message || '不明なエラー';
+      setError(`プロンプトの複製に失敗しました: ${errorMsg}`);
     }
   };
 

@@ -3,12 +3,62 @@ const PromptVersion = require('../models/promptVersion.model');
 const PromptUsage = require('../models/promptUsage.model');
 const Project = require('../models/project.model');
 const promptService = require('../services/prompt.service');
+const crypto = require('crypto');
+const projectController = require('./project.controller');
 
 /**
  * プロンプトコントローラー
  * プロンプト関連のAPI処理を管理します
  */
 const promptController = {
+  /**
+   * カテゴリーとタグの集計を取得
+   * @param {Object} req - リクエストオブジェクト
+   * @param {Object} res - レスポンスオブジェクト
+   */
+  async getCategoriesAndTags(req, res) {
+    try {
+      const metadata = await promptService.getCategoriesAndTags();
+      res.json(metadata);
+    } catch (error) {
+      console.error('カテゴリーとタグの集計取得エラー:', error);
+      res.status(500).json({ message: 'カテゴリーとタグの集計取得中にエラーが発生しました' });
+    }
+  },
+  
+  /**
+   * VSCode拡張用のプロンプト内容を取得
+   * @param {Object} req - リクエストオブジェクト
+   * @param {Object} res - レスポンスオブジェクト
+   */
+  async getPromptContent(req, res) {
+    try {
+      const { id } = req.params;
+      
+      // プロンプト存在チェック
+      const prompt = await Prompt.findById(id)
+        .select('title content type tags');
+      
+      if (!prompt) {
+        return res.status(404).json({ message: 'プロンプトが見つかりません' });
+      }
+      
+      // プロンプト使用カウントを増加
+      await Prompt.incrementUsage(id);
+      
+      // シンプルな形式で返却（VSCode拡張用）
+      res.json({
+        title: prompt.title,
+        content: prompt.content,
+        type: prompt.type,
+        tags: prompt.tags
+      });
+    } catch (error) {
+      console.error('プロンプト内容取得エラー:', error);
+      res.status(500).json({ message: 'プロンプト内容の取得中にエラーが発生しました' });
+    }
+  },
+
   /**
    * プロンプト一覧を取得
    * @param {Object} req - リクエストオブジェクト
@@ -23,7 +73,7 @@ const promptController = {
       
       // ユーザーが所有者または閲覧権限があるかプロンプトが公開されているものを表示
       filters.$or = [
-        { ownerId: req.userId },
+        // { ownerId: req.userId }, // MongoDBのObjectIdとして解釈されるため問題が発生
         { isPublic: true }
       ];
       
@@ -80,7 +130,7 @@ const promptController = {
         page,
         limit,
         sort: sortOption,
-        populate: ['owner', 'project']
+        populate: ['ownerId'] // projectはスキーマに存在しないのでポピュレートしない
       });
       
       res.json({
@@ -105,45 +155,39 @@ const promptController = {
     try {
       const { id } = req.params;
       
+      // IDの検証
+      if (!id || id === 'undefined' || id === 'null') {
+        console.error('無効なプロンプトID:', id);
+        return res.status(400).json({ message: '有効なプロンプトIDが指定されていません' });
+      }
+      
       // プロンプト詳細取得
       const prompt = await Prompt.findById(id)
-        .populate('ownerId', 'name email')
-        .populate('projectId', 'name');
+        .populate('ownerId', 'name email');
       
       if (!prompt) {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // アクセス権限チェック（所有者、公開プロンプト、またはプロジェクトメンバー）
-      const isOwner = prompt.ownerId._id.toString() === req.userId;
+      // アクセス権限チェック（所有者または公開プロンプト）
+      const isOwner = prompt.ownerId && prompt.ownerId._id && prompt.ownerId._id.toString() === req.userId;
       const isPublic = prompt.isPublic;
       
       let isProjectMember = false;
-      if (prompt.projectId) {
-        const project = await Project.findById(prompt.projectId);
-        isProjectMember = project && project.members.some(
-          member => member.userId.toString() === req.userId
-        );
-      }
+      // プロジェクト関連の機能は一時的に無効化
+      // projectIdフィールドがスキーマにないためエラーになる
       
       if (!isOwner && !isPublic && !isProjectMember) {
         return res.status(403).json({ message: 'このプロンプトにアクセスする権限がありません' });
       }
       
-      // バージョン情報の取得
-      const versions = await PromptVersion.find({ promptId: id })
-        .sort({ versionNumber: -1 })
-        .populate('createdBy', 'name');
+      // シンプル化のためバージョン情報と詳細な使用統計は省略
+      const usageStats = {
+        totalUsage: prompt.usageCount || 0
+      };
       
-      // 使用統計の取得
-      const usageStats = await PromptUsage.getUsageStats(id);
-      
-      // レスポンス返却
-      res.json({
-        prompt,
-        versions,
-        stats: usageStats
-      });
+      // レスポンス返却 - シンプル化されたレスポンス形式
+      res.json(prompt);
     } catch (error) {
       console.error('プロンプト詳細取得エラー:', error);
       res.status(500).json({ message: 'プロンプト詳細の取得中にエラーが発生しました' });
@@ -176,17 +220,17 @@ const promptController = {
         }
       }
       
-      // プロンプト作成
-      const newPrompt = await promptService.createPrompt({
+      // シンプル化したプロンプト作成
+      const newPrompt = new Prompt({
         title,
         content,
-        type: type || 'system',
-        category: category || 'その他',
+        description: req.body.description || '',
         tags: tags || [],
         ownerId: req.userId,
-        projectId: projectId || null,
         isPublic: isPublic || false
       });
+      
+      await newPrompt.save();
       
       res.status(201).json(newPrompt);
     } catch (error) {
@@ -238,42 +282,15 @@ const promptController = {
         return res.status(403).json({ message: 'このプロンプトを更新する権限がありません' });
       }
       
-      // プロンプト更新
+      // シンプル化したプロンプト更新
       const updateData = {};
       if (title) updateData.title = title;
-      if (type) updateData.type = type;
-      if (category) updateData.category = category;
+      if (req.body.description !== undefined) updateData.description = req.body.description;
+      if (content) updateData.content = content;
       if (tags) updateData.tags = tags;
       if (isPublic !== undefined) updateData.isPublic = isPublic;
       
-      // プロンプト本文が変更されていれば新しいバージョンを作成
-      if (content && content !== prompt.content) {
-        await promptService.createNewVersion(id, content, 'プロンプト更新', req.userId);
-      }
-      
-      // プロジェクト変更がある場合
-      if (projectId !== undefined) {
-        // プロジェクトID変更の場合はプロジェクトの権限もチェック
-        if (projectId && projectId !== prompt.projectId?.toString()) {
-          const newProject = await Project.findById(projectId);
-          if (!newProject) {
-            return res.status(404).json({ message: '指定されたプロジェクトが見つかりません' });
-          }
-          
-          const hasNewProjectAccess = newProject.ownerId.toString() === req.userId ||
-            newProject.members.some(
-              member => member.userId.toString() === req.userId && ['owner', 'editor'].includes(member.role)
-            );
-            
-          if (!hasNewProjectAccess) {
-            return res.status(403).json({ message: '指定したプロジェクトにプロンプトを追加する権限がありません' });
-          }
-        }
-        
-        updateData.projectId = projectId || null;
-      }
-      
-      // プロンプトメタデータの更新
+      // プロンプト更新
       const updatedPrompt = await Prompt.findByIdAndUpdate(
         id,
         { $set: updateData },
@@ -308,8 +325,21 @@ const promptController = {
     try {
       const { id } = req.params;
       
+      // IDバリデーション
+      if (!id || id === 'undefined' || id === 'null') {
+        console.error('無効なプロンプトID:', id);
+        return res.status(400).json({ message: '有効なプロンプトIDが指定されていません' });
+      }
+      
       // プロンプト存在チェック
-      const prompt = await Prompt.findById(id);
+      let prompt;
+      try {
+        prompt = await Prompt.findById(id);
+      } catch (findError) {
+        console.error('プロンプト検索エラー:', findError);
+        return res.status(400).json({ message: 'プロンプトIDの形式が無効です' });
+      }
+      
       if (!prompt) {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
@@ -323,6 +353,7 @@ const promptController = {
       // 論理削除（アーカイブフラグをセット）
       await Prompt.findByIdAndUpdate(id, { isArchived: true });
       
+      console.log(`プロンプト削除成功: ID=${id}`);
       res.json({ message: 'プロンプトが削除されました' });
     } catch (error) {
       console.error('プロンプト削除エラー:', error);
@@ -698,6 +729,162 @@ const promptController = {
     } catch (error) {
       console.error('ユーザーフィードバック記録エラー:', error);
       res.status(500).json({ message: 'フィードバックの記録中にエラーが発生しました' });
+    }
+  },
+
+  /**
+   * プロンプト複製
+   * @param {Object} req - リクエストオブジェクト
+   * @param {Object} res - レスポンスオブジェクト
+   */
+  async clonePrompt(req, res) {
+    try {
+      const { id } = req.params;
+      const { titleSuffix, isPublic } = req.body;
+      
+      // IDバリデーション
+      if (!id || id === 'undefined' || id === 'null') {
+        console.error('無効なプロンプトID:', id);
+        return res.status(400).json({ message: '有効なプロンプトIDが指定されていません' });
+      }
+      
+      // プロンプト存在チェック
+      let originalPrompt;
+      try {
+        originalPrompt = await Prompt.findById(id);
+      } catch (findError) {
+        console.error('プロンプト検索エラー:', findError);
+        return res.status(400).json({ message: 'プロンプトIDの形式が無効です' });
+      }
+      
+      if (!originalPrompt) {
+        return res.status(404).json({ message: 'プロンプトが見つかりません' });
+      }
+      
+      // 新しいプロンプトを作成
+      const newPrompt = new Prompt({
+        title: `${originalPrompt.title}${titleSuffix || ' (コピー)'}`,
+        content: originalPrompt.content,
+        type: originalPrompt.type || 'system',
+        tags: originalPrompt.tags || [],
+        ownerId: req.userId,
+        isPublic: isPublic !== undefined ? isPublic : false
+      });
+      
+      await newPrompt.save();
+      
+      // 初期バージョン作成
+      const version = new PromptVersion({
+        promptId: newPrompt._id,
+        content: originalPrompt.content,
+        description: `${originalPrompt.title}からコピー作成`,
+        versionNumber: 1,
+        createdBy: req.userId
+      });
+      
+      await version.save();
+      
+      // プロンプトの現在バージョンを更新
+      newPrompt.currentVersionId = version._id;
+      await newPrompt.save();
+      
+      // 新しいプロンプトを返却
+      res.status(201).json({
+        message: 'プロンプトを複製しました',
+        prompt: newPrompt
+      });
+    } catch (error) {
+      console.error('プロンプト複製エラー:', error);
+      
+      // バリデーションエラーの場合
+      if (error.name === 'ValidationError') {
+        const errors = Object.values(error.errors).map(err => err.message);
+        return res.status(400).json({ message: errors.join(', ') });
+      }
+      
+      res.status(500).json({ message: 'プロンプトの複製中にエラーが発生しました' });
+    }
+  },
+  
+  /**
+   * 公開プロンプト共有リンク生成
+   * @param {Object} req - リクエストオブジェクト
+   * @param {Object} res - レスポンスオブジェクト
+   */
+  async createShareLink(req, res) {
+    try {
+      const { id } = req.params;
+      
+      // IDの検証
+      if (!id || id === 'undefined' || id === 'null') {
+        console.error('無効なプロンプトID:', id);
+        return res.status(400).json({ message: '有効なプロンプトIDが指定されていません' });
+      }
+      
+      // プロンプト存在チェック
+      const prompt = await Prompt.findById(id);
+      if (!prompt) {
+        return res.status(404).json({ message: 'プロンプトが見つかりません' });
+      }
+      
+      // 権限チェック（所有者のみ共有リンク生成可能）
+      const isOwner = prompt.ownerId.toString() === req.userId;
+      if (!isOwner) {
+        return res.status(403).json({ message: '共有リンクを生成する権限がありません' });
+      }
+      
+      // トークン生成（既にあれば再利用）
+      if (!prompt.publicToken) {
+        prompt.publicToken = crypto.randomBytes(16).toString('hex');
+        await prompt.save();
+      }
+      
+      // 共有URL生成
+      const shareUrl = `${req.protocol}://${req.get('host')}/api/prompts/public/${prompt.publicToken}`;
+      
+      res.json({ 
+        shareUrl, 
+        token: prompt.publicToken,
+        claudeCodeUrl: `vscode://mikoto.app-genius/launch-claude-code?url=${encodeURIComponent(shareUrl)}` 
+      });
+    } catch (error) {
+      console.error('共有リンク生成エラー:', error);
+      res.status(500).json({ message: '共有リンクの生成中にエラーが発生しました' });
+    }
+  },
+  
+  /**
+   * 公開プロンプト取得（認証不要）
+   * @param {Object} req - リクエストオブジェクト
+   * @param {Object} res - レスポンスオブジェクト
+   */
+  async getPublicPrompt(req, res) {
+    try {
+      const { token } = req.params;
+      
+      // トークンでプロンプト検索
+      const prompt = await Prompt.findOne({ publicToken: token });
+      if (!prompt) {
+        return res.status(404).json({ message: 'プロンプトが見つかりません' });
+      }
+      
+      // 使用回数を増やす
+      await Prompt.findByIdAndUpdate(
+        prompt._id,
+        { $inc: { usageCount: 1 } }
+      );
+      
+      // シンプルな形式で返却
+      res.json({
+        id: prompt._id,
+        title: prompt.title,
+        description: prompt.description,
+        tags: prompt.tags,
+        content: prompt.content
+      });
+    } catch (error) {
+      console.error('公開プロンプト取得エラー:', error);
+      res.status(500).json({ message: 'プロンプトの取得中にエラーが発生しました' });
     }
   }
 };

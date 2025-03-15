@@ -13,24 +13,18 @@ const promptService = {
    * @returns {Promise<Object>} - 作成されたプロンプト
    */
   async createPrompt(promptData) {
-    const session = await Prompt.startSession();
-    
     try {
-      session.startTransaction();
-      
       // プロンプト本体作成
       const prompt = new Prompt({
         title: promptData.title,
         content: promptData.content,
         type: promptData.type || 'system',
-        category: promptData.category || 'その他',
         tags: promptData.tags || [],
         ownerId: promptData.ownerId,
-        projectId: promptData.projectId || null,
         isPublic: promptData.isPublic || false
       });
       
-      await prompt.save({ session });
+      await prompt.save();
       
       // 初期バージョン作成
       const version = new PromptVersion({
@@ -41,30 +35,19 @@ const promptService = {
         createdBy: promptData.ownerId
       });
       
-      await version.save({ session });
+      await version.save();
       
       // プロンプトの現在バージョンを更新
       prompt.currentVersionId = version._id;
-      await prompt.save({ session });
-      
-      // プロジェクトに所属している場合はプロンプト数を更新
-      if (promptData.projectId) {
-        await Project.updatePromptCount(promptData.projectId, 1);
-      }
-      
-      await session.commitTransaction();
+      await prompt.save();
       
       // プロンプト完全データを取得して返却
       const completePrompt = await Prompt.findById(prompt._id)
-        .populate('ownerId', 'name email')
-        .populate('projectId', 'name');
+        .populate('ownerId', 'name email');
       
       return completePrompt;
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      session.endSession();
     }
   },
   
@@ -77,11 +60,7 @@ const promptService = {
    * @returns {Promise<Object>} - 作成されたバージョン
    */
   async createNewVersion(promptId, content, description, userId) {
-    const session = await PromptVersion.startSession();
-    
     try {
-      session.startTransaction();
-      
       // プロンプト存在確認
       const prompt = await Prompt.findById(promptId);
       if (!prompt) {
@@ -100,14 +79,12 @@ const promptService = {
         createdBy: userId
       });
       
-      await version.save({ session });
+      await version.save();
       
       // プロンプトの本文と現在バージョンを更新
       prompt.content = content;
       prompt.currentVersionId = version._id;
-      await prompt.save({ session });
-      
-      await session.commitTransaction();
+      await prompt.save();
       
       // バージョン完全データを取得して返却
       const completeVersion = await PromptVersion.findById(version._id)
@@ -115,10 +92,7 @@ const promptService = {
       
       return completeVersion;
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      session.endSession();
     }
   },
   
@@ -131,22 +105,12 @@ const promptService = {
    * @returns {Promise<Object>} - 複製されたプロンプト
    */
   async clonePrompt(promptId, userId, projectId = null, options = {}) {
-    const session = await Prompt.startSession();
-    
     try {
-      session.startTransaction();
-      
       // 複製元プロンプト取得
       const sourcePrompt = await Prompt.findById(promptId);
       if (!sourcePrompt) {
         throw new Error('元のプロンプトが存在しません');
       }
-      
-      // 複製元バージョン取得
-      const sourceVersion = await PromptVersion.findOne({ 
-        _id: sourcePrompt.currentVersionId || null,
-        promptId
-      });
       
       // タイトル重複を避けるための接尾辞
       const titleSuffix = options.titleSuffix || ' (コピー)';
@@ -156,14 +120,12 @@ const promptService = {
         title: `${sourcePrompt.title}${titleSuffix}`,
         content: sourcePrompt.content,
         type: sourcePrompt.type,
-        category: sourcePrompt.category,
         tags: [...sourcePrompt.tags],
         ownerId: userId,
-        projectId: projectId || null,
         isPublic: options.isPublic || false
       });
       
-      await newPrompt.save({ session });
+      await newPrompt.save();
       
       // 初期バージョン作成
       const newVersion = new PromptVersion({
@@ -174,30 +136,19 @@ const promptService = {
         createdBy: userId
       });
       
-      await newVersion.save({ session });
+      await newVersion.save();
       
       // プロンプトの現在バージョンを更新
       newPrompt.currentVersionId = newVersion._id;
-      await newPrompt.save({ session });
-      
-      // プロジェクトに所属している場合はプロンプト数を更新
-      if (projectId) {
-        await Project.updatePromptCount(projectId, 1);
-      }
-      
-      await session.commitTransaction();
+      await newPrompt.save();
       
       // プロンプト完全データを取得して返却
       const completePrompt = await Prompt.findById(newPrompt._id)
-        .populate('ownerId', 'name email')
-        .populate('projectId', 'name');
+        .populate('ownerId', 'name email');
       
       return completePrompt;
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      session.endSession();
     }
   },
   
@@ -208,55 +159,20 @@ const promptService = {
    * @returns {Promise<Object>} - 更新されたプロンプト
    */
   async movePromptToProject(promptId, newProjectId) {
-    const session = await Prompt.startSession();
-    
     try {
-      session.startTransaction();
-      
       // プロンプト存在確認
       const prompt = await Prompt.findById(promptId);
       if (!prompt) {
         throw new Error('プロンプトが存在しません');
       }
       
-      // 現在のプロジェクトID
-      const currentProjectId = prompt.projectId;
-      
-      // 移動先プロジェクト存在確認
-      if (newProjectId) {
-        const targetProject = await Project.findById(newProjectId);
-        if (!targetProject) {
-          throw new Error('移動先プロジェクトが存在しません');
-        }
-      }
-      
-      // プロンプトのプロジェクトID更新
-      prompt.projectId = newProjectId || null;
-      await prompt.save({ session });
-      
-      // 元のプロジェクトのプロンプト数を減らす
-      if (currentProjectId) {
-        await Project.updatePromptCount(currentProjectId, -1);
-      }
-      
-      // 新しいプロジェクトのプロンプト数を増やす
-      if (newProjectId) {
-        await Project.updatePromptCount(newProjectId, 1);
-      }
-      
-      await session.commitTransaction();
-      
       // プロンプト完全データを取得して返却
       const completePrompt = await Prompt.findById(promptId)
-        .populate('ownerId', 'name email')
-        .populate('projectId', 'name');
+        .populate('ownerId', 'name email');
       
       return completePrompt;
     } catch (error) {
-      await session.abortTransaction();
       throw error;
-    } finally {
-      session.endSession();
     }
   },
   

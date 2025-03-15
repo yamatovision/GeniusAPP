@@ -25,7 +25,8 @@ import {
   DialogContentText,
   DialogTitle,
   Autocomplete,
-  Divider
+  Divider,
+  Snackbar
 } from '@mui/material';
 import {
   Save as SaveIcon,
@@ -38,8 +39,10 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import promptService from '../../services/prompt.service';
-import projectService from '../../services/project.service';
 import ReactMarkdown from 'react-markdown';
+
+// APIのベースURL（promptService.jsと同じ値を使用）
+const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/prompts`;
 
 const PromptForm = () => {
   // URLパラメータからプロンプトIDを取得（編集モードの場合）
@@ -51,11 +54,8 @@ const PromptForm = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [content, setContent] = useState('');
-  const [type, setType] = useState('user'); // 'user' または 'system'
-  const [category, setCategory] = useState('');
   const [tags, setTags] = useState([]);
   const [isPublic, setIsPublic] = useState(true);
-  const [projectId, setProjectId] = useState('');
   const [versionDescription, setVersionDescription] = useState('');
   
   // 入力検証エラー
@@ -68,31 +68,25 @@ const PromptForm = () => {
   const [success, setSuccess] = useState('');
   const [previewMode, setPreviewMode] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
   
   // メタデータ用
-  const [categoryOptions, setCategoryOptions] = useState([]);
   const [tagOptions, setTagOptions] = useState([]);
-  const [projects, setProjects] = useState([]);
   const [newTag, setNewTag] = useState('');
   
   // 編集モードかどうかを判定
   const isEditMode = !!id;
   
-  // 画面初期化：メタデータ（カテゴリー、タグ、プロジェクト）の取得
+  // 画面初期化：メタデータ（タグ）の取得
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
-        // カテゴリーとタグの取得
+        // タグの取得
         const metadataResponse = await promptService.getCategoriesAndTags();
-        setCategoryOptions(metadataResponse.categories || []);
         setTagOptions(metadataResponse.tags || []);
-        
-        // プロジェクト一覧の取得
-        const projectsResponse = await projectService.getProjects();
-        setProjects(projectsResponse.projects || []);
       } catch (err) {
         console.error('メタデータ取得エラー:', err);
-        setError('カテゴリーやタグの情報の取得に失敗しました');
+        setError('タグ情報の取得に失敗しました');
       }
     };
     
@@ -101,26 +95,36 @@ const PromptForm = () => {
   
   // 編集モード時：プロンプトデータの取得
   useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && id) {  // idが存在する場合のみ実行
       const fetchPromptData = async () => {
         setLoading(true);
         try {
+          // IDの検証
+          if (!id || id === 'undefined') {
+            throw new Error('無効なプロンプトIDです');
+          }
+          
+          console.log('プロンプト詳細取得API呼び出し:', `${API_URL}/${id}`);
           const promptData = await promptService.getPromptById(id);
           
-          // フォームに値をセット
-          setTitle(promptData.title || '');
-          setDescription(promptData.description || '');
-          setContent(promptData.content || '');
-          setType(promptData.type || 'user');
-          setCategory(promptData.category || '');
-          setTags(promptData.tags || []);
-          setIsPublic(promptData.isPublic !== undefined ? promptData.isPublic : true);
-          setProjectId(promptData.projectId || '');
+          if (promptData) {
+            // フォームに値をセット
+            console.log('取得したプロンプトデータ:', promptData);
+            
+            // レスポンス構造が異なる場合に対応
+            const data = promptData.prompt || promptData;
+            
+            setTitle(data.title || '');
+            setDescription(data.description || '');
+            setContent(data.content || '');
+            setTags(data.tags || []);
+            setIsPublic(data.isPublic !== undefined ? data.isPublic : true);
+          }
           
           setError('');
         } catch (err) {
           console.error('プロンプト取得エラー:', err);
-          setError('プロンプトの取得に失敗しました');
+          setError(`プロンプトの取得に失敗しました: ${err.message}`);
         } finally {
           setLoading(false);
         }
@@ -129,12 +133,8 @@ const PromptForm = () => {
       fetchPromptData();
     } else {
       // 新規作成モードの初期値設定
-      // URLクエリパラメータからプロジェクトIDを取得
-      const params = new URLSearchParams(location.search);
-      const projectParam = params.get('project');
-      if (projectParam) {
-        setProjectId(projectParam);
-      }
+      setLoading(false);
+      setIsPublic(true);
     }
   }, [id, isEditMode, location.search]);
   
@@ -158,11 +158,9 @@ const PromptForm = () => {
       title,
       description,
       content,
-      type,
-      category: category || undefined,
+      type: 'system', // 常にシステムプロンプトとして設定
       tags,
-      isPublic,
-      projectId: projectId || undefined
+      isPublic
     };
     
     try {
@@ -179,14 +177,21 @@ const PromptForm = () => {
         }
         
         setSuccess('プロンプトを更新しました');
+        setSnackbarOpen(true);
+        
+        // 成功通知を表示した後、一覧画面に戻る
+        setTimeout(() => {
+          navigate('/prompts');
+        }, 1500);
       } else {
         // 新規作成モード
         const result = await promptService.createPrompt(promptData);
         setSuccess('プロンプトを作成しました');
+        setSnackbarOpen(true);
         
-        // 作成したプロンプトの詳細ページへ移動
+        // 成功通知を表示した後、一覧画面に戻る
         setTimeout(() => {
-          navigate(`/prompts/${result.prompt._id}`);
+          navigate('/prompts');
         }, 1500);
       }
     } catch (err) {
@@ -334,47 +339,6 @@ const PromptForm = () => {
                 />
               </Grid>
               
-              {/* タイプ、プロジェクト、公開設定 */}
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth variant="outlined">
-                  <InputLabel id="type-label">プロンプトタイプ</InputLabel>
-                  <Select
-                    labelId="type-label"
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                    label="プロンプトタイプ"
-                    required
-                  >
-                    <MenuItem value="user">ユーザープロンプト</MenuItem>
-                    <MenuItem value="system">システムプロンプト</MenuItem>
-                  </Select>
-                  <FormHelperText>
-                    システムプロンプトはAIの振る舞いを設定します
-                  </FormHelperText>
-                </FormControl>
-              </Grid>
-              
-              <Grid item xs={12} md={4}>
-                <FormControl fullWidth variant="outlined">
-                  <InputLabel id="project-label">プロジェクト</InputLabel>
-                  <Select
-                    labelId="project-label"
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    label="プロジェクト"
-                  >
-                    <MenuItem value="">プロジェクトなし</MenuItem>
-                    {projects.map(project => (
-                      <MenuItem key={project._id} value={project._id}>
-                        {project.name}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                  <FormHelperText>
-                    関連するプロジェクトがあれば選択してください
-                  </FormHelperText>
-                </FormControl>
-              </Grid>
               
               <Grid item xs={12} md={4}>
                 <FormControlLabel
@@ -409,30 +373,7 @@ const PromptForm = () => {
                 </FormHelperText>
               </Grid>
               
-              {/* カテゴリーとタグ */}
-              <Grid item xs={12} md={6}>
-                <FormControl fullWidth variant="outlined">
-                  <InputLabel id="category-label">カテゴリー</InputLabel>
-                  <Select
-                    labelId="category-label"
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    label="カテゴリー"
-                  >
-                    <MenuItem value="">カテゴリーなし</MenuItem>
-                    {categoryOptions.map(cat => (
-                      <MenuItem key={cat.name} value={cat.name}>
-                        {cat.name}
-                      </MenuItem>
-                    ))}
-                    {/* 新しいカテゴリーを追加できるようにする */}
-                    {category && !categoryOptions.some(c => c.name === category) && (
-                      <MenuItem value={category}>{category} (新規)</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-              
+              {/* タグ */}
               <Grid item xs={12} md={6}>
                 <Autocomplete
                   multiple
@@ -578,6 +519,23 @@ const PromptForm = () => {
             </Button>
           </DialogActions>
         </Dialog>
+        
+        {/* 成功通知のスナックバー */}
+        <Snackbar
+          open={snackbarOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackbarOpen(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert 
+            onClose={() => setSnackbarOpen(false)} 
+            severity="success" 
+            variant="filled"
+            sx={{ width: '100%' }}
+          >
+            {success}
+          </Alert>
+        </Snackbar>
       </Box>
     </Container>
   );

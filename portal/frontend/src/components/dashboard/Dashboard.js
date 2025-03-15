@@ -13,21 +13,30 @@ import {
   Card,
   CardContent,
   Skeleton,
-  Alert
+  Alert,
+  CircularProgress,
+  LinearProgress,
+  Tooltip,
+  IconButton
 } from '@mui/material';
+import { Link } from 'react-router-dom';
 import { 
   PersonOutline as PersonIcon,
   VpnKey as ApiKeyIcon,
   Description as PromptIcon,
   BarChart as UsageIcon,
-  DashboardCustomize as DashboardIcon
+  DashboardCustomize as DashboardIcon,
+  Refresh as RefreshIcon
 } from '@mui/icons-material';
 import authService from '../../services/auth.service';
+import userService from '../../services/user.service';
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [tokenUsage, setTokenUsage] = useState(null);
+  const [loadingUsage, setLoadingUsage] = useState(false);
 
   useEffect(() => {
     // 現在のユーザー情報を取得
@@ -46,6 +55,39 @@ const Dashboard = () => {
 
     fetchUserData();
   }, []);
+
+  // トークン使用量を取得
+  useEffect(() => {
+    const fetchTokenUsage = async () => {
+      if (!user) return;
+      try {
+        setLoadingUsage(true);
+        const response = await userService.getTokenUsage('month');
+        setTokenUsage(response);
+      } catch (err) {
+        console.error('トークン使用量取得エラー:', err);
+      } finally {
+        setLoadingUsage(false);
+      }
+    };
+
+    if (user) {
+      fetchTokenUsage();
+    }
+  }, [user]);
+
+  // 手動更新用の関数
+  const refreshTokenUsage = async () => {
+    try {
+      setLoadingUsage(true);
+      const response = await userService.getTokenUsage('month');
+      setTokenUsage(response);
+    } catch (err) {
+      console.error('トークン使用量取得エラー:', err);
+    } finally {
+      setLoadingUsage(false);
+    }
+  };
 
   // 現在の日時を取得
   const currentDate = new Date().toLocaleDateString('ja-JP', {
@@ -123,37 +165,19 @@ const Dashboard = () => {
                   <ListItemText primary="ダッシュボード" />
                 </ListItem>
                 <Divider />
-                <ListItem button>
+                <ListItem button component={Link} to="/prompts">
                   <ListItemIcon>
                     <PromptIcon />
                   </ListItemIcon>
-                  <ListItemText primary="プロンプト管理" secondary="準備中..." />
+                  <ListItemText primary="プロンプト管理" />
                 </ListItem>
                 <Divider />
-                <ListItem button>
-                  <ListItemIcon>
-                    <UsageIcon />
-                  </ListItemIcon>
-                  <ListItemText primary="使用状況" secondary="準備中..." />
-                </ListItem>
-                <Divider />
-                <ListItem button>
+                <ListItem button component={Link} to="/users">
                   <ListItemIcon>
                     <PersonIcon />
                   </ListItemIcon>
-                  <ListItemText primary="プロファイル設定" secondary="準備中..." />
+                  <ListItemText primary="ユーザー管理" />
                 </ListItem>
-                {user?.role === 'admin' && (
-                  <>
-                    <Divider />
-                    <ListItem button>
-                      <ListItemIcon>
-                        <ApiKeyIcon />
-                      </ListItemIcon>
-                      <ListItemText primary="管理者設定" secondary="準備中..." />
-                    </ListItem>
-                  </>
-                )}
               </List>
             </Paper>
           </Grid>
@@ -188,7 +212,7 @@ const Dashboard = () => {
                             アカウント状態
                           </Typography>
                           <Typography variant="h5" component="div" color={user?.isActive ? 'success.main' : 'error.main'}>
-                            {user?.isActive ? 'アクティブ' : '無効'}
+                            {user?.isActive !== undefined ? (user.isActive ? 'アクティブ' : '無効') : '確認中...'}
                           </Typography>
                         </CardContent>
                       </Card>
@@ -227,18 +251,120 @@ const Dashboard = () => {
                 </Paper>
               </Grid>
               
+              {/* トークン使用量表示セクション */}
               <Grid item xs={12}>
                 <Paper elevation={1} sx={{ p: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    システム通知
-                  </Typography>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="h6">
+                      トークン使用状況
+                    </Typography>
+                    <Tooltip title="更新">
+                      <IconButton onClick={refreshTokenUsage} disabled={loadingUsage}>
+                        <RefreshIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                   <Divider sx={{ mb: 2 }} />
                   
-                  <Box p={2} bgcolor="info.light" borderRadius={1}>
-                    <Typography variant="body1">
-                      ⚠️ 現在は開発中のため、一部機能に制限があります。
-                    </Typography>
-                  </Box>
+                  {loadingUsage ? (
+                    <Box display="flex" justifyContent="center" py={3}>
+                      <CircularProgress />
+                    </Box>
+                  ) : tokenUsage ? (
+                    <Grid container spacing={2}>
+                      <Grid item xs={12} sm={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography color="textSecondary" gutterBottom>
+                              合計入力トークン
+                            </Typography>
+                            <Typography variant="h5" component="div">
+                              {tokenUsage.overall.totalInputTokens.toLocaleString()} トークン
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography color="textSecondary" gutterBottom>
+                              合計出力トークン
+                            </Typography>
+                            <Typography variant="h5" component="div">
+                              {tokenUsage.overall.totalOutputTokens.toLocaleString()} トークン
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography color="textSecondary" gutterBottom>
+                              リクエスト成功率
+                            </Typography>
+                            <Typography variant="h5" component="div">
+                              {tokenUsage.overall.successRate.toFixed(1)}%
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      <Grid item xs={12} sm={6}>
+                        <Card variant="outlined">
+                          <CardContent>
+                            <Typography color="textSecondary" gutterBottom>
+                              平均応答時間
+                            </Typography>
+                            <Typography variant="h5" component="div">
+                              {tokenUsage.overall.avgResponseTime.toFixed(0)} ms
+                            </Typography>
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                      
+                      {user?.plan && (
+                        <Grid item xs={12}>
+                          <Card variant="outlined">
+                            <CardContent>
+                              <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography color="textSecondary" gutterBottom>
+                                  月間使用量上限 ({user.plan.type} プラン)
+                                </Typography>
+                                <Typography variant="body2">
+                                  {Math.round((tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit * 100)}% 使用中
+                                </Typography>
+                              </Box>
+                              <LinearProgress 
+                                variant="determinate" 
+                                value={Math.min(100, (tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit * 100)} 
+                                sx={{ height: 10, borderRadius: 5, mt: 1 }}
+                                color={
+                                  (tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit > 0.9 ? 'error' :
+                                  (tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit > 0.7 ? 'warning' :
+                                  'primary'
+                                }
+                              />
+                              <Box display="flex" justifyContent="space-between" mt={1}>
+                                <Typography variant="body2">
+                                  {(tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens).toLocaleString()} トークン
+                                </Typography>
+                                <Typography variant="body2">
+                                  上限: {user.plan.tokenLimit.toLocaleString()} トークン
+                                </Typography>
+                              </Box>
+                              <Typography variant="caption" color="textSecondary">
+                                次回リセット日: {new Date(user.plan.nextResetDate).toLocaleDateString('ja-JP')}
+                              </Typography>
+                            </CardContent>
+                          </Card>
+                        </Grid>
+                      )}
+                    </Grid>
+                  ) : (
+                    <Alert severity="info">トークン使用データがありません</Alert>
+                  )}
                 </Paper>
               </Grid>
             </Grid>

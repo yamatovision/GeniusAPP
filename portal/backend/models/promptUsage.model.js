@@ -274,6 +274,126 @@ PromptUsageSchema.statics.getTimeSeriesStats = async function(promptId, interval
   ]);
 };
 
+/**
+ * ユーザーごとのトークン使用統計を取得するための静的メソッド
+ * @param {String} userId - ユーザーID
+ * @param {Object} timeRange - 時間範囲（開始日、終了日）
+ * @returns {Promise} - 使用統計
+ */
+PromptUsageSchema.statics.getUserTokenUsage = async function(userId, timeRange = {}) {
+  const matchQuery = { userId: new mongoose.Types.ObjectId(userId) };
+  
+  if (timeRange.start) {
+    matchQuery.usedAt = matchQuery.usedAt || {};
+    matchQuery.usedAt.$gte = new Date(timeRange.start);
+  }
+  
+  if (timeRange.end) {
+    matchQuery.usedAt = matchQuery.usedAt || {};
+    matchQuery.usedAt.$lte = new Date(timeRange.end);
+  }
+  
+  const stats = await this.aggregate([
+    { $match: matchQuery },
+    {
+      $group: {
+        _id: null,
+        totalRequests: { $sum: 1 },
+        totalInputTokens: { $sum: '$inputTokens' },
+        totalOutputTokens: { $sum: '$outputTokens' },
+        avgResponseTime: { $avg: '$responseTime' },
+        successCount: {
+          $sum: { $cond: [{ $eq: ['$isSuccess', true] }, 1, 0] }
+        }
+      }
+    }
+  ]);
+  
+  if (stats.length === 0) {
+    return {
+      totalRequests: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      avgResponseTime: 0,
+      successCount: 0,
+      successRate: 0
+    };
+  }
+  
+  const result = stats[0];
+  result.successRate = result.totalRequests > 0 
+    ? (result.successCount / result.totalRequests) * 100 
+    : 0;
+    
+  delete result._id;
+  return result;
+};
+
+/**
+ * ユーザーの時間ごとの使用統計を取得するための静的メソッド
+ * @param {String} userId - ユーザーID
+ * @param {String} interval - 間隔（hour, day, week, month）
+ * @param {Number} limit - 取得する結果数
+ * @returns {Promise} - 時間ごとの統計
+ */
+PromptUsageSchema.statics.getUserTimeSeriesStats = async function(userId, interval = 'day', limit = 30) {
+  let dateFormat;
+  
+  switch (interval) {
+    case 'hour':
+      dateFormat = { $dateToString: { format: '%Y-%m-%d %H:00', date: '$usedAt' } };
+      break;
+    case 'day':
+      dateFormat = { $dateToString: { format: '%Y-%m-%d', date: '$usedAt' } };
+      break;
+    case 'week':
+      dateFormat = {
+        $dateToString: {
+          format: '%Y-W%U',
+          date: '$usedAt'
+        }
+      };
+      break;
+    case 'month':
+      dateFormat = { $dateToString: { format: '%Y-%m', date: '$usedAt' } };
+      break;
+    default:
+      dateFormat = { $dateToString: { format: '%Y-%m-%d', date: '$usedAt' } };
+  }
+  
+  return this.aggregate([
+    { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+    {
+      $group: {
+        _id: dateFormat,
+        count: { $sum: 1 },
+        inputTokens: { $sum: '$inputTokens' },
+        outputTokens: { $sum: '$outputTokens' },
+        successCount: {
+          $sum: { $cond: [{ $eq: ['$isSuccess', true] }, 1, 0] }
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        date: '$_id',
+        count: 1,
+        inputTokens: 1,
+        outputTokens: 1,
+        successRate: {
+          $multiply: [
+            { $divide: ['$successCount', { $max: ['$count', 1] }] },
+            100
+          ]
+        }
+      }
+    },
+    { $sort: { date: -1 } },
+    { $limit: limit }
+  ]);
+};
+
 const PromptUsage = mongoose.model('PromptUsage', PromptUsageSchema);
 
 module.exports = PromptUsage;
