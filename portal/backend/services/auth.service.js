@@ -112,11 +112,18 @@ exports.login = async (email, password) => {
       throw new Error('ユーザーが見つかりません');
     }
 
-    // アカウントが有効か確認
-    console.log("認証サービス: アカウント状態チェック:", user.isActive ? "有効" : "無効");
-    if (!user.isActive) {
+    // ロールベースでのアカウント状態チェック
+    console.log("認証サービス: アカウント状態チェック - ロール:", user.role);
+    
+    // 退会済みユーザーはログイン不可
+    if (user.role === authConfig.roles.INACTIVE) {
       console.log("認証サービス: アカウントが無効化されています");
-      throw new Error('アカウントが無効化されています');
+      throw new Error('アカウントが無効化されています。再登録が必要です。');
+    }
+    
+    // 未払いユーザーはログイン自体は可能
+    if (user.role === authConfig.roles.UNPAID) {
+      console.log("認証サービス: 未払いアカウントです。ログインは許可しますが、APIアクセスは制限されます。");
     }
 
     // パスワードを検証

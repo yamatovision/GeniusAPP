@@ -178,6 +178,13 @@ const Dashboard = () => {
                   </ListItemIcon>
                   <ListItemText primary="ユーザー管理" />
                 </ListItem>
+                <Divider />
+                <ListItem button component={Link} to="/plans">
+                  <ListItemIcon>
+                    <ApiKeyIcon />
+                  </ListItemIcon>
+                  <ListItemText primary="アクセスプラン管理" />
+                </ListItem>
               </List>
             </Paper>
           </Grid>

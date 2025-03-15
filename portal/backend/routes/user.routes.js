@@ -50,4 +50,7 @@ router.delete('/:id', authMiddleware.isAdmin, userController.deleteUser);
 // 特定ユーザーのトークン使用量を取得（管理者のみ）
 router.get('/:id/token-usage', authMiddleware.isAdmin, userController.getUserTokenUsage);
 
+// ユーザーのAPIアクセス設定を更新（管理者のみ）
+router.put('/:id/api-access', authMiddleware.isAdmin, userController.toggleApiAccess);
+
 module.exports = router;

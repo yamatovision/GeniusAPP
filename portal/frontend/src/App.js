@@ -28,6 +28,8 @@ import PromptDetail from './components/prompts/PromptDetail';
 import PromptForm from './components/prompts/PromptForm';
 import UserList from './components/users/UserList';
 import UserDetail from './components/users/UserDetail';
+import PlanList from './components/plans/PlanList';
+import PlanDetail from './components/plans/PlanDetail';
 
 // サービス
 import authService from './services/auth.service';
@@ -65,30 +67,49 @@ const App = () => {
 
   // 認証状態の確認
   useEffect(() => {
-    const checkAuthStatus = () => {
-      const loggedIn = authService.isLoggedIn();
-      setIsLoggedIn(loggedIn);
-      
-      if (loggedIn) {
-        const storedUser = authService.getStoredUser();
-        setUser(storedUser);
+    const checkAuthStatus = async () => {
+      try {
+        const loggedIn = authService.isLoggedIn();
+        setIsLoggedIn(loggedIn);
         
-        // ユーザー情報を最新化
-        authService.getCurrentUser()
-          .then(response => {
-            setUser(response.user);
-          })
-          .catch(error => {
-            console.error('認証エラー:', error);
+        if (loggedIn) {
+          // まず保存済みのユーザー情報を表示
+          const storedUser = authService.getStoredUser();
+          if (storedUser) {
+            setUser(storedUser);
+          }
+          
+          // バックグラウンドでユーザー情報を更新 (エラー処理改善)
+          try {
+            const response = await authService.getCurrentUser();
+            if (response && response.user) {
+              setUser(response.user);
+            }
+          } catch (error) {
+            console.error('ユーザー情報更新エラー:', error);
+            // 認証エラーの場合のみログアウト
             if (error.response?.status === 401) {
               handleLogout();
               showNotification('セッションが期限切れです。再度ログインしてください。', 'warning');
             }
-          });
+          }
+        }
+      } catch (error) {
+        console.error('認証状態確認エラー:', error);
+        // エラー時はログイン状態をクリア
+        setIsLoggedIn(false);
+        setUser(null);
       }
     };
     
+    // 初回実行
     checkAuthStatus();
+    
+    // 定期的に認証状態を確認（5分ごと）
+    const intervalId = setInterval(checkAuthStatus, 5 * 60 * 1000);
+    
+    // クリーンアップ
+    return () => clearInterval(intervalId);
   }, []);
 
   // ログアウト処理
@@ -210,6 +231,25 @@ const App = () => {
             <Route path="/users/:id" element={
               <PrivateRoute>
                 <UserDetail />
+              </PrivateRoute>
+            } />
+            
+            {/* プラン管理ルート - 順序が重要です。具体的なパスを先に配置 */}
+            <Route path="/plans/new" element={
+              <PrivateRoute>
+                <PlanDetail />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/plans/:id" element={
+              <PrivateRoute>
+                <PlanDetail />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/plans" element={
+              <PrivateRoute>
+                <PlanList />
               </PrivateRoute>
             } />
             
