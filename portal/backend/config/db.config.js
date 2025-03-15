@@ -5,11 +5,8 @@
 require('dotenv').config();
 
 module.exports = {
-  // MongoDB接続URL - 環境変数またはデフォルト値
-  // デプロイ情報から取得した実際のURI
-  url: process.env.MONGODB_URI || 
-       'mongodb+srv://lisence:FhpQAu5UPwjm0L1J@motherprompt-cluster.np3xp.mongodb.net/GENIEMON?retryWrites=true&w=majority&appName=MotherPrompt-Cluster' ||
-       `mongodb://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}?authSource=admin`,
+  // MongoDB接続URL - Atlas MongoDB（すべての環境で統一）
+  url: 'mongodb+srv://lisence:FhpQAu5UPwjm0L1J@motherprompt-cluster.np3xp.mongodb.net/GENIEMON?retryWrites=true&w=majority&appName=MotherPrompt-Cluster',
   
   // データベース接続オプション
   options: {
