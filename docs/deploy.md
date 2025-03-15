@@ -1,4 +1,4 @@
-# デプロイ情報
+# AppGenius デプロイ情報（2025/03/15更新）
 
 ## プロンプト管理システムのデプロイ構成
 
@@ -12,177 +12,134 @@ AppGeniusのプロンプト管理システムは以下の3つの主要コンポ�
 
 ## 1. 中央プロンプト管理Webポータル
 
-### デプロイオプション
+### デプロイ環境とURL
 
-**Option A: クラウドサービス（推奨）**
-- [Vercel](https://vercel.com/) - フロントエンド
-- [Cloud Run](https://cloud.google.com/run) または [Railway](https://railway.app/) または [Render](https://render.com/) - バックエンド
-- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) - データベース
+**本番環境**
+- バックエンド: https://geniemon-portal-backend-production.up.railway.app
+- フロントエンド: https://geniemon.vercel.app
+- データベース: MongoDB Atlas
 
-**Option B: セルフホスティング**
-- VPS（DigitalOcean, AWS EC2, など）- フロントエンド・バックエンド
-- MongoDB Community Edition - データベース
+### バックエンドデプロイ（Railway）
 
-### デプロイ手順（Vercel + Cloud Run + MongoDB Atlas）
+Railway.appはGitHubリポジトリのサブディレクトリ（portal）を自動的にデプロイできるPaaSサービスです。
 
-#### MongoDB Atlas セットアップ
-1. [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)でアカウント作成
-2. 新規クラスターを作成
-3. ネットワークアクセスをWhitelistに追加（Railway/Vercelからのアクセスを許可）
-4. データベースユーザーを作成
-5. 接続文字列を取得（`DB_URI`として保存）
+#### GitHub Actionsによる自動デプロイ設定
 
-#### バックエンド（Cloud Run）
-1. [Google Cloud](https://cloud.google.com/)でアカウント作成
-2. 新規プロジェクト作成
-3. Cloud Run APIとContainer Registryを有効化
-4. Dockerfileをプロジェクトのportalディレクトリに作成:
-   ```dockerfile
-   FROM node:16-alpine
-   
-   WORKDIR /app
-   
-   # 依存パッケージのコピーとインストール
-   COPY package*.json ./
-   RUN npm install
-   
-   # アプリケーションのコピー
-   COPY . .
-   
-   # ポートの公開
-   EXPOSE 8080
-   
-   # 環境変数の設定
-   ENV PORT=8080
-   ENV NODE_ENV=production
-   
-   # アプリケーションの起動
-   CMD ["node", "server.js"]
-   ```
+1. **必要なファイル**
+   - リポジトリルートに`.railway/railway.json`
+   - `portal`ディレクトリに`railway.toml`
+   - `.github/workflows/railway-deploy.yml`
 
-5. .dockerignoreファイルの作成:
-   ```
-   node_modules
-   npm-debug.log
-   frontend/
-   .env
-   .git
-   *.md
-   ```
+2. **Railway.appの設定**
+   - [Railway.app](https://railway.app/)でアカウント作成
+   - 新規プロジェクト作成（「Empty Project」を選択）
+   - 「Settings」→「Source Repo」でGitHubリポジトリ連携
+   - リポジトリ: yamatovision/GeniusAPP
+   - Root Directory: portal
 
-6. Google Cloud SDKをインストールしてログイン:
-   ```bash
-   gcloud auth login
-   gcloud config set project YOUR_PROJECT_ID
-   ```
+3. **環境変数の設定**
+   - Railway.appのプロジェクト設定で以下の環境変数を設定:
+     ```
+     NODE_ENV=production
+     MONGODB_URI=mongodb+srv://lisence:FhpQAu5UPwjm0L1J@motherprompt-cluster.np3xp.mongodb.net/GENIEMON?retryWrites=true&w=majority&appName=MotherPrompt-Cluster
+     JWT_SECRET=appgenius_jwt_secret_key_for_production
+     JWT_EXPIRY=1h
+     REFRESH_TOKEN_SECRET=appgenius_refresh_token_secret_key_for_production
+     REFRESH_TOKEN_EXPIRY=14d
+     PASSWORD_SALT_ROUNDS=10
+     CORS_ORIGIN=https://geniemon.vercel.app
+     CORS_METHODS=GET,POST,PUT,DELETE,OPTIONS
+     ```
 
-7. イメージをビルドしてデプロイ:
-   ```bash
-   # イメージビルド
-   docker build -t gcr.io/YOUR_PROJECT_ID/appgenius-portal-backend .
-   
-   # GCRにプッシュ
-   docker push gcr.io/YOUR_PROJECT_ID/appgenius-portal-backend
-   
-   # Cloud Runにデプロイ
-   gcloud run deploy appgenius-portal-backend \
-     --image gcr.io/YOUR_PROJECT_ID/appgenius-portal-backend \
-     --platform managed \
-     --region asia-northeast1 \
-     --allow-unauthenticated \
-     --memory 512Mi \
-     --set-env-vars="MONGODB_URI=YOUR_MONGODB_URI,JWT_SECRET=YOUR_JWT_SECRET,CORS_ORIGIN=YOUR_VERCEL_URL"
-   ```
+4. **GitHub Secrets設定**
+   - GitHubリポジトリの「Settings」→「Secrets and variables」→「Actions」で以下を設定:
+     - `RAILWAY_TOKEN`: Railway.appで生成したAPIトークン
+     - `RAILWAY_PROJECT_ID`: プロジェクトID（URLから取得: https://railway.app/project/<project-id>）
 
-8. 発行されたURLを取得（`API_URL`として保存）
+5. **ドメイン設定**
+   - Railway.appの「Settings」→「Networking」→「Generate Domain」をクリック
+   - 生成されたドメインをメモ（フロントエンド設定で使用）
 
-#### フロントエンド（Vercel）
-1. [Vercel](https://vercel.com/)でアカウント作成
-2. 新規プロジェクト作成
-3. GitHubリポジトリと連携
-4. プロジェクト設定:
-   - Framework Preset: "Create React App"
-   - Root Directory: `portal/frontend`
-   - Build Command: `npm install && npm run build`
-   - Output Directory: `build`
-   - Install Command: `npm install`
+#### デプロイ検証
+- GitHub Actionsタブでワークフローの実行を確認
+- 生成されたURLにアクセスして動作確認（例: https://geniemon-portal-backend-production.up.railway.app）
 
-5. 環境変数の設定:
-   - `REACT_APP_API_URL` - Cloud RunのバックエンドURLを設定（例: https://appgenius-portal-backend-xxxxx.a.run.app/api）
-   - `REACT_APP_VERSION` - アプリケーションバージョン
+### フロントエンドデプロイ（Vercel）
 
-6. デプロイを実行
-7. 発行されたURLを取得（プロンプト管理システムのアクセスURL）
-8. Cloud Runバックエンドの環境変数`CORS_ORIGIN`にVercelのURLを設定して再デプロイ
+1. **Vercelアカウント設定**
+   - [Vercel](https://vercel.com/)でアカウント作成
+   - GitHubリポジトリ連携
 
-### セルフホスティング手順
+2. **プロジェクト作成**
+   - 「New Project」→「Import Git Repository」
+   - リポジトリ: yamatovision/GeniusAPP
+   - Frame Preset: Create React App
+   - Root Directory: portal/frontend
+   - 「Deploy」ボタンをクリック
 
-#### 前提条件
-- Node.js 14.x以上
-- MongoDB 4.4以上
-- nginx（推奨）
+3. **環境変数設定**
+   - Vercelプロジェクト設定の「Environment Variables」:
+     - `REACT_APP_API_URL`: Railway.appのバックエンドURL + /api（例: https://geniemon-portal-backend-production.up.railway.app/api）
 
-#### バックエンド
-1. ソースコードをサーバーにクローン
-2. 環境変数の設定:
-   ```bash
-   cd portal/backend
-   cp .env.example .env
-   # .envファイルを編集して必要な値を設定
-   ```
-
-3. 依存関係のインストールとビルド:
-   ```bash
-   npm install
-   npm run build
-   ```
-
-4. PM2でプロセス管理（推奨）:
-   ```bash
-   npm install -g pm2
-   pm2 start server.js --name prompt-portal-api
-   pm2 save
-   pm2 startup
-   ```
-
-#### フロントエンド
-1. 依存関係のインストールとビルド:
-   ```bash
-   cd portal/frontend
-   npm install
-   REACT_APP_API_URL=http://your-api-url npm run build
-   ```
-
-2. nginxでファイル配信:
-   ```nginx
-   server {
-     listen 80;
-     server_name your-domain.com;
-     root /path/to/portal/frontend/build;
-     index index.html;
-     
-     location / {
-       try_files $uri $uri/ /index.html;
-     }
-     
-     location /api {
-       proxy_pass http://localhost:5000;
-       proxy_http_version 1.1;
-       proxy_set_header Upgrade $http_upgrade;
-       proxy_set_header Connection 'upgrade';
-       proxy_set_header Host $host;
-       proxy_cache_bypass $http_upgrade;
+4. **APIリライト設定（vercel.json）**
+   ```json
+   {
+     "rewrites": [
+       {
+         "source": "/api/:path*",
+         "destination": "https://geniemon-portal-backend-production.up.railway.app/api/:path*"
+       }
+     ],
+     "env": {
+       "REACT_APP_API_URL": "https://geniemon-portal-backend-production.up.railway.app/api"
+     },
+     "github": {
+       "enabled": true
      }
    }
    ```
 
-3. nginxを再起動:
-   ```bash
-   sudo nginx -t
-   sudo systemctl restart nginx
-   ```
+5. **ドメイン設定**
+   - デフォルトで生成される https://geniemon.vercel.app を使用
+   - カスタムドメインが必要な場合は「Settings」→「Domains」から設定
 
-## 2. VSCode拡張機能
+## 2. 開発環境構築
+
+### ローカル開発環境の起動
+
+#### バックエンド
+```bash
+# portal ディレクトリに移動
+cd /path/to/AppGenius/portal
+
+# 依存関係をインストール
+npm install
+
+# .env ファイルをコピーし編集
+cp .env.example .env
+
+# 開発モードで実行
+npm run dev
+```
+
+#### フロントエンド
+```bash
+# portal/frontend ディレクトリに移動
+cd /path/to/AppGenius/portal/frontend
+
+# 依存関係をインストール
+npm install
+
+# 開発モードで実行
+npm start
+```
+
+### テストユーザーアカウント
+開発・テスト環境で以下の認証情報が使用できます:
+- メールアドレス: lisence@mikoto.co.jp
+- パスワード: Mikoto@123
+
+## 3. VSCode拡張機能
 
 ### パッケージング・公開
 
@@ -223,7 +180,7 @@ VSCode拡張を使用するには以下の設定が必要です:
 
 ```json
 {
-  "appgenius.portalApiUrl": "https://your-portal-api.com",
+  "appgenius.portalApiUrl": "https://geniemon-portal-backend-production.up.railway.app",
   "appgenius.clientId": "your-client-id",
   "appgenius.clientSecret": "your-client-secret",
   "appgenius.enableOfflineMode": true,
@@ -231,107 +188,116 @@ VSCode拡張を使用するには以下の設定が必要です:
 }
 ```
 
-これらの設定はVSCodeの設定UIから行うか、`.vscode/settings.json`に直接追加できます。
+## 4. CI/CD パイプライン
 
-## 3. ClaudeCode CLI連携
+### GitHub Actions ワークフロー
 
-### 前提条件
-- ClaudeCode CLIが既にインストールされていること
-- VSCode拡張機能が正しく設定されていること
+現在以下のワークフローが設定されています:
 
-### 設定
-ClaudeCode CLIとの連携では、以下の設定が必要です:
+1. **Railway自動デプロイ**
+   - ファイル: `.github/workflows/railway-deploy.yml`
+   - トリガー: mainブランチへのportalディレクトリ関連の変更
+   - 処理: Railway.appへの自動デプロイ
 
-1. VSCode拡張の設定で`appgenius.claudeIntegrationEnabled`を`true`に設定
-2. VSCode拡張の設定で`appgenius.claudeCodePath`にClaudeCode CLIの実行可能ファイルへのパスを設定
+2. **Vercel自動デプロイ**
+   - Vercelの組み込み機能で設定
+   - トリガー: mainブランチへのportal/frontendディレクトリ関連の変更
+   - 処理: Vercelへの自動デプロイ
 
-### トークン同期
-VSCode拡張が取得した認証トークンはOS固有のセキュアストレージに保存され、ClaudeCode CLIはそれを読み取ります:
+### デプロイの流れ
 
-- Windows: Windowsの資格情報マネージャー
-- macOS: Keychain
-- Linux: libsecretを使用
+1. GitHubのmainブランチへの変更をプッシュ
+2. GitHub Actionsが自動的に実行され、Railway.appへバックエンドをデプロイ
+3. Vercelが自動的にフロントエンドをデプロイ
+4. デプロイ完了後、環境変数が適切に設定されていれば両者が連携して機能
 
-認証トークンは自動的に同期されますが、問題がある場合は以下を実行します:
+## 5. 環境変数一覧
 
-```bash
-# トークン同期を手動で実行
-claude auth sync-vscode
-```
+重要な環境変数の一覧です。詳細は[env.md](./env.md)を参照してください。
 
-## 環境変数一覧
+### バックエンド環境変数
+| 変数名 | 説明 | 例 |
+|--------|------|-----|
+| NODE_ENV | 環境設定 | production |
+| PORT | サーバーポート | 8080 |
+| MONGODB_URI | MongoDB接続文字列 | mongodb+srv://... |
+| JWT_SECRET | JWT署名用シークレット | appgenius_jwt_secret_key |
+| JWT_EXPIRY | JWTトークン有効期限 | 1h |
+| REFRESH_TOKEN_SECRET | リフレッシュトークン署名用シークレット | appgenius_refresh_token_secret |
+| REFRESH_TOKEN_EXPIRY | リフレッシュトークン有効期限 | 14d |
+| CORS_ORIGIN | CORSで許可するオリジン | https://geniemon.vercel.app |
 
-各デプロイ環境で必要な環境変数の完全なリストは[env.md](./env.md)を参照してください。
+### フロントエンド環境変数
+| 変数名 | 説明 | 例 |
+|--------|------|-----|
+| REACT_APP_API_URL | バックエンドAPI URL | https://geniemon-portal-backend-production.up.railway.app/api |
+| REACT_APP_VERSION | アプリバージョン | 1.0.0 |
 
-## デプロイチェックリスト
+## 6. トラブルシューティング
 
-### バックエンド
-- [ ] MongoDB接続確認
-- [ ] 認証機能の動作確認
-- [ ] CORS設定の確認
-- [ ] エンドポイントのセキュリティ確認
-- [ ] パフォーマンステスト
-- [ ] エラーログ設定
+### デプロイ時の問題
 
-### フロントエンド
-- [ ] APIエンドポイントの設定確認
-- [ ] ビルド最適化の確認
-- [ ] レスポンシブデザインの確認
-- [ ] ブラウザ互換性確認
+#### Cloud Runからの移行とコンテナ問題
+Cloud Runでの以下の問題により、Railway.appに移行しました:
+- `Failed to load /usr/local/bin/docker-entrypoint.sh: exec format error`
+- `Default STARTUP TCP probe failed for container on port 8080`
 
-### VSCode拡張
-- [ ] パッケージングの確認
-- [ ] ポータル接続の確認
-- [ ] ClaudeCode連携の確認
-- [ ] オフラインモードの確認
+対応策:
+- Railway.appはコンテナ起動の低レベル問題を自動で処理
+- `cd`コマンドの使用を避ける（コンテナ環境ではサポートされない場合がある）
+- Dockerfileよりも`railway.toml`で設定を行う
 
-## トラブルシューティング
+#### CORS関連の問題
+- `Access-Control-Allow-Origin`ヘッダーが設定されていない場合、バックエンドの`cors`設定を確認
+- バックエンドサーバーに以下の設定が必要:
+  ```js
+  app.use(cors({
+    origin: ['https://geniemon.vercel.app', 'http://localhost:3000'],
+    methods: 'GET,POST,PUT,DELETE,OPTIONS',
+    credentials: true
+  }));
+  ```
 
-### バックエンド接続問題
-- CORS設定を確認
-- ファイアウォール設定を確認
-- MongoDB接続文字列の正確性を確認
+#### 認証エラー
+- フロントエンドとバックエンドのAPI要求/レスポンス形式の不一致
+  - フロントエンド: `email`, `password`
+  - バックエンド: `username`, `password`
+- トークン命名の不一致
+  - フロントエンド: `accessToken`
+  - バックエンド: `token`
 
-### 認証エラー
-- JWTシークレットが正しく設定されているか確認
-- トークン有効期限設定を確認
-- リフレッシュトークンのローテーションを確認
+対応策:
+- サーバーコードでAPIレスポンス形式を統一
 
-### VSCode拡張の問題
-- 拡張設定の確認
-- セキュアストレージへのアクセス権を確認
-- ログファイルを確認（`~/.vscode/extensions/appgenius-*/logs/`）
+## 7. モニタリングと運用
 
-## リソース監視
+### 本番環境モニタリング
+- Railway.appのダッシュボードでリアルタイムログと指標を確認
+- バックエンドエラーログを`console.error`で出力（Railway.appで確認可能）
 
-デプロイ後のシステムパフォーマンスを監視するために、以下のメトリクスを追跡することを推奨します:
+### バックアップ戦略
+MongoDB Atlasで自動バックアップを設定:
+1. Atlas管理コンソールにログイン
+2. クラスター設定の「Backup」タブを選択
+3. 「Edit Policy」から日次バックアップを有効化
 
-- API応答時間
-- データベースクエリパフォーマンス
-- メモリ使用量
-- CPU使用率
-- エラー率
-- アクティブユーザー数
-- 同時接続数
-
-Cloud Providerの組み込みモニタリングツールやNew RelicやDatadogなどのサードパーティツールを活用できます。
-
-## バックアップ戦略
-
-データ損失を防ぐために以下のバックアップ戦略を実装することを推奨します:
-
-- データベースの日次バックアップ
-- 重要な設定ファイルのバックアップ
-- 環境変数の安全な保存
-- GitHub ActionsやCircle CIなどを使用した自動バックアップ
-
-## セキュリティ対策
-
-デプロイ時に以下のセキュリティ対策を実施してください:
-
+### セキュリティ対策
+デプロイ時に以下のセキュリティ対策を実施:
 - すべての通信でHTTPSを使用
-- 強力なJWTシークレットを使用（ランダム生成）
+- 強力なJWTシークレットを使用（環境変数で設定）
 - 適切なCORS設定
+- 本番環境ではデバッグ情報を制限
+
+## 8. 今後の改善点
+
+### 短期的改善
+- VSCode拡張のMarketplace公開準備
+- セキュリティヘッダーの強化
 - レート制限の実装
-- 入力検証の徹底
-- 定期的なセキュリティアップデート
+- エラーロギングの強化
+
+### 長期的改善
+- 自動バックアップ戦略の実装
+- 脆弱性スキャンの統合
+- パフォーマンスモニタリングの強化
+- 障害復旧プロセスの文書化
