@@ -83,7 +83,9 @@ const additionalAccount = {
 
 // ログインAPI
 app.post('/api/auth/login', (req, res) => {
-  const { username, password } = req.body;
+  const { email, password } = req.body;
+  // フロントエンドからはemailとして送信されるのでusernameとして扱う
+  const username = email;
   
   console.log("ログイン試行:", username);
   
@@ -112,8 +114,8 @@ app.post('/api/auth/login', (req, res) => {
         email: masterAccount.email,
         role: masterAccount.role
       },
-      token,
-      refreshToken
+      accessToken: token,
+      refreshToken: refreshToken
     });
   } 
   // 追加アカウントチェック
@@ -141,8 +143,8 @@ app.post('/api/auth/login', (req, res) => {
         email: additionalAccount.email,
         role: additionalAccount.role
       },
-      token,
-      refreshToken
+      accessToken: token,
+      refreshToken: refreshToken
     });
   } else {
     // ログイン失敗
@@ -153,7 +155,7 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // 現在のユーザー情報取得API
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/users/me', (req, res) => {
   // 認証ヘッダーを取得
   const authHeader = req.headers.authorization;
   
