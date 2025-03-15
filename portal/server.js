@@ -22,7 +22,7 @@ const port = process.env.PORT || 8080;
 
 // ミドルウェア設定
 app.use(cors({
-  origin: ['https://geniemon.vercel.app', 'https://geniemon-yamatovisions-projects.vercel.app', 'http://localhost:3000', process.env.CORS_ORIGIN || '*'],
+  origin: ['https://geniemon.vercel.app', 'https://geniemon-yamatovisions-projects.vercel.app', 'http://localhost:3000', 'http://localhost:3001', process.env.CORS_ORIGIN || '*'],
   methods: process.env.CORS_METHODS || 'GET,POST,PUT,DELETE,OPTIONS',
   credentials: true
 }));
