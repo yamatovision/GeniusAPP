@@ -30,7 +30,17 @@ import { registerPromptLibraryCommands } from './commands/promptLibraryCommands'
 import { registerEnvironmentCommands } from './commands/environmentCommands';
 import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
 
+// グローバル変数としてExtensionContextを保持（安全対策）
+declare global {
+	// eslint-disable-next-line no-var
+	var __extensionContext: vscode.ExtensionContext;
+}
+
 export function activate(context: vscode.ExtensionContext) {
+	// グローバルコンテキストを設定（安全対策）
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(global as any).__extensionContext = context;
+	
 	// ロガーの初期化（自動表示をオフにする）
 	Logger.initialize('AppGenius AI', LogLevel.DEBUG, false);
 	Logger.info('AppGenius AI が起動しました');

@@ -28,9 +28,26 @@ export class TokenManager {
   public static getInstance(context?: vscode.ExtensionContext): TokenManager {
     if (!TokenManager.instance) {
       if (!context) {
-        throw new Error('TokenManagerの初期化時にはExtensionContextが必要です');
+        // 警告を出すだけにして、実行は継続
+        console.warn('警告: TokenManagerの初期化時にExtensionContextが指定されていません');
+        
+        // ダミーの SecretStorage を作成（テスト・開発用）
+        const dummySecretStorage: vscode.SecretStorage = {
+          delete: async () => {},
+          get: async () => undefined,
+          store: async () => {},
+          onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
+        };
+        
+        // ダミーコンテキストを作成して初期化（テスト・開発用）
+        const dummyContext = {
+          secrets: dummySecretStorage
+        } as vscode.ExtensionContext;
+        
+        TokenManager.instance = new TokenManager(dummyContext);
+      } else {
+        TokenManager.instance = new TokenManager(context);
       }
-      TokenManager.instance = new TokenManager(context);
     }
     return TokenManager.instance;
   }
