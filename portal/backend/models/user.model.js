@@ -123,7 +123,25 @@ UserSchema.pre('save', async function(next) {
 
 // パスワード検証メソッド
 UserSchema.methods.validatePassword = async function(password) {
-  return await bcrypt.compare(password, this.password);
+  try {
+    console.log("ユーザーモデル: パスワード検証開始");
+    if (!password) {
+      console.error("ユーザーモデル: パスワードが空です");
+      return false;
+    }
+    
+    if (!this.password) {
+      console.error("ユーザーモデル: ユーザーのパスワードハッシュが存在しません");
+      return false;
+    }
+    
+    const result = await bcrypt.compare(password, this.password);
+    console.log("ユーザーモデル: パスワード検証結果:", result ? "一致" : "不一致");
+    return result;
+  } catch (error) {
+    console.error("ユーザーモデル: パスワード検証中のエラー:", error);
+    throw error;
+  }
 };
 
 // メールアドレスでユーザーを検索するスタティックメソッド

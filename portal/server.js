@@ -89,6 +89,61 @@ app.get('/health', (req, res) => {
   res.json({ status: 'UP' });
 });
 
+// デバッグ用の詳細ヘルスチェックエンドポイント
+app.get('/api/debug/health', async (req, res) => {
+  try {
+    // MongoDBの接続状態を確認
+    const dbStatus = mongoose.connection.readyState;
+    const dbStatusText = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    }[dbStatus] || 'unknown';
+    
+    // JWT設定の確認（シークレットキーは表示しない）
+    const jwtConfigured = !!authConfig.jwtSecret && !!authConfig.refreshTokenSecret;
+    
+    // 環境変数の確認
+    const envStatus = {
+      NODE_ENV: process.env.NODE_ENV || 'not set',
+      MONGODB_URI: process.env.MONGODB_URI ? 'set (value hidden)' : 'not set',
+      JWT_SECRET: process.env.JWT_SECRET ? 'set (value hidden)' : 'not set',
+      CORS_ORIGIN: process.env.CORS_ORIGIN || 'not set'
+    };
+    
+    // テスト用のMongoDBクエリ
+    let dbTest = 'failed';
+    try {
+      const count = await User.estimatedDocumentCount();
+      dbTest = `success (${count} users found)`;
+    } catch (dbError) {
+      dbTest = `failed: ${dbError.message}`;
+    }
+    
+    // レスポンス
+    res.json({
+      status: 'UP',
+      timestamp: new Date().toISOString(),
+      db: {
+        status: dbStatusText,
+        readyState: dbStatus,
+        test: dbTest
+      },
+      auth: {
+        configured: jwtConfigured
+      },
+      env: envStatus
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'ERROR',
+      message: error.message,
+      stack: error.stack
+    });
+  }
+});
+
 // API基本経路
 app.get('/api', (req, res) => {
   res.json({

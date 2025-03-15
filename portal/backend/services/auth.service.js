@@ -94,40 +94,81 @@ exports.register = async (userData) => {
  */
 exports.login = async (email, password) => {
   try {
+    console.log("認証サービス: ログイン処理開始");
+    
     // メールアドレスでユーザーを検索
-    const user = await User.findByEmail(email);
+    console.log(`認証サービス: メールアドレスでユーザー検索 - ${email}`);
+    let user;
+    try {
+      user = await User.findByEmail(email);
+      console.log("認証サービス: ユーザー検索結果:", user ? "ユーザー見つかりました" : "ユーザー見つかりません");
+    } catch (dbError) {
+      console.error("認証サービス: ユーザー検索中のDBエラー:", dbError);
+      throw new Error(`データベース検索エラー: ${dbError.message}`);
+    }
+    
     if (!user) {
+      console.log("認証サービス: ユーザーが見つかりません");
       throw new Error('ユーザーが見つかりません');
     }
 
     // アカウントが有効か確認
+    console.log("認証サービス: アカウント状態チェック:", user.isActive ? "有効" : "無効");
     if (!user.isActive) {
+      console.log("認証サービス: アカウントが無効化されています");
       throw new Error('アカウントが無効化されています');
     }
 
     // パスワードを検証
-    const isValidPassword = await user.validatePassword(password);
+    console.log("認証サービス: パスワード検証開始");
+    let isValidPassword;
+    try {
+      isValidPassword = await user.validatePassword(password);
+      console.log("認証サービス: パスワード検証結果:", isValidPassword ? "成功" : "失敗");
+    } catch (pwError) {
+      console.error("認証サービス: パスワード検証エラー:", pwError);
+      throw new Error(`パスワード検証エラー: ${pwError.message}`);
+    }
+    
     if (!isValidPassword) {
+      console.log("認証サービス: パスワードが一致しません");
       throw new Error('パスワードが正しくありません');
     }
 
     // トークン生成
-    const accessToken = this.generateAccessToken(user);
-    const refreshToken = this.generateRefreshToken(user);
+    console.log("認証サービス: トークン生成開始");
+    try {
+      const accessToken = this.generateAccessToken(user);
+      const refreshToken = this.generateRefreshToken(user);
+      console.log("認証サービス: トークン生成成功");
 
-    // リフレッシュトークンをユーザーに保存
-    user.refreshToken = refreshToken;
-    
-    // 最終ログイン日時を更新
-    user.lastLogin = new Date();
-    await user.save();
+      // リフレッシュトークンをユーザーに保存
+      console.log("認証サービス: ユーザー情報更新");
+      user.refreshToken = refreshToken;
+      
+      // 最終ログイン日時を更新
+      user.lastLogin = new Date();
+      
+      try {
+        await user.save();
+        console.log("認証サービス: ユーザー情報更新成功");
+      } catch (saveError) {
+        console.error("認証サービス: ユーザー情報更新エラー:", saveError);
+        throw new Error(`ユーザー保存エラー: ${saveError.message}`);
+      }
 
-    return {
-      user,
-      accessToken,
-      refreshToken
-    };
+      console.log("認証サービス: ログイン処理完了");
+      return {
+        user,
+        accessToken,
+        refreshToken
+      };
+    } catch (tokenError) {
+      console.error("認証サービス: トークン生成/保存エラー:", tokenError);
+      throw tokenError;
+    }
   } catch (error) {
+    console.error("認証サービス: ログイン処理失敗:", error);
     throw error;
   }
 };

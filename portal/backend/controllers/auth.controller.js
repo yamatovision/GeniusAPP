@@ -83,10 +83,14 @@ exports.register = async (req, res) => {
  */
 exports.login = async (req, res) => {
   try {
+    console.log("認証コントローラー: ログインリクエスト受信");
     const { email, password } = req.body;
+    
+    console.log(`認証コントローラー: ログイン試行 - email: ${email}`);
     
     // 必須パラメータの検証
     if (!email || !password) {
+      console.log("認証コントローラー: バリデーションエラー - メールアドレスまたはパスワードが不足");
       return res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
@@ -98,19 +102,29 @@ exports.login = async (req, res) => {
       });
     }
     
-    // ログイン処理
-    const result = await authService.login(email, password);
-    
-    // 成功レスポンス
-    return res.status(200).json({
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-      user: result.user
-    });
+    try {
+      console.log("認証コントローラー: 認証サービスのloginメソッドを呼び出し");
+      // ログイン処理
+      const result = await authService.login(email, password);
+      
+      console.log("認証コントローラー: ログイン成功");
+      // 成功レスポンス
+      return res.status(200).json({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        user: result.user
+      });
+    } catch (serviceError) {
+      console.error("認証コントローラー: 認証サービスからのエラー:", serviceError);
+      throw serviceError; // 外側のcatchブロックで処理
+    }
   } catch (error) {
+    console.error("認証コントローラー: ログイン処理エラー:", error);
+    
     // エラー処理
     if (error.message === 'ユーザーが見つかりません' || 
         error.message === 'パスワードが正しくありません') {
+      console.log("認証コントローラー: 認証情報エラー");
       return res.status(401).json({
         error: {
           code: 'INVALID_CREDENTIALS',
@@ -120,6 +134,7 @@ exports.login = async (req, res) => {
     }
     
     if (error.message === 'アカウントが無効化されています') {
+      console.log("認証コントローラー: アカウント無効エラー");
       return res.status(401).json({
         error: {
           code: 'ACCOUNT_DISABLED',
@@ -129,11 +144,13 @@ exports.login = async (req, res) => {
     }
     
     // その他のエラー
+    console.error("認証コントローラー: 予期しないエラー:", error);
     return res.status(500).json({
       error: {
         code: 'SERVER_ERROR',
         message: 'ログイン中にエラーが発生しました',
-        details: error.message
+        details: error.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : error.stack
       }
     });
   }
