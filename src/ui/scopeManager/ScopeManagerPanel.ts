@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 import { Logger } from '../../utils/logger';
 import { FileOperationManager } from '../../utils/fileOperationManager';
 import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../../types';
@@ -1213,25 +1214,73 @@ APIエンドポイントはまだ定義されていません。
         throw new Error('プロジェクトパスが設定されていません');
       }
       
-      // スコープマネージャプロンプトのパスを取得
-      const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_manager.md');
+      // 中央ポータルURL
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704';
       
-      if (!fs.existsSync(promptFilePath)) {
-        throw new Error(`スコープマネージャプロンプトファイルが見つかりません: ${promptFilePath}`);
+      // ステータスファイルの内容を追加コンテンツとして渡す
+      let additionalContent = '';
+      const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
+      
+      if (fs.existsSync(statusFilePath)) {
+        const statusContent = fs.readFileSync(statusFilePath, 'utf8');
+        additionalContent = `# 現在の状態\n\n${statusContent}`;
       }
       
-      // ClaudeCodeの起動
-      const launcher = ClaudeCodeLauncherService.getInstance();
-      const success = await launcher.launchClaudeCodeWithPrompt(
-        this._projectPath,
-        promptFilePath,
-        { title: 'ClaudeCode - スコープ作成' }
-      );
+      // インテグレーションサービスを取得
+      const integrationService = ClaudeCodeIntegrationService.getInstance();
       
-      if (success) {
+      try {
+        // 公開URLから起動（追加情報も渡す）
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
+        await integrationService.launchWithPublicUrl(
+          portalUrl,
+          this._projectPath,
+          additionalContent
+        );
+        
         vscode.window.showInformationMessage('スコープ作成のためのClaudeCodeを起動しました。');
-      } else {
-        vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+      } catch (error) {
+        // URL起動に失敗した場合、ローカルファイルにフォールバック
+        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
+        
+        // スコープマネージャプロンプトのパスを取得
+        const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_manager.md');
+        
+        if (!fs.existsSync(promptFilePath)) {
+          throw new Error(`スコープマネージャプロンプトファイルが見つかりません: ${promptFilePath}`);
+        }
+        
+        // 一時的なテンプレートファイルを作成
+        const tempDir = os.tmpdir(); // 一時ディレクトリに保存（25秒後に自動削除）
+        const tempFilePath = path.join(tempDir, `combined_scope_${Date.now()}.md`);
+        
+        // プロンプトファイルの内容を読み込む
+        let promptContent = fs.readFileSync(promptFilePath, 'utf8');
+        
+        // ステータスの内容を追加
+        if (additionalContent) {
+          promptContent += '\n\n' + additionalContent;
+        }
+        
+        // 一時的なテンプレートファイルを作成
+        fs.writeFileSync(tempFilePath, promptContent, 'utf8');
+        
+        // ClaudeCodeの起動
+        const launcher = ClaudeCodeLauncherService.getInstance();
+        const success = await launcher.launchClaudeCodeWithPrompt(
+          this._projectPath,
+          tempFilePath,
+          { 
+            title: 'ClaudeCode - スコープ作成', 
+            deletePromptFile: true // 25秒後に削除
+          }
+        );
+        
+        if (success) {
+          vscode.window.showInformationMessage('スコープ作成のためのClaudeCodeを起動しました（ローカルモード）。');
+        } else {
+          vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+        }
       }
     } catch (error) {
       Logger.error('スコープ作成の起動に失敗しました', error as Error);
@@ -1248,25 +1297,73 @@ APIエンドポイントはまだ定義されていません。
         throw new Error('プロジェクトパスが設定されていません');
       }
       
-      // 実装アシスタントプロンプトのパスを取得
-      const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_implementer.md');
+      // 中央ポータルURL
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
       
-      if (!fs.existsSync(promptFilePath)) {
-        throw new Error(`実装アシスタントプロンプトファイルが見つかりません: ${promptFilePath}`);
+      // ステータスファイルの内容を追加コンテンツとして渡す
+      let additionalContent = '';
+      const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
+      
+      if (fs.existsSync(statusFilePath)) {
+        const statusContent = fs.readFileSync(statusFilePath, 'utf8');
+        additionalContent = `# 現在の状態\n\n${statusContent}`;
       }
       
-      // ClaudeCodeの起動
-      const launcher = ClaudeCodeLauncherService.getInstance();
-      const success = await launcher.launchClaudeCodeWithPrompt(
-        this._projectPath,
-        promptFilePath,
-        { title: 'ClaudeCode - 実装アシスタント' }
-      );
+      // インテグレーションサービスを取得
+      const integrationService = ClaudeCodeIntegrationService.getInstance();
       
-      if (success) {
+      try {
+        // 公開URLから起動（追加情報も渡す）
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
+        await integrationService.launchWithPublicUrl(
+          portalUrl,
+          this._projectPath,
+          additionalContent
+        );
+        
         vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました。');
-      } else {
-        vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+      } catch (error) {
+        // URL起動に失敗した場合、ローカルファイルにフォールバック
+        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
+        
+        // 実装アシスタントプロンプトのパスを取得
+        const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_implementer.md');
+        
+        if (!fs.existsSync(promptFilePath)) {
+          throw new Error(`実装アシスタントプロンプトファイルが見つかりません: ${promptFilePath}`);
+        }
+        
+        // 一時的なテンプレートファイルを作成
+        const tempDir = os.tmpdir(); // 一時ディレクトリに保存（25秒後に自動削除）
+        const tempFilePath = path.join(tempDir, `combined_implementer_${Date.now()}.md`);
+        
+        // プロンプトファイルの内容を読み込む
+        let promptContent = fs.readFileSync(promptFilePath, 'utf8');
+        
+        // ステータスの内容を追加
+        if (additionalContent) {
+          promptContent += '\n\n' + additionalContent;
+        }
+        
+        // 一時的なテンプレートファイルを作成
+        fs.writeFileSync(tempFilePath, promptContent, 'utf8');
+        
+        // ClaudeCodeの起動
+        const launcher = ClaudeCodeLauncherService.getInstance();
+        const success = await launcher.launchClaudeCodeWithPrompt(
+          this._projectPath,
+          tempFilePath,
+          { 
+            title: 'ClaudeCode - 実装アシスタント',
+            deletePromptFile: true // 25秒後に削除
+          }
+        );
+        
+        if (success) {
+          vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました（ローカルモード）。');
+        } else {
+          vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+        }
       }
     } catch (error) {
       Logger.error('実装アシスタントの起動に失敗しました', error as Error);
@@ -1332,51 +1429,88 @@ APIエンドポイントはまだ定義されていません。
         projectPath: this._projectPath
       };
       
-      // 実装アシスタントプロンプトが存在する場合はそれを使用
-      if (fs.existsSync(promptFilePath)) {
-        // CURRENT_STATUS.mdファイルの存在を確認
-        if (!fs.existsSync(statusFilePath)) {
-          // 存在しない場合は作成
-          await this._updateStatusFile();
-          Logger.info(`CURRENT_STATUS.mdファイルが存在しなかったため作成しました: ${statusFilePath}`);
-        }
+      // CURRENT_STATUS.mdファイルの存在を確認
+      if (!fs.existsSync(statusFilePath)) {
+        // 存在しない場合は作成
+        await this._updateStatusFile();
+        Logger.info(`CURRENT_STATUS.mdファイルが存在しなかったため作成しました: ${statusFilePath}`);
+      }
+      
+      // ステータスファイルの内容を読み込む
+      const statusContent = fs.readFileSync(statusFilePath, 'utf8');
+      
+      // 中央ポータルURL
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+      
+      // 追加情報（現在の実装状況など）
+      const additionalContent = `# 現在の実装状況\n\n以下は現在の実装状況です。この情報を参考にして実装を進めてください。\n\n${statusContent}\n\n# 選択されたスコープ\n\n現在選択されているスコープ: **${this._currentScope.name}**\n\n説明: ${this._currentScope.description || '説明が設定されていません'}\n\n進捗: ${this._currentScope.progress || 0}%`;
+      
+      try {
+        // インテグレーションサービスを動的importで安全に取得
+        const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+          module => module.ClaudeCodeIntegrationService.getInstance()
+        );
         
-        // 一時的な結合ファイルを作成して両方の内容を含める
-        const tempDir = path.join(this._projectPath, 'temp');
-        if (!fs.existsSync(tempDir)) {
-          fs.mkdirSync(tempDir, { recursive: true });
-        }
+        // 公開URLから起動（追加情報も渡す）
+        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
+        await integrationService.launchWithPublicUrl(
+          portalUrl,
+          this._projectPath,
+          additionalContent
+        );
         
-        const combinedFilePath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
+        // 成功とみなす
+        success = true;
+      } catch (error) {
+        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
         
-        try {
-          // プロンプトファイルとステータスファイルの内容を読み込む
-          const promptContent = fs.readFileSync(promptFilePath, 'utf8');
-          const statusContent = fs.readFileSync(statusFilePath, 'utf8');
-          
-          // 結合ファイルを作成
-          const combinedContent = 
-            promptContent + 
-            '\n\n# 現在の実装状況\n\n' +
-            '以下は現在の実装状況です。この情報を参考にして実装を進めてください。\n\n' +
-            statusContent;
-          
-          fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
-          Logger.info(`結合プロンプトファイルを作成しました: ${combinedFilePath}`);
-          
-          // ClaudeCodeの起動
-          const launcher = ClaudeCodeLauncherService.getInstance();
-          success = await launcher.launchClaudeCodeWithPrompt(
-            this._projectPath,
-            combinedFilePath,
-            { title: 'ClaudeCode - 実装アシスタント' }
-          );
-        } catch (error) {
-          Logger.error('結合プロンプトファイルの作成に失敗しました', error as Error);
-          throw error;
+        // 実装アシスタントプロンプトが存在する場合はそれを使用
+        if (fs.existsSync(promptFilePath)) {
+          try {
+            // プロンプトファイルの内容を読み込む
+            const promptContent = fs.readFileSync(promptFilePath, 'utf8');
+            
+            // 一時的な結合ファイルを作成して両方の内容を含める
+            const tempDir = os.tmpdir(); // OSの一時ディレクトリを使用
+            const combinedFilePath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
+            
+            // 結合ファイルを作成
+            const combinedContent = 
+              promptContent + 
+              '\n\n# 現在の実装状況\n\n' +
+              '以下は現在の実装状況です。この情報を参考にして実装を進めてください。\n\n' +
+              statusContent + 
+              '\n\n# 選択されたスコープ\n\n' +
+              `現在選択されているスコープ: **${this._currentScope.name}**\n\n` +
+              `説明: ${this._currentScope.description || '説明が設定されていません'}\n\n` +
+              `進捗: ${this._currentScope.progress || 0}%`;
+            
+            fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
+            Logger.info(`結合プロンプトファイルを作成しました: ${combinedFilePath}`);
+            
+            // ClaudeCodeの起動
+            const launcher = ClaudeCodeLauncherService.getInstance();
+            success = await launcher.launchClaudeCodeWithPrompt(
+              this._projectPath,
+              combinedFilePath,
+              { 
+                title: 'ClaudeCode - 実装アシスタント',
+                deletePromptFile: true // 25秒後に自動削除
+              }
+            );
+            
+            // メッセージを変更してローカルモードであることを示す
+            if (success) {
+              vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました（ローカルモード）。');
+            }
+          } catch (error) {
+            Logger.error('結合プロンプトファイルの作成に失敗しました', error as Error);
+            throw error;
+          }
+        } else {
+          // 旧式のスコープベースの起動方法にフォールバック
+          success = await launcher.launchClaudeCode(scopeInfo);
         }
-      } else {
-        success = await launcher.launchClaudeCode(scopeInfo);
       }
       
       if (success) {
