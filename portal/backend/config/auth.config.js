@@ -34,7 +34,28 @@ module.exports = {
 
   // CORS設定
   corsOptions: {
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3001',
+    origin: function(origin, callback) {
+      // 許可するオリジンのリスト
+      const allowedOrigins = [
+        'https://geniemon.vercel.app', 
+        'https://geniemon-yamatovisions-projects.vercel.app', 
+        'http://localhost:3000', 
+        'http://localhost:3001'
+      ];
+      
+      // process.env.CORS_ORIGINがあれば追加 (カンマ区切り)
+      if (process.env.CORS_ORIGIN) {
+        const additionalOrigins = process.env.CORS_ORIGIN.split(',').map(o => o.trim());
+        allowedOrigins.push(...additionalOrigins);
+      }
+      
+      // originがundefinedの場合（サーバー間リクエスト）または許可リストに含まれる場合は許可
+      if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+        callback(null, true);
+      } else {
+        callback(new Error('CORS policy violation'));
+      }
+    },
     methods: process.env.CORS_METHODS || 'GET,HEAD,PUT,PATCH,POST,DELETE',
     preflightContinue: false,
     optionsSuccessStatus: 204,

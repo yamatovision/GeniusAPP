@@ -129,7 +129,7 @@ app.use((err, req, res, next) => {
   console.error('サーバーエラー:', err);
   res.status(500).json({
     error: 'サーバーエラーが発生しました',
-    message: process.env.NODE_ENV === 'production' ? null : err.message
+    message: err.message // 環境に関わらずエラーメッセージを表示
   });
 });
 

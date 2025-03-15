@@ -63,25 +63,30 @@ exports.getUsers = async (req, res) => {
     } catch (dbError) {
       console.error("MongoDB取得エラー:", dbError);
       
-      // データベースからの取得に失敗した場合は、実際のDBデータを取得
-      const actualUsers = await User.find().select('-password -refreshToken');
-      
-      // ページネーション計算
-      const total = actualUsers.length;
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + parseInt(limit);
-      const paginatedUsers = actualUsers.slice(startIndex, endIndex);
-      
-      // レスポンスの構築
-      return res.status(200).json({
-        users: paginatedUsers,
-        pagination: {
-          total,
-          page: parseInt(page),
-          pages: Math.ceil(total / parseInt(limit)),
-          limit: parseInt(limit)
-        }
-      });
+      try {
+        // データベースからの取得に失敗した場合は、単純なfindを試す
+        const actualUsers = await User.find().select('-password -refreshToken');
+        
+        // ページネーション計算
+        const total = actualUsers.length;
+        const startIndex = (page - 1) * limit;
+        const endIndex = startIndex + parseInt(limit);
+        const paginatedUsers = actualUsers.slice(startIndex, endIndex);
+        
+        // レスポンスの構築
+        return res.status(200).json({
+          users: paginatedUsers,
+          pagination: {
+            total,
+            page: parseInt(page),
+            pages: Math.ceil(total / parseInt(limit)),
+            limit: parseInt(limit)
+          }
+        });
+      } catch (fallbackError) {
+        // フォールバックも失敗した場合は元のエラーを投げる
+        throw dbError;
+      }
     }
   } catch (error) {
     console.error('ユーザー一覧取得エラー:', error);
@@ -320,15 +325,27 @@ exports.getUserStats = async (req, res) => {
       });
     } catch (dbError) {
       console.error("MongoDB取得エラー:", dbError);
-      // データベースアクセスに失敗した場合は固定データを返す
-      res.status(200).json({
-        totalUsers: await User.countDocuments() || 3,
-        adminCount: 2,
-        userCount: 1,
-        activeUsers: 3,
-        newUsers: 3,
-        recentLogins: 2
-      });
+      try {
+        // データベースアクセスに失敗した場合は基本的なクエリでデータを取得
+        const totalUsers = await User.countDocuments();
+        const adminCount = await User.countDocuments({ role: 'admin' });
+        const userCount = totalUsers - adminCount;
+        const activeUsers = await User.countDocuments({ isActive: true });
+        const newUsers = await User.countDocuments({ createdAt: { $gte: thirtyDaysAgo } });
+        const recentLogins = await User.countDocuments({ lastLogin: { $gte: sevenDaysAgo } });
+        
+        res.status(200).json({
+          totalUsers,
+          adminCount,
+          userCount,
+          activeUsers,
+          newUsers,
+          recentLogins
+        });
+      } catch (fallbackError) {
+        // フォールバックも失敗した場合は元のエラーを投げる
+        throw dbError;
+      }
     }
   } catch (error) {
     console.error('ユーザー統計取得エラー:', error);

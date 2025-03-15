@@ -839,8 +839,11 @@ const promptController = {
         await prompt.save();
       }
       
-      // 共有URL生成
-      const shareUrl = `${req.protocol}://${req.get('host')}/api/prompts/public/${prompt.publicToken}`;
+      // 共有URL生成 (常に本番用のホスト名を使用)
+      const host = process.env.NODE_ENV === 'production' 
+        ? 'geniemon-portal-backend-production.up.railway.app'
+        : req.get('host');
+      const shareUrl = `${req.protocol}://${host}/api/prompts/public/${prompt.publicToken}`;
       
       res.json({ 
         shareUrl, 

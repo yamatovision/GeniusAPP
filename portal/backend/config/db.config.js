@@ -28,11 +28,9 @@ module.exports = {
       return true;
     } catch (err) {
       console.error("MongoDB 接続エラー:", err);
-      if (process.env.NODE_ENV === 'development') {
-        console.warn("開発モードでデータベース接続エラーが発生しましたが、サーバーは起動します");
-        return true;
-      }
-      return false;
+      // 環境に関わらずサーバーを起動
+      console.warn("データベース接続エラーが発生しましたが、サーバーは起動します");
+      return true;
     }
   },
 
