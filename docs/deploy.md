@@ -269,6 +269,29 @@ Cloud Runでの以下の問題により、Railway.appに移行しました:
 対応策:
 - サーバーコードでAPIレスポンス形式を統一
 
+#### Vercelビルドエラー
+- 依存関係のエラーが出る場合（例: `Cannot find module 'yocto-queue'`）：
+  - package.jsonに`engines`フィールドを追加し、Nodeバージョンを指定：
+    ```json
+    "engines": {
+      "node": ">=16.x"
+    }
+    ```
+  - vercel.jsonでビルドコマンドをクリーンインストールに設定：
+    ```json
+    "buildCommand": "npm ci && npm run build"
+    ```
+  - 不足しているパッケージを明示的に追加：
+    ```bash
+    npm install [不足パッケージ名] --save
+    ```
+  - キャッシュクリア：
+    - Vercelのダッシュボードから「Settings」>「General」>「Build & Development Settings」>「Clear Cache and Rebuild」を実行
+
+- Vercel環境変数に関する問題：
+  - フロントエンドのビルド時に必要な環境変数はVercelダッシュボードで設定する必要がある
+  - vercel.jsonの`env`セクションと重複していないか確認
+
 ## 7. モニタリングと運用
 
 ### 本番環境モニタリング

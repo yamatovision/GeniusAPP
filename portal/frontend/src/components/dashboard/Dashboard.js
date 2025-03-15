@@ -279,7 +279,7 @@ const Dashboard = () => {
                               合計入力トークン
                             </Typography>
                             <Typography variant="h5" component="div">
-                              {tokenUsage.overall.totalInputTokens.toLocaleString()} トークン
+                              {(tokenUsage.overall?.totalInputTokens || 0).toLocaleString()} トークン
                             </Typography>
                           </CardContent>
                         </Card>
@@ -292,7 +292,7 @@ const Dashboard = () => {
                               合計出力トークン
                             </Typography>
                             <Typography variant="h5" component="div">
-                              {tokenUsage.overall.totalOutputTokens.toLocaleString()} トークン
+                              {(tokenUsage.overall?.totalOutputTokens || 0).toLocaleString()} トークン
                             </Typography>
                           </CardContent>
                         </Card>
@@ -305,7 +305,7 @@ const Dashboard = () => {
                               リクエスト成功率
                             </Typography>
                             <Typography variant="h5" component="div">
-                              {tokenUsage.overall.successRate.toFixed(1)}%
+                              {(tokenUsage.overall?.successRate || 0).toFixed(1)}%
                             </Typography>
                           </CardContent>
                         </Card>
@@ -318,44 +318,44 @@ const Dashboard = () => {
                               平均応答時間
                             </Typography>
                             <Typography variant="h5" component="div">
-                              {tokenUsage.overall.avgResponseTime.toFixed(0)} ms
+                              {(tokenUsage.overall?.avgResponseTime || 0).toFixed(0)} ms
                             </Typography>
                           </CardContent>
                         </Card>
                       </Grid>
                       
-                      {user?.plan && (
+                      {user?.plan?.tokenLimit && (
                         <Grid item xs={12}>
                           <Card variant="outlined">
                             <CardContent>
                               <Box display="flex" justifyContent="space-between" alignItems="center">
                                 <Typography color="textSecondary" gutterBottom>
-                                  月間使用量上限 ({user.plan.type} プラン)
+                                  月間使用量上限 ({user.plan?.type || 'basic'} プラン)
                                 </Typography>
                                 <Typography variant="body2">
-                                  {Math.round((tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit * 100)}% 使用中
+                                  {Math.round(((tokenUsage.overall?.totalInputTokens || 0) + (tokenUsage.overall?.totalOutputTokens || 0)) / user.plan.tokenLimit * 100)}% 使用中
                                 </Typography>
                               </Box>
                               <LinearProgress 
                                 variant="determinate" 
-                                value={Math.min(100, (tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit * 100)} 
+                                value={Math.min(100, ((tokenUsage.overall?.totalInputTokens || 0) + (tokenUsage.overall?.totalOutputTokens || 0)) / user.plan.tokenLimit * 100)} 
                                 sx={{ height: 10, borderRadius: 5, mt: 1 }}
                                 color={
-                                  (tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit > 0.9 ? 'error' :
-                                  (tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens) / user.plan.tokenLimit > 0.7 ? 'warning' :
+                                  ((tokenUsage.overall?.totalInputTokens || 0) + (tokenUsage.overall?.totalOutputTokens || 0)) / user.plan.tokenLimit > 0.9 ? 'error' :
+                                  ((tokenUsage.overall?.totalInputTokens || 0) + (tokenUsage.overall?.totalOutputTokens || 0)) / user.plan.tokenLimit > 0.7 ? 'warning' :
                                   'primary'
                                 }
                               />
                               <Box display="flex" justifyContent="space-between" mt={1}>
                                 <Typography variant="body2">
-                                  {(tokenUsage.overall.totalInputTokens + tokenUsage.overall.totalOutputTokens).toLocaleString()} トークン
+                                  {((tokenUsage.overall?.totalInputTokens || 0) + (tokenUsage.overall?.totalOutputTokens || 0)).toLocaleString()} トークン
                                 </Typography>
                                 <Typography variant="body2">
                                   上限: {user.plan.tokenLimit.toLocaleString()} トークン
                                 </Typography>
                               </Box>
                               <Typography variant="caption" color="textSecondary">
-                                次回リセット日: {new Date(user.plan.nextResetDate).toLocaleDateString('ja-JP')}
+                                次回リセット日: {user.plan?.nextResetDate ? new Date(user.plan.nextResetDate).toLocaleDateString('ja-JP') : '情報なし'}
                               </Typography>
                             </CardContent>
                           </Card>
