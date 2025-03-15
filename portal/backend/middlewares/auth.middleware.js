@@ -1,6 +1,13 @@
 /**
  * 認証ミドルウェア
  * JWTトークンの検証、ユーザー権限のチェックなどを行います
+ * 
+ * ユーザーロール/権限:
+ * - admin: システム全体の管理者。すべての操作に対する権限を持つ
+ * - user: 一般ユーザー。自分のリソースとパブリックリソースにアクセス可能
+ * - project.owner: プロジェクトの所有者。プロジェクト内のすべての操作が可能
+ * - project.editor: プロジェクト編集者。編集権限を持つ
+ * - project.member: プロジェクトメンバー。閲覧のみ可能
  */
 const jwt = require('jsonwebtoken');
 const authConfig = require('../config/auth.config');
@@ -166,4 +173,178 @@ exports.loadUser = async (req, res, next) => {
       }
     });
   }
+};
+
+/**
+ * 汎用的な権限チェックヘルパー
+ * 様々なタイプのアクセス権限チェックを一元化します
+ * 
+ * @param {Object} options - チェックオプション
+ * @param {Object} options.resource - チェック対象のリソース（プロンプトなど）
+ * @param {string} options.userId - リクエスト元ユーザーID
+ * @param {string} options.userRole - リクエスト元ユーザーロール
+ * @param {boolean} [options.checkPublic=false] - 公開リソースへのアクセスを許可するか
+ * @param {boolean} [options.checkProjectMember=false] - プロジェクトメンバーのアクセスを許可するか
+ * @param {boolean} [options.checkProjectEditor=false] - プロジェクト編集者のアクセスを許可するか
+ * @param {boolean} [options.checkProjectAdmin=false] - プロジェクト管理者のアクセスを許可するか
+ * @returns {Object} 権限チェック結果 { hasAccess, reason }
+ */
+exports.checkResourceAccess = async (options) => {
+  const {
+    resource,
+    userId,
+    userRole,
+    checkPublic = false,
+    checkProjectMember = false,
+    checkProjectEditor = false,
+    checkProjectAdmin = false
+  } = options;
+  
+  // 結果オブジェクト
+  const result = {
+    hasAccess: false,
+    reason: null
+  };
+  
+  // システム管理者は常にアクセス可能
+  if (userRole === 'admin') {
+    result.hasAccess = true;
+    result.reason = 'ADMIN_ACCESS';
+    return result;
+  }
+  
+  // リソース所有者チェック
+  let isOwner = false;
+  if (resource.ownerId) {
+    // ownerId が単純な文字列か、オブジェクトかによって処理を分ける
+    if (typeof resource.ownerId === 'string') {
+      isOwner = resource.ownerId === userId;
+    } else if (resource.ownerId._id) {
+      isOwner = resource.ownerId._id.toString() === userId;
+    } else if (resource.ownerId.toString) {
+      isOwner = resource.ownerId.toString() === userId;
+    }
+  }
+  
+  if (isOwner) {
+    result.hasAccess = true;
+    result.reason = 'OWNER_ACCESS';
+    return result;
+  }
+  
+  // 公開リソースチェック
+  if (checkPublic && resource.isPublic) {
+    result.hasAccess = true;
+    result.reason = 'PUBLIC_ACCESS';
+    return result;
+  }
+  
+  // プロジェクト関連のチェック
+  if (resource.projectId && (checkProjectMember || checkProjectEditor || checkProjectAdmin)) {
+    try {
+      const Project = require('../models/project.model');
+      const project = await Project.findById(resource.projectId);
+      
+      if (project) {
+        const member = project.members.find(m => m.userId.toString() === userId);
+        
+        if (member) {
+          if (checkProjectMember) {
+            result.hasAccess = true;
+            result.reason = 'PROJECT_MEMBER_ACCESS';
+            return result;
+          }
+          
+          if (checkProjectEditor && ['owner', 'editor'].includes(member.role)) {
+            result.hasAccess = true;
+            result.reason = 'PROJECT_EDITOR_ACCESS';
+            return result;
+          }
+          
+          if (checkProjectAdmin && member.role === 'owner') {
+            result.hasAccess = true;
+            result.reason = 'PROJECT_ADMIN_ACCESS';
+            return result;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('プロジェクト権限チェックエラー:', error);
+    }
+  }
+  
+  return result;
+};
+
+/**
+ * 権限チェックミドルウェアを生成するファクトリ関数
+ * 
+ * @param {Object} options - チェックオプション
+ * @returns {Function} 権限チェックミドルウェア
+ */
+exports.checkAccess = (options) => {
+  const {
+    resourceType = 'プロンプト',
+    checkPublic = false,
+    checkProjectMember = false,
+    checkProjectEditor = false,
+    checkProjectAdmin = false,
+    resourceIdParam = 'id',
+    resourceLoader,
+    errorMessage
+  } = options;
+  
+  return async (req, res, next) => {
+    try {
+      // リソースID取得
+      const resourceId = req.params[resourceIdParam];
+      if (!resourceId || resourceId === 'undefined' || resourceId === 'null') {
+        return res.status(400).json({ message: `有効な${resourceType}IDが指定されていません` });
+      }
+      
+      // リソース読み込み
+      let resource;
+      if (typeof resourceLoader === 'function') {
+        resource = await resourceLoader(resourceId, req);
+      } else {
+        return next(new Error('resourceLoader function is required'));
+      }
+      
+      if (!resource) {
+        return res.status(404).json({ message: `${resourceType}が見つかりません` });
+      }
+      
+      // 権限チェック
+      const accessResult = await this.checkResourceAccess({
+        resource,
+        userId: req.userId,
+        userRole: req.userRole,
+        checkPublic,
+        checkProjectMember,
+        checkProjectEditor,
+        checkProjectAdmin
+      });
+      
+      if (accessResult.hasAccess) {
+        // 権限があればリソースをリクエストに追加して次へ
+        req.resource = resource;
+        return next();
+      }
+      
+      // 権限なしの場合はエラー
+      return res.status(403).json({ 
+        message: errorMessage || `この${resourceType}にアクセスする権限がありません`,
+        reason: accessResult.reason
+      });
+    } catch (error) {
+      console.error('権限チェックエラー:', error);
+      return res.status(500).json({
+        error: {
+          code: 'SERVER_ERROR',
+          message: 'サーバーエラーが発生しました',
+          details: error.message
+        }
+      });
+    }
+  };
 };

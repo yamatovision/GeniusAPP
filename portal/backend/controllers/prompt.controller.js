@@ -150,44 +150,23 @@ const promptController = {
    * プロンプト詳細を取得
    * @param {Object} req - リクエストオブジェクト
    * @param {Object} res - レスポンスオブジェクト
+   * 
+   * 注意: このメソッドは現在使用されていません。
+   * 権限チェックミドルウェアを使用したルート定義に移行しています：
+   * router.get('/:id', checkViewAccess, (req, res) => res.json(req.resource));
    */
   async getPromptById(req, res) {
     try {
+      // このメソッドは権限チェックミドルウェアを使用したルートに置き換えられました
+      // 後方互換性のために残していますが、実際には呼び出されないはずです
+      console.warn('非推奨: getPromptByIdメソッドが直接呼び出されました');
+      
       const { id } = req.params;
+      if (!id) return res.status(400).json({ message: '有効なプロンプトIDが指定されていません' });
       
-      // IDの検証
-      if (!id || id === 'undefined' || id === 'null') {
-        console.error('無効なプロンプトID:', id);
-        return res.status(400).json({ message: '有効なプロンプトIDが指定されていません' });
-      }
+      const prompt = await Prompt.findById(id).populate('ownerId', 'name email');
+      if (!prompt) return res.status(404).json({ message: 'プロンプトが見つかりません' });
       
-      // プロンプト詳細取得
-      const prompt = await Prompt.findById(id)
-        .populate('ownerId', 'name email');
-      
-      if (!prompt) {
-        return res.status(404).json({ message: 'プロンプトが見つかりません' });
-      }
-      
-      // アクセス権限チェック（所有者、管理者、または公開プロンプト）
-      const isOwner = prompt.ownerId && prompt.ownerId._id && prompt.ownerId._id.toString() === req.userId;
-      const isPublic = prompt.isPublic;
-      const isAdmin = req.userRole === 'admin';
-      
-      let isProjectMember = false;
-      // プロジェクト関連の機能は一時的に無効化
-      // projectIdフィールドがスキーマにないためエラーになる
-      
-      if (!isOwner && !isAdmin && !isPublic && !isProjectMember) {
-        return res.status(403).json({ message: 'このプロンプトにアクセスする権限がありません' });
-      }
-      
-      // シンプル化のためバージョン情報と詳細な使用統計は省略
-      const usageStats = {
-        totalUsage: prompt.usageCount || 0
-      };
-      
-      // レスポンス返却 - シンプル化されたレスポンス形式
       res.json(prompt);
     } catch (error) {
       console.error('プロンプト詳細取得エラー:', error);
