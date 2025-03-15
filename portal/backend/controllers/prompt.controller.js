@@ -169,15 +169,16 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // アクセス権限チェック（所有者または公開プロンプト）
+      // アクセス権限チェック（所有者、管理者、または公開プロンプト）
       const isOwner = prompt.ownerId && prompt.ownerId._id && prompt.ownerId._id.toString() === req.userId;
       const isPublic = prompt.isPublic;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectMember = false;
       // プロジェクト関連の機能は一時的に無効化
       // projectIdフィールドがスキーマにないためエラーになる
       
-      if (!isOwner && !isPublic && !isProjectMember) {
+      if (!isOwner && !isAdmin && !isPublic && !isProjectMember) {
         return res.status(403).json({ message: 'このプロンプトにアクセスする権限がありません' });
       }
       
@@ -267,8 +268,9 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // 権限チェック（所有者またはプロジェクト編集者のみ更新可能）
+      // 権限チェック（所有者、管理者、またはプロジェクト編集者のみ更新可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectEditor = false;
       if (prompt.projectId) {
@@ -278,7 +280,7 @@ const promptController = {
         );
       }
       
-      if (!isOwner && !isProjectEditor) {
+      if (!isOwner && !isAdmin && !isProjectEditor) {
         return res.status(403).json({ message: 'このプロンプトを更新する権限がありません' });
       }
       
@@ -379,8 +381,9 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // 権限チェック（所有者またはプロジェクト編集者のみバージョン作成可能）
+      // 権限チェック（所有者、管理者、またはプロジェクト編集者のみバージョン作成可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectEditor = false;
       if (prompt.projectId) {
@@ -390,7 +393,7 @@ const promptController = {
         );
       }
       
-      if (!isOwner && !isProjectEditor) {
+      if (!isOwner && !isAdmin && !isProjectEditor) {
         return res.status(403).json({ message: 'このプロンプトの新バージョンを作成する権限がありません' });
       }
       
@@ -431,9 +434,10 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // アクセス権限チェック（所有者、公開プロンプト、またはプロジェクトメンバー）
+      // アクセス権限チェック（所有者、管理者、公開プロンプト、またはプロジェクトメンバー）
       const isOwner = prompt.ownerId.toString() === req.userId;
       const isPublic = prompt.isPublic;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectMember = false;
       if (prompt.projectId) {
@@ -443,7 +447,7 @@ const promptController = {
         );
       }
       
-      if (!isOwner && !isPublic && !isProjectMember) {
+      if (!isOwner && !isAdmin && !isPublic && !isProjectMember) {
         return res.status(403).json({ message: 'このプロンプトのバージョン履歴にアクセスする権限がありません' });
       }
       
@@ -474,9 +478,10 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // アクセス権限チェック（所有者、公開プロンプト、またはプロジェクトメンバー）
+      // アクセス権限チェック（所有者、管理者、公開プロンプト、またはプロジェクトメンバー）
       const isOwner = prompt.ownerId.toString() === req.userId;
       const isPublic = prompt.isPublic;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectMember = false;
       if (prompt.projectId) {
@@ -486,7 +491,7 @@ const promptController = {
         );
       }
       
-      if (!isOwner && !isPublic && !isProjectMember) {
+      if (!isOwner && !isAdmin && !isPublic && !isProjectMember) {
         return res.status(403).json({ message: 'このプロンプトバージョンにアクセスする権限がありません' });
       }
       
@@ -549,9 +554,10 @@ const promptController = {
         return res.status(404).json({ message: '指定されたプロンプトバージョンが見つかりません' });
       }
       
-      // アクセス権限チェック（所有者、公開プロンプト、またはプロジェクトメンバー）
+      // アクセス権限チェック（所有者、管理者、公開プロンプト、またはプロジェクトメンバー）
       const isOwner = prompt.ownerId.toString() === req.userId;
       const isPublic = prompt.isPublic;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectMember = false;
       if (prompt.projectId) {
@@ -561,7 +567,7 @@ const promptController = {
         );
       }
       
-      if (!isOwner && !isPublic && !isProjectMember) {
+      if (!isOwner && !isAdmin && !isPublic && !isProjectMember) {
         return res.status(403).json({ message: 'このプロンプトを使用する権限がありません' });
       }
       
@@ -622,8 +628,9 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // アクセス権限チェック（所有者またはプロジェクト管理者のみ詳細統計閲覧可能）
+      // アクセス権限チェック（所有者、管理者、またはプロジェクト管理者のみ詳細統計閲覧可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
+      const isAdmin = req.userRole === 'admin';
       
       let isProjectAdmin = false;
       if (prompt.projectId) {
@@ -633,7 +640,7 @@ const promptController = {
         );
       }
       
-      if (!isOwner && !isProjectAdmin) {
+      if (!isOwner && !isAdmin && !isProjectAdmin) {
         return res.status(403).json({ message: 'このプロンプトの使用統計を閲覧する権限がありません' });
       }
       
