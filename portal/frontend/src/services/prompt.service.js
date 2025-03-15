@@ -574,7 +574,7 @@ class PromptService {
       console.error('Token refresh error:', error);
       throw error;
     }
-  },
+  }
   
   /**
    * プロンプトの共有リンクを生成
