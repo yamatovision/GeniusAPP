@@ -45,7 +45,11 @@
     activeProjectDetails: null,
     loading: true,
     error: null,
-    sidebarCollapsed: false
+    sidebarCollapsed: false,
+    // 初回表示管理用フラグ
+    firstVisit: true,
+    onboardingCompleted: false,
+    tutorialDismissed: false
   };
   
   // 保存された状態を復元
@@ -77,6 +81,177 @@
       }
     }, 1000);
   });
+  
+  /**
+   * ウェルカムパネルのイベントを設定
+   */
+  function setupWelcomePanelEvents() {
+    // 閉じるボタン
+    const dismissButton = document.getElementById('dismiss-welcome');
+    if (dismissButton) {
+      dismissButton.addEventListener('click', () => {
+        // ウェルカムパネルを閉じて状態を保存
+        state.tutorialDismissed = true;
+        saveState();
+        
+        // ウェルカムパネルを再描画
+        renderActiveProject();
+      });
+    }
+    
+    // プロジェクト作成ボタン
+    const createFirstButton = document.getElementById('create-first-project');
+    if (createFirstButton) {
+      createFirstButton.addEventListener('click', () => {
+        showNewProjectModal();
+      });
+    }
+    
+    // チュートリアルボタン
+    const showTutorialButton = document.getElementById('show-tutorial');
+    if (showTutorialButton) {
+      showTutorialButton.addEventListener('click', () => {
+        showTutorial();
+      });
+    }
+  }
+  
+  /**
+   * チュートリアルを表示
+   */
+  function showTutorial() {
+    // まず初回フラグは非表示に
+    state.firstVisit = false;
+    saveState();
+    
+    // ウェルカムパネルを閉じる
+    renderActiveProject();
+    
+    // サイドバーの新規プロジェクトボタンにヒントを表示
+    addTutorialHint(
+      'new-project-btn', 
+      'このボタンでプロジェクトを作成できます。プロジェクトはAppGeniusの基本単位です。',
+      'bottom'
+    );
+    
+    // 2秒後に次のヒントを表示（ローディング完了するまで待機）
+    setTimeout(() => {
+      // 新規プロジェクトボタンのヒントを削除
+      removeTutorialHint('new-project-btn');
+      
+      // プロセスセクションにヒントを表示（新規プロジェクト作成を促進）
+      const projectsContainer = document.getElementById('projects-container');
+      if (projectsContainer) {
+        const hint = document.createElement('div');
+        hint.className = 'tutorial-hint';
+        hint.innerHTML = `
+          <i class="tutorial-hint-icon">💡</i>
+          まずは「新規作成」ボタンをクリックして、プロジェクトを作成しましょう！
+          <button class="tutorial-hint-dismiss" id="dismiss-hint-container">✕</button>
+        `;
+        hint.style.position = 'relative';
+        hint.style.margin = '1rem 0';
+        
+        // プロジェクトコンテナに追加
+        projectsContainer.prepend(hint);
+        
+        // ヒント閉じるボタンのイベント
+        const dismissHint = document.getElementById('dismiss-hint-container');
+        if (dismissHint) {
+          dismissHint.addEventListener('click', () => {
+            hint.remove();
+          });
+        }
+      }
+    }, 2000);
+  }
+  
+  /**
+   * チュートリアルヒントを追加
+   */
+  function addTutorialHint(targetId, text, position = 'right') {
+    const target = document.getElementById(targetId);
+    if (!target) return;
+    
+    // 既存のヒントがあれば削除
+    removeTutorialHint(targetId);
+    
+    // ヒント要素を作成
+    const hint = document.createElement('div');
+    hint.className = `tutorial-hint ${position}`;
+    hint.id = `hint-${targetId}`;
+    hint.innerHTML = `
+      <i class="tutorial-hint-icon">💡</i>
+      ${text}
+      <button class="tutorial-hint-dismiss" id="dismiss-hint-${targetId}">✕</button>
+    `;
+    
+    // 位置調整
+    const rect = target.getBoundingClientRect();
+    
+    // 位置に応じて配置を変更
+    switch (position) {
+      case 'top':
+        hint.style.bottom = `${window.innerHeight - rect.top + 10}px`;
+        hint.style.left = `${rect.left + rect.width / 2 - 100}px`;
+        break;
+      case 'bottom':
+        hint.style.top = `${rect.bottom + 10}px`;
+        hint.style.left = `${rect.left + rect.width / 2 - 100}px`;
+        break;
+      case 'left':
+        hint.style.right = `${window.innerWidth - rect.left + 10}px`;
+        hint.style.top = `${rect.top + rect.height / 2 - 20}px`;
+        break;
+      case 'right':
+        hint.style.left = `${rect.right + 10}px`;
+        hint.style.top = `${rect.top + rect.height / 2 - 20}px`;
+        break;
+    }
+    
+    // ヒントをDOMに追加
+    document.body.appendChild(hint);
+    
+    // 閉じるボタンのイベント
+    const dismissButton = document.getElementById(`dismiss-hint-${targetId}`);
+    if (dismissButton) {
+      dismissButton.addEventListener('click', () => {
+        removeTutorialHint(targetId);
+      });
+    }
+  }
+  
+  /**
+   * チュートリアルヒントを削除
+   */
+  function removeTutorialHint(targetId) {
+    const hint = document.getElementById(`hint-${targetId}`);
+    if (hint) {
+      hint.remove();
+    }
+  }
+  
+  /**
+   * サンプルプロジェクトを作成
+   */
+  function createSampleProject() {
+    // プロジェクト名と説明を設定
+    const name = "サンプルTodoアプリ";
+    const description = "AppGeniusの機能を試すための簡単なTodoリストアプリケーションのサンプルプロジェクトです。";
+    
+    // 通常のプロジェクト作成処理を呼び出す
+    vscode.postMessage({
+      command: 'createProject',
+      name,
+      description
+    });
+    
+    // ローディング状態にする
+    updateLoadingState(true);
+    
+    // 成功メッセージを表示
+    showInfo(`サンプルプロジェクト「${name}」を作成しています...`);
+  }
   
   // メッセージのハンドラーを登録
   window.addEventListener('message', event => {
@@ -391,12 +566,77 @@
     
     // プロジェクトがない場合
     if (!state.activeProject) {
-      activeProjectPanel.innerHTML = `
-        <div class="no-active-project">
-          <h2>プロジェクトを選択してください</h2>
-          <p>左側のリストからプロジェクトを選択するか、新しいプロジェクトを作成してください。</p>
-        </div>
-      `;
+      // 初回訪問時のウェルカムパネルを表示
+      if (state.firstVisit && !state.tutorialDismissed) {
+        activeProjectPanel.innerHTML = `
+          <div class="welcome-panel">
+            <button class="welcome-dismiss" id="dismiss-welcome" title="閉じる">✕</button>
+            <div class="welcome-header">
+              <div class="welcome-icon">🚀</div>
+              <div class="welcome-title">
+                <h2>AppGeniusへようこそ！</h2>
+                <p>AI駆動の開発ツールで、アプリケーション開発を始めましょう。</p>
+              </div>
+            </div>
+            <div class="welcome-content">
+              <div class="welcome-steps">
+                <div class="welcome-step">
+                  <div class="step-count">1</div>
+                  <div class="step-icon">📝</div>
+                  <div class="step-title">要件定義</div>
+                  <div class="step-description">AIとの対話で、アプリの目的と機能を明確にします。</div>
+                </div>
+                <div class="welcome-step">
+                  <div class="step-count">2</div>
+                  <div class="step-icon">🎨</div>
+                  <div class="step-title">モックアップ</div>
+                  <div class="step-description">UIデザインをAIと一緒に作成・編集します。</div>
+                </div>
+                <div class="welcome-step">
+                  <div class="step-count">3</div>
+                  <div class="step-icon">📋</div>
+                  <div class="step-title">スコープ設定</div>
+                  <div class="step-description">実装する機能の範囲と優先順位を決定します。</div>
+                </div>
+              </div>
+              <div class="welcome-actions">
+                <button id="create-first-project" class="welcome-button">
+                  <i class="icon">➕</i> 最初のプロジェクトを作成
+                </button>
+                <button id="show-tutorial" class="welcome-button secondary">
+                  <i class="icon">📚</i> チュートリアルを見る
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="no-active-project">
+            <h2>プロジェクトを選択してください</h2>
+            <p>左側のリストからプロジェクトを選択するか、新しいプロジェクトを作成してください。</p>
+          </div>
+        `;
+        
+        // ウェルカムパネル関連のイベント設定
+        setupWelcomePanelEvents();
+      } else {
+        // 通常の表示
+        activeProjectPanel.innerHTML = `
+          <div class="no-active-project">
+            <h2>プロジェクトを選択してください</h2>
+            <p>左側のリストからプロジェクトを選択するか、新しいプロジェクトを作成してください。</p>
+            ${state.projects.length === 0 ? `
+              <button class="welcome-button" id="create-sample-project" style="margin-top: 1.5rem;">
+                <i class="icon">🔮</i> サンプルプロジェクトを作成
+              </button>
+            ` : ''}
+          </div>
+        `;
+        
+        // サンプルプロジェクト作成ボタンのイベント設定
+        const sampleButton = document.getElementById('create-sample-project');
+        if (sampleButton) {
+          sampleButton.addEventListener('click', createSampleProject);
+        }
+      }
       return;
     }
     
@@ -1108,6 +1348,62 @@
     });
     
     updateLoadingState(true);
+    
+    // 初回のプロジェクト開封時、オンボーディングフラグを設定
+    // これにより、プロジェクト開封後にステップバイステップガイドが表示される
+    if (!state.onboardingCompleted) {
+      state.onboardingStarted = true;
+      saveState();
+      
+      // プロジェクト読み込み完了後に実行するために少し遅延
+      setTimeout(() => {
+        // 読み込みが完了した場合のみガイドを表示
+        if (!state.loading) {
+          startOnboardingFlow();
+        } else {
+          // まだロード中なら、完了後にガイドを表示するように別のタイマーをセット
+          const checkLoadingInterval = setInterval(() => {
+            if (!state.loading) {
+              startOnboardingFlow();
+              clearInterval(checkLoadingInterval);
+            }
+          }, 500);
+        }
+      }, 1500);
+    }
+  }
+  
+  /**
+   * オンボーディングフローを開始
+   */
+  function startOnboardingFlow() {
+    // プロセスマップが表示されたら、各ステップへのガイドを表示
+    if (!document.getElementById('requirements-step')) {
+      // プロセスマップがまだレンダリングされていない場合は後で再試行
+      setTimeout(startOnboardingFlow, 500);
+      return;
+    }
+    
+    // 要件定義ステップを強調
+    const requirementsStep = document.getElementById('requirements-step');
+    if (requirementsStep) {
+      // 要件定義ステップにヒントを表示
+      addTutorialHint(
+        'requirements-step',
+        'まずは要件定義から始めましょう。AIがアプリの機能を整理するお手伝いをします。',
+        'bottom'
+      );
+      
+      // ヒント表示後、要件定義ステップにハイライトエフェクトを追加
+      requirementsStep.classList.add('highlight');
+      
+      // スクロールして要件定義ステップを表示
+      requirementsStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // オンボーディング完了フラグを設定
+      state.onboardingCompleted = true;
+      saveState();
+    }
   }
   
   /**
