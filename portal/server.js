@@ -22,7 +22,7 @@ const port = process.env.PORT || 8080;
 
 // ミドルウェア設定
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: ['https://geniemon.vercel.app', 'https://geniemon-yamatovisions-projects.vercel.app', process.env.CORS_ORIGIN || '*'],
   methods: process.env.CORS_METHODS || 'GET,POST,PUT,DELETE,OPTIONS',
   credentials: true
 }));
@@ -57,6 +57,147 @@ app.get('/api', (req, res) => {
       { path: "/api/prompts", description: "プロンプト管理API" }
     ]
   });
+});
+
+// テスト用認証エンドポイント
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+
+// マスターアカウント情報
+const masterAccount = {
+  username: "admin",
+  password: bcrypt.hashSync("AppGenius2025", 10),
+  name: "管理者",
+  email: "admin@appgenius.dev",
+  role: "admin"
+};
+
+// 追加アカウント
+const additionalAccount = {
+  username: "lisence@mikoto.co.jp",
+  password: bcrypt.hashSync("Mikoto@123", 10),
+  name: "Mikoto",
+  email: "lisence@mikoto.co.jp",
+  role: "admin"
+};
+
+// ログインAPI
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  
+  console.log("ログイン試行:", username);
+  
+  // マスターアカウントチェック
+  if (username === masterAccount.username && bcrypt.compareSync(password, masterAccount.password)) {
+    // JWTトークン生成
+    const token = jwt.sign(
+      { id: "master-001", username, role: masterAccount.role },
+      process.env.JWT_SECRET || "appgenius_jwt_secret_dev",
+      { expiresIn: process.env.JWT_EXPIRY || "1h" }
+    );
+    
+    // リフレッシュトークン生成
+    const refreshToken = jwt.sign(
+      { id: "master-001", username },
+      process.env.REFRESH_TOKEN_SECRET || "appgenius_refresh_token_secret_dev",
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "14d" }
+    );
+    
+    res.json({
+      message: "ログインに成功しました",
+      user: {
+        id: "master-001",
+        username: masterAccount.username,
+        name: masterAccount.name,
+        email: masterAccount.email,
+        role: masterAccount.role
+      },
+      token,
+      refreshToken
+    });
+  } 
+  // 追加アカウントチェック
+  else if (username === additionalAccount.username && bcrypt.compareSync(password, additionalAccount.password)) {
+    // JWTトークン生成
+    const token = jwt.sign(
+      { id: "mikoto-001", username, role: additionalAccount.role },
+      process.env.JWT_SECRET || "appgenius_jwt_secret_dev",
+      { expiresIn: process.env.JWT_EXPIRY || "1h" }
+    );
+    
+    // リフレッシュトークン生成
+    const refreshToken = jwt.sign(
+      { id: "mikoto-001", username },
+      process.env.REFRESH_TOKEN_SECRET || "appgenius_refresh_token_secret_dev",
+      { expiresIn: process.env.REFRESH_TOKEN_EXPIRY || "14d" }
+    );
+    
+    res.json({
+      message: "ログインに成功しました",
+      user: {
+        id: "mikoto-001",
+        username: additionalAccount.username,
+        name: additionalAccount.name,
+        email: additionalAccount.email,
+        role: additionalAccount.role
+      },
+      token,
+      refreshToken
+    });
+  } else {
+    // ログイン失敗
+    res.status(401).json({
+      message: "ユーザー名またはパスワードが正しくありません"
+    });
+  }
+});
+
+// 現在のユーザー情報取得API
+app.get('/api/auth/me', (req, res) => {
+  // 認証ヘッダーを取得
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: "認証が必要です" });
+  }
+  
+  // トークン取得
+  const token = authHeader.split(' ')[1];
+  
+  try {
+    // トークン検証
+    const decoded = jwt.verify(
+      token, 
+      process.env.JWT_SECRET || "appgenius_jwt_secret_dev"
+    );
+    
+    // ユーザー情報返却
+    if (decoded.id === "master-001") {
+      res.json({
+        user: {
+          id: decoded.id,
+          username: decoded.username,
+          name: masterAccount.name,
+          email: masterAccount.email,
+          role: decoded.role
+        }
+      });
+    } else if (decoded.id === "mikoto-001") {
+      res.json({
+        user: {
+          id: decoded.id,
+          username: decoded.username,
+          name: additionalAccount.name,
+          email: additionalAccount.email,
+          role: decoded.role
+        }
+      });
+    } else {
+      res.status(404).json({ message: "ユーザーが見つかりません" });
+    }
+  } catch (err) {
+    res.status(401).json({ message: "トークンが無効です" });
+  }
 });
 
 // エラーハンドリング
