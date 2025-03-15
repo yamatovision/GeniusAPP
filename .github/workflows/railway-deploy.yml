@@ -16,11 +16,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-
       - name: Deploy to Railway
-        run: railway up --service geniemon-portal-backend
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+        uses: bervProject/railway-deploy@main
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service: "geniemon-portal-backend"
+          directory: "portal"
+          project_id: ${{ secrets.RAILWAY_PROJECT_ID }}
