@@ -344,9 +344,11 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // 権限チェック（所有者のみ削除可能）
+      // 権限チェック（所有者または管理者が削除可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
-      if (!isOwner) {
+      const isAdmin = req.userRole === 'admin';
+      
+      if (!isOwner && !isAdmin) {
         return res.status(403).json({ message: 'このプロンプトを削除する権限がありません' });
       }
       
