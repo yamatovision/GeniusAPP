@@ -21,10 +21,22 @@
     "vscode": "^1.80.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "AI",
+    "Programming Languages",
+    "Snippets"
   ],
   "activationEvents": [
-    "*",
+    "onStartupFinished",
+    "onCommand:appgenius.claudeCode.launchFromUrl",
+    "onCommand:appgenius-ai.executeCommand",
+    "onCommand:appgenius-ai.showTerminal",
+    "onCommand:appgenius-ai.openSimpleChat",
+    "onCommand:appgenius-ai.openMockupDesigner",
+    "onCommand:appgenius-ai.openImplementationSelector",
+    "onCommand:appgenius-ai.openDevelopmentAssistant",
+    "onCommand:appgenius-ai.openClaudeMdEditor",
+    "onCommand:appgenius-ai.openToolkitDashboard",
     "onUri"
   ],
   "main": "./dist/extension.js",

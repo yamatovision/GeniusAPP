@@ -159,20 +159,266 @@ npm start
    - VSCodeで`Extensions` > `...` > `Install from VSIX...`
    - 生成された.vsixファイルを選択
 
-**VSCode Marketplaceへの公開**:
-1. [Visual Studio Code Publisher](https://marketplace.visualstudio.com/manage)でパブリッシャーアカウントを作成
-2. パブリッシャーIDを取得
-3. `package.json`の`publisher`フィールドを更新
-4. トークンを取得し、`vsce`をインストール:
-   ```bash
-   npm install -g vsce
-   vsce login [パブリッシャー名]
+**VSCode Marketplaceへの公開（詳細手順）**:
+
+### 拡張機能の公開と更新の詳細手順
+
+#### 1. 公開準備
+
+1. **package.jsonの確認と更新**:
+   以下のフィールドが正しく設定されていることを確認:
+   ```json
+   {
+     "name": "appgenius-ai",              // 一意の識別子
+     "displayName": "AppGenius AI",        // マーケットプレイスでの表示名
+     "description": "AI駆動の完全自動開発環境をVSCodeで提供",  // 説明文
+     "version": "1.0.0",                  // セマンティックバージョニング
+     "publisher": "mikoto",               // パブリッシャーID（重要）
+     "repository": {                       // GitHubリポジトリ情報
+       "type": "git",
+       "url": "https://github.com/yamatovision/GeniusAPP.git"
+     },
+     "license": "MIT",                    // ライセンス情報
+     "categories": [                       // カテゴリ（検索で使用）
+       "Other", 
+       "AI", 
+       "Programming Languages"
+     ],
+     "activationEvents": [                 // 最適化されたアクティベーション
+       "onStartupFinished",
+       "onCommand:appgenius.claudeCode.launchFromUrl",
+       // その他の必要なイベント
+     ]
+   }
    ```
 
-5. 拡張機能を公開:
+2. **必要なファイルの準備**:
+   - **README.md**: マーケットプレイスに表示される詳細情報
+     - 機能の説明
+     - インストール方法
+     - 使用方法
+     - スクリーンショット
+     - カスタマイズオプション
+   
+   - **CHANGELOG.md**: リリースノート - 各バージョンで何が変わったかを記録
+     ```markdown
+     # Change Log
+
+     ## [1.0.0] - 2025-03-16
+
+     ### 追加
+     - 要件定義モード：AIとの自然な対話を通じて要件をヒアリングし、構造化
+     - モックアップ生成：HTML/CSSの自動生成とブラウザでの自動プレビュー
+     - 実装モード：プロジェクト分析、コード生成・修正、テストコード生成、Git操作をサポート
+     - その他の機能項目...
+
+     ### 変更
+     - 初回リリースのため変更はありません
+
+     ### 修正
+     - 初回リリースのため修正はありません
+     ```
+
+   - **LICENSE**: ライセンスファイル（MIT推奨）
+   
+   - **.vscodeignore**: パッケージサイズ削減のための除外リスト
+     ```
+     .vscode/**
+     .vscode-test/**
+     out/test/**
+     src/**
+     .gitignore
+     node_modules/**
+     logs/**
+     test/**
+     portal/**
+     AI/**
+     参考/**
+     .env
+     *.vsix
+     # その他不要なファイル
+     ```
+
+3. **アイコンの追加**（オプション）:
+   - 128x128ピクセルのアイコンを用意
+   - package.jsonに追加:
+     ```json
+     "icon": "media/icon.png",
+     ```
+
+#### 2. Microsoft/Azure アカウントとパブリッシャー設定
+
+1. **Microsoftアカウントでサインイン**:
+   - Microsoftアカウントがない場合は[作成](https://account.microsoft.com/)
+
+2. **Azure DevOps組織の作成**:
+   - [Azure DevOps](https://dev.azure.com/)にアクセス
+   - 新しい組織を作成（例：「mikotovscode」）
+   - 新しいプロジェクトを作成（例：「VSCodeExtensions」）
+
+3. **Personal Access Token (PAT) の生成**:
+   - Azure DevOpsの右上のユーザーアイコンをクリック
+   - 「Personal access tokens」を選択
+   - 「+ New Token」をクリック
+   - 名前: VSCode Extension Publishing
+   - 組織: 「All accessible organizations」を選択
+   - 有効期間: 180日（またはより長く）
+   - スコープ: 「Full access」または「Marketplace > Manage」
+   - 「Create」をクリック
+   - **重要**: 表示されたトークンをメモ帳などに保存（一度しか表示されません）
+   ```
+   // 例（実際のトークンは異なります）:
+   F4LrNfpoyecqo2Xy9RPwWKxhZPkHUPAJAzXorsiYpzGqC0EUXyuLJQQJ99BCACAAAAAAAAAAAA
+   ```
+
+4. **Visual Studio Marketplaceパブリッシャーの作成**:
+   - [VS Marketplace Publisher](https://marketplace.visualstudio.com/manage)にアクセス
+   - 「Create Publisher」ボタンをクリック
+   - Publisher ID: mikoto（一意のID、公開後は変更不可）
+   - Display Name: Mikoto Inc.（表示名）
+   - 他の情報を入力
+   - 「Create」をクリック
+
+#### 3. 公開ツールのセットアップとパッケージング
+
+1. **VSCEツールのインストール**:
    ```bash
+   npm install -g @vscode/vsce
+   ```
+
+2. **拡張機能のビルド**:
+   ```bash
+   cd /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius
+   npm install        # 依存関係を更新
+   npm run compile    # TypeScriptをコンパイル
+   ```
+
+3. **パッケージング（公開前の確認用）**:
+   ```bash
+   vsce package
+   ```
+   - 生成された.vsixファイルのサイズを確認（1MB以下が理想的）
+   - VSCodeでインストールしてテスト
+
+#### 4. 拡張機能の公開
+
+1. **PATを使用して公開**（最も簡単な方法）:
+   ```bash
+   vsce publish -p <your-personal-access-token>
+   ```
+   例:
+   ```bash
+   vsce publish -p F4LrNfpoyecqo2Xy9RPwWKxhZPkHUPAJAzXorsiYpzGqC0EUXyuLJQQJ99BCACAAAAAAAAAAAA
+   ```
+
+2. **または、ログインしてから公開**:
+   ```bash
+   vsce login mikoto
+   # プロンプトでPATを入力
    vsce publish
    ```
+
+3. **特定のバージョンタイプで公開**（オプション）:
+   ```bash
+   vsce publish [major|minor|patch]
+   ```
+   - `major`: 1.0.0 → 2.0.0（互換性のない変更）
+   - `minor`: 1.0.0 → 1.1.0（後方互換性のある機能追加）
+   - `patch`: 1.0.0 → 1.0.1（バグ修正）
+
+4. **公開確認**:
+   - 表示されたURL（例: https://marketplace.visualstudio.com/items?itemName=mikoto.appgenius-ai）にアクセス
+   - 注: 反映まで数分から1時間かかることがあります
+
+#### 5. 拡張機能の更新手順
+
+1. **コード変更と準備**:
+   - 機能の追加・修正
+   - テストの実施
+
+2. **バージョン番号の更新**:
+   - package.jsonのversionフィールドを更新
+     ```json
+     "version": "1.0.1", // 元は "1.0.0"
+     ```
+
+3. **CHANGELOGの更新**:
+   ```markdown
+   ## [1.0.1] - 2025-03-20
+
+   ### 追加
+   - 新機能Aを追加
+   - 新機能Bを追加
+
+   ### 変更
+   - 機能Cの動作を改善
+
+   ### 修正
+   - バグDを修正
+   ```
+
+4. **ビルドと公開**:
+   ```bash
+   npm run compile
+   vsce publish -p <your-personal-access-token>
+   ```
+
+#### 6. 拡張機能の公開・管理のベストプラクティス
+
+1. **トークン管理**:
+   - PATは安全な場所に保存する
+   - 有効期限が切れる前に更新する
+   - 組織のセキュリティポリシーに従って管理する
+
+2. **安全なPAT使用**:
+   - 公開リポジトリにPATを保存しない
+   - CI/CDで使用する場合は環境変数として設定
+
+3. **更新頻度**:
+   - 重大なバグ修正: すぐに公開（patch更新）
+   - 小さな機能追加: 定期的に公開（minor更新）
+   - 大きな変更: 計画的にリリース（major更新）
+
+4. **パッケージサイズの最適化**:
+   - .vscodeignoreを適切に設定
+   - 不要なファイルや依存関係を削除
+   - ビルド前にnpm pruneを実行
+
+5. **拡張機能のプライベート公開**（組織内のみ）:
+   ```bash
+   vsce package
+   # 生成された.vsixファイルを組織内で共有
+   ```
+
+6. **アンインストール/削除**（必要な場合）:
+   - Marketplaceの管理ページから拡張機能を非公開にできます
+
+#### 7. トラブルシューティング
+
+- **認証エラー（401 Unauthorized）**:
+  - PATが有効か確認
+  - 正しいパブリッシャー名を使用しているか確認
+  - PATに適切な権限（Marketplace > Manage）があるか確認
+
+- **公開エラー（403 Forbidden）**:
+  - 組織の権限を確認
+  - 「All accessible organizations」のスコープでPATを再生成
+
+- **パッケージサイズエラー**:
+  - .vscodeignoreを更新して不要なファイルを除外
+  - 大きなバイナリファイルやデータを削除
+
+- **公開後にマーケットプレイスで見つからない**:
+  - 反映には時間がかかる（最大1時間）
+  - URLが正しいか確認
+
+- **既存バージョンと同じバージョン番号で公開できない**:
+  - package.jsonのversionを更新
+  - CHANGELOG.mdも更新
+
+- **最新バージョンが反映されない**:
+  - VSCodeのキャッシュをクリア（VSCode再起動）
+  - 拡張機能を手動で更新
 
 ### 設定
 
