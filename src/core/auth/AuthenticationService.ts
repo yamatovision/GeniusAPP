@@ -142,12 +142,25 @@ export class AuthenticationService {
         });
       }
       
+      // リクエスト情報をログ出力
+      const loginUrl = `${apiUrl}/auth/login`;
+      Logger.info(`ログインリクエスト送信先: ${loginUrl}`);
+      Logger.info(`ログインリクエスト内容: email=${email}, clientId=${clientId}, clientSecret=${clientSecret ? '有効' : '未設定'}`);
+      
       // 認証APIを呼び出し
-      const response = await axios.post(`${apiUrl}/auth/login`, {
+      const response = await axios.post(loginUrl, {
         email,
         password,
         clientId,
         clientSecret
+      }, {
+        // タイムアウト設定を長めに
+        timeout: 10000,
+        // 詳細なデバッグ情報
+        validateStatus: (status) => {
+          Logger.info(`ログインレスポンスステータス: ${status}`);
+          return status >= 200 && status < 300;
+        }
       });
 
       if (response.status === 200 && response.data.accessToken && response.data.refreshToken) {
@@ -183,6 +196,10 @@ export class AuthenticationService {
         let errorMessage = '認証に失敗しました';
         let errorCode = 'login_failed';
         
+        // 詳細なエラー情報をログ出力
+        Logger.error(`AxiosError詳細: status=${statusCode}, URL=${error.config?.url}`);
+        Logger.error(`レスポンスデータ:`, error.response?.data);
+        
         // ステータスコードに応じたメッセージ
         if (statusCode === 401) {
           errorMessage = 'メールアドレスまたはパスワードが正しくありません';
@@ -193,6 +210,10 @@ export class AuthenticationService {
         } else if (statusCode === 429) {
           errorMessage = 'リクエスト回数が多すぎます。しばらく待ってから再試行してください';
           errorCode = 'rate_limited';
+        } else if (statusCode === 500) {
+          errorMessage = 'サーバー内部エラーが発生しました。サーバーログを確認してください';
+          errorCode = 'server_error';
+          Logger.error('サーバー500エラー - 可能性のある原因: MongoDB接続問題、サーバー構成の問題');
         }
         
         this._setLastError({
@@ -209,6 +230,7 @@ export class AuthenticationService {
           statusCode
         }, 'AuthenticationService');
       } else {
+        Logger.error(`非Axiosエラー詳細:`, error);
         this._setLastError({
           code: 'unknown_error',
           message: `ログイン中に予期しないエラーが発生しました: ${(error as Error).message}`,
@@ -762,21 +784,38 @@ export class AuthenticationService {
    */
   private _getAuthApiUrl(): string {
     const url = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
-    return url;
+    Logger.info(`認証API URL: ${url}`);
+    // 環境変数が取得できない問題があるため、直接本番環境URLをハードコード
+    Logger.info('本番環境URLを使用します: https://geniemon-portal-backend-production.up.railway.app/api');
+    return 'https://geniemon-portal-backend-production.up.railway.app/api';
   }
   
   /**
    * クライアントIDを取得
    */
   private _getClientId(): string {
-    return process.env.CLIENT_ID || '';
+    const clientId = process.env.CLIENT_ID || '';
+    Logger.info(`読み込まれたCLIENT_ID: "${clientId}"`);
+    // デバッグ用にハードコードされた値を使用
+    if (!clientId) {
+      Logger.warn('環境変数CLIENT_IDが設定されていません。ハードコード値を使用します。');
+      return 'appgenius_vscode_client_29a7fb3e';
+    }
+    return clientId;
   }
   
   /**
    * クライアントシークレットを取得
    */
   private _getClientSecret(): string {
-    return process.env.CLIENT_SECRET || '';
+    const clientSecret = process.env.CLIENT_SECRET || '';
+    Logger.info(`読み込まれたCLIENT_SECRET: "${clientSecret.substring(0, 5)}..."`);
+    // デバッグ用にハードコードされた値を使用
+    if (!clientSecret) {
+      Logger.warn('環境変数CLIENT_SECRETが設定されていません。ハードコード値を使用します。');
+      return 'sk_8f2d61ae94c7b5829e3a150d7692fd84';
+    }
+    return clientSecret;
   }
 
   /**
