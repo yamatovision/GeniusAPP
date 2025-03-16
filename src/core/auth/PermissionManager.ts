@@ -206,7 +206,7 @@ export class PermissionManager {
         return {
           message: `「${featureName}」を使用するにはログインが必要です。`,
           action: 'login',
-          command: 'appgenius.auth.login'
+          command: 'appgenius.login'
         };
         
       default:

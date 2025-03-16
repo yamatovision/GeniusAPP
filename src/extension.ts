@@ -389,10 +389,8 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('appgenius-ai.openMockupGallery', (projectPath?: string) => {
 			try {
 				Logger.info(`モックアップギャラリーを開きます: ${projectPath || 'プロジェクトパスなし'}`);
-				// 権限チェックを行う
-				if (AuthGuard.checkAccess(Feature.MOCKUP_GALLERY)) {
-					MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
-				}
+				// 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
+				MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
 			} catch (error) {
 				vscode.window.showErrorMessage(`モックアップギャラリー表示エラー: ${(error as Error).message}`);
 			}
@@ -423,10 +421,8 @@ export function activate(context: vscode.ExtensionContext) {
 				// 詳細なデバッグ情報
 				Logger.info(`[Debug] スコープマネージャーコマンド: 引数=${providedProjectPath}, 使用パス=${projectPath}`);
 				
-				// 権限チェックを行う
-				if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
-					ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
-				}
+				// 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
+				ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
 				vscode.window.showErrorMessage(`スコープマネージャー表示エラー: ${(error as Error).message}`);
 			}
@@ -466,6 +462,7 @@ export function activate(context: vscode.ExtensionContext) {
 				// パスが有効かログ出力
 				Logger.debug(`デバッグ探偵パネル起動: projectPath=${projectPath}`);
 				
+				// 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
 				DebugDetectivePanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
 				vscode.window.showErrorMessage(`デバッグ探偵表示エラー: ${(error as Error).message}`);
@@ -495,10 +492,8 @@ export function activate(context: vscode.ExtensionContext) {
 				// パスが有効かログ出力
 				Logger.debug(`環境変数アシスタントパネル起動: projectPath=${projectPath}`);
 				
-				// 権限チェックを行う
-				if (AuthGuard.checkAccess(Feature.ENV_ASSISTANT)) {
-					EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
-				}
+				// 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
+				EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
 				vscode.window.showErrorMessage(`環境変数アシスタント表示エラー: ${(error as Error).message}`);
 			}
@@ -529,41 +524,9 @@ export function activate(context: vscode.ExtensionContext) {
 				
 				// パスが有効かログ出力
 				Logger.debug(`リファレンスマネージャーパネル起動: projectPath=${projectPath}`);
-					
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
-					// 権限チェックを行う
-					if (AuthGuard.checkAccess(Feature.REFERENCE_MANAGER)) {
-						ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
-					}
+				
+				// 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
+				ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
 			} catch (error) {
 				vscode.window.showErrorMessage(`リファレンスマネージャー表示エラー: ${(error as Error).message}`);
 			}
@@ -608,17 +571,17 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 	
-	// ClaudeCode連携UI
-	context.subscriptions.push(
-		vscode.commands.registerCommand('appgenius.openClaudeCodePanel', () => {
-			try {
-				const { ClaudeCodePanel } = require('./ui/claudeCode/ClaudeCodePanel');
-				ClaudeCodePanel.createOrShow(context.extensionUri);
-			} catch (error) {
-				vscode.window.showErrorMessage(`ClaudeCode連携表示エラー: ${(error as Error).message}`);
-			}
-		})
-	);
+	// ClaudeCode連携UI - 現在は廃止済み、コメントアウト
+	// context.subscriptions.push(
+	// 	vscode.commands.registerCommand('appgenius.openClaudeCodePanel', () => {
+	// 		try {
+	// 			const { ClaudeCodePanel } = require('./ui/claudeCode/ClaudeCodePanel');
+	// 			ClaudeCodePanel.createOrShow(context.extensionUri);
+	// 		} catch (error) {
+	// 			vscode.window.showErrorMessage(`ClaudeCode連携表示エラー: ${(error as Error).message}`);
+	// 		}
+	// 	})
+	// );
 
 	// 環境変数パネルコマンドはcommands/environmentCommands.tsで登録されているため
 	// ここでの重複登録は削除

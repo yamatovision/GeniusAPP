@@ -27,8 +27,10 @@ export enum ErrorCategory {
 
 /**
  * アプリケーションエラー情報インターフェース
+ * 標準のErrorインターフェースに準拠
  */
 export interface AppError {
+  name: string;           // エラー名（標準Errorインターフェース要件）
   code: string;           // エラーコード
   message: string;        // ユーザー向けエラーメッセージ
   detail?: string;        // 詳細情報（開発者向け）
@@ -116,6 +118,7 @@ export class ErrorHandler {
     // 一般的なJavaScriptエラーの場合
     if (error instanceof Error) {
       return {
+        name: error.name || 'Error',
         code: error.name || 'unknown_error',
         message: error.message || 'エラーが発生しました',
         detail: error.stack,
@@ -131,6 +134,7 @@ export class ErrorHandler {
     // 文字列の場合
     if (typeof error === 'string') {
       return {
+        name: 'StringError',
         code: 'string_error',
         message: error,
         severity: ErrorSeverity.ERROR,
@@ -143,8 +147,10 @@ export class ErrorHandler {
     
     // オブジェクトの場合
     if (typeof error === 'object' && error !== null) {
+      const code = error.code || error.errorCode || 'unknown_error';
       return {
-        code: error.code || error.errorCode || 'unknown_error',
+        name: `ObjectError_${code}`,
+        code: code,
         message: error.message || error.errorMessage || '不明なエラーが発生しました',
         detail: error.detail || error.errorDetail || JSON.stringify(error),
         severity: this._mapSeverity(error.severity),
@@ -159,6 +165,7 @@ export class ErrorHandler {
     
     // その他の場合 (プリミティブなど)
     return {
+      name: 'UnknownError',
       code: 'unknown_error',
       message: '不明なエラーが発生しました',
       detail: String(error),
@@ -242,6 +249,7 @@ export class ErrorHandler {
       : ErrorSeverity.WARNING;
     
     return {
+      name: `AxiosError_${code}`,
       code,
       message,
       detail: JSON.stringify({
@@ -282,14 +290,14 @@ export class ErrorHandler {
     
     switch (error.severity) {
       case ErrorSeverity.INFO:
-        Logger.info(logMessage, { error });
+        Logger.info(logMessage, error);
         break;
       case ErrorSeverity.WARNING:
-        Logger.warn(logMessage, { error });
+        Logger.warn(logMessage, error);
         break;
       case ErrorSeverity.ERROR:
       case ErrorSeverity.CRITICAL:
-        Logger.error(logMessage, { error });
+        Logger.error(logMessage, error);
         if (error.detail) {
           Logger.debug(`エラー詳細: ${error.detail}`);
         }

@@ -11,7 +11,8 @@ export enum AuthEventType {
   TOKEN_REFRESHED = 'token_refreshed',
   TOKEN_EXPIRED = 'token_expired',
   STATE_CHANGED = 'state_changed',
-  AUTH_ERROR = 'auth_error'
+  AUTH_ERROR = 'auth_error',
+  PERMISSIONS_CHANGED = 'permissions_changed'
 }
 
 /**

@@ -1260,15 +1260,21 @@
         if (command) {
           console.log(`コマンドを実行します: ${command}`);
           
-          // コマンドがデバッグ探偵の場合は特別に処理
-          if (command === 'openDebugDetective') {
-            showInfo('デバッグ探偵を開いています...');
-          }
+          // すべてのパネルを同じ方法で処理 (特別処理を削除)
           
           // VSCodeにメッセージを送信
-          vscode.postMessage({
-            command: command
-          });
+          // VSCode側で登録されているコマンドIDを使用
+          if (command === 'openRequirementsEditor') {
+            console.log('要件定義エディタを開きます');
+            // 直接VSCodeコマンドを実行（登録済みのコマンドIDを使用）
+            vscode.postMessage({
+              command: 'openRequirementsEditor'
+            });
+          } else {
+            vscode.postMessage({
+              command: command
+            });
+          }
         }
       });
     });

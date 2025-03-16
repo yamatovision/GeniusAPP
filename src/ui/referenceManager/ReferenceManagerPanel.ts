@@ -63,16 +63,18 @@ export class ReferenceManagerPanel extends ProtectedPanel {
   
   /**
    * 外部向けのパネル作成・表示メソッド
-   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   * 権限チェック付きで、パネルを表示する
    * @param extensionUri 拡張機能のURI
    * @param projectPath プロジェクトパス
    */
   public static createOrShow(extensionUri: vscode.Uri, projectPath: string): ReferenceManagerPanel | undefined {
-    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
-    super.createOrShow(extensionUri, projectPath);
+    // 権限チェック
+    if (!this.checkPermissionForFeature(Feature.REFERENCE_MANAGER, 'ReferenceManagerPanel')) {
+      return undefined;
+    }
     
-    // 権限チェックが成功した場合はinstanceが設定されている
-    return ReferenceManagerPanel.instance;
+    // 権限があれば表示
+    return this._createOrShowPanel(extensionUri, projectPath);
   }
   
   /**
@@ -82,6 +84,8 @@ export class ReferenceManagerPanel extends ProtectedPanel {
    * @param projectPath プロジェクトパス
    */
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath: string) {
+    super(); // 親クラスのコンストラクタを呼び出し
+    
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._projectPath = projectPath;

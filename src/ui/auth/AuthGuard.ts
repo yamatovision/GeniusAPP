@@ -8,6 +8,7 @@ import { Logger } from '../../utils/logger';
  * 
  * Webviewパネルやコマンド実行前に権限チェックを行い、
  * アクセス権限がない場合は適切なフィードバックを提供します。
+ * 単一責任原則に基づき、権限チェックと関連フィードバックをここに集約します。
  */
 export class AuthGuard {
   private static _permissionManager = PermissionManager.getInstance();
@@ -55,11 +56,49 @@ export class AuthGuard {
       vscode.window.showInformationMessage('この機能を使用するにはログインが必要です', 'ログイン')
         .then(selection => {
           if (selection === 'ログイン') {
-            vscode.commands.executeCommand('appgenius.auth.login');
+            vscode.commands.executeCommand('appgenius.login');
           }
         });
     }
     
     return isLoggedIn;
+  }
+  
+  /**
+   * 単純化された権限チェック - AuthUtils.tsから移行
+   * @param feature 確認する機能
+   * @returns アクセス権がある場合はtrue、ない場合はfalse
+   */
+  public static checkPermission(feature: Feature): boolean {
+    try {
+      // 権限チェック
+      const hasAccess = this._permissionManager.canAccess(feature);
+      
+      if (!hasAccess) {
+        Logger.warn(`権限チェック失敗: 機能=${feature}`);
+        
+        // ユーザーにメッセージを表示
+        vscode.window.showWarningMessage(`この機能を使用するにはログインが必要です。`);
+        
+        // ログインを促す
+        this.promptLogin();
+      }
+      
+      return hasAccess;
+    } catch (error) {
+      Logger.error(`権限チェックエラー: ${(error as Error).message}`);
+      return false;
+    }
+  }
+  
+  /**
+   * ログインを促す - AuthUtils.tsから移行
+   */
+  public static promptLogin(): void {
+    try {
+      vscode.commands.executeCommand('appgenius.login');
+    } catch (error) {
+      Logger.error(`ログイン促進エラー: ${(error as Error).message}`);
+    }
   }
 }

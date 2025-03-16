@@ -41,18 +41,30 @@ export class AuthenticationService {
 
   private constructor() {
     try {
-      // @ts-ignore グローバル変数アクセス（extension.tsで設定されている場合）
-      const globalContext = global.__extensionContext;
-      if (globalContext) {
-        // グローバルコンテキストが利用可能な場合は、それを使用
-        this._tokenManager = TokenManager.getInstance(globalContext);
+      // 1. グローバル変数の安全な取得を試みる
+      let context = null;
+      
+      try {
+        // @ts-ignore グローバル変数アクセス（extension.tsで設定されている場合）
+        const globalContext = global.__extensionContext;
+        if (globalContext) {
+          context = globalContext;
+          Logger.info('グローバルExtensionContextを使用してAuthenticationServiceを初期化します');
+        }
+      } catch (err) {
+        Logger.error('グローバルExtensionContext取得エラー:', err as Error);
+      }
+      
+      // 2. コンテキストがあれば渡し、なければTokenManagerにグローバル取得を委任
+      if (context) {
+        this._tokenManager = TokenManager.getInstance(context);
       } else {
-        // 利用不可の場合はコンテキストなしで取得（TokenManagerが内部でダミー作成）
+        // TokenManagerの内部でグローバル変数が再度チェックされる
         this._tokenManager = TokenManager.getInstance();
         console.warn('AuthenticationService: ExtensionContextなしでTokenManagerを初期化');
       }
     } catch (e) {
-      // エラー時は警告を出して通常通り進行
+      // 完全なフォールバック - エラー時も機能制限付きで進行
       console.error('AuthenticationService初期化エラー:', e);
       this._tokenManager = TokenManager.getInstance();
     }

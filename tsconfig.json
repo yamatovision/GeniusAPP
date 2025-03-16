@@ -13,5 +13,6 @@
     "skipLibCheck": true,
     "esModuleInterop": true
   },
-  "exclude": ["node_modules", ".vscode-test", "archived/**", "docs/**"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", ".vscode-test", "archived/**", "docs/**", "test/**"]
 }

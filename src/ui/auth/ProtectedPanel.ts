@@ -4,38 +4,29 @@ import { AuthGuard } from './AuthGuard';
 import { Logger } from '../../utils/logger';
 
 /**
- * 権限保護されたパネルの基底クラス
+ * シンプル化された権限保護パネル基底クラス
  * 
- * このクラスを継承することで、パネル表示前に自動的に権限チェックが行われます。
- * 各UIパネルクラスはこの基底クラスを継承し、必要な権限（_feature）を指定します。
+ * このクラスを継承することで、各UIパネルは統一した権限チェック機能を取得します。
+ * 以前の複雑な静的継承パターンから、よりシンプルなアプローチに変更しました。
  */
 export abstract class ProtectedPanel {
-  // 継承先で設定する必要がある権限情報
-  protected static readonly _feature: Feature;
-  
   /**
-   * パネルを作成または表示
-   * 権限チェックを行い、権限がある場合のみパネルを表示
+   * 特定の機能について権限チェックを行い、権限があればtrueを返します
+   * 
+   * @param feature チェックする機能
+   * @param className 呈示用のクラス名（ログ出力用）
+   * @returns 権限がある場合はtrue、ない場合はfalse
    */
-  public static createOrShow(...args: any[]): void {
-    const className = this.constructor.name || 'ProtectedPanel';
-    Logger.debug(`${className}: 権限チェックを実行します (${this._feature})`);
+  protected static checkPermissionForFeature(feature: Feature, className: string = 'ProtectedPanel'): boolean {
+    Logger.debug(`${className}: 権限チェックを実行します (${feature})`);
     
-    // 権限チェック
-    if (!AuthGuard.checkAccess(this._feature)) {
-      Logger.warn(`${className}: ${this._feature}へのアクセスが拒否されました`);
-      return; // 権限がない場合は処理を中断
+    // AuthGuardの権限チェックを利用
+    if (!AuthGuard.checkAccess(feature)) {
+      Logger.warn(`${className}: ${feature}へのアクセスが拒否されました`);
+      return false;
     }
     
-    Logger.debug(`${className}: 権限チェックOK - パネルを表示します`);
-    
-    // 権限がある場合はパネルを表示
-    this._createOrShowPanel(...args);
+    Logger.debug(`${className}: 権限チェックOK`);
+    return true;
   }
-  
-  /**
-   * 実際のパネル作成・表示ロジック
-   * サブクラスで実装
-   */
-  protected static abstract _createOrShowPanel(...args: any[]): void;
 }

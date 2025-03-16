@@ -84,20 +84,24 @@ export class EnvironmentVariablesAssistantPanel extends ProtectedPanel {
   
   /**
    * 外部向けのパネル作成・表示メソッド
-   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   * 権限チェック付きで、パネルを表示する
    */
   public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): EnvironmentVariablesAssistantPanel | undefined {
-    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
-    super.createOrShow(extensionUri, projectPath);
+    // 権限チェック
+    if (!this.checkPermissionForFeature(Feature.ENV_ASSISTANT, 'EnvironmentVariablesAssistantPanel')) {
+      return undefined;
+    }
     
-    // 権限チェックが成功した場合はcurrentPanelが設定されている
-    return EnvironmentVariablesAssistantPanel.currentPanel;
+    // 権限があれば表示
+    return this._createOrShowPanel(extensionUri, projectPath);
   }
   
   /**
    * コンストラクタ
    */
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath?: string) {
+    super(); // 親クラスのコンストラクタを呼び出し
+    
     this._panel = panel;
     this._extensionUri = extensionUri;
     
@@ -2154,7 +2158,7 @@ ${this._generateEnvironmentVariablesList('production')}
   /**
    * ClaudeCodeアシスタントの起動を処理
    */
-  private async _handleLaunchClaudeCodeAssistant(): Promise<void> {
+  private async _handleLaunchClaudeCodeAssistant(): Promise<boolean> {
     try {
       // 中央ポータルURL（環境変数アシスタント）
       const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589';

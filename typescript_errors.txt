@@ -1,0 +1,93 @@
+
+> appgenius-ai@0.0.1 compile
+> webpack
+
+TypeScript型チェック: 有効
+ts-loader: Using typescript@5.7.3 and /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/tsconfig.json
+asset extension.js 1.77 MiB [emitted] (name: main) 1 related asset
+cacheable modules 1.75 MiB 147 modules
++ 15 modules
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/claudeCode/ClaudeCodePanel.ts
+./src/ui/claudeCode/ClaudeCodePanel.ts 198:19-36
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/claudeCode/ClaudeCodePanel.ts(198,20)
+      TS2339: Property '_launchWithPrompt' does not exist on type 'ClaudeCodePanel'.
+ @ ./src/extension.ts 522:40-82
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/claudeCode/ClaudeCodePanel.ts
+./src/ui/claudeCode/ClaudeCodePanel.ts 202:19-44
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/claudeCode/ClaudeCodePanel.ts(202,20)
+      TS2339: Property '_launchWithSelectedPrompt' does not exist on type 'ClaudeCodePanel'.
+ @ ./src/extension.ts 522:40-82
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts
+./src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts 2224:8-14
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts(2224,9)
+      TS2322: Type 'boolean' is not assignable to type 'void'.
+ @ ./src/extension.ts 60:45-125
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts
+./src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts 2266:8-14
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts(2266,9)
+      TS2322: Type 'boolean' is not assignable to type 'void'.
+ @ ./src/extension.ts 60:45-125
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts
+./src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts 2271:6-12
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts(2271,7)
+      TS2322: Type 'boolean' is not assignable to type 'void'.
+ @ ./src/extension.ts 60:45-125
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/ErrorHandler.ts
+292:35-40
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/ErrorHandler.ts(292,36)
+      TS2353: Object literal may only specify known properties, and 'error' does not exist in type 'Error'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+144:45-53
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(144,46)
+      TS2345: Argument of type 'AppError' is not assignable to parameter of type 'Error'.
+  Property 'name' is missing in type 'AppError' but required in type 'Error'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+180:48-56
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(180,49)
+      TS2345: Argument of type 'AppError' is not assignable to parameter of type 'Error'.
+  Property 'name' is missing in type 'AppError' but required in type 'Error'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+213:50-58
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(213,51)
+      TS2345: Argument of type 'AppError' is not assignable to parameter of type 'Error'.
+  Property 'name' is missing in type 'AppError' but required in type 'Error'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+253:43-51
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(253,44)
+      TS2345: Argument of type 'AppError' is not assignable to parameter of type 'Error'.
+  Property 'name' is missing in type 'AppError' but required in type 'Error'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+906:10-16
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(906,11)
+      TS2322: Type '"info"' is not assignable to type '"warning" | "pass" | "fail"'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+932:44-61
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(932,45)
+      TS2367: This comparison appears to be unintentional because the types '"warning" | "fail"' and '"info"' have no overlap.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+965:12-18
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(965,13)
+      TS2322: Type '"info"' is not assignable to type '"warning" | "pass" | "fail"'.
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts
+970:10-16
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/utils/SecurityAuditor.ts(970,11)
+      TS2322: Type '"info"' is not assignable to type '"warning" | "pass" | "fail"'.
+
+14 errors have detailed information that is not shown.
+Use 'stats.errorDetails: true' resp. '--stats-error-details' to show it.
+
+webpack 5.98.0 compiled with 14 errors in 3012 ms

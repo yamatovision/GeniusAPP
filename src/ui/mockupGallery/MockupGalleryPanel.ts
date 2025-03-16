@@ -83,14 +83,16 @@ export class MockupGalleryPanel extends ProtectedPanel {
   
   /**
    * 外部向けのパネル作成・表示メソッド
-   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   * 権限チェック付きで、パネルを表示する
    */
   public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): MockupGalleryPanel | undefined {
-    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
-    super.createOrShow(extensionUri, aiService, projectPath);
+    // 権限チェック
+    if (!this.checkPermissionForFeature(Feature.MOCKUP_GALLERY, 'MockupGalleryPanel')) {
+      return undefined;
+    }
     
-    // 権限チェックが成功した場合はcurrentPanelが設定されている
-    return MockupGalleryPanel.currentPanel;
+    // 権限があれば表示
+    return this._createOrShowPanel(extensionUri, aiService, projectPath);
   }
 
   /**
@@ -106,6 +108,8 @@ export class MockupGalleryPanel extends ProtectedPanel {
    * コンストラクタ
    */
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
+    super(); // 親クラスのコンストラクタを呼び出し
+    
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._aiService = aiService;

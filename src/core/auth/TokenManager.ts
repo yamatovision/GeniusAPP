@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { Logger } from '../../utils/logger';
 
 /**
  * TokenManager - 認証トークンを安全に管理するクラス
@@ -27,43 +28,52 @@ export class TokenManager {
    */
   public static getInstance(context?: vscode.ExtensionContext): TokenManager {
     if (!TokenManager.instance) {
-      if (!context) {
-        // 安全に処理できるようにする
-        console.error('警告: TokenManagerの初期化時にExtensionContextが指定されていません');
-        
-        // vscodeグローバル命名空間からExtensionContextの取得を試みる（バックアップ手段）
-        try {
-          // @ts-ignore - グローバル変数を利用する特例
-          const globalContext = global.__extensionContext;
-          if (globalContext) {
-            console.log('グローバル変数からExtensionContextを取得しました');
-            TokenManager.instance = new TokenManager(globalContext);
-            return TokenManager.instance;
-          }
-        } catch (e) {
-          console.error('グローバル変数からのExtensionContext取得に失敗:', e);
-        }
-
-        // ダミーコンテキストを作成（安全性向上のため）
-        console.log('ダミーSecretStorageを使用します（一部機能が制限されます）');
-        const dummySecretStorage: vscode.SecretStorage = {
-          delete: async () => {},
-          get: async () => undefined,
-          store: async () => {},
-          onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
-        };
-
-        // ダミーコンテキストを作成して初期化
-        const dummyContext = {
-          secrets: dummySecretStorage
-        } as vscode.ExtensionContext;
-
-        TokenManager.instance = new TokenManager(dummyContext);
+      // contextが明示的に渡された場合は、それを使用
+      if (context) {
+        TokenManager.instance = new TokenManager(context);
         return TokenManager.instance;
       }
       
-      TokenManager.instance = new TokenManager(context);
+      // contextが渡されなかった場合、グローバル変数をチェック
+      try {
+        // @ts-ignore - グローバル変数を利用する特例
+        const globalContext = global.__extensionContext;
+        if (globalContext) {
+          Logger.info('グローバル変数からExtensionContextを取得しました');
+          TokenManager.instance = new TokenManager(globalContext);
+          return TokenManager.instance;
+        }
+      } catch (e) {
+        Logger.error('グローバル変数からのExtensionContext取得に失敗:', e as Error);
+      }
+
+      // 両方とも利用できない場合、警告を出してダミーを使用
+      // console.error -> Loggerに変更
+      if (typeof Logger !== 'undefined' && Logger) {
+        Logger.error('警告: TokenManagerの初期化時にExtensionContextが指定されていません');
+        Logger.warn('ダミーSecretStorageを使用します（一部機能が制限されます）');
+      } else {
+        // Loggerが利用できない場合はconsoleにフォールバック
+        console.error('警告: TokenManagerの初期化時にExtensionContextが指定されていません');
+        console.log('ダミーSecretStorageを使用します（一部機能が制限されます）');
+      }
+      
+      // ダミーコンテキストを作成（安全性向上のため）
+      const dummySecretStorage: vscode.SecretStorage = {
+        delete: async () => {},
+        get: async () => undefined,
+        store: async () => {},
+        onDidChange: new vscode.EventEmitter<vscode.SecretStorageChangeEvent>().event
+      };
+
+      // ダミーコンテキストを作成して初期化
+      const dummyContext = {
+        secrets: dummySecretStorage
+      } as vscode.ExtensionContext;
+
+      TokenManager.instance = new TokenManager(dummyContext);
     }
+    
     return TokenManager.instance;
   }
 

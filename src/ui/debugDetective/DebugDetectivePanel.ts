@@ -97,6 +97,7 @@ export class DebugDetectivePanel extends ProtectedPanel {
   
       Logger.info('デバッグ探偵インスタンスを初期化します');
       try {
+        // 親クラスのコンストラクタを呼び出しながらインスタンス化
         DebugDetectivePanel.currentPanel = new DebugDetectivePanel(panel, extensionUri, projectPath, projectId);
         Logger.info('デバッグ探偵パネル作成完了');
         return DebugDetectivePanel.currentPanel;
@@ -116,20 +117,24 @@ export class DebugDetectivePanel extends ProtectedPanel {
   
   /**
    * 外部向けのパネル作成・表示メソッド
-   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   * 権限チェック付きで、パネルを表示する
    */
   public static createOrShow(extensionUri: vscode.Uri, projectPath: string, projectId?: string): DebugDetectivePanel | undefined {
-    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
-    super.createOrShow(extensionUri, projectPath, projectId);
+    // 権限チェック
+    if (!this.checkPermissionForFeature(Feature.DEBUG_DETECTIVE, 'DebugDetectivePanel')) {
+      return undefined;
+    }
     
-    // 権限チェックが成功した場合はcurrentPanelが設定されている
-    return DebugDetectivePanel.currentPanel;
+    // 権限があれば表示
+    return this._createOrShowPanel(extensionUri, projectPath, projectId);
   }
 
   /**
    * コンストラクタ
    */
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath: string, projectId?: string) {
+    super(); // 親クラスのコンストラクタを呼び出し
+    
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._projectPath = projectPath;

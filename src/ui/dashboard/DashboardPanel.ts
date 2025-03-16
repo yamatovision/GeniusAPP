@@ -74,20 +74,24 @@ export class DashboardPanel extends ProtectedPanel {
   
   /**
    * 外部向けのパネル作成・表示メソッド
-   * 権限チェック付きで、継承元のCreateOrShowを呼び出す
+   * 権限チェック付きで、パネルを表示する
    */
   public static createOrShow(extensionUri: vscode.Uri, aiService: AIService): DashboardPanel | undefined {
-    // 基底クラスのcreateOrShowを呼び出し（権限チェック実行）
-    super.createOrShow(extensionUri, aiService);
+    // 権限チェック
+    if (!this.checkPermissionForFeature(Feature.DASHBOARD, 'DashboardPanel')) {
+      return undefined;
+    }
     
-    // 権限チェックが成功した場合はcurrentPanelが設定されている
-    return DashboardPanel.currentPanel;
+    // 権限があれば表示
+    return this._createOrShowPanel(extensionUri, aiService);
   }
 
   /**
    * コンストラクタ
    */
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService) {
+    super(); // 親クラスのコンストラクタを呼び出し
+    
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._aiService = aiService;
@@ -677,15 +681,9 @@ export class DashboardPanel extends ProtectedPanel {
       
       Logger.info(`要件定義エディタを開きます。プロジェクトパス: ${projectPath}`);
 
-      // WebViewにも処理中メッセージを通知
-      await this._panel.webview.postMessage({
-        command: 'showMessage',
-        type: 'info',
-        message: `要件定義エディタを開いています: ${projectPath}`
-      });
-
+      // 先にメッセージを表示せずに直接コマンド実行
       // 要件定義エディタを開く（プロジェクトパスを引数として渡す）
-      vscode.commands.executeCommand('appgenius-ai.openSimpleChat', projectPath);
+      await vscode.commands.executeCommand('appgenius-ai.openSimpleChat', projectPath);
     } catch (error) {
       Logger.error(`要件定義エディタ起動エラー`, error as Error);
       await this._showError(`要件定義エディタの起動に失敗しました: ${(error as Error).message}`);
@@ -706,7 +704,7 @@ export class DashboardPanel extends ProtectedPanel {
       const projectPath = this._activeProject.path;
       
       // プロジェクトパスをパラメータとして渡してモックアップギャラリーを開く
-      vscode.commands.executeCommand('appgenius-ai.openMockupGallery', projectPath);
+      await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', projectPath);
       
       // ユーザーに通知
       Logger.info(`モックアップギャラリーを開きます。プロジェクトパス: ${projectPath}`);
@@ -735,19 +733,10 @@ export class DashboardPanel extends ProtectedPanel {
       
       Logger.info(`スコープマネージャーを開きます。プロジェクトパス: ${projectPath}`);
 
-      // WebViewにも処理中メッセージを通知
-      await this._panel.webview.postMessage({
-        command: 'showMessage',
-        type: 'info',
-        message: `スコープマネージャーを開いています: ${projectPath}`
-      });
-
-      // ユーザーにも通知
-      vscode.window.showInformationMessage(`スコープマネージャーを開きます: ${projectPath}`);
-
+      // 先にメッセージを表示せずに直接コマンド実行
       // スコープマネージャーを開く（プロジェクトパスを引数として渡す）
       Logger.info(`[Debug] openScopeManagerコマンド実行: パラメータ=${projectPath}`);
-      vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
+      await vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
     } catch (error) {
       Logger.error(`スコープマネージャー起動エラー`, error as Error);
       await this._showError(`スコープマネージャーの起動に失敗しました: ${(error as Error).message}`);
@@ -771,8 +760,15 @@ export class DashboardPanel extends ProtectedPanel {
       // プロジェクトパスを取得
       const projectPath = this._activeProject.path;
       
-      // デバッグ探偵を開く
-      vscode.commands.executeCommand('appgenius-ai.openDebugDetective', projectPath);
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
+      }
+      
+      Logger.info(`デバッグ探偵を開きます。プロジェクトパス: ${projectPath}`);
+
+      // 先にメッセージを表示せずに直接コマンド実行
+      // デバッグ探偵を開く（プロジェクトパスを引数として渡す）
+      await vscode.commands.executeCommand('appgenius-ai.openDebugDetective', projectPath);
     } catch (error) {
       Logger.error(`デバッグ探偵起動エラー`, error as Error);
       await this._showError(`デバッグ探偵の起動に失敗しました: ${(error as Error).message}`);
@@ -793,7 +789,7 @@ export class DashboardPanel extends ProtectedPanel {
       const projectPath = this._activeProject.path;
       
       // 環境変数アシスタントを開く
-      vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', projectPath);
+      await vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', projectPath);
     } catch (error) {
       Logger.error(`環境変数アシスタント起動エラー`, error as Error);
       await this._showError(`環境変数アシスタントの起動に失敗しました: ${(error as Error).message}`);

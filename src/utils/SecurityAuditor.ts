@@ -361,7 +361,7 @@ export class SecurityAuditor {
    */
   private async _checkTokenStorageSecurity(): Promise<SecurityCheckResult> {
     // VSCode Secret Storage APIの利用を確認するチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'トークンはVSCode Secret Storage APIで安全に保存されています';
     let details = undefined;
     
@@ -426,7 +426,7 @@ export class SecurityAuditor {
    */
   private async _checkTokenRefreshMechanism(): Promise<SecurityCheckResult> {
     // トークンリフレッシュメカニズムの実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'トークンリフレッシュメカニズムが適切に実装されています';
     let details = undefined;
     
@@ -490,7 +490,7 @@ export class SecurityAuditor {
    */
   private async _checkSessionManagement(): Promise<SecurityCheckResult> {
     // セッション管理の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'セッション管理が適切に実装されています';
     let details = undefined;
     
@@ -556,7 +556,7 @@ export class SecurityAuditor {
    */
   private async _checkLogoutProcess(): Promise<SecurityCheckResult> {
     // ログアウト処理の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'ログアウト処理が適切に実装されています';
     let details = undefined;
     
@@ -621,7 +621,7 @@ export class SecurityAuditor {
    */
   private _checkHttpsUsage(): SecurityCheckResult {
     // APIエンドポイントがHTTPSを使用しているかチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'すべてのAPIリクエストでHTTPSが使用されています';
     let details = undefined;
     
@@ -670,7 +670,7 @@ export class SecurityAuditor {
    */
   private _checkAuthHeaders(): SecurityCheckResult {
     // 認証ヘッダーが適切に使用されているかチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = '認証ヘッダーが適切に使用されています';
     let details = undefined;
     
@@ -734,7 +734,7 @@ export class SecurityAuditor {
    */
   private async _checkRateLimitingProtection(): Promise<SecurityCheckResult> {
     // レート制限対策の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'レート制限対策が適切に実装されています';
     let details = undefined;
     
@@ -799,7 +799,7 @@ export class SecurityAuditor {
    */
   private _checkErrorHandling(): SecurityCheckResult {
     // APIエラー処理の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'APIエラー処理が適切に実装されています';
     let details = undefined;
     
@@ -872,7 +872,7 @@ export class SecurityAuditor {
    */
   private _checkXssPrevention(): SecurityCheckResult {
     // XSS対策の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'XSS対策が適切に実装されています';
     let details = undefined;
     
@@ -929,7 +929,7 @@ export class SecurityAuditor {
       status,
       message,
       details,
-      recommendations: status !== 'pass' && status !== 'info' ? [
+      recommendations: (status !== 'pass' && status !== 'info') ? [
         'WebViewでContent Security Policyを設定する',
         'ユーザー入力をエスケープして表示する',
         'localResourceRootsを適切に設定してリソースアクセスを制限する'
@@ -943,7 +943,7 @@ export class SecurityAuditor {
    */
   private _checkCsrfPrevention(): SecurityCheckResult {
     // CSRF対策の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'CSRF対策が適切に実装されています';
     let details = undefined;
     
@@ -989,7 +989,7 @@ export class SecurityAuditor {
       status,
       message,
       details,
-      recommendations: status === 'warning' || status === 'fail' ? [
+      recommendations: (status !== 'pass' && status !== 'info') ? [
         '状態変更を伴うリクエストにCSRFトークンを使用する',
         'カスタムHTTPヘッダーを使用して制御する',
         'SameSite Cookieポリシーを実装する'
@@ -1003,7 +1003,7 @@ export class SecurityAuditor {
    */
   private _checkSecureLocalStorage(): SecurityCheckResult {
     // ローカルストレージの使用をチェック
-    let status: 'pass' | 'fail' | 'warning' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
     let message = 'ローカルストレージが安全に使用されています';
     let details = undefined;
     

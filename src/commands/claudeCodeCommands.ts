@@ -99,7 +99,7 @@ export function registerClaudeCodeCommands(context: vscode.ExtensionContext): vo
         );
         
         if (answer === 'ログイン') {
-          vscode.commands.executeCommand('appgenius.auth.login');
+          vscode.commands.executeCommand('appgenius.login');
         }
         
         return;
@@ -199,7 +199,7 @@ export function registerClaudeCodeCommands(context: vscode.ExtensionContext): vo
         );
         
         if (answer === 'ログイン') {
-          vscode.commands.executeCommand('appgenius.auth.login');
+          vscode.commands.executeCommand('appgenius.login');
         }
         
         return;
@@ -234,7 +234,7 @@ export function registerClaudeCodeCommands(context: vscode.ExtensionContext): vo
         );
         
         if (answer === 'ログイン') {
-          vscode.commands.executeCommand('appgenius.auth.login');
+          vscode.commands.executeCommand('appgenius.login');
         }
         
         return;
