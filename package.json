@@ -2,8 +2,21 @@
   "name": "appgenius-ai",
   "displayName": "AppGenius AI",
   "description": "AI駆動の完全自動開発環境をVSCodeで提供",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "mikoto",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yamatovision/GeniusAPP.git"
+  },
+  "homepage": "https://github.com/yamatovision/GeniusAPP",
+  "author": {
+    "name": "Mikoto Inc.",
+    "email": "info@mikoto.co.jp"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/yamatovision/GeniusAPP/issues"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
