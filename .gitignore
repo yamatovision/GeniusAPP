@@ -6,3 +6,6 @@ dist/
 
 .claude_data/
 temp/
+
+# VSCode拡張機能パッケージ（サイズが大きいため）
+*.vsix
