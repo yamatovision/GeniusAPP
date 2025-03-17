@@ -2,108 +2,245 @@
 
 ## 概要
 
-このドキュメントは、AppGeniusの各種AIアシスタント（デバッグ探偵、スコープマネージャー、スコープインプリメンターなど）に対して、複数プロンプトを組み合わせる際の推奨手法について説明します。特に、プロンプトの組み合わせ方法とファイルアクセス問題の解決方法に焦点を当てています。
+このドキュメントは、AppGeniusの各種AIアシスタント（デバッグ探偵、スコープマネージャー、スコープインプリメンターなど）に対して、複数プロンプトを組み合わせる際の標準実装方法について説明します。特にセキュアなファイル管理とプロンプト組み合わせの最適化に焦点を当てています。
 
 ## 背景
 
-AppGeniusでは、複数のAIアシスタントが異なる機能を提供しています。これらのアシスタントに対して、機能プロンプトとガイダンスプロンプト（セキュリティ境界など）を組み合わせることで、より高度な機能と制約を実現しています。しかし、この実装においていくつかの課題が見つかりました：
+AppGeniusでは、複数のAIアシスタントが異なる機能を提供しています。これらのアシスタントに対して、機能プロンプトとガイダンスプロンプト（セキュリティ境界など）を組み合わせることで、より高度な機能と制約を実現しています。実装において以下の課題が見つかりました：
 
 1. **ファイルアクセスの問題**: 「セキュリティ」などの特定の用語や文脈が存在すると、AIが一時ファイルへのアクセスを拒否する場合がある
 2. **起動時の指示の影響**: 最初の応答メッセージ（`echo "y\n..."`）の内容がAIの動作に大きく影響する
+3. **長文プロンプトの切断問題**: ヒアドキュメント方式では長いプロンプトでターミナル接続が切れる場合がある
+4. **一時ファイルのセキュリティ**: 生成された一時ファイルの適切な管理と削除が必要
 
-## 推奨実装方法
+## 標準実装方法
 
-### 1. ファイル名とメッセージの中立化
+### 1. セキュアな一時ファイル管理
 
-セキュリティに関連する用語を避け、より中立的な表現を使用します：
+セキュリティを向上させるため、プロジェクト内に隠しディレクトリを作成し、ランダムなファイル名を使用します：
 
 ```typescript
-// 変更前
-const combinedPromptFileName = `secure_prompt_${Date.now()}.md`;
-Logger.info(`セキュリティ境界付きプロンプトファイルを作成しました: ${combinedPromptPath}`);
+// プロジェクト内に隠しディレクトリを作成
+const hiddenDir = path.join(projectPath, '.appgenius_temp');
+if (!fs.existsSync(hiddenDir)) {
+  fs.mkdirSync(hiddenDir, { recursive: true });
+}
 
-// 変更後
-const combinedPromptFileName = `combined_prompt_${Date.now()}.md`;
-Logger.info(`複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
+// ランダムな文字列を生成して隠しファイル名に使用
+const randomStr = Math.random().toString(36).substring(2, 15);
+const combinedPromptFileName = `.vq${randomStr}`;
+const combinedPromptPath = path.join(hiddenDir, combinedPromptFileName);
 ```
 
-### 2. メソッドと引数名の変更
+### 2. 複数プロンプトの結合
 
-メソッドや引数名に含まれるセキュリティ関連用語を避けます：
+ガイダンスプロンプトと機能プロンプト、および追加コンテンツを明確に区切って結合します：
 
 ```typescript
-// 変更前
-public async launchWithSecurityBoundary(
-  securityPromptUrl: string,
-  featurePromptUrl: string,
-  ...
-)
+// ガイダンスプロンプトを先頭に配置して結合
+let combinedContent = guidancePrompt;
+combinedContent += '\n\n---\n\n';
+combinedContent += featurePrompt;
 
-// 変更後
-public async launchWithSecurityBoundary( // メソッド名は後方互換性のために変更なし
-  guidancePromptUrl: string,  // 引数名を変更
-  featurePromptUrl: string,
-  ...
-)
+// 追加コンテンツがあれば最後に追加
+if (additionalContent) {
+  combinedContent += '\n\n---\n\n';
+  combinedContent += additionalContent;
+}
+
+// 結合したプロンプトをファイルに保存
+fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+Logger.info(`セキュアな複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
 ```
 
-### 3. 起動コマンドの指示文の最適化
+### 3. 安全なタイムアウト削除
 
-Claude CLIを起動する際のecho指示を、より直接的かつ明示的なものに変更します：
+ファイルが確実に読み込まれた後に削除されるようタイムアウトを設定します：
 
 ```typescript
-// 変更前
-terminal.sendText(`echo "y\\n日本語で対応してください。プロンプトに従って解析を進めてください。" | claude ${escapedPromptFilePath}`);
+// ClaudeCodeLauncherService.tsのlaunchClaudeCodeWithPromptメソッド内
+if (options?.deletePromptFile) {
+  try {
+    // Windowsでは使用中のファイルは削除できないため、Linuxとmacのみ遅延削除
+    if (process.platform !== 'win32') {
+      setTimeout(() => {
+        if (fs.existsSync(promptFilePath)) {
+          fs.unlinkSync(promptFilePath);
+          Logger.info(`プロンプトファイルを削除しました: ${promptFilePath}`);
+        }
+      }, 30000); // ファイルが読み込まれる時間を考慮して30秒後に削除
+    }
+    
+    // ターミナル終了時のイベントリスナーを設定（全プラットフォーム対応）
+    const disposable = vscode.window.onDidCloseTerminal(closedTerminal => {
+      if (closedTerminal === terminal) {
+        setTimeout(() => {
+          try {
+            if (fs.existsSync(promptFilePath)) {
+              fs.unlinkSync(promptFilePath);
+              Logger.info(`プロンプトファイルを削除しました（ターミナル終了時）: ${promptFilePath}`);
+            }
+          } catch (unlinkError) {
+            Logger.error(`ファイル削除エラー（ターミナル終了時）: ${unlinkError}`);
+          }
+        }, 500);
+        disposable.dispose(); // リスナーの破棄
+      }
+    });
+  } catch (deleteError) {
+    Logger.warn(`プロンプトファイルの即時削除に失敗しました: ${deleteError}`);
+  }
+}
+```
 
-// 変更後
+### 4. 起動コマンドの最適化
+
+Claude CLIを起動する際のecho指示を明確にし、一貫性を持たせます：
+
+```typescript
+// 起動コマンド
 terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedPromptFilePath}`);
 ```
 
-### 4. ログメッセージの中立化
+### 5. 中立的な変数名とログメッセージ
 
-ログ出力でもセキュリティに関連する用語を避けます：
+セキュリティに関連する用語を避け、中立的な表現を使用します：
 
 ```typescript
-// 変更前
-Logger.info(`セキュリティ境界付きでClaudeCodeを起動します: セキュリティ=${securityPromptUrl}, 機能=${debugDetectivePromptUrl}`);
+// 変数名
+public async launchWithSecurityBoundary(
+  guidancePromptUrl: string,  // 「セキュリティ」ではなく「ガイダンス」
+  featurePromptUrl: string,
+  ...
+)
 
-// 変更後
-Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
+// ログメッセージ
+Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
 ```
 
-## 各アシスタントへの適用手順
+## 具体的な実装例
 
-### デバッグ探偵（DebugDetectivePanel）
+### 1. ClaudeCodeIntegrationService.ts内の実装
 
-1. `src/ui/debugDetective/DebugDetectivePanel.ts`内のプロンプト起動部分を修正
-2. URLの変数名を`securityPromptUrl`から`guidancePromptUrl`に変更
-3. ログメッセージを「複合プロンプト」形式に変更
+`src/services/ClaudeCodeIntegrationService.ts`の`launchWithSecurityBoundary`メソッドで標準実装を行います：
 
-### スコープマネージャー（ScopeManagerPanel）
+```typescript
+public async launchWithSecurityBoundary(
+  guidancePromptUrl: string,
+  featurePromptUrl: string,
+  projectPath: string,
+  additionalContent?: string
+): Promise<boolean> {
+  try {
+    Logger.info(`複合プロンプトでClaudeCodeを起動: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
+    
+    // 両方のプロンプトの内容を取得
+    const guidancePrompt = await this.fetchPromptContent(guidancePromptUrl);
+    if (!guidancePrompt) {
+      throw new Error(`ガイダンスプロンプトの取得に失敗しました: ${guidancePromptUrl}`);
+    }
+    
+    const featurePrompt = await this.fetchPromptContent(featurePromptUrl);
+    if (!featurePrompt) {
+      throw new Error(`機能プロンプトの取得に失敗しました: ${featurePromptUrl}`);
+    }
+    
+    // プロジェクト内に隠しディレクトリを作成（既に存在する場合は作成しない）
+    const hiddenDir = path.join(projectPath, '.appgenius_temp');
+    if (!fs.existsSync(hiddenDir)) {
+      fs.mkdirSync(hiddenDir, { recursive: true });
+    }
+    
+    // ランダムな文字列を生成して隠しファイル名に使用
+    const randomStr = Math.random().toString(36).substring(2, 15);
+    const combinedPromptFileName = `.vq${randomStr}`;
+    const combinedPromptPath = path.join(hiddenDir, combinedPromptFileName);
+    
+    // ガイダンスプロンプトを先頭に配置して結合
+    let combinedContent = guidancePrompt;
+    combinedContent += '\n\n---\n\n';
+    combinedContent += featurePrompt;
+    
+    // 追加コンテンツがあれば最後に追加
+    if (additionalContent) {
+      combinedContent += '\n\n---\n\n';
+      combinedContent += additionalContent;
+    }
+    
+    // 結合したプロンプトをファイルに保存
+    fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+    Logger.info(`セキュアな複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
+    
+    // ClaudeCodeを起動（プロンプトファイル削除オプション付き）
+    return await this._launcher.launchClaudeCodeWithPrompt(
+      projectPath,
+      combinedPromptPath,
+      {
+        title: 'AIアシスタント',
+        deletePromptFile: true // ClaudeCodeLauncherServiceでファイルが読み込まれた後にタイマーベースで削除
+      }
+    );
+  } catch (error) {
+    Logger.error('複合プロンプトでのClaudeCode起動に失敗しました', error as Error);
+    vscode.window.showErrorMessage(`AIアシスタントの起動に失敗しました: ${(error as Error).message}`);
+    return false;
+  }
+}
+```
 
-1. `src/ui/scopeManager/ScopeManagerPanel.ts`内の類似処理を特定
-2. 上記と同様の変更を適用
+### 2. 各AIアシスタントパネルでの使用方法
 
-### スコープインプリメンター
+デバッグ探偵、スコープマネージャーなど、各AIアシスタントパネルで以下のパターンを使用します：
 
-1. `src/modes/implementationMode/scopeSelector.ts`またはその関連ファイル内の処理を特定
-2. 上記と同様の変更を適用
+```typescript
+// guidancePromptUrlとfeaturePromptUrlを定義
+const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/あなたの機能プロンプトID';
 
-## 理論的根拠
+// ClaudeCodeIntegrationServiceのインスタンスを取得
+const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
+  module => module.ClaudeCodeIntegrationService.getInstance()
+);
 
-1. **AIの文脈感度**: Claude等のAIモデルは、「セキュリティ」「保護」「制約」などの用語に敏感に反応し、より厳格なセキュリティポリシーを適用する傾向があります。
+// 複合プロンプトでClaudeCodeを起動
+Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
 
-2. **直接的な指示の有効性**: 「プロンプトに従って」のような間接的な指示よりも、「ファイルを読み込む」のような具体的な指示の方が、AIが自律的に判断せずに指示通りに行動する可能性が高まります。
+// セキュリティ境界方式でClaudeCodeを起動
+await integrationService.launchWithSecurityBoundary(
+  guidancePromptUrl,
+  featurePromptUrl, 
+  this._projectPath,
+  additionalContent // オプション：追加コンテンツがある場合
+);
+```
 
-3. **ファイル名の影響**: `secure_prompt_`のようなファイル名はAIに対して「これはセキュリティに関連するファイルだ」という印象を与え、取り扱いに慎重になる可能性があります。
+## .gitignoreの設定
+
+一時ファイルをGitから除外するため、`.gitignore`に以下を追加します：
+
+```
+.appgenius_temp/
+```
 
 ## 注意点
 
-1. この変更はAIの動作に影響しますが、実際のセキュリティ制約には影響しません。セキュリティプロンプトの内容自体は変更せず、それを参照する方法だけを変更します。
+1. **ファイルの読み込み時間**: 30秒のタイムアウトは、通常のネットワーク環境でファイルが確実に読み込まれるための値です。ネットワーク状況によって調整が必要な場合があります。
 
-2. 今後Claude CLIやAIモデル自体がアップデートされた場合、これらの動作も変わる可能性があります。定期的に動作を確認し、必要に応じて調整してください。
+2. **セキュリティと安全性**: この実装はファイルの安全な管理を目的としていますが、プロンプト内容の機密性を完全に保証するものではありません。機密性の高い情報は含めないようにしてください。
 
-3. 新しいAIアシスタントを追加する際も、ここで説明したパターンを踏襲することをお勧めします。
+3. **プラットフォーム互換性**: この実装はmacOS、Linux、Windowsで動作しますが、ファイル削除の動作はプラットフォームによって異なります。テストを行い、必要に応じて調整してください。
+
+4. **一時ディレクトリのクリーンアップ**: ターミナルの予期せぬ終了などでファイルが削除されない場合があります。定期的な一時ディレクトリのクリーンアップを検討してください。
+
+5. **変数名のガイドライン**: 「セキュリティ」「制約」「保護」などの用語は引き続き避け、「ガイダンス」「複合」「統合」などの中立的な用語を使用してください。
+
+## 今後の改善案
+
+1. **デフォルトディレクトリのクリーンアップ機能**: 起動時に古い一時ファイルを自動的に削除する機能
+2. **プロンプト分割アルゴリズム**: 非常に長いプロンプトを複数の部分に分割して処理する機能
+3. **暗号化オプション**: 一時ファイルを暗号化して保存する機能（高セキュリティ用途向け）
+
+これらの標準実装方法に従うことで、安定したAIアシスタントの動作とセキュアなプロンプト管理を実現できます。
 
 ## 参考リンク
 
@@ -159,135 +296,3 @@ vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-b
 
   この理解で正しいでしょうか？修正を進めてよろしければ、記載された各アシスタントの修正を1つずつ行っていきま
   す。
-
-
-すみません、置換テキストが正確に見つかりませんでした。より広い範囲でコードを検索して編集します。
-
-⏺ Update(file_path: src/ui/debugDetective/DebugDetectivePanel.ts)…
-  ⎿  Updated src/ui/debugDetective/DebugDetectivePanel.ts with 90 additions and 8 removals
-     410            module => module.ClaudeCodeIntegrationService.getInstance()
-     411          );
-     412 
-     413          // 複合プロンプトでClaudeCodeを起動（エラー分析内容を追加コンテンツとして渡す）
-     414          Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
-     415          await integrationService.launchWithSecurityBoundary(
-     416            guidancePromptUrl,
-     417            debugDetectivePromptUrl, 
-     418            this._projectPath,
-     419            analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す
-     420          );
-     413          try {
-     414            // API接続のヒアドキュメント方式でプロンプトを取得
-     415            Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
-     416            
-     417            // 両方のプロンプトの内容を取得
-     418            const guidancePrompt = await integrationService.fetchPromptContent(guidancePromptUrl);
-     419            if (!guidancePrompt) {
-     420              throw new Error(`ガイダンスプロンプトの取得に失敗しました: ${guidancePromptUrl}`);
-     421            }
-     422            
-     423            const debugDetectivePrompt = await integrationService.fetchPromptContent(debugDetectivePromptUrl);
-     424            if (!debugDetectivePrompt) {
-     425              throw new Error(`デバッグ探偵プロンプトの取得に失敗しました: ${debugDetectivePromptUrl}`);
-     426            }
-     427            
-     428            // アイコンURIを取得
-     429            const platformManager = await import('../../utils/PlatformManager').then(
-     430              module => module.PlatformManager.getInstance()
-     431            );
-     432            const iconPath = platformManager.getResourceUri('media/assets/sherlock.svg');
-     433            
-     434            // ターミナルの作成
-     435            const terminal = vscode.window.createTerminal({
-     436              name: 'デバッグ探偵',
-     437              cwd: this._projectPath,
-     438              iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
-     439            });
-     440            
-     441            // ターミナルの表示（true を渡してフォーカスする）
-     442            terminal.show(true);
-     443            
-     444            // 最初にユーザーガイダンスを表示
-     445            terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
-     446            terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
-     447            
-     448            // macOSの場合は環境変数のソースを確保（出力を非表示）
-     449            if (process.platform === 'darwin') {
-     450              terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
-     451              terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
-     452            }
-     453            
-     454            // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
-     455            const escapedProjectPath = this._projectPath.replace(/"/g, '\\"');
-     456            terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
-     457            
-     458            // ヒアドキュメント方式で起動（プロンプト内容を一時ファイルに保存せずに直接渡す）
-     459            // バッククォートをエスケープしてヒアドキュメント内で問題が起きないようにする
-     460            const escaped_guidancePrompt = guidancePrompt.replace(/`/g, '\\`');
-     461            const escaped_debugDetectivePrompt = debugDetectivePrompt.replace(/`/g, '\\`');
-     462            const escaped_analysisContent = analysisContent.replace(/`/g, '\\`');
-     463            
-     464            // ヒアドキュメント方式で起動
-     465            terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude << 'PROMPT_EOF'
-     466  ${escaped_guidancePrompt}
-     467  
-     468  ---
-     469  
-     470  ${escaped_debugDetectivePrompt}
-     471  
-     472  ---
-     473  
-     474  ${escaped_analysisContent}
-     475  PROMPT_EOF`);
-     476            
-     477            Logger.info('ヒアドキュメント方式でClaudeCodeを起動しました');
-     478            
-     479            // イベント発火（既存の統合と互換性を保つため）
-     480            const eventBus = await import('../../services/AppGeniusEventBus').then(
-     481              module => module.AppGeniusEventBus.getInstance()
-     482            );
-     483            
-     484            eventBus.emit(
-     485              'CLAUDE_CODE_STARTED',
-     486              { 
-     487                projectPath: this._projectPath
-     488              },
-     489              'DebugDetectivePanel'
-     490            );
-     491          } catch (error) {
-     492            // ヒアドキュメント方式に失敗した場合、元の方法にフォールバック
-     493            Logger.warn(`ヒアドキュメント方式の起動に失敗しました。セキュリティ境界方式で試行します: ${error}`);
-     494            
-     495            // 元の方法でClaudeCodeを起動
-     496            await integrationService.launchWithSecurityBoundary(
-     497              guidancePromptUrl,
-     498              debugDetectivePromptUrl, 
-     499              this._projectPath,
-     500              analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す
-     501            );
-     502          }
-     503 
-     504          // 解析データのファイルを作成するだけで開かず、通知も表示しない
-     505          Logger.info(`エラー分析ファイルを作成しました: ${analysisFilePath}`);
-
-⏺ これでファイルの編集は成功しました。デバッグ探偵の起動処理を変更して、API接続のヒアドキュメント方式でClaudeCodeを起動するようにしました。
-
-  変更のポイントは以下の通りです：
-
-  1. ヒアドキュメント方式の実装：
-    - APIからプロンプト内容を直接取得
-    - 一時ファイルを作成せずに、プロンプト内容をヒアドキュメント構文で直接Claude CLIに渡す
-    - バッククォート（）をエスケープして、ヒアドキュメント内での問題を防止
-  2. エラー処理：
-    - ヒアドキュメント方式が失敗した場合、元のlaunchWithSecurityBoundary方式にフォールバック
-    - 堅牢性を確保するため、両方の方法をサポート
-  3. イベント互換性：
-    - 元のコードと同じイベントを発行し、他のコンポーネントとの互換性を維持
-
-  これにより、以下のメリットが得られます：
-
-  1. 一時ファイルの作成・管理・削除が不要になり、セキュリティが向上
-  2. ディスクI/Oが減少し、パフォーマンスが向上
-  3. ファイルの削除タイミングを気にする必要がなくなる
-
-  この実装は、APIからプロンプト内容を取得できる場合に最も効果的です。何らかの理由でAPIアクセスに失敗した場合でも、元の方法にフォールバックするため堅牢性も確保されています。
