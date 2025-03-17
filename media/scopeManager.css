@@ -21,6 +21,33 @@
   overflow-x: hidden;
 }
 
+/* テーマ切り替え */
+.scope-manager-container.theme-light {
+  --app-background: white;
+  --app-text: #2d2d2d;
+  --app-text-secondary: #717171;
+  --app-heading-color: #1a1a1a;
+  --app-card-background: white;
+  --app-input-background: white;
+  --app-border-color: #d5d5d5;
+  --app-hover-background: #f7f7f7;
+  --app-selected-background: rgba(74, 105, 189, 0.1);
+  --app-selected-text: #2d2d2d;
+}
+
+.scope-manager-container.theme-dark {
+  --app-background: #1e1e1e;
+  --app-text: #d2d2d2;
+  --app-text-secondary: #adadad;
+  --app-heading-color: #f0f0f0;
+  --app-card-background: #333333;
+  --app-input-background: #252525;
+  --app-border-color: #454545;
+  --app-hover-background: #252525;
+  --app-selected-background: rgba(74, 105, 189, 0.2);
+  --app-selected-text: #f0f0f0;
+}
+
 .scope-tree-item {
   padding: 10px 16px;
   border-radius: var(--app-border-radius);

@@ -45,7 +45,9 @@ export class ClaudeCodeAuthSync {
   private _initialize(): void {
     // 認証状態変更のリスナー
     this._disposables.push(
-      this._authService.onAuthStateChanged(this._handleAuthStateChange.bind(this))
+      this._authService.onStateChanged(state => {
+        this._handleAuthStateChange(state.isAuthenticated);
+      })
     );
   }
 

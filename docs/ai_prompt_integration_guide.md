@@ -159,3 +159,135 @@ vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-b
 
   この理解で正しいでしょうか？修正を進めてよろしければ、記載された各アシスタントの修正を1つずつ行っていきま
   す。
+
+
+すみません、置換テキストが正確に見つかりませんでした。より広い範囲でコードを検索して編集します。
+
+⏺ Update(file_path: src/ui/debugDetective/DebugDetectivePanel.ts)…
+  ⎿  Updated src/ui/debugDetective/DebugDetectivePanel.ts with 90 additions and 8 removals
+     410            module => module.ClaudeCodeIntegrationService.getInstance()
+     411          );
+     412 
+     413          // 複合プロンプトでClaudeCodeを起動（エラー分析内容を追加コンテンツとして渡す）
+     414          Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
+     415          await integrationService.launchWithSecurityBoundary(
+     416            guidancePromptUrl,
+     417            debugDetectivePromptUrl, 
+     418            this._projectPath,
+     419            analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す
+     420          );
+     413          try {
+     414            // API接続のヒアドキュメント方式でプロンプトを取得
+     415            Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
+     416            
+     417            // 両方のプロンプトの内容を取得
+     418            const guidancePrompt = await integrationService.fetchPromptContent(guidancePromptUrl);
+     419            if (!guidancePrompt) {
+     420              throw new Error(`ガイダンスプロンプトの取得に失敗しました: ${guidancePromptUrl}`);
+     421            }
+     422            
+     423            const debugDetectivePrompt = await integrationService.fetchPromptContent(debugDetectivePromptUrl);
+     424            if (!debugDetectivePrompt) {
+     425              throw new Error(`デバッグ探偵プロンプトの取得に失敗しました: ${debugDetectivePromptUrl}`);
+     426            }
+     427            
+     428            // アイコンURIを取得
+     429            const platformManager = await import('../../utils/PlatformManager').then(
+     430              module => module.PlatformManager.getInstance()
+     431            );
+     432            const iconPath = platformManager.getResourceUri('media/assets/sherlock.svg');
+     433            
+     434            // ターミナルの作成
+     435            const terminal = vscode.window.createTerminal({
+     436              name: 'デバッグ探偵',
+     437              cwd: this._projectPath,
+     438              iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
+     439            });
+     440            
+     441            // ターミナルの表示（true を渡してフォーカスする）
+     442            terminal.show(true);
+     443            
+     444            // 最初にユーザーガイダンスを表示
+     445            terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
+     446            terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
+     447            
+     448            // macOSの場合は環境変数のソースを確保（出力を非表示）
+     449            if (process.platform === 'darwin') {
+     450              terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
+     451              terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
+     452            }
+     453            
+     454            // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
+     455            const escapedProjectPath = this._projectPath.replace(/"/g, '\\"');
+     456            terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
+     457            
+     458            // ヒアドキュメント方式で起動（プロンプト内容を一時ファイルに保存せずに直接渡す）
+     459            // バッククォートをエスケープしてヒアドキュメント内で問題が起きないようにする
+     460            const escaped_guidancePrompt = guidancePrompt.replace(/`/g, '\\`');
+     461            const escaped_debugDetectivePrompt = debugDetectivePrompt.replace(/`/g, '\\`');
+     462            const escaped_analysisContent = analysisContent.replace(/`/g, '\\`');
+     463            
+     464            // ヒアドキュメント方式で起動
+     465            terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude << 'PROMPT_EOF'
+     466  ${escaped_guidancePrompt}
+     467  
+     468  ---
+     469  
+     470  ${escaped_debugDetectivePrompt}
+     471  
+     472  ---
+     473  
+     474  ${escaped_analysisContent}
+     475  PROMPT_EOF`);
+     476            
+     477            Logger.info('ヒアドキュメント方式でClaudeCodeを起動しました');
+     478            
+     479            // イベント発火（既存の統合と互換性を保つため）
+     480            const eventBus = await import('../../services/AppGeniusEventBus').then(
+     481              module => module.AppGeniusEventBus.getInstance()
+     482            );
+     483            
+     484            eventBus.emit(
+     485              'CLAUDE_CODE_STARTED',
+     486              { 
+     487                projectPath: this._projectPath
+     488              },
+     489              'DebugDetectivePanel'
+     490            );
+     491          } catch (error) {
+     492            // ヒアドキュメント方式に失敗した場合、元の方法にフォールバック
+     493            Logger.warn(`ヒアドキュメント方式の起動に失敗しました。セキュリティ境界方式で試行します: ${error}`);
+     494            
+     495            // 元の方法でClaudeCodeを起動
+     496            await integrationService.launchWithSecurityBoundary(
+     497              guidancePromptUrl,
+     498              debugDetectivePromptUrl, 
+     499              this._projectPath,
+     500              analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す
+     501            );
+     502          }
+     503 
+     504          // 解析データのファイルを作成するだけで開かず、通知も表示しない
+     505          Logger.info(`エラー分析ファイルを作成しました: ${analysisFilePath}`);
+
+⏺ これでファイルの編集は成功しました。デバッグ探偵の起動処理を変更して、API接続のヒアドキュメント方式でClaudeCodeを起動するようにしました。
+
+  変更のポイントは以下の通りです：
+
+  1. ヒアドキュメント方式の実装：
+    - APIからプロンプト内容を直接取得
+    - 一時ファイルを作成せずに、プロンプト内容をヒアドキュメント構文で直接Claude CLIに渡す
+    - バッククォート（）をエスケープして、ヒアドキュメント内での問題を防止
+  2. エラー処理：
+    - ヒアドキュメント方式が失敗した場合、元のlaunchWithSecurityBoundary方式にフォールバック
+    - 堅牢性を確保するため、両方の方法をサポート
+  3. イベント互換性：
+    - 元のコードと同じイベントを発行し、他のコンポーネントとの互換性を維持
+
+  これにより、以下のメリットが得られます：
+
+  1. 一時ファイルの作成・管理・削除が不要になり、セキュリティが向上
+  2. ディスクI/Oが減少し、パフォーマンスが向上
+  3. ファイルの削除タイミングを気にする必要がなくなる
+
+  この実装は、APIからプロンプト内容を取得できる場合に最も効果的です。何らかの理由でAPIアクセスに失敗した場合でも、元の方法にフォールバックするため堅牢性も確保されています。

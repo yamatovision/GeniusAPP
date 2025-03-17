@@ -9,16 +9,52 @@ const vscode = acquireVsCodeApi();
     scopes: [],
     selectedScopeIndex: -1,
     selectedScope: null,
-    directoryStructure: ''
+    directoryStructure: '',
+    theme: 'light'
   };
+  
+  // テーマの適用
+  function applyTheme(theme) {
+    const container = document.querySelector('.scope-manager-container');
+    if (!container) return;
+    
+    if (theme === 'dark') {
+      container.classList.remove('theme-light');
+      container.classList.add('theme-dark');
+    } else {
+      container.classList.remove('theme-dark');
+      container.classList.add('theme-light');
+    }
+    
+    // 状態を保存
+    const currentState = vscode.getState() || {};
+    vscode.setState({
+      ...currentState,
+      theme
+    });
+  }
+  
+  // 保存されているテーマを適用
+  function applyStoredTheme() {
+    const theme = localStorage.getItem('app-theme') || 'light';
+    applyTheme(theme);
+  }
   
   // ページ読み込み完了時の処理
   document.addEventListener('DOMContentLoaded', () => {
     // 初期化メッセージの送信
     vscode.postMessage({ command: 'initialize' });
     
+    // 保存されているテーマを適用
+    applyStoredTheme();
+    
     // イベントリスナー設定
     setupEventListeners();
+  });
+  
+  // テーマ変更イベントをリッスン
+  document.addEventListener('theme-changed', (e) => {
+    applyTheme(e.detail.theme);
   });
   
   // メッセージハンドラーの設定

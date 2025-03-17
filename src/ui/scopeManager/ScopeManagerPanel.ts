@@ -2258,8 +2258,8 @@ APIエンドポイントはまだ定義されていません。
   </style>
 </head>
 <body>
-  <div id="app">
-    <div style="padding: 20px;">
+  <div id="app" class="scope-manager-container">
+    <div>
       <h1>スコープマネージャー</h1>
       <p>プロジェクトの実装単位を管理し、ClaudeCodeに実装を依頼します</p>
       
