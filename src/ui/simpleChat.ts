@@ -1994,15 +1994,20 @@ project/
         Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
         fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
         
-        // ClaudeCodeを起動（フォールバック）
-        Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
-        const success = await this._claudeCodeLauncherService.launchClaudeCodeWithPrompt(
+        // ClaudeCodeIntegrationServiceを使用して起動
+        const integrationService = ClaudeCodeIntegrationService.getInstance();
+        
+        // セキュリティガイドライン付きで起動
+        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します（フォールバック）`);
+        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
+        
+        // プロンプトファイルの内容を追加コンテンツとして渡す
+        const success = await integrationService.launchWithSecurityBoundary(
+          guidancePromptUrl,
+          featurePromptUrl,
           this._projectPath,
-          combinedPromptPath,
-          { 
-            title: `要件定義アドバイザー - ${path.basename(fullPath)}`,
-            deletePromptFile: true // セキュリティ対策として自動削除
-          }
+          combinedContent
         );
         
         if (success) {

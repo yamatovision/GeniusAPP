@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Logger } from '../../utils/logger';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
+import { ClaudeCodeIntegrationService } from '../../services/ClaudeCodeIntegrationService';
 import { PlatformManager } from '../../utils/PlatformManager';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
 import { ProtectedPanel } from '../auth/ProtectedPanel';
@@ -2237,26 +2238,26 @@ ${this._generateEnvironmentVariablesList('production')}
         }
         
         Logger.info(`環境変数アシスタントファイルを読み込みます: ${promptFilePath}`);
-        let combinedContent = fs.readFileSync(promptFilePath, 'utf8');
-        combinedContent += '\n\n# 追加情報\n\n';
-        combinedContent += `## プロジェクト情報\n\n`;
-        combinedContent += `プロジェクトパス: ${this._projectPath}\n\n`;
-        combinedContent += environmentInfo;
         
-        const combinedPromptPath = path.join(tempDir, `combined_env_prompt_${Date.now()}.md`);
-        Logger.info(`フォールバック用プロンプトを作成します: ${combinedPromptPath}`);
-        fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+        // 追加情報を作成
+        let additionalContent = '# 追加情報\n\n';
+        additionalContent += `## プロジェクト情報\n\n`;
+        additionalContent += `プロジェクトパス: ${this._projectPath}\n\n`;
+        additionalContent += environmentInfo;
         
-        // ClaudeCodeを起動（フォールバック）
-        Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
-        const launcher = ClaudeCodeLauncherService.getInstance();
-        const success = await launcher.launchClaudeCodeWithPrompt(
+        // ClaudeCodeIntegrationServiceのインスタンスを取得
+        const integrationService = ClaudeCodeIntegrationService.getInstance();
+        
+        // セキュリティガイドライン付きで起動
+        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します（フォールバック）`);
+        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589';
+        
+        const success = await integrationService.launchWithSecurityBoundary(
+          guidancePromptUrl,
+          featurePromptUrl,
           this._projectPath,
-          combinedPromptPath,
-          { 
-            title: `環境変数アシスタント`,
-            deletePromptFile: true // セキュリティ対策として自動削除
-          }
+          additionalContent
         );
         
         if (success) {

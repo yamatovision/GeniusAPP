@@ -700,7 +700,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
         terminal.show(true);
         
         // ガイダンスメッセージを表示
-        terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+        terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
         terminal.sendText('sleep 1'); // 1秒待機
         
         // macOSの場合は環境変数の設定（必要に応じて）
@@ -736,10 +736,24 @@ export class MockupGalleryPanel extends ProtectedPanel {
         // エスケープされたパス
         const escapedTempTemplatePath = tempTemplatePath.replace(/ /g, '\\ ');
         
-        // コマンド実行
-        terminal.sendText(`echo "ローカルテンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
-        terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
-        terminal.sendText(`claude ${escapedTempTemplatePath}`);
+        // ClaudeCodeIntegrationServiceを使用
+        // 一時ファイルを閉じる
+        terminal.dispose();
+        
+        const integrationService = ClaudeCodeIntegrationService.getInstance();
+        
+        // セキュリティガイドライン付きで起動
+        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+        
+        // テンプレートの内容を追加コンテンツとして渡す
+        await integrationService.launchWithSecurityBoundary(
+          guidancePromptUrl,
+          featurePromptUrl,
+          this._projectPath,
+          templateContent
+        );
         
         // 一時ファイルの自動削除（25秒後）
         setTimeout(() => {

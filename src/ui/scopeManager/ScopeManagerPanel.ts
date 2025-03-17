@@ -1296,15 +1296,22 @@ APIエンドポイントはまだ定義されていません。
         // 一時的なテンプレートファイルを作成
         fs.writeFileSync(tempFilePath, promptContent, 'utf8');
         
-        // ClaudeCodeの起動
-        const launcher = ClaudeCodeLauncherService.getInstance();
-        const success = await launcher.launchClaudeCodeWithPrompt(
+        // ClaudeCodeIntegrationServiceを使用して起動
+        const integrationService = ClaudeCodeIntegrationService.getInstance();
+        
+        // セキュリティガイドライン付きで起動
+        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704';
+        
+        // プロンプトファイルの内容を追加コンテンツとして渡す
+        const additionalContent = promptContent;
+        
+        const success = await integrationService.launchWithSecurityBoundary(
+          guidancePromptUrl,
+          featurePromptUrl,
           this._projectPath,
-          tempFilePath,
-          { 
-            title: 'ClaudeCode - スコープ作成', 
-            deletePromptFile: true // 25秒後に削除
-          }
+          additionalContent
         );
         
         if (success) {
@@ -1391,15 +1398,22 @@ APIエンドポイントはまだ定義されていません。
         fs.writeFileSync(tempFilePath, promptContent, 'utf8');
         Logger.info(`フォールバック用プロンプトを作成しました: ${tempFilePath}`);
         
-        // ClaudeCodeの起動
-        const launcher = ClaudeCodeLauncherService.getInstance();
-        const success = await launcher.launchClaudeCodeWithPrompt(
+        // ClaudeCodeIntegrationServiceを使用して起動
+        const integrationService = ClaudeCodeIntegrationService.getInstance();
+        
+        // セキュリティガイドライン付きで起動
+        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+        
+        // プロンプトファイルの内容を追加コンテンツとして渡す
+        const additionalContent = promptContent;
+        
+        const success = await integrationService.launchWithSecurityBoundary(
+          guidancePromptUrl,
+          featurePromptUrl,
           this._projectPath,
-          tempFilePath,
-          { 
-            title: 'ClaudeCode - 実装アシスタント',
-            deletePromptFile: true // 25秒後に削除
-          }
+          additionalContent
         );
         
         if (success) {
@@ -1539,15 +1553,20 @@ APIエンドポイントはまだ定義されていません。
             fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
             Logger.info(`結合プロンプトファイルを作成しました: ${combinedFilePath}`);
             
-            // ClaudeCodeの起動
-            const launcher = ClaudeCodeLauncherService.getInstance();
-            success = await launcher.launchClaudeCodeWithPrompt(
+            // ClaudeCodeIntegrationServiceを使用して起動
+            const integrationService = ClaudeCodeIntegrationService.getInstance();
+            
+            // セキュリティガイドライン付きで起動
+            Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+            const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+            const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+            
+            // プロンプトコンテンツを追加コンテンツとして渡す
+            success = await integrationService.launchWithSecurityBoundary(
+              guidancePromptUrl,
+              featurePromptUrl,
               this._projectPath,
-              combinedFilePath,
-              { 
-                title: 'ClaudeCode - 実装アシスタント',
-                deletePromptFile: true // 25秒後に自動削除
-              }
+              combinedContent
             );
             
             // メッセージを変更してローカルモードであることを示す

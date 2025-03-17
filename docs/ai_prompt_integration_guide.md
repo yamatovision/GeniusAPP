@@ -107,5 +107,55 @@ Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプ�
 
 ## 参考リンク
 
-- [Claude CLI ドキュメント](https://github.com/anthropics/anthropic-cookbook/tree/main/examples/claude-cli)
-- [Anthropic AI ドキュメント](https://docs.anthropic.com/claude/reference/complete_api)
+
+
+
+
+
+スコープマネージャー
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2Fb168dcd63cc12e15c2e57bce02caf704
+
+
+スコープインプリメンター
+
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2F868ba99fc6e40d643a02e0e02c5e980a
+
+要件定義アドバイザー
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2Fcdc2b284c05ebaae2bc9eb1f3047aa39
+
+
+モックアップアナライザー
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2F8cdfe9875a5ab58ea5cdef0ba52ed8eb
+
+
+環境変数設定アシスタント
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2F50eb4d1e924c9139ef685c2f39766589
+
+
+デバック探偵シャーロックホームズ
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2F942ec5f5b316b3fb11e2fd2b597bfb09
+
+セキュリティプロンプト
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2F6640b55f692b15f4f4e3d6f5b1a5da6c
+
+
+
+ 1. 先ほど初期メッセージを統一しました：「y\n日本語で対応してください。指定されたファイルを読み込むところか
+  ら始めてください。」
+  2. 次に、記載されている各AIアシスタント（スコープマネージャー、スコープインプリメンター、要件定義アドバイ
+  ザー、モックアップアナライザー、環境変数設定アシスタント）の起動方法を、デバッグ探偵と同様に修正します。
+  3. 具体的には、今まで単一プロンプトで起動していたものを、セキュリティガイドライン（6640b55f692b15f4f4e3d6f
+  5b1a5da6c）と各機能プロンプトを組み合わせた形で起動するように変更します。
+  4. それぞれのアシスタントが受け渡す情報自体は変更せず、プロンプトの受け渡し方法のみを変更します。
+  5. 実装方法としては、launchClaudeCodeWithPromptの代わりにClaudeCodeIntegrationServiceのlaunchWithSecurityB
+  oundaryメソッドを使用して、ガイダンスプロンプトと機能プロンプトを組み合わせます。
+
+  この理解で正しいでしょうか？修正を進めてよろしければ、記載された各アシスタントの修正を1つずつ行っていきま
+  す。

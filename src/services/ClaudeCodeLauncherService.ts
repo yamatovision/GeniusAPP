@@ -306,7 +306,7 @@ export class ClaudeCodeLauncherService {
       terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
-      terminal.sendText('echo "\n\n*** AIが自動的にプロンプトに従って処理を開始します。自動対応と日本語指示を行います ***\n"');
+      terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
       terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保（出力を非表示）
@@ -526,7 +526,7 @@ export class ClaudeCodeLauncherService {
       terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
-      terminal.sendText('echo "\n\n*** AIが自動的に解析を開始します。自動対応と日本語指示を行います ***\n"');
+      terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
       terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保
