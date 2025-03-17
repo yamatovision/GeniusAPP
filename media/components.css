@@ -13,6 +13,58 @@
 
 /* 共通スタイル変数の読み込みが必要: design-system.css */
 
+/* === テーマ切替用変数定義 === */
+
+/* ライトモード (デフォルト) */
+.theme-light {
+  /* 背景色 */
+  --theme-bg-primary: white;
+  --theme-bg-secondary: var(--app-gray-100);
+  --theme-bg-tertiary: var(--app-gray-200);
+  
+  /* テキスト色 */
+  --theme-text-primary: #333;
+  --theme-text-secondary: var(--app-gray-700);
+  --theme-text-tertiary: var(--app-gray-600);
+  
+  /* ボーダー色 */
+  --theme-border-color: var(--app-gray-300);
+  
+  /* 入力要素 */
+  --theme-input-bg: white;
+  --theme-input-text: var(--app-gray-800);
+  --theme-input-border: var(--app-gray-300);
+  
+  /* カード */
+  --theme-card-bg: white;
+  --theme-card-shadow: var(--app-box-shadow);
+}
+
+/* ダークモード */
+.theme-dark {
+  /* 背景色 */
+  --theme-bg-primary: var(--app-dark-bg);
+  --theme-bg-secondary: var(--app-dark-surface);
+  --theme-bg-tertiary: var(--app-dark-card-bg);
+  
+  /* テキスト色 */
+  --theme-text-primary: var(--app-gray-100);
+  --theme-text-secondary: var(--app-gray-300);
+  --theme-text-tertiary: var(--app-gray-400);
+  
+  /* ボーダー色 */
+  --theme-border-color: var(--app-gray-600);
+  
+  /* 入力要素 */
+  --theme-input-bg: var(--app-dark-surface);
+  --theme-input-text: var(--app-gray-200);
+  --theme-input-border: var(--app-gray-600);
+  
+  /* カード */
+  --theme-card-bg: var(--app-dark-card-bg);
+  --theme-card-shadow: none;
+}
+
 /* ===== ボタンコンポーネント ===== */
 
 /* ボタン共通スタイル - 全てのボタンの基本スタイル */

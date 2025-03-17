@@ -27,6 +27,18 @@
   --app-accent: #fdcb6e;            /* 注目・ハイライト用 */
   --app-accent-light: rgba(253, 203, 110, 0.1);
   --app-accent-dark: #f0b445;
+  
+  /* ===== テーマベース変数 ===== */
+  --app-background: white;          /* 背景色のベース */
+  --app-text: #2d2d2d;              /* 基本テキスト色 */
+  --app-text-secondary: #717171;    /* 二次テキスト色 */
+  --app-heading-color: #1a1a1a;     /* 見出し色 */
+  --app-card-background: white;     /* カード背景色 */
+  --app-input-background: white;    /* 入力フィールド背景色 */
+  --app-border-color: #d5d5d5;      /* ボーダー色 */
+  --app-hover-background: #f7f7f7;  /* ホバー時の背景色 */
+  --app-selected-background: rgba(74, 105, 189, 0.1); /* 選択時の背景色 */
+  --app-selected-text: #2d2d2d;     /* 選択時のテキスト色 */
 
   /* ===== ステータスカラー ===== */
   --app-success: #2ecc71;           /* 成功状態 */
@@ -108,6 +120,18 @@
   --app-dark-card-bg: #333333;
   --app-dark-surface: #252525;
   --app-dark-bg: #1e1e1e;
+  
+  /* ダークモードでのテーマ変数上書き */
+  --app-background: #1e1e1e;
+  --app-text: #d2d2d2;
+  --app-text-secondary: #adadad;
+  --app-heading-color: #f0f0f0;
+  --app-card-background: #333333;
+  --app-input-background: #252525;
+  --app-border-color: #454545;
+  --app-hover-background: #252525;
+  --app-selected-background: rgba(74, 105, 189, 0.2);
+  --app-selected-text: #f0f0f0;
 }
 
 /* 高コントラストモード対応 */

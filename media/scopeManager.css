@@ -1,53 +1,48 @@
-/* スコープマネージャーのスタイル */
-:root {
-  --primary-color: #4a69bd;
-  --secondary-color: #00b894;
-  --accent-color: #fdcb6e;
-  --warning-color: #e17055;
-  --info-color: #0984e3;
-  --danger-color: #e74c3c;
-  --success-color: #2ecc71;
-  
-  --primary-light: rgba(74, 105, 189, 0.2);
-  --secondary-light: rgba(0, 184, 148, 0.2);
-  --accent-light: rgba(253, 203, 110, 0.2);
-  
-  --border-color: var(--vscode-panel-border);
-  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --border-radius: 6px;
-}
+/**
+ * スコープマネージャー スタイル
+ * 
+ * このCSSファイルはスコープマネージャーの
+ * 特有のスタイルを定義します。
+ */
 
+/* 共通スタイル変数とコンポーネントの読み込み */
+@import url('./design-system.css');
+@import url('./components.css');
+@import url('./accessibility.css');
+
+/* ライトテーマ設定 */
 .scope-manager-container {
   padding: 20px;
-  background-color: var(--vscode-editor-background);
+  background-color: var(--app-background) !important;
+  color: var(--app-text) !important;
   height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
 }
 
 .scope-tree-item {
   padding: 10px 16px;
-  border-radius: var(--border-radius);
+  border-radius: var(--app-border-radius);
   margin-bottom: 6px;
   display: flex;
   align-items: center;
   cursor: pointer;
-  background-color: var(--vscode-editor-background);
-  border: 1px solid var(--border-color);
-  transition: all 0.3s ease;
-  color: var(--vscode-foreground);
+  background-color: var(--app-card-background);
+  border: 1px solid var(--app-border-color);
+  transition: all var(--app-transition);
+  color: var(--app-text);
 }
 
 .scope-tree-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
-  border-color: var(--primary-color);
+  background-color: var(--app-hover-background);
+  border-color: var(--app-primary);
 }
 
 .scope-tree-item.active {
-  border-left: 4px solid var(--primary-color);
-  background-color: var(--vscode-list-activeSelectionBackground);
-  color: var(--vscode-list-activeSelectionForeground);
+  border-left: 4px solid var(--app-primary);
+  background-color: var(--app-selected-background);
+  color: var(--app-selected-text);
 }
 
 .scope-progress {
@@ -55,7 +50,7 @@
   border-radius: 4px;
   margin-top: 8px;
   overflow: hidden;
-  background-color: var(--gray-200);
+  background-color: var(--app-gray-200);
 }
 
 .scope-progress-bar {
@@ -64,25 +59,25 @@
 }
 
 .status-pending {
-  background-color: var(--warning-color);
+  background-color: var(--app-warning);
 }
 
 .status-in-progress {
-  background-color: var(--primary-color);
-  background-image: linear-gradient(45deg, var(--primary-color), #5c7cfa);
+  background-color: var(--app-primary);
+  background-image: linear-gradient(45deg, var(--app-primary), var(--app-primary-dark));
 }
 
 .status-completed {
-  background-color: var(--secondary-color);
-  background-image: linear-gradient(to right, var(--secondary-color), #38d39f);
+  background-color: var(--app-secondary);
+  background-image: linear-gradient(to right, var(--app-secondary), var(--app-secondary-dark));
 }
 
 .status-blocked {
-  background-color: var(--danger-color);
+  background-color: var(--app-danger);
 }
 
 .status-chip {
-  font-size: 12px;
+  font-size: var(--app-font-size-xs);
   padding: 2px 8px;
   border-radius: 12px;
   color: white;
@@ -93,12 +88,12 @@
   display: flex;
   align-items: center;
   padding: 10px 8px;
-  border-bottom: 1px solid var(--border-color);
-  transition: all 0.2s ease;
+  border-bottom: 1px solid var(--app-border-color);
+  transition: all var(--app-transition);
 }
 
 .file-item:hover, .feature-item:hover, .env-var-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--app-hover-background);
 }
 
 .file-item:last-child, .feature-item:last-child, .env-var-item:last-child {
@@ -109,7 +104,7 @@
   margin-right: 10px;
   width: 18px;
   height: 18px;
-  accent-color: var(--primary-color);
+  accent-color: var(--app-primary);
 }
 
 .env-var-details {
@@ -118,20 +113,20 @@
 }
 
 .env-var-name {
-  font-weight: bold;
+  font-weight: var(--app-font-weight-bold);
 }
 
 .env-var-description {
-  font-size: 0.85em;
+  font-size: var(--app-font-size-sm);
   opacity: 0.8;
 }
 
 .env-vars-list {
-  margin-bottom: 15px;
+  margin-bottom: var(--app-spacing-md);
 }
 
 .scope-action-button {
-  margin-top: 16px;
+  margin-top: var(--app-spacing-md);
 }
 
 .dependency-chip {
@@ -139,9 +134,9 @@
   margin: 4px;
   padding: 2px 8px;
   border-radius: 12px;
-  font-size: 12px;
-  background-color: var(--vscode-badge-background);
-  color: var(--vscode-badge-foreground);
+  font-size: var(--app-font-size-xs);
+  background-color: var(--app-primary-light);
+  color: var(--app-primary);
 }
 
 .dialog-overlay {
@@ -158,129 +153,159 @@
 }
 
 .dialog {
-  background-color: var(--vscode-editor-background);
-  border-radius: var(--border-radius);
-  border: 1px solid var(--border-color);
-  padding: 1.5rem;
+  background-color: var(--app-card-background) !important; 
+  border-radius: var(--app-border-radius);
+  border: 1px solid var(--app-border-color);
+  padding: var(--app-spacing-lg);
   width: 500px;
   max-width: 90%;
-  box-shadow: var(--card-shadow);
+  box-shadow: var(--app-box-shadow);
+  color: var(--app-text) !important;
 }
 
 .dialog-title {
-  font-size: 18px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  padding-bottom: 8px;
+  font-size: var(--app-font-size-lg);
+  margin-bottom: var(--app-spacing-md);
+  border-bottom: 1px solid var(--app-border-color);
+  padding-bottom: var(--app-spacing-sm);
+  color: var(--app-heading-color);
 }
 
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--vscode-panel-border);
+  margin-top: var(--app-spacing-md);
+  padding-top: var(--app-spacing-md);
+  border-top: 1px solid var(--app-gray-300);
 }
 
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: var(--app-spacing-md);
 }
 
 .form-label {
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: var(--app-spacing-xs);
+  color: var(--app-text);
 }
 
 .form-input {
   width: 100%;
-  padding: 8px;
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 2px;
+  padding: var(--app-spacing-sm);
+  background-color: var(--app-input-background);
+  color: var(--app-text);
+  border: 1px solid var(--app-border-color);
+  border-radius: var(--app-border-radius-sm);
+}
+
+.form-input:focus {
+  border-color: var(--app-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--app-primary-light);
 }
 
 .form-textarea {
   width: 100%;
-  padding: 8px;
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  border-radius: 2px;
+  padding: var(--app-spacing-sm);
+  background-color: var(--app-input-background);
+  color: var(--app-text);
+  border: 1px solid var(--app-border-color);
+  border-radius: var(--app-border-radius-sm);
   min-height: 100px;
   resize: vertical;
 }
 
+.form-textarea:focus {
+  border-color: var(--app-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--app-primary-light);
+}
+
 .button {
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  border-radius: var(--border-radius);
+  padding: var(--app-spacing-sm) var(--app-spacing-md);
+  font-size: var(--app-font-size-md);
+  border-radius: var(--app-border-radius);
   border: none;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all var(--app-transition);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  font-weight: 500;
-  margin-right: 10px;
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  gap: var(--app-spacing-xs);
+  font-weight: var(--app-font-weight-medium);
+  margin-right: var(--app-spacing-sm);
+  background-color: var(--app-primary);
+  color: white;
 }
 
 .button:hover {
-  background-color: var(--vscode-button-hoverBackground);
+  background-color: var(--app-primary-dark);
+  box-shadow: var(--app-box-shadow);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--app-primary-light);
 }
 
 .button.scope-action-button {
-  background-color: var(--primary-color);
-  color: var(--vscode-button-foreground);
+  background-color: var(--app-primary);
+  color: white;
 }
 
 .button.scope-action-button:hover {
-  background-color: #5c7cfa;
+  background-color: var(--app-primary-dark);
 }
 
 .button-secondary {
-  background-color: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: 1px solid var(--vscode-button-border);
+  background-color: transparent;
+  color: var(--app-primary);
+  border: 1px solid var(--app-primary);
 }
 
 .button-secondary:hover {
-  background-color: var(--vscode-button-secondaryHoverBackground);
+  background-color: var(--app-primary-light);
 }
 
 .icon-button {
   background: transparent;
   border: none;
-  color: var(--vscode-editor-foreground);
+  color: var(--app-gray-700);
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: var(--app-spacing-xs);
+  border-radius: var(--app-border-radius-sm);
 }
 
 .icon-button:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--app-gray-100);
+  color: var(--app-gray-900);
+}
+
+.icon-button:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--app-primary-light);
 }
 
 .metadata-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: var(--app-spacing-sm);
+  margin-bottom: var(--app-spacing-lg);
 }
 
 .metadata-item {
-  padding: 8px;
+  padding: var(--app-spacing-sm);
 }
 
 .metadata-label {
-  font-size: 12px;
-  color: var(--vscode-descriptionForeground);
-  margin-bottom: 4px;
+  font-size: var(--app-font-size-xs);
+  color: var(--app-text-secondary);
+  margin-bottom: var(--app-spacing-xs);
 }
 
 .metadata-value {
-  font-size: 14px;
+  font-size: var(--app-font-size-sm);
+  color: var(--app-text);
 }

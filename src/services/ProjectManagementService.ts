@@ -212,28 +212,33 @@ export class ProjectManagementService {
         }
       }
       
-      // CURRENT_STATUS.mdを作成（テンプレートファイルをコピー）
+      // CURRENT_STATUS.mdを作成（既存ファイルがある場合は作成しない）
       try {
-        const templatePath = path.join(__dirname, '../../docs/CURRENT_STATUSTEMPLATE.md');
+        const currentStatusPath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
         
-        if (fs.existsSync(templatePath)) {
-          const templateContent = fs.readFileSync(templatePath, 'utf8');
-          // プロジェクト名と現在の日付で置換
-          const today = new Date();
-          const formattedDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+        // 既存のCURRENT_STATUS.mdファイルが存在するかチェック
+        if (!fs.existsSync(currentStatusPath)) {
+          // ファイルが存在しない場合のみ作成
+          const templatePath = path.join(__dirname, '../../docs/CURRENT_STATUSTEMPLATE.md');
           
-          const projectName = path.basename(projectPath);
-          const modifiedContent = templateContent
-            .replace('プロジェクト名', projectName)
-            .replace('YYYY/MM/DD', formattedDate);
-          
-          fs.writeFileSync(path.join(projectPath, 'docs', 'CURRENT_STATUS.md'), modifiedContent, 'utf8');
-          Logger.info(`CURRENT_STATUS.md created from template for project at: ${projectPath}`);
-        } else {
-          // テンプレートが見つからない場合は基本的なCURRENT_STATUS.mdを作成
-          fs.writeFileSync(
-            path.join(projectPath, 'docs', 'CURRENT_STATUS.md'),
-            `# ${path.basename(projectPath)} - 実装状況 (${new Date().toISOString().split('T')[0].replace(/-/g, '/')})
+          if (fs.existsSync(templatePath)) {
+            const templateContent = fs.readFileSync(templatePath, 'utf8');
+            // プロジェクト名と現在の日付で置換
+            const today = new Date();
+            const formattedDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+            
+            const projectName = path.basename(projectPath);
+            const modifiedContent = templateContent
+              .replace('プロジェクト名', projectName)
+              .replace('YYYY/MM/DD', formattedDate);
+            
+            fs.writeFileSync(currentStatusPath, modifiedContent, 'utf8');
+            Logger.info(`CURRENT_STATUS.md created from template for project at: ${projectPath}`);
+          } else {
+            // テンプレートが見つからない場合は基本的なCURRENT_STATUS.mdを作成
+            fs.writeFileSync(
+              currentStatusPath,
+              `# ${path.basename(projectPath)} - 実装状況 (${new Date().toISOString().split('T')[0].replace(/-/g, '/')})
 
 ## スコープ状況
 
@@ -255,9 +260,12 @@ project-root/
 └── [ディレクトリ構造]
 \`\`\`
 `,
-            'utf8'
-          );
-          Logger.info(`Basic CURRENT_STATUS.md created for project at: ${projectPath}`);
+              'utf8'
+            );
+            Logger.info(`Basic CURRENT_STATUS.md created for project at: ${projectPath}`);
+          }
+        } else {
+          Logger.info(`CURRENT_STATUS.md already exists for project at: ${projectPath}, skipping creation`);
         }
       } catch (error) {
         Logger.error(`Failed to create CURRENT_STATUS.md: ${(error as Error).message}`);

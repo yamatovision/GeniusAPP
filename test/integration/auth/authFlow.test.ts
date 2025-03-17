@@ -2,9 +2,8 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import axios from 'axios';
-import { AuthenticationService } from '../../../src/core/auth/AuthenticationService';
+import { AuthenticationService, AuthEventType } from '../../../src/core/auth/AuthenticationService';
 import { TokenManager } from '../../../src/core/auth/TokenManager';
-import { AuthEventBus, AuthEventType } from '../../../src/services/AuthEventBus';
 import { ClaudeCodeAuthSync } from '../../../src/services/ClaudeCodeAuthSync';
 
 // モック化のためのヘルパー

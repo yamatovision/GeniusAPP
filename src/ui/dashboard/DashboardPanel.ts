@@ -1054,10 +1054,13 @@ project/
    */
   private _createInitialDocuments(projectPath: string): void {
     try {
-      // requirements.md
-      fs.writeFileSync(
-        path.join(projectPath, 'docs', 'requirements.md'),
-        `# 要件定義
+      const docsDir = path.join(projectPath, 'docs');
+      
+      // 各ファイルの作成（既存のファイルは上書きしない）
+      const files = [
+        {
+          path: path.join(docsDir, 'requirements.md'),
+          content: `# 要件定義
 
 ## 機能要件
 
@@ -1082,14 +1085,11 @@ project/
 ## ユーザーストーリー
 
 - ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。
-`,
-        'utf8'
-      );
-      
-      // structure.md
-      fs.writeFileSync(
-        path.join(projectPath, 'docs', 'structure.md'),
-        `# ディレクトリ構造
+`
+        },
+        {
+          path: path.join(docsDir, 'structure.md'),
+          content: `# ディレクトリ構造
 
 \`\`\`
 project/
@@ -1108,14 +1108,11 @@ project/
 │   ├── services/
 │   └── models/
 \`\`\`
-`,
-        'utf8'
-      );
-      
-      // scope.md
-      fs.writeFileSync(
-        path.join(projectPath, 'docs', 'scope.md'),
-        `# 実装スコープ
+`
+        },
+        {
+          path: path.join(docsDir, 'scope.md'),
+          content: `# 実装スコープ
 
 ## 完了
 
@@ -1136,14 +1133,11 @@ project/
    - 説明: メインデータの一覧表示
    - 優先度: 高
    - 関連ファイル: 未定
-`,
-        'utf8'
-      );
-      
-      // api.md
-      fs.writeFileSync(
-        path.join(projectPath, 'docs', 'api.md'),
-        `# API設計
+`
+        },
+        {
+          path: path.join(docsDir, 'api.md'),
+          content: `# API設計
 
 ## エンドポイント一覧
 
@@ -1165,14 +1159,11 @@ project/
   - 説明: データ一覧取得
   - リクエストパラメータ: \`{ page: number, limit: number }\`
   - レスポンス: \`{ data: DataItem[], total: number }\`
-`,
-        'utf8'
-      );
-      
-      // env.example
-      fs.writeFileSync(
-        path.join(projectPath, 'docs', 'env.example'),
-        `# 環境変数サンプル
+`
+        },
+        {
+          path: path.join(docsDir, 'env.example'),
+          content: `# 環境変数サンプル
 # 実際の値は.envファイルに設定してください
 
 # サーバー設定
@@ -1188,9 +1179,22 @@ DB_PASSWORD=password
 
 # 認証設定
 JWT_SECRET=your_jwt_secret_key
-`,
-        'utf8'
-      );
+`
+        }
+      ];
+      
+      // 各ファイルを順番に処理
+      for (const file of files) {
+        // ファイルが存在しない場合のみ作成
+        if (!fs.existsSync(file.path)) {
+          fs.writeFileSync(file.path, file.content, 'utf8');
+          Logger.info(`${path.basename(file.path)} を作成しました: ${file.path}`);
+        } else {
+          Logger.info(`${path.basename(file.path)} は既に存在するため、スキップします: ${file.path}`);
+        }
+      }
+      
+      // CURRENT_STATUS.mdの作成は ProjectManagementService.createInitialDocuments で行うため、ここでは実装しない
       
       Logger.info(`初期ドキュメントを作成しました: ${projectPath}`);
     } catch (error) {
@@ -1348,16 +1352,23 @@ JWT_SECRET=your_jwt_secret_key
       background-color: white !important;
       color: #333 !important;
     }
+    
+    /* ダークモード用スタイル（将来的な拡張） */
+    .dashboard-container.theme-dark {
+      color-scheme: dark !important;
+      background-color: #1e1e1e !important;
+      color: #e0e0e0 !important;
+    }
   </style>
 </head>
 <body>
-  <div class="dashboard-container">
+  <div class="dashboard-container theme-light">
     <!-- ヘッダー -->
     <div class="header">
       <h1>AppGenius ダッシュボード</h1>
       <div class="header-actions">
-        <button id="refresh-btn" class="button">
-          <i class="icon">🔄</i> <span>更新</span>
+        <button id="theme-toggle" class="button">
+          <i class="icon">🌓</i> <span>テーマ切替</span>
         </button>
       </div>
     </div>

@@ -11,14 +11,19 @@
 @import url('./components.css');
 @import url('./accessibility.css');
 
+/* ライトモード強制 */
+body {
+  color-scheme: light !important;
+}
+
 /* 全体レイアウト */
 .detective-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
   font-family: var(--app-font-family);
-  color: var(--vscode-editor-foreground);
-  background-color: var(--vscode-editor-background);
+  color: #333 !important;
+  background-color: white !important;
 }
 
 /* ヘッダー */
@@ -28,7 +33,7 @@
   align-items: center;
   padding: var(--app-spacing-md) var(--app-spacing-lg);
   background-color: var(--app-primary);
-  color: white;
+  color: white !important;
   box-shadow: var(--app-box-shadow);
 }
 
@@ -47,6 +52,7 @@ h1 {
   font-size: var(--app-font-size-xl);
   font-weight: var(--app-font-weight-bold);
   margin: 0;
+  color: white !important;
 }
 
 .header-actions {
@@ -65,8 +71,8 @@ h1 {
 /* タブメニュー */
 .tabs {
   display: flex;
-  background-color: var(--vscode-sideBar-background);
-  border-bottom: 1px solid var(--vscode-panel-border);
+  background-color: white !important;
+  border-bottom: 1px solid var(--app-gray-300);
 }
 
 .tab-button {
@@ -75,13 +81,13 @@ h1 {
   border: none;
   cursor: pointer;
   font-size: var(--app-font-size-md);
-  color: var(--vscode-editor-foreground);
+  color: var(--app-gray-700);
   position: relative;
   transition: background-color var(--app-transition);
 }
 
 .tab-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: var(--app-gray-100);
 }
 
 .tab-button.active {
@@ -109,6 +115,8 @@ h1 {
   flex: 1;
   overflow-y: auto;
   padding: var(--app-spacing-lg);
+  background-color: white !important;
+  color: #333 !important;
 }
 
 .tab-pane {
@@ -121,12 +129,13 @@ h1 {
 
 /* エラーセッションタブ */
 .error-input-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .error-input {
@@ -138,14 +147,14 @@ h1 {
 textarea {
   width: 100%;
   min-height: 120px;
-  border: 1px solid var(--vscode-input-border);
+  border: 1px solid var(--app-gray-300);
   border-radius: var(--app-border-radius-sm);
   padding: var(--app-spacing-sm);
   font-family: var(--app-font-family-mono);
   font-size: var(--app-font-size-sm);
   resize: vertical;
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
+  background-color: white;
+  color: var(--app-gray-800);
 }
 
 textarea:focus-visible {
@@ -177,12 +186,13 @@ textarea:focus-visible {
 
 /* エラーセッション一覧 */
 .error-sessions-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .error-sessions-container {
@@ -196,7 +206,8 @@ textarea:focus-visible {
   border: 1px solid var(--vscode-panel-border);
   border-radius: var(--app-border-radius-sm);
   padding: var(--app-spacing-md);
-  background-color: var(--vscode-editor-background);
+  background-color: white !important;
+  color: #333 !important;
   cursor: pointer;
   transition: box-shadow var(--app-transition), transform var(--app-transition);
 }
@@ -274,12 +285,13 @@ textarea:focus-visible {
 
 /* 現在のエラーセッション */
 .current-session-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .current-session-container {
@@ -287,8 +299,8 @@ textarea:focus-visible {
 }
 
 .session-log {
-  background-color: #2c2c2c;
-  color: #f0f0f0;
+  background-color: var(--app-gray-100);
+  color: var(--app-gray-800);
   padding: var(--app-spacing-md);
   border-radius: var(--app-border-radius-sm);
   font-family: var(--app-font-family-mono);
@@ -296,16 +308,18 @@ textarea:focus-visible {
   white-space: pre-wrap;
   max-height: 300px;
   overflow-y: auto;
+  border: 1px solid var(--app-gray-300);
 }
 
 /* 関連ファイル */
 .related-files-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .related-files-container {
@@ -332,6 +346,7 @@ textarea:focus-visible {
   font-family: var(--app-font-family-mono);
   font-size: var(--app-font-size-sm);
   flex: 1;
+  color: var(--app-gray-800);
 }
 
 .file-actions {
@@ -341,12 +356,13 @@ textarea:focus-visible {
 
 /* 解決策タブ */
 .solution-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .solution-container {
@@ -442,12 +458,13 @@ textarea:focus-visible {
 
 /* 知見ベースタブ */
 .knowledge-filter-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .filter-controls {
@@ -499,12 +516,13 @@ textarea:focus-visible {
 }
 
 .knowledge-list-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .knowledge-list-container {
@@ -518,7 +536,8 @@ textarea:focus-visible {
   border: 1px solid var(--vscode-panel-border);
   border-radius: var(--app-border-radius-sm);
   padding: var(--app-spacing-md);
-  background-color: var(--vscode-editor-background);
+  background-color: white !important;
+  color: #333 !important;
   cursor: pointer;
   transition: box-shadow var(--app-transition), transform var(--app-transition);
 }
@@ -590,12 +609,13 @@ textarea:focus-visible {
 }
 
 .knowledge-detail-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .knowledge-detail-container {
@@ -670,12 +690,13 @@ textarea:focus-visible {
 
 /* テスト実行タブ */
 .test-section {
-  background-color: var(--vscode-sideBar-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-md);
   margin-bottom: var(--app-spacing-lg);
   box-shadow: var(--app-box-shadow);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .test-container {
@@ -752,7 +773,7 @@ textarea:focus-visible {
 
 .button.primary {
   background-color: var(--app-primary);
-  color: white;
+  color: white !important;
 }
 
 .button.primary:hover {
@@ -761,7 +782,7 @@ textarea:focus-visible {
 
 .button.secondary {
   background-color: var(--app-accent);
-  color: white;
+  color: white !important;
 }
 
 .button.secondary:hover {
@@ -770,7 +791,7 @@ textarea:focus-visible {
 
 .button:not(.primary):not(.secondary) {
   background-color: var(--app-gray-200);
-  color: var(--app-gray-800);
+  color: var(--app-gray-800) !important;
 }
 
 .button:not(.primary):not(.secondary):hover {
@@ -805,7 +826,7 @@ textarea:focus-visible {
 }
 
 .modal-content {
-  background-color: var(--vscode-editor-background);
+  background-color: white !important;
   border-radius: var(--app-border-radius);
   padding: var(--app-spacing-lg);
   width: 500px;
@@ -814,6 +835,7 @@ textarea:focus-visible {
   overflow-y: auto;
   box-shadow: var(--app-box-shadow-hover);
   border: 1px solid var(--vscode-panel-border);
+  color: #333 !important;
 }
 
 .modal-content h2 {
@@ -838,11 +860,11 @@ textarea:focus-visible {
 .form-group select {
   width: 100%;
   padding: var(--app-spacing-sm);
-  border: 1px solid var(--vscode-input-border);
+  border: 1px solid var(--app-gray-300);
   border-radius: var(--app-border-radius-sm);
   font-size: var(--app-font-size-sm);
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
+  background-color: white;
+  color: var(--app-gray-800);
 }
 
 .form-group input:focus-visible,
@@ -858,6 +880,8 @@ textarea:focus-visible {
   justify-content: flex-end;
   gap: var(--app-spacing-sm);
   margin-top: var(--app-spacing-lg);
+  padding-top: var(--app-spacing-sm);
+  border-top: 1px solid var(--app-gray-300);
 }
 
 /* ヘルパークラス */

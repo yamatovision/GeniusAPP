@@ -2,9 +2,8 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import axios from 'axios';
-import { AuthenticationService, AuthError } from '../../../src/core/auth/AuthenticationService';
+import { AuthenticationService, AuthError, AuthEventType } from '../../../src/core/auth/AuthenticationService';
 import { TokenManager } from '../../../src/core/auth/TokenManager';
-import { AuthEventBus, AuthEventType } from '../../../src/services/AuthEventBus';
 
 // モック化のためのヘルパー
 let mockTokenManager: any;
@@ -67,7 +66,6 @@ async function setupTestEnvironment() {
   
   // 外部依存のモック注入
   sinon.stub(TokenManager, 'getInstance').returns(mockTokenManager);
-  sinon.stub(AuthEventBus, 'getInstance').returns(mockAuthEventBus);
   sinon.stub(axios, 'post').callsFake(mockAxios.post);
   sinon.stub(axios, 'get').callsFake(mockAxios.get);
   sinon.stub(axios, 'put').callsFake(mockAxios.put);

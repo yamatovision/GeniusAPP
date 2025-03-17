@@ -313,11 +313,11 @@
       });
     }
     
-    // リフレッシュボタン
-    const refreshBtn = document.getElementById('refresh-btn');
-    if (refreshBtn) {
-      refreshBtn.addEventListener('click', () => {
-        refreshData();
+    // テーマ切替ボタン
+    const themeToggleBtn = document.getElementById('theme-toggle');
+    if (themeToggleBtn) {
+      themeToggleBtn.addEventListener('click', () => {
+        toggleTheme();
       });
     }
     
@@ -334,11 +334,79 @@
   }
   
   /**
+   * テーマ切り替え機能
+   */
+  function toggleTheme() {
+    const container = document.querySelector('.dashboard-container');
+    const currentTheme = container.classList.contains('theme-light') ? 'light' : 'dark';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    
+    // まずダッシュボードのテーマを切り替え
+    if (newTheme === 'dark') {
+      container.classList.remove('theme-light');
+      container.classList.add('theme-dark');
+      localStorage.setItem('app-theme', 'dark');
+      console.log('ダークモードに切り替えました');
+    } else {
+      container.classList.remove('theme-dark');
+      container.classList.add('theme-light');
+      localStorage.setItem('app-theme', 'light');
+      console.log('ライトモードに切り替えました');
+    }
+    
+    // テーマ変更のイベント発火
+    // このイベントは各コンポーネントでリッスンされ、テーマを同期する
+    document.dispatchEvent(new CustomEvent('theme-changed', { 
+      detail: { theme: newTheme } 
+    }));
+    
+    // VSCodeにもテーマ変更を通知
+    vscode.postMessage({
+      command: 'themeChanged',
+      theme: newTheme
+    });
+  }
+  
+  /**
+   * 初期テーマの設定
+   */
+  function setInitialTheme() {
+    // デフォルトはライト
+    const savedTheme = localStorage.getItem('app-theme') || 'light';
+    const container = document.querySelector('.dashboard-container');
+    
+    // 初期クラスは既にHTMLで設定しているが、
+    // 保存されたテーマがある場合は上書き
+    if (savedTheme === 'dark') {
+      container.classList.remove('theme-light');
+      container.classList.add('theme-dark');
+    } else {
+      container.classList.remove('theme-dark');
+      container.classList.add('theme-light');
+    }
+    
+    // 初期ロード時にもテーマ変更イベントを発火
+    // 他のコンポーネントが開かれる前に発火する必要がある
+    document.dispatchEvent(new CustomEvent('theme-changed', { 
+      detail: { theme: savedTheme } 
+    }));
+    
+    // VSCodeにも初期テーマを通知
+    vscode.postMessage({
+      command: 'themeChanged',
+      theme: savedTheme
+    });
+  }
+  
+  /**
    * UI初期化
    */
   function initializeUI() {
     // サイドバーの初期状態を設定
     updateSidebarState();
+    
+    // 初期テーマを設定
+    setInitialTheme();
     
     // ボタンテキストの色を強制的に白に設定
     const fixButtonTextColors = () => {
@@ -366,6 +434,7 @@
    * データ更新
    */
   function refreshData() {
+    // テーマ設定を保持したまま、データのみを更新
     updateLoadingState(true);
     vscode.postMessage({
       command: 'refreshProjects'
