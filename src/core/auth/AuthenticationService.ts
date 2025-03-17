@@ -7,6 +7,18 @@ import { AuthState, AuthStateBuilder, compareAuthStates } from './AuthState';
 import { AuthStorageManager } from '../../utils/AuthStorageManager';
 
 /**
+ * ユーザー情報の型定義
+ */
+export interface UserData {
+  id: string;
+  name: string;
+  role: string;
+  permissions?: string[];
+  email?: string;
+  [key: string]: any; // その他のプロパティを許可
+}
+
+/**
  * 認証イベントの型
  */
 export enum AuthEventType {
@@ -98,23 +110,48 @@ export class AuthenticationService {
       const isValid = await this._tokenManager.isTokenValid();
       if (!isValid) {
         Logger.info('トークンの有効期限が切れています。リフレッシュを試みます');
-        const refreshed = await this.refreshToken();
+        const refreshed = await this.refreshToken(true); // 静かに失敗するオプションを設定
         if (!refreshed) {
           Logger.warn('トークンのリフレッシュに失敗しました');
+          // トークンをクリアせずに続行（次回起動時にも再試行できるように）
           return;
         }
       }
       
-      // ユーザー情報を取得
-      Logger.info('ユーザー情報を取得します');
-      await this._fetchUserInfo();
-      
-      // 権限チェックインターバルを開始
-      this._startAuthCheckInterval();
-      
-      Logger.info('認証サービスの初期化が完了しました');
+      try {
+        // ユーザー情報を取得
+        Logger.info('ユーザー情報を取得します');
+        await this._fetchUserInfo();
+        
+        // 権限チェックインターバルを開始
+        this._startAuthCheckInterval();
+        
+        Logger.info('認証サービスの初期化が完了しました');
+      } catch (fetchError) {
+        Logger.error('ユーザー情報の取得中にエラーが発生しました', fetchError as Error);
+        
+        // サーバーエラーの場合、ローカルデータでフォールバック
+        if (axios.isAxiosError(fetchError) && fetchError.response?.status === 500) {
+          Logger.info('サーバーエラーが発生しました。ローカルデータを使用して認証を試みます');
+          const recoverySuccess = await this._recoverUserState();
+          
+          if (recoverySuccess) {
+            Logger.info('ローカルデータによる認証状態の回復に成功しました');
+          } else {
+            Logger.warn('ローカルデータによる認証状態の回復に失敗しました。機能が制限される場合があります');
+          }
+        }
+        
+        // エラーが発生しても、権限チェックは開始する（次回の自動チェックでリカバリー可能にする）
+        this._startAuthCheckInterval();
+        
+        Logger.info('認証サービスの初期化が完了しました（一部エラーあり）');
+      }
     } catch (error) {
       Logger.error('認証サービスの初期化中にエラーが発生しました', error as Error);
+      
+      // 致命的なエラーでも基本的な機能は提供できるようにする
+      this._startAuthCheckInterval();
     }
   }
   
@@ -262,8 +299,10 @@ export class AuthenticationService {
   
   /**
    * トークンのリフレッシュ
+   * @param {boolean} silentOnError - エラー時に静かに失敗するかどうか
+   * @param {number} retryCount - リトライ回数（最大3回まで）
    */
-  public async refreshToken(): Promise<boolean> {
+  public async refreshToken(silentOnError: boolean = false, retryCount: number = 0): Promise<boolean> {
     try {
       Logger.info('トークンのリフレッシュを開始します');
       
@@ -277,11 +316,16 @@ export class AuthenticationService {
       const clientId = this._getClientId();
       const clientSecret = this._getClientSecret();
       
+      Logger.debug(`認証情報確認: リフレッシュトークン長=${refreshToken.length}, クライアントID=${clientId}`);
+      
       // トークンリフレッシュAPIを呼び出し
       const response = await axios.post(`${apiUrl}/auth/refresh-token`, {
         refreshToken,
         clientId,
         clientSecret
+      }, {
+        // タイムアウト設定を追加
+        timeout: 15000
       });
       
       if (response.status === 200 && response.data.accessToken) {
@@ -315,10 +359,53 @@ export class AuthenticationService {
     } catch (error) {
       Logger.error('トークンリフレッシュ中にエラーが発生しました', error as Error);
       
+      // ネットワークエラーの場合はリトライを試みる（最大3回まで）
+      if (axios.isAxiosError(error) && !error.response && retryCount < 3) {
+        const retryDelayMs = 1000 * Math.pow(2, retryCount); // 指数バックオフ（1秒、2秒、4秒）
+        Logger.info(`ネットワークエラー発生。${retryDelayMs/1000}秒後にリトライします (${retryCount + 1}/3)`);
+        
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        return this.refreshToken(silentOnError, retryCount + 1);
+      }
+      
       // トークンが無効な場合はログアウト
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         Logger.warn('リフレッシュトークンが無効です。ログアウトします');
-        await this.logout();
+        // silentOnErrorがtrueの場合、静かにログアウト処理を行う
+        if (!silentOnError) {
+          await this.logout();
+        } else {
+          // 静かにトークンをクリアするだけ
+          await this._tokenManager.clearTokens();
+          const newState = AuthStateBuilder.guest().build();
+          this._updateState(newState);
+        }
+      }
+      // サーバーエラー（500）が発生した場合は、現在のトークンの有効性をチェック
+      else if (axios.isAxiosError(error) && error.response?.status === 500) {
+        Logger.warn('トークンリフレッシュ中にサーバーエラーが発生しました。現在のトークンの有効性をチェックします');
+        
+        try {
+          // 現在のトークンの有効期限をチェック
+          const isValid = await this._tokenManager.isTokenValid();
+          if (isValid) {
+            Logger.info('現在のトークンはまだ有効です。リフレッシュを中断して現在のトークンを使用します');
+            
+            // ユーザー情報を取得して認証状態を回復
+            await this._recoverUserState();
+            
+            // サーバーエラーでも認証状態を維持
+            return true;
+          } else {
+            Logger.warn('現在のトークンも有効期限切れです。リフレッシュに失敗しました');
+            if (!silentOnError) {
+              // エラーメッセージを表示
+              vscode.window.showWarningMessage('認証サーバーとの通信でエラーが発生しました。一部機能が制限される場合があります');
+            }
+          }
+        } catch (validationError) {
+          Logger.error('トークン検証中にエラーが発生しました', validationError as Error);
+        }
       }
       
       return false;
@@ -327,8 +414,9 @@ export class AuthenticationService {
   
   /**
    * ユーザー情報を取得
+   * @param retryCount リトライ回数
    */
-  private async _fetchUserInfo(): Promise<void> {
+  private async _fetchUserInfo(retryCount: number = 0): Promise<void> {
     try {
       Logger.info('ユーザー情報の取得を開始します');
       
@@ -344,7 +432,9 @@ export class AuthenticationService {
       const response = await axios.get(`${apiUrl}/users/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        // タイムアウト設定を追加
+        timeout: 10000
       });
       
       if (response.status === 200 && response.data.user) {
@@ -365,6 +455,7 @@ export class AuthenticationService {
         Logger.info(`ユーザー情報を取得しました: ${response.data.user.name}`);
       } else {
         Logger.warn('ユーザー情報の取得に失敗しました: レスポンスが無効です');
+        await this._tryFallbackAuthentication();
       }
     } catch (error) {
       Logger.error('ユーザー情報取得中にエラーが発生しました', error as Error);
@@ -381,6 +472,61 @@ export class AuthenticationService {
           await this.logout();
         }
       }
+      // サーバーエラーの場合、一定回数リトライ
+      else if (axios.isAxiosError(error) && error.response?.status === 500 && retryCount < 3) {
+        Logger.info(`サーバーエラーが発生しました。リトライします (${retryCount + 1}/3)`);
+        // 指数バックオフでリトライ（1秒、2秒、4秒）
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+        return this._fetchUserInfo(retryCount + 1);
+      } 
+      // すべてのリトライが失敗、または他のエラーの場合はフォールバック認証を試みる
+      else {
+        Logger.info('サーバーとの通信に失敗しました。ローカルデータを使用して認証状態を維持します');
+        await this._tryFallbackAuthentication();
+      }
+    }
+  }
+  
+  /**
+   * サーバー接続エラー時に、ローカルに保存されたユーザーデータを使用した認証フォールバック
+   * このメソッドは、サーバーエラーが発生した場合でも、ユーザーがローカルで作業を継続できるようにします
+   */
+  private async _tryFallbackAuthentication(): Promise<boolean> {
+    try {
+      Logger.info('フォールバック認証を試みます: ローカルに保存されたユーザー情報を確認');
+      
+      // トークンの存在を確認（最低限の認証チェック）
+      const token = await this._tokenManager.getAccessToken();
+      if (!token) {
+        Logger.warn('フォールバック認証: アクセストークンが見つかりません');
+        return false;
+      }
+      
+      // ローカルに保存されたユーザーデータを取得
+      const userData = await this._storageManager.getUserData<UserData>();
+      if (!userData) {
+        Logger.warn('フォールバック認証: 保存されたユーザーデータが見つかりません');
+        return false;
+      }
+      
+      Logger.info(`フォールバック認証: ローカルユーザーデータを使用します (${userData.name})`);
+      
+      // 認証状態を更新（ローカルデータを使用）
+      const newState = AuthStateBuilder.fromState(this._currentState)
+        .setAuthenticated(true)
+        .setUserId(userData.id)
+        .setUsername(userData.name)
+        .setRole(this._mapUserRole(userData.role))
+        .setPermissions(userData.permissions || [])
+        .build();
+      
+      this._updateState(newState);
+      
+      Logger.info(`フォールバック認証に成功しました: ${userData.name} (${this._mapUserRole(userData.role)})`);
+      return true;
+    } catch (error) {
+      Logger.error('フォールバック認証に失敗しました', error as Error);
+      return false;
     }
   }
   
@@ -467,9 +613,10 @@ export class AuthenticationService {
   
   /**
    * クライアントシークレット取得
+   * 本番環境と一致する値
    */
   private _getClientSecret(): string {
-    return 'sk_8f2d61ae94c7b5829e3a150d7692fd84';
+    return 'appgenius_refresh_token_secret_key_for_production';
   }
   
   /**
@@ -503,6 +650,164 @@ export class AuthenticationService {
    */
   public getCurrentState(): AuthState {
     return { ...this._currentState };
+  }
+  
+  /**
+   * 現在のユーザー情報を取得
+   */
+  public getCurrentUser(): any {
+    if (!this._currentState.isAuthenticated) {
+      return null;
+    }
+    
+    return {
+      id: this._currentState.userId,
+      name: this._currentState.username,
+      role: this._currentState.role
+    };
+  }
+  
+  /**
+   * 認証ヘッダーを取得
+   */
+  public async getAuthHeader(): Promise<Record<string, string> | undefined> {
+    const token = await this._tokenManager.getAccessToken();
+    if (!token) {
+      return undefined;
+    }
+    
+    return {
+      'Authorization': `Bearer ${token}`
+    };
+  }
+  
+  /**
+   * 認証状態変更通知の別名（互換性維持のため）
+   */
+  public get onAuthStateChanged(): vscode.Event<AuthState> {
+    return this.onStateChanged;
+  }
+  
+  /**
+   * ユーザー情報を取得するAPI呼び出し
+   */
+  public async getUserInfo(): Promise<any> {
+    try {
+      const token = await this._tokenManager.getAccessToken();
+      if (!token) {
+        throw new Error('認証されていません');
+      }
+      
+      const apiUrl = this._getAuthApiUrl();
+      const response = await axios.get(`${apiUrl}/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      return response.data.user;
+    } catch (error) {
+      Logger.error('ユーザー情報の取得に失敗しました', error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * ユーザープロファイルを更新
+   */
+  public async updateProfile(profileData: any): Promise<boolean> {
+    try {
+      const token = await this._tokenManager.getAccessToken();
+      if (!token) {
+        throw new Error('認証されていません');
+      }
+      
+      const apiUrl = this._getAuthApiUrl();
+      const response = await axios.put(`${apiUrl}/users/profile`, profileData, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.status === 200) {
+        // ユーザー情報を再取得して状態を更新
+        await this._fetchUserInfo();
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      Logger.error('プロファイル更新に失敗しました', error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * パスワード変更
+   */
+  public async changePassword(currentPassword: string, newPassword: string): Promise<boolean> {
+    try {
+      const token = await this._tokenManager.getAccessToken();
+      if (!token) {
+        throw new Error('認証されていません');
+      }
+      
+      const apiUrl = this._getAuthApiUrl();
+      const response = await axios.post(`${apiUrl}/users/change-password`, {
+        currentPassword,
+        newPassword
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      return response.status === 200;
+    } catch (error) {
+      Logger.error('パスワード変更に失敗しました', error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * ローカルに保存されたユーザー情報を使用して認証状態を回復する
+   * サーバーエラーやネットワーク接続問題などでAPIにアクセスできない場合のフォールバックとして使用
+   */
+  private async _recoverUserState(): Promise<boolean> {
+    try {
+      Logger.info('ローカルデータを使用して認証状態を回復します');
+      
+      // ローカルに保存されたユーザーデータを取得
+      const userData = await this._storageManager.getUserData<UserData>();
+      if (!userData) {
+        Logger.warn('ローカルに保存されたユーザーデータが見つかりません');
+        return false;
+      }
+      
+      // トークンの存在を確認
+      const token = await this._tokenManager.getAccessToken();
+      if (!token) {
+        Logger.warn('アクセストークンが見つかりません');
+        return false;
+      }
+      
+      // 認証状態を更新（ローカルデータを使用）
+      const newState = AuthStateBuilder.fromState(this._currentState)
+        .setAuthenticated(true)
+        .setUserId(userData.id)
+        .setUsername(userData.name)
+        .setRole(this._mapUserRole(userData.role))
+        .setPermissions(userData.permissions || [])
+        .build();
+      
+      this._updateState(newState);
+      
+      Logger.info(`認証状態を回復しました: ${userData.name} (${this._mapUserRole(userData.role)})`);
+      return true;
+    } catch (error) {
+      Logger.error('認証状態の回復に失敗しました', error as Error);
+      return false;
+    }
   }
   
   /**

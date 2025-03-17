@@ -171,18 +171,28 @@ exports.isAdmin = async (req, res, next) => {
  */
 exports.loadUser = async (req, res, next) => {
   try {
-    // トークンからユーザー情報を作成
-    req.user = {
-      _id: req.userId,
-      role: req.userRole,
-      isActive: true
-    };
+    // データベースからユーザー情報を取得
+    const User = require('../models/user.model');
+    const user = await User.findById(req.userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'ユーザーが見つかりません'
+        }
+      });
+    }
+    
+    // ユーザー情報をリクエストオブジェクトに設定
+    req.user = user;
     next();
   } catch (error) {
+    console.error('ユーザー情報取得エラー:', error);
     return res.status(500).json({
       error: {
         code: 'SERVER_ERROR',
-        message: 'サーバーエラーが発生しました',
+        message: 'ユーザー情報取得中にエラーが発生しました',
         details: error.message
       }
     });

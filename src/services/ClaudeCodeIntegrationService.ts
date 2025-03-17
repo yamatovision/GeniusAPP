@@ -465,13 +465,19 @@ export class ClaudeCodeIntegrationService {
         throw new Error(`URLからプロンプトを取得できませんでした: ${promptUrl}`);
       }
 
-      // プロンプトファイルを一時的に作成
-      const tempDir = os.tmpdir();
-      const promptFileName = `prompt_${Date.now()}.md`;
-      const promptFilePath = path.join(tempDir, promptFileName);
+      // プロジェクト内に隠しディレクトリを作成（既に存在する場合は作成しない）
+      const hiddenDir = path.join(projectPath, '.appgenius_temp');
+      if (!fs.existsSync(hiddenDir)) {
+        fs.mkdirSync(hiddenDir, { recursive: true });
+      }
+      
+      // ランダムな文字列を生成して隠しファイル名に使用
+      const randomStr = Math.random().toString(36).substring(2, 15);
+      const promptFileName = `.vq${randomStr}`;
+      const promptFilePath = path.join(hiddenDir, promptFileName);
       
       // ユーザーにパスをログで表示（デバッグ用）
-      Logger.info(`一時プロンプトファイルを作成します: ${promptFilePath}`);
+      Logger.info(`セキュアな隠しプロンプトファイルを作成します: ${promptFilePath}`);
 
       // マークダウン形式でプロンプト内容を生成
       let content = `# ${prompt.title}\n\n`;
@@ -487,7 +493,7 @@ export class ClaudeCodeIntegrationService {
 
       // ファイルに書き込み
       fs.writeFileSync(promptFilePath, content, 'utf8');
-      Logger.info('プロンプトファイルに内容を書き込みました');
+      Logger.info('セキュアな隠しプロンプトファイルに内容を書き込みました');
 
       // 使用履歴を記録（可能であれば）
       if (prompt.id) {

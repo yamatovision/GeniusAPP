@@ -15,18 +15,23 @@ const vscode = acquireVsCodeApi();
   
   // テーマの適用
   function applyTheme(theme) {
-    const container = document.querySelector('.scope-manager-container');
-    if (!container) return;
+    const body = document.body;
+    if (!body) return;
     
     if (theme === 'dark') {
-      container.classList.remove('theme-light');
-      container.classList.add('theme-dark');
+      body.classList.add('theme-dark');
+      body.classList.remove('theme-light');
+      // テーマトグルボタンのテキスト更新
+      updateThemeToggleButton('dark');
     } else {
-      container.classList.remove('theme-dark');
-      container.classList.add('theme-light');
+      body.classList.remove('theme-dark');
+      body.classList.add('theme-light');
+      // テーマトグルボタンのテキスト更新
+      updateThemeToggleButton('light');
     }
     
     // 状態を保存
+    localStorage.setItem('app-theme', theme);
     const currentState = vscode.getState() || {};
     vscode.setState({
       ...currentState,
@@ -34,10 +39,38 @@ const vscode = acquireVsCodeApi();
     });
   }
   
+  // テーマトグルボタンのテキストとアイコンを更新
+  function updateThemeToggleButton(theme) {
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = themeToggle?.querySelector('.theme-icon');
+    const themeText = themeToggle?.querySelector('.theme-text');
+    
+    if (themeToggle) {
+      if (theme === 'dark') {
+        themeIcon.textContent = 'light_mode';
+        themeText.textContent = 'ライトモード';
+      } else {
+        themeIcon.textContent = 'dark_mode';
+        themeText.textContent = 'ダークモード';
+      }
+    }
+  }
+  
   // 保存されているテーマを適用
   function applyStoredTheme() {
     const theme = localStorage.getItem('app-theme') || 'light';
+    // 初期状態ではテーマのクラス名は含まれていないため、初期状態を設定する
+    if (!document.body.classList.contains('theme-light') && !document.body.classList.contains('theme-dark')) {
+      document.body.classList.add('theme-light');
+    }
     applyTheme(theme);
+  }
+  
+  // テーマの切り替え
+  function toggleTheme() {
+    const currentTheme = localStorage.getItem('app-theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    applyTheme(newTheme);
   }
   
   // ページ読み込み完了時の処理
@@ -71,8 +104,30 @@ const vscode = acquireVsCodeApi();
       case 'showDirectoryStructure':
         showDirectoryStructure(message.structure);
         break;
+      case 'updateProjectPath':
+        updateProjectPath(message);
+        break;
     }
   });
+  
+  /**
+   * プロジェクトパスの更新
+   */
+  function updateProjectPath(data) {
+    const projectTitle = document.getElementById('project-title');
+    const projectPath = document.getElementById('project-path');
+    
+    if (projectTitle && data.projectPath) {
+      // パスから最後のディレクトリ名を取得
+      const pathParts = data.projectPath.split(/[/\\]/);
+      const projectName = pathParts[pathParts.length - 1];
+      projectTitle.textContent = projectName || 'プロジェクト';
+    }
+    
+    if (projectPath) {
+      projectPath.textContent = data.projectPath || '/path/to/project';
+    }
+  }
   
   /**
    * 状態更新ハンドラー
@@ -86,9 +141,101 @@ const vscode = acquireVsCodeApi();
       directoryStructure: data.directoryStructure || previousState.directoryStructure
     });
     
+    // プロジェクト情報を更新
+    updateProjectInfo(data);
+    
     // UIの更新
     updateScopeList(data.scopes || []);
     updateSelectedScope(data.selectedScope, data.selectedScopeIndex);
+    
+    // ディレクトリ構造の更新
+    updateDirectoryStructure(data.directoryStructure);
+  }
+  
+  /**
+   * プロジェクト情報の更新
+   */
+  function updateProjectInfo(data) {
+    const projectTitle = document.getElementById('project-title');
+    const projectPath = document.getElementById('project-path');
+    const progressText = document.getElementById('project-progress-text');
+    const progressBar = document.getElementById('project-progress-bar');
+    const totalFiles = document.getElementById('total-files');
+    const completedFiles = document.getElementById('completed-files');
+    const totalScopes = document.getElementById('total-scopes');
+    
+    if (projectTitle && data.projectPath) {
+      // パスから最後のディレクトリ名を取得
+      const pathParts = data.projectPath.split(/[/\\]/);
+      const projectName = pathParts[pathParts.length - 1];
+      projectTitle.textContent = projectName || 'プロジェクト';
+    }
+    
+    if (projectPath && data.projectPath) {
+      projectPath.textContent = data.projectPath;
+    }
+    
+    // 全体進捗状況の更新
+    if (progressText && data.totalProgress !== undefined) {
+      progressText.textContent = `${data.totalProgress}%`;
+    }
+    
+    if (progressBar && data.totalProgress !== undefined) {
+      progressBar.style.width = `${data.totalProgress}%`;
+      
+      // 進捗に応じて色を変更
+      if (data.totalProgress >= 80) {
+        progressBar.className = 'progress-fill status-completed';
+      } else if (data.totalProgress >= 30) {
+        progressBar.className = 'progress-fill status-in-progress';
+      } else {
+        progressBar.className = 'progress-fill status-pending';
+      }
+    }
+    
+    // プロジェクト統計情報の更新
+    if (data.projectStats) {
+      if (totalFiles) {
+        totalFiles.textContent = data.projectStats.totalFiles || 0;
+      }
+      
+      if (completedFiles) {
+        completedFiles.textContent = data.projectStats.completedFiles || 0;
+      }
+      
+      // スコープ進捗率の計算と表示
+      const scopeCompletionRate = document.getElementById('scope-completion-rate');
+      if (scopeCompletionRate && data.scopes && data.scopes.length > 0) {
+        // 各スコープの進捗を平均して全体の進捗率を計算
+        const totalProgress = data.scopes.reduce((sum, scope) => sum + (scope.progress || 0), 0);
+        const avgProgress = Math.round(totalProgress / data.scopes.length);
+        scopeCompletionRate.textContent = `${avgProgress}%`;
+        
+        // 進捗率に応じて色を変更
+        if (avgProgress >= 80) {
+          scopeCompletionRate.style.color = 'var(--vscode-charts-green)';
+        } else if (avgProgress >= 30) {
+          scopeCompletionRate.style.color = 'var(--vscode-charts-blue)';
+        } else {
+          scopeCompletionRate.style.color = 'var(--vscode-charts-yellow)';
+        }
+      } else if (scopeCompletionRate) {
+        scopeCompletionRate.textContent = '0%';
+      }
+    }
+  }
+  
+  /**
+   * ディレクトリ構造プレビューの更新
+   */
+  function updateDirectoryStructure(dirStructure) {
+    const previewElement = document.querySelector('.directory .card-content pre');
+    if (previewElement && dirStructure) {
+      // 最初の数行だけを表示（プレビュー用）
+      const lines = dirStructure.split('\n');
+      const preview = lines.slice(0, 6).join('\n');
+      previewElement.textContent = preview + (lines.length > 6 ? '\n...' : '');
+    }
   }
   
   /**
@@ -107,15 +254,16 @@ const vscode = acquireVsCodeApi();
     
     if (scopes.length === 0) {
       scopeList.innerHTML = `
-        <div class="scope-tree-item">
-          <div style="flex-grow: 1;">
-            <div>スコープがありません</div>
-          </div>
+        <div class="scope-item">
+          <h3>スコープがありません</h3>
+          <p style="color: var(--vscode-descriptionForeground); font-size: 0.9rem; margin-top: 5px;">
+            新規作成または「AI作成」ボタンをクリックしてスコープを作成してください
+          </p>
         </div>
       `;
       
-      // スコープが空の場合はディレクトリボタンを隠す
-      if (directoryButton) directoryButton.style.display = 'none';
+      // スコープが空の場合でもディレクトリボタンは表示する
+      if (directoryButton) directoryButton.style.display = 'block';
       if (createScopeButton) createScopeButton.style.display = 'block';
       return;
     }
@@ -135,16 +283,25 @@ const vscode = acquireVsCodeApi();
       
       // スコープアイテムのHTML
       const scopeItem = document.createElement('div');
-      scopeItem.className = `scope-tree-item ${isActive ? 'active' : ''}`;
+      scopeItem.className = `scope-item ${isActive ? 'active' : ''}`;
       scopeItem.setAttribute('data-index', index.toString());
+      
+      // スコープ名から「実装スコープ」という接頭辞を削除
+      const displayName = scope.name.replace(/^実装スコープ\s*/, '');
+      
       scopeItem.innerHTML = `
-        <div style="flex-grow: 1;">
-          <div>${scope.name.replace(/^実装スコープ\s*/, '')}</div>
-          <div class="scope-progress">
-            <div class="scope-progress-bar ${statusClass}" style="width: ${progress}%;"></div>
-          </div>
+        <h3>${displayName}</h3>
+        <div class="scope-progress">
+          <div class="scope-progress-bar ${statusClass}" style="width: ${progress}%;"></div>
         </div>
-        <div class="status-chip ${statusClass}">${getStatusText(scope.status)}</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+          <span style="font-size: 0.9rem; color: var(--vscode-descriptionForeground);">
+            ${scope.files ? scope.files.length + 'ファイル' : 'ファイルなし'}
+          </span>
+          <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border-radius: 10px;">
+            ${progress}% ${getStatusText(scope.status)}
+          </span>
+        </div>
       `;
       
       // クリックイベントのハンドラー
@@ -167,107 +324,112 @@ const vscode = acquireVsCodeApi();
     const scopeTitle = document.getElementById('scope-title');
     const scopeDescription = document.getElementById('scope-description');
     const scopeProgress = document.getElementById('scope-progress');
+    const scopeProgressBar = document.getElementById('scope-progress-bar');
     const scopeDetailContent = document.getElementById('scope-detail-content');
     const scopeEmptyMessage = document.getElementById('scope-empty-message');
-    const scopeActions = document.getElementById('scope-actions');
-    const fileList = document.getElementById('implementation-files');
-    const inheritanceInfo = document.getElementById('inheritance-info');
     const implementButton = document.getElementById('implement-button');
-    const scopeWarnMessage = document.getElementById('scope-warn-message');
+    const filesList = document.getElementById('implementation-files');
+    const inheritanceInfo = document.getElementById('inheritance-info');
     
     if (!scope) {
       // スコープが選択されていない場合
       if (scopeTitle) scopeTitle.textContent = 'スコープを選択してください';
       if (scopeDetailContent) scopeDetailContent.style.display = 'none';
       if (scopeEmptyMessage) scopeEmptyMessage.style.display = 'block';
-      if (scopeActions) scopeActions.style.display = 'none';
+      if (implementButton) implementButton.style.display = 'none';
       return;
     }
     
     // スコープの詳細情報を表示
     if (scopeTitle) scopeTitle.textContent = scope.name || '';
     if (scopeDescription) scopeDescription.textContent = scope.description || '';
+    
+    // 進捗状況の更新
     if (scopeProgress) scopeProgress.textContent = `${scope.progress || 0}%`;
+    if (scopeProgressBar) {
+      const statusClass = `status-${scope.status || 'pending'}`;
+      scopeProgressBar.className = `progress-fill ${statusClass}`;
+      scopeProgressBar.style.width = `${scope.progress || 0}%`;
+    }
     
     // 表示/非表示の切り替え
     if (scopeDetailContent) scopeDetailContent.style.display = 'block';
     if (scopeEmptyMessage) scopeEmptyMessage.style.display = 'none';
-    if (scopeActions) scopeActions.style.display = 'block';
+    if (implementButton) implementButton.style.display = 'block';
     
     // 実装予定ファイルリストの更新
-    if (fileList) {
-      fileList.innerHTML = '';
+    if (filesList) {
+      filesList.innerHTML = '';
       
       if (!scope.files || scope.files.length === 0) {
-        fileList.innerHTML = '<div class="file-item">実装予定ファイルが定義されていません</div>';
+        filesList.innerHTML = '<div class="file-item">実装予定ファイルが定義されていません</div>';
       } else {
-        scope.files.forEach((file) => {
+        scope.files.forEach(file => {
           const fileItem = document.createElement('div');
           fileItem.className = 'file-item';
           
-          // 完了状態を表示（読み取り専用）
+          // 完了状態を表示
           fileItem.innerHTML = `
-            <input type="checkbox" class="file-checkbox" ${file.completed ? 'checked' : ''} disabled />
+            <input type="checkbox" class="file-checkbox" ${file.completed ? 'checked' : ''} />
             <span>${file.path}</span>
           `;
           
-          fileList.appendChild(fileItem);
+          // チェックボックスのクリックイベント
+          const checkbox = fileItem.querySelector('.file-checkbox');
+          if (checkbox) {
+            checkbox.addEventListener('change', (e) => {
+              vscode.postMessage({
+                command: 'toggleFileStatus',
+                filePath: file.path,
+                completed: e.target.checked
+              });
+            });
+          }
+          
+          filesList.appendChild(fileItem);
         });
       }
     }
     
     // 引継ぎ情報の更新
-    if (inheritanceInfo && scope.inheritanceInfo) {
-      inheritanceInfo.innerHTML = scope.inheritanceInfo || '引継ぎ情報はありません';
-    } else if (inheritanceInfo) {
-      inheritanceInfo.innerHTML = '引継ぎ情報はありません';
+    if (inheritanceInfo) {
+      if (scope.inheritanceInfo) {
+        inheritanceInfo.innerHTML = scope.inheritanceInfo;
+        inheritanceInfo.style.display = 'block';
+      } else {
+        inheritanceInfo.style.display = 'none';
+      }
     }
     
     // 実装ボタンの状態更新
     if (implementButton) {
-      // 完了済みのスコープは実装ボタンを無効化
+      // 完了済みのスコープは実装ボタンを無効化しないが表示を変更
       const isCompleted = scope.status === 'completed';
-      implementButton.disabled = isCompleted;
       
       if (isCompleted) {
-        implementButton.textContent = '✅ 実装完了';
+        implementButton.innerHTML = '<span class="material-icons">check_circle</span> 実装完了';
+        implementButton.style.backgroundColor = 'var(--vscode-charts-green)';
       } else if (scope.status === 'in-progress') {
-        implementButton.textContent = '📝 実装を再開';
+        implementButton.innerHTML = '<span class="material-icons">code</span> 実装を再開';
+        implementButton.style.backgroundColor = 'var(--vscode-button-background)';
       } else {
-        implementButton.textContent = '🚀 このスコープの実装を開始する';
+        implementButton.innerHTML = '<span class="material-icons">play_arrow</span> 実装を開始';
+        implementButton.style.backgroundColor = 'var(--vscode-button-background)';
       }
-      
-      // 依存関係の警告メッセージ
-      if (scopeWarnMessage) {
-        scopeWarnMessage.style.display = 'none'; // 簡略化のため非表示に
-      }
+    }
+    
+    // 実装ツールカードの実装アシスタントボタンも連動
+    const launchAssistantButton = document.getElementById('launch-implementation-assistant');
+    if (launchAssistantButton) {
+      launchAssistantButton.innerHTML = `<span class="material-icons">play_arrow</span> ${scope.name}を実装`;
     }
   }
   
   /**
-   * 環境変数アシスタントを開くボタンを追加
+   * 環境変数アシスタントを開くボタンのイベントハンドラー
    */
-  function addEnvironmentVariablesButton() {
-    const actionsArea = document.getElementById('scope-actions');
-    if (!actionsArea) return;
-    
-    // 既存のボタンがあれば削除
-    const existingButton = document.getElementById('env-vars-button');
-    if (existingButton) {
-      existingButton.remove();
-    }
-    
-    // 環境変数設定ボタンを追加
-    const configButton = document.createElement('button');
-    configButton.id = 'env-vars-button';
-    configButton.className = 'button button-secondary';
-    configButton.style.marginLeft = '8px';
-    configButton.innerHTML = '<i class="material-icons" style="margin-right: 4px;">settings</i>環境変数アシスタント';
-    configButton.addEventListener('click', () => {
-      vscode.postMessage({ command: 'openEnvironmentVariablesAssistant' });
-    });
-    
-    actionsArea.appendChild(configButton);
+  function handleOpenEnvironmentVariables() {
+    vscode.postMessage({ command: 'openEnvironmentVariablesAssistant' });
   }
   
   /**
@@ -342,101 +504,7 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // スコープ編集ボタン
-    const editScopeButton = document.getElementById('edit-scope-button');
-    if (editScopeButton) {
-      editScopeButton.addEventListener('click', () => {
-        const selectedScope = previousState.selectedScope;
-        if (!selectedScope) return;
-        
-        // 編集ダイアログのフィールドを初期化
-        const nameInput = document.getElementById('edit-name');
-        const descriptionInput = document.getElementById('edit-description');
-        const prioritySelect = document.getElementById('edit-priority');
-        const estimatedTimeInput = document.getElementById('edit-estimated-time');
-        const filesInput = document.getElementById('edit-files');
-        
-        if (nameInput) nameInput.value = selectedScope.name || '';
-        if (descriptionInput) descriptionInput.value = selectedScope.description || '';
-        if (prioritySelect) {
-          [...prioritySelect.options].forEach(option => {
-            option.selected = option.value === selectedScope.priority;
-          });
-        }
-        if (estimatedTimeInput) estimatedTimeInput.value = selectedScope.estimatedTime || '';
-        if (filesInput && selectedScope.files) {
-          filesInput.value = selectedScope.files.map(file => file.path).join('\n');
-        }
-        
-        // ダイアログを表示
-        const editDialog = document.getElementById('edit-dialog');
-        if (editDialog) {
-          editDialog.style.display = 'flex';
-        }
-      });
-    }
-    
-    // 編集ダイアログの保存ボタン
-    const editSaveButton = document.getElementById('edit-save');
-    if (editSaveButton) {
-      editSaveButton.addEventListener('click', () => {
-        const nameInput = document.getElementById('edit-name');
-        const descriptionInput = document.getElementById('edit-description');
-        const prioritySelect = document.getElementById('edit-priority');
-        const estimatedTimeInput = document.getElementById('edit-estimated-time');
-        const filesInput = document.getElementById('edit-files');
-        
-        // 入力値の取得
-        const name = nameInput ? nameInput.value : '';
-        const description = descriptionInput ? descriptionInput.value : '';
-        const priority = prioritySelect ? prioritySelect.value : '';
-        const estimatedTime = estimatedTimeInput ? estimatedTimeInput.value : '';
-        const files = filesInput ? 
-          filesInput.value.split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0) : 
-          [];
-        
-        // 更新データの送信
-        vscode.postMessage({
-          command: 'editScope',
-          scopeData: {
-            name,
-            description,
-            priority,
-            estimatedTime,
-            files
-          }
-        });
-        
-        // ダイアログを閉じる
-        const editDialog = document.getElementById('edit-dialog');
-        if (editDialog) {
-          editDialog.style.display = 'none';
-        }
-      });
-    }
-    
-    // 編集ダイアログのキャンセルボタン
-    const editCancelButton = document.getElementById('edit-cancel');
-    if (editCancelButton) {
-      editCancelButton.addEventListener('click', () => {
-        const editDialog = document.getElementById('edit-dialog');
-        if (editDialog) {
-          editDialog.style.display = 'none';
-        }
-      });
-    }
-    
-    // スコープ作成ボタン
-    const scopeCreatorButton = document.getElementById('scope-creator-button');
-    if (scopeCreatorButton) {
-      scopeCreatorButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'launchScopeCreator' });
-      });
-    }
-    
-    // サイドバーの「スコープを作成する」ボタン
+    // スコープ作成ボタン (AI)
     const createScopeButton = document.getElementById('create-scope-button');
     if (createScopeButton) {
       createScopeButton.addEventListener('click', () => {
@@ -452,15 +520,34 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // 依存関係グラフボタン
-    const dependencyGraphButton = document.getElementById('dependency-graph-button');
-    if (dependencyGraphButton) {
-      dependencyGraphButton.addEventListener('click', () => {
-        const dependencyGraph = document.getElementById('dependency-graph');
-        if (dependencyGraph) {
-          const isVisible = dependencyGraph.style.display !== 'none';
-          dependencyGraph.style.display = isVisible ? 'none' : 'block';
-        }
+    // 環境変数アシスタントボタン
+    const envVarsButton = document.getElementById('env-vars-button');
+    if (envVarsButton) {
+      envVarsButton.addEventListener('click', handleOpenEnvironmentVariables);
+    }
+    
+    // 実装アシスタント起動ボタン
+    const launchAssistantButton = document.getElementById('launch-implementation-assistant');
+    if (launchAssistantButton) {
+      launchAssistantButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'launchImplementationAssistant' });
+      });
+    }
+    
+    // 要件定義ビジュアライザーボタン
+    const requirementsButton = document.getElementById('requirements-button');
+    if (requirementsButton) {
+      requirementsButton.addEventListener('click', () => {
+        // 要件定義ビジュアライザーコマンドを実行
+        vscode.postMessage({ command: 'openRequirementsVisualizer' });
+      });
+    }
+    
+    // テーマ切り替えボタン
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) {
+      themeToggle.addEventListener('click', () => {
+        toggleTheme();
       });
     }
   }

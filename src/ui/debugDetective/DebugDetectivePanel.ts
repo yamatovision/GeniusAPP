@@ -382,7 +382,6 @@ export class DebugDetectivePanel extends ProtectedPanel {
       );
       
       // プロンプトURL
-      const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
       const debugDetectivePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09';
       
       // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
@@ -410,12 +409,11 @@ export class DebugDetectivePanel extends ProtectedPanel {
           module => module.ClaudeCodeIntegrationService.getInstance()
         );
         
-        // 長文プロンプトの問題を回避するため、一時ファイル方式を使用
-        Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
+        // 単一プロンプトで起動
+        Logger.info(`デバッグ探偵プロンプトを直接使用してClaudeCodeを起動: ${debugDetectivePromptUrl}`);
         
-        // セキュリティ境界方式でClaudeCodeを起動
-        await integrationService.launchWithSecurityBoundary(
-          guidancePromptUrl,
+        // 単一プロンプトでClaudeCodeを起動（セキュリティプロンプトは使用しない）
+        await integrationService.launchWithPublicUrl(
           debugDetectivePromptUrl, 
           this._projectPath,
           analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す

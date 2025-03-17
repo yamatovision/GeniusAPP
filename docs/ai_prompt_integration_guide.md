@@ -284,6 +284,15 @@ vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-b
 
 
 
+
+
+プロジェクト分析アシスタント
+http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6
+
+vscode://mikoto.app-genius/launch-claude-code?url=http%3A%2F%2Fgeniemon-portal-backend-production.up.railway.app%2Fapi%2Fprompts%2Fpublic%2F8c09f971e4a3d020497eec099a53e0a6
+
+
+
  1. 先ほど初期メッセージを統一しました：「y\n日本語で対応してください。指定されたファイルを読み込むところか
   ら始めてください。」
   2. 次に、記載されている各AIアシスタント（スコープマネージャー、スコープインプリメンター、要件定義アドバイ

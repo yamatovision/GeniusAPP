@@ -1937,15 +1937,13 @@ project/
       // ClaudeCodeIntegrationServiceのインスタンスを取得
       const integrationService = ClaudeCodeIntegrationService.getInstance();
       
-      // セキュリティガイドラインとフィーチャープロンプトURL
-      const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+      // 要件定義アドバイザーのプロンプトURL（セキュリティプロンプトなしで直接使用）
       const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
       
-      Logger.info(`複合プロンプトでClaudeCodeを起動: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
+      Logger.info(`要件定義アドバイザープロンプトを直接使用してClaudeCodeを起動: ${featurePromptUrl}`);
       
-      // セキュリティ境界方式でClaudeCodeを起動（標準実装に準拠）
-      const success = await integrationService.launchWithSecurityBoundary(
-        guidancePromptUrl,
+      // 単一プロンプトでClaudeCodeを起動（セキュリティプロンプトは使用しない）
+      const success = await integrationService.launchWithPublicUrl(
         featurePromptUrl,
         this._projectPath,
         analysisContent // 重要：要件分析内容を追加コンテンツとして渡す
