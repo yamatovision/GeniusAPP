@@ -1927,99 +1927,40 @@ project/
       // 要件定義ファイルの内容を読み込み
       const fileContent = fs.readFileSync(fullPath, 'utf8');
       
-      // 中央ポータルURL（要件定義アドバイザー）
-      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
+      // 追加情報として要件定義ファイルの内容を設定
+      let analysisContent = '# 追加情報\n\n';
+      analysisContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
+      analysisContent += '```markdown\n';
+      analysisContent += fileContent;
+      analysisContent += '\n```\n\n';
       
-      // 一時ファイルに保存（デバッグ用・参照用）
-      const tempDir = os.tmpdir();
+      // ClaudeCodeIntegrationServiceのインスタンスを取得
+      const integrationService = ClaudeCodeIntegrationService.getInstance();
       
-      try {
-        // 追加情報として要件定義ファイルの内容を設定
-        let analysisContent = '# 追加情報\n\n';
-        analysisContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
-        analysisContent += '```markdown\n';
-        analysisContent += fileContent;
-        analysisContent += '\n```\n\n';
-        
-        // 一時ファイルに保存（デバッグ用・参照用）
-        const analysisFilePath = path.join(tempDir, `requirements_analysis_${Date.now()}.md`);
-        fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
-        Logger.info(`要件分析ファイルを作成しました: ${analysisFilePath}`);
-        
-        // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
-        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
-        
-        // ClaudeCodeIntegrationServiceのインスタンスを取得
-        const integrationService = ClaudeCodeIntegrationService.getInstance();
-        
-        // 公開URLからClaudeCodeを起動（要件分析内容を追加コンテンツとして渡す）
-        const success = await integrationService.launchWithPublicUrl(
-          portalUrl, 
-          this._projectPath,
-          analysisContent // 重要：要件分析内容を追加コンテンツとして渡す
-        );
-        
-        if (success) {
-          // 成功メッセージを表示
-          this._panel.webview.postMessage({
-            command: 'showMessage',
-            text: `AIと相談・編集を開始しました: ${filePath}`
-          });
-          Logger.info(`要件定義アドバイザーを起動しました`);
-        }
-        
-        return success;
-      } catch (error) {
-        // 中央ポータル連携に失敗した場合の処理
-        Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
-        
-        // ローカルのプロンプトファイルをチェック
-        const localPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'requirements_advisor.md');
-        
-        // プロンプトファイルの存在確認
-        if (!fs.existsSync(localPromptPath)) {
-          Logger.error(`要件定義アドバイザーファイルが見つかりません: ${localPromptPath}`);
-          throw new Error(`要件定義アドバイザーファイル（requirements_advisor.md）が見つかりません。docs/prompts/requirements_advisor.mdを確認してください。`);
-        }
-        
-        Logger.info(`要件定義アドバイザーファイルを読み込みます: ${localPromptPath}`);
-        let combinedContent = fs.readFileSync(localPromptPath, 'utf8');
-        combinedContent += '\n\n# 追加情報\n\n';
-        combinedContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
-        combinedContent += '```markdown\n';
-        combinedContent += fileContent;
-        combinedContent += '\n```\n\n';
-        
-        const combinedPromptPath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
-        Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
-        fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
-        
-        // ClaudeCodeIntegrationServiceを使用して起動
-        const integrationService = ClaudeCodeIntegrationService.getInstance();
-        
-        // セキュリティガイドライン付きで起動
-        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します（フォールバック）`);
-        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
-        
-        // プロンプトファイルの内容を追加コンテンツとして渡す
-        const success = await integrationService.launchWithSecurityBoundary(
-          guidancePromptUrl,
-          featurePromptUrl,
-          this._projectPath,
-          combinedContent
-        );
-        
-        if (success) {
-          // 成功メッセージを表示
-          this._panel.webview.postMessage({
-            command: 'showMessage',
-            text: `AIと相談・編集を開始しました: ${filePath} (ローカルフォールバック)`
-          });
-        }
-        
-        return success;
+      // セキュリティガイドラインとフィーチャープロンプトURL
+      const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+      const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
+      
+      Logger.info(`複合プロンプトでClaudeCodeを起動: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
+      
+      // セキュリティ境界方式でClaudeCodeを起動（標準実装に準拠）
+      const success = await integrationService.launchWithSecurityBoundary(
+        guidancePromptUrl,
+        featurePromptUrl,
+        this._projectPath,
+        analysisContent // 重要：要件分析内容を追加コンテンツとして渡す
+      );
+      
+      if (success) {
+        // 成功メッセージを表示
+        this._panel.webview.postMessage({
+          command: 'showMessage',
+          text: `AIと相談・編集を開始しました: ${filePath}`
+        });
+        Logger.info(`要件定義アドバイザーを起動しました`);
       }
+      
+      return success;
     } catch (error) {
       Logger.error(`AI起動エラー: ${filePath}`, error as Error);
       
