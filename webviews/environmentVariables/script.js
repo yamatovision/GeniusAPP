@@ -255,7 +255,7 @@
     
     // 環境変数ファイルがない場合の表示
     if (!state.envFiles || state.envFiles.length === 0) {
-      elements.envFilesContainer.innerHTML = '<div class="no-files">環境変数ファイルがありません</div>';
+      elements.envFilesContainer.innerHTML = '<div class="no-files" role="status">環境変数ファイルがありません</div>';
       return;
     }
     
@@ -266,18 +266,26 @@
       const fileItem = document.createElement('div');
       fileItem.className = `env-file-item ${filePath === state.activeEnvFile ? 'active' : ''}`;
       fileItem.dataset.filePath = filePath;
+      fileItem.setAttribute('role', 'listitem');
+      fileItem.setAttribute('tabindex', '0');
+      fileItem.setAttribute('aria-label', `環境変数ファイル: ${fileName} ${filePath === state.activeEnvFile ? '（選択中）' : ''}`);
       
       fileItem.innerHTML = `
-        <span class="env-file-icon">📄</span>
+        <span class="env-file-icon" aria-hidden="true">📄</span>
         <span class="env-file-name">${fileName}</span>
       `;
       
-      // ファイル選択イベントリスナー
+      // ファイル選択イベントリスナー - クリック
       fileItem.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'selectEnvFile',
-          filePath
-        });
+        selectEnvFile(filePath);
+      });
+      
+      // キーボードイベントリスナー - Enter/Space
+      fileItem.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          selectEnvFile(filePath);
+        }
       });
       
       elements.envFilesContainer.appendChild(fileItem);
@@ -290,6 +298,34 @@
     }
   }
   
+  // 環境変数ファイルを選択
+  function selectEnvFile(filePath) {
+    // アクティブなファイルをハイライト
+    const fileItems = document.querySelectorAll('.env-file-item');
+    fileItems.forEach(item => {
+      if (item.dataset.filePath === filePath) {
+        item.classList.add('active');
+        item.setAttribute('aria-selected', 'true');
+      } else {
+        item.classList.remove('active');
+        item.setAttribute('aria-selected', 'false');
+      }
+    });
+    
+    // 通知領域に更新を通知
+    const notificationArea = document.getElementById('notification-area');
+    if (notificationArea) {
+      const fileName = filePath.split('/').pop();
+      notificationArea.textContent = `環境変数ファイル ${fileName} を選択しました`;
+    }
+    
+    // サーバーに選択を通知
+    vscode.postMessage({
+      command: 'selectEnvFile',
+      filePath
+    });
+  }
+  
   // 環境変数リストを更新
   function updateEnvVariablesList() {
     if (!elements.envVariablesContainer) return;
@@ -299,7 +335,7 @@
     
     // アクティブなファイルがない場合の表示
     if (!state.activeEnvFile) {
-      elements.envVariablesContainer.innerHTML = '<div class="no-file-selected">環境変数ファイルを選択してください</div>';
+      elements.envVariablesContainer.innerHTML = '<div class="no-file-selected" role="status">環境変数ファイルを選択してください</div>';
       return;
     }
     
@@ -307,7 +343,7 @@
     const variables = state.envVariables[state.activeEnvFile] || {};
     
     if (Object.keys(variables).length === 0) {
-      elements.envVariablesContainer.innerHTML = '<div class="no-variables">環境変数がありません</div>';
+      elements.envVariablesContainer.innerHTML = '<div class="no-variables" role="status">環境変数がありません</div>';
       return;
     }
     
@@ -340,19 +376,37 @@
     // 変数をソートして表示
     const sortedKeys = Object.keys(filteredVariables).sort();
     
+    // フィルター結果の件数を読み上げる
+    const notificationArea = document.getElementById('notification-area');
+    if (notificationArea && state.activeGroup) {
+      notificationArea.textContent = `${state.activeGroup}グループの環境変数が${sortedKeys.length}件見つかりました`;
+    }
+    
     sortedKeys.forEach(key => {
       const value = filteredVariables[key];
       const isConfigured = value && value !== 'YOUR_VALUE_HERE' && value !== '【要設定】';
       
       const variableItem = document.createElement('div');
       variableItem.className = `env-variable-item ${isConfigured ? 'configured' : 'unconfigured'}`;
+      variableItem.setAttribute('role', 'listitem');
+      
+      const variableId = `var-${key.replace(/[^a-zA-Z0-9]/g, '-')}`;
       
       variableItem.innerHTML = `
-        <div class="env-variable-name">${key}</div>
-        <input type="text" class="env-variable-value" value="${value}" placeholder="値を入力">
+        <div class="env-variable-name" id="${variableId}-label">${key}</div>
+        <input type="text" class="env-variable-value" 
+          id="${variableId}-input" 
+          value="${value}" 
+          placeholder="値を入力" 
+          aria-labelledby="${variableId}-label"
+          ${isConfigured ? 'aria-describedby="configured-message"' : 'aria-describedby="unconfigured-message"'}>
         <div class="env-variable-actions">
-          <button class="button-icon save-variable" title="保存">✓</button>
-          <button class="button-icon suggest-value" title="推奨値">💡</button>
+          <button class="app-button-icon save-variable" 
+            aria-label="${key}の値を保存" 
+            title="保存">✓</button>
+          <button class="app-button-icon suggest-value" 
+            aria-label="${key}の推奨値を設定" 
+            title="推奨値">💡</button>
         </div>
       `;
       
@@ -362,12 +416,7 @@
         saveButton.addEventListener('click', () => {
           const input = variableItem.querySelector('.env-variable-value');
           if (input) {
-            vscode.postMessage({
-              command: 'saveEnvironmentVariable',
-              variableName: key,
-              variableValue: input.value,
-              variableFilePath: state.activeEnvFile
-            });
+            saveEnvironmentVariable(key, input.value);
           }
         });
       }
@@ -378,13 +427,50 @@
         suggestButton.addEventListener('click', () => {
           const input = variableItem.querySelector('.env-variable-value');
           if (input) {
-            input.value = getSuggestedValue(key);
+            const suggestedValue = getSuggestedValue(key);
+            input.value = suggestedValue;
+            
+            // スクリーンリーダー用に通知
+            if (notificationArea) {
+              notificationArea.textContent = `${key}に推奨値「${suggestedValue}」を設定しました`;
+            }
           }
         });
       }
       
       elements.envVariablesContainer.appendChild(variableItem);
     });
+    
+    // スクリーンリーダー用の補足説明を追加
+    if (!document.getElementById('configured-message')) {
+      const configuredMsg = document.createElement('div');
+      configuredMsg.id = 'configured-message';
+      configuredMsg.className = 'sr-only';
+      configuredMsg.textContent = '設定済みの環境変数です';
+      document.body.appendChild(configuredMsg);
+      
+      const unconfiguredMsg = document.createElement('div');
+      unconfiguredMsg.id = 'unconfigured-message';
+      unconfiguredMsg.className = 'sr-only';
+      unconfiguredMsg.textContent = 'まだ設定されていない環境変数です';
+      document.body.appendChild(unconfiguredMsg);
+    }
+  }
+  
+  // 環境変数を保存
+  function saveEnvironmentVariable(key, value) {
+    vscode.postMessage({
+      command: 'saveEnvironmentVariable',
+      variableName: key,
+      variableValue: value,
+      variableFilePath: state.activeEnvFile
+    });
+    
+    // スクリーンリーダー用に通知
+    const notificationArea = document.getElementById('notification-area');
+    if (notificationArea) {
+      notificationArea.textContent = `${key}の値を保存しました`;
+    }
   }
   
   // 環境変数グループリストを更新
@@ -400,8 +486,10 @@
       // アクティブ状態を更新
       if (groupId === state.activeGroup) {
         groupElement.classList.add('active');
+        groupElement.setAttribute('aria-selected', 'true');
       } else {
         groupElement.classList.remove('active');
+        groupElement.setAttribute('aria-selected', 'false');
       }
       
       // グループの状態を更新
@@ -437,25 +525,108 @@
         if (groupStatus) {
           groupStatus.textContent = `${configuredCount}/${groupCount} 設定済み`;
         }
+        
+        // アクセシビリティ属性の更新
+        const groupLabel = groupElement.querySelector('h3').textContent;
+        groupElement.setAttribute('aria-label', 
+          `${groupLabel} グループ - ${configuredCount}/${groupCount} 設定済み${groupId === state.activeGroup ? '（選択中）' : ''}`
+        );
       }
       
+      // イベントリスナーをクリア
+      const newGroupElement = groupElement.cloneNode(true);
+      groupElement.parentNode.replaceChild(newGroupElement, groupElement);
+      
       // グループクリックイベントリスナー
-      groupElement.addEventListener('click', () => {
-        if (state.activeGroup === groupId) {
-          // 同じグループをクリックした場合はフィルターを解除
-          state.activeGroup = null;
-        } else {
-          state.activeGroup = groupId;
+      newGroupElement.addEventListener('click', () => {
+        toggleGroupFilter(groupId);
+      });
+      
+      // キーボードナビゲーション対応
+      newGroupElement.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          toggleGroupFilter(groupId);
         }
-        
-        // 状態を保存
-        vscode.setState(state);
-        
-        // 環境変数リストを更新
-        updateEnvVariablesList();
-        updateEnvGroupsList();
       });
     });
+    
+    // キーボードナビゲーションのための矢印キー対応
+    elements.envGroupsContainer.addEventListener('keydown', handleGroupKeyNavigation);
+  }
+  
+  // グループフィルターの切り替え
+  function toggleGroupFilter(groupId) {
+    if (state.activeGroup === groupId) {
+      // 同じグループを選択した場合はフィルターを解除
+      state.activeGroup = null;
+      
+      // 通知
+      const notificationArea = document.getElementById('notification-area');
+      if (notificationArea) {
+        notificationArea.textContent = `フィルターを解除しました`;
+      }
+    } else {
+      state.activeGroup = groupId;
+      
+      // グループ名を取得
+      const groupElements = elements.envGroupsContainer.querySelectorAll('.env-group');
+      let groupName = groupId;
+      groupElements.forEach(el => {
+        if (el.dataset.groupId === groupId) {
+          groupName = el.querySelector('h3').textContent;
+        }
+      });
+      
+      // 通知
+      const notificationArea = document.getElementById('notification-area');
+      if (notificationArea) {
+        notificationArea.textContent = `${groupName}グループでフィルターしました`;
+      }
+    }
+    
+    // 状態を保存
+    vscode.setState(state);
+    
+    // 環境変数リストを更新
+    updateEnvVariablesList();
+    updateEnvGroupsList();
+  }
+  
+  // グループリストのキーボードナビゲーション
+  function handleGroupKeyNavigation(e) {
+    const groups = Array.from(elements.envGroupsContainer.querySelectorAll('.env-group'));
+    if (!groups.length) return;
+    
+    const currentFocusIndex = groups.findIndex(g => g === document.activeElement);
+    if (currentFocusIndex === -1) return;
+    
+    let nextIndex = currentFocusIndex;
+    
+    switch (e.key) {
+      case 'ArrowDown':
+      case 'ArrowRight':
+        e.preventDefault();
+        nextIndex = (currentFocusIndex + 1) % groups.length;
+        break;
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        e.preventDefault();
+        nextIndex = (currentFocusIndex - 1 + groups.length) % groups.length;
+        break;
+      case 'Home':
+        e.preventDefault();
+        nextIndex = 0;
+        break;
+      case 'End':
+        e.preventDefault();
+        nextIndex = groups.length - 1;
+        break;
+      default:
+        return;
+    }
+    
+    groups[nextIndex].focus();
   }
   
   // 接続設定を取得
@@ -536,7 +707,54 @@
     // 新しいトーストを作成
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.textContent = message;
+    toast.setAttribute('role', 'alert');
+    toast.setAttribute('aria-live', 'assertive');
+    
+    // アイコンを追加
+    const iconSpan = document.createElement('span');
+    iconSpan.className = 'toast-icon';
+    iconSpan.setAttribute('aria-hidden', 'true');
+    
+    // タイプに応じたアイコンを設定
+    switch (type) {
+      case 'success':
+        iconSpan.textContent = '✓';
+        toast.setAttribute('aria-label', `成功: ${message}`);
+        break;
+      case 'error':
+        iconSpan.textContent = '✗';
+        toast.setAttribute('aria-label', `エラー: ${message}`);
+        break;
+      case 'warning':
+        iconSpan.textContent = '⚠';
+        toast.setAttribute('aria-label', `警告: ${message}`);
+        break;
+      default:
+        iconSpan.textContent = 'ℹ';
+        toast.setAttribute('aria-label', `情報: ${message}`);
+    }
+    
+    // メッセージテキスト用のspan
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'toast-message';
+    messageSpan.textContent = message;
+    
+    // 閉じるボタン
+    const closeButton = document.createElement('button');
+    closeButton.className = 'toast-close';
+    closeButton.setAttribute('aria-label', '通知を閉じる');
+    closeButton.textContent = '×';
+    closeButton.addEventListener('click', () => {
+      toast.classList.remove('show');
+      setTimeout(() => {
+        toast.remove();
+      }, 300);
+    });
+    
+    // 要素を追加
+    toast.appendChild(iconSpan);
+    toast.appendChild(messageSpan);
+    toast.appendChild(closeButton);
     
     // トーストを表示
     document.body.appendChild(toast);
@@ -548,11 +766,21 @@
     
     // 数秒後に自動的に消える
     setTimeout(() => {
-      toast.classList.remove('show');
-      setTimeout(() => {
-        toast.remove();
-      }, 300);
-    }, 3000);
+      if (document.body.contains(toast)) {
+        toast.classList.remove('show');
+        setTimeout(() => {
+          if (document.body.contains(toast)) {
+            toast.remove();
+          }
+        }, 300);
+      }
+    }, 5000);
+    
+    // スクリーンリーダー用の通知エリアにも追加
+    const notificationArea = document.getElementById('notification-area');
+    if (notificationArea) {
+      notificationArea.textContent = message;
+    }
   }
   
   // 初期化

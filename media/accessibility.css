@@ -1,57 +1,25 @@
 /**
- * AppGenius アクセシビリティ強化スタイル
- * 
- * このCSSファイルはアクセシビリティ対応のための
- * スタイルを定義します。WCAG AA準拠を目指しています。
- * 
- * - フォーカス状態の強化
- * - スクリーンリーダー対応
- * - キーボードナビゲーション
- * - 高コントラストモード対応
+ * AppGenius アクセシビリティ - シンプル版
+ * WCAG AA準拠のための最小限のコード
  */
 
-/* 共通スタイル変数の読み込みが必要: design-system.css */
-
-/* ===== フォーカス状態の明確化 ===== */
-
-/* すべての対話型要素の基本フォーカススタイル */
-:focus {
-  outline: 2px solid var(--app-primary);
-  outline-offset: 2px;
+/* テーマ独立 */
+body {
+  color-scheme: light !important;
 }
 
-/* フォーカス可視性の強化 - キーボードフォーカス時のみ適用 */
+/* フォーカス対応 - シンプルかつ視認性確保 */
 :focus-visible {
-  outline: 2px solid var(--app-primary);
+  outline: 2px solid #4a69bd;
   outline-offset: 2px;
-  box-shadow: 0 0 0 4px var(--app-primary-light);
+  box-shadow: 0 0 0 4px rgba(74, 105, 189, 0.2);
 }
 
-/* リンクのフォーカススタイル */
-a:focus-visible {
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-}
-
-/* インタラクティブコンポーネント用フォーカス強調 */
-.app-interactive:focus-visible {
-  box-shadow: 0 0 0 2px white, 0 0 0 5px var(--app-primary);
-}
-
-/* ダークモード対応フォーカス */
-.vscode-dark :focus-visible {
-  outline-color: white;
-  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.2);
-}
-
-/* ===== スクリーンリーダー対応 ===== */
-
-/* 視覚的に隠すが、スクリーンリーダーには読み上げ可能 */
+/* 最小限のスクリーンリーダー対応 */
 .sr-only {
   position: absolute;
   width: 1px;
   height: 1px;
-  padding: 0;
   margin: -1px;
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
@@ -59,114 +27,9 @@ a:focus-visible {
   border: 0;
 }
 
-/* スキップナビゲーション - キーボードユーザー向け */
-.skip-link {
-  position: absolute;
-  top: -40px;
-  left: 0;
-  background: var(--app-primary);
-  color: white;
-  padding: 8px;
-  z-index: 9999;
-  transition: top 0.2s;
-}
-
-.skip-link:focus {
-  top: 0;
-}
-
-/* ARIAサポート用スタイル */
-[aria-hidden="true"] {
-  display: none !important;
-}
-
-[aria-disabled="true"] {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-/* ===== アクセシビリティ強化ユーティリティ ===== */
-
-/* キーボードフォーカスでのみ表示 */
-.focus-visible-only {
-  opacity: 0;
-  visibility: hidden;
-}
-
-.focus-visible-only:focus-visible,
-:focus-visible .focus-visible-only {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* 高コントラスト状態の視覚的な区別 */
-.app-contrast-border {
-  border: 1px solid currentColor;
-}
-
-/* 高コントラストモード対応 */
+/* 高コントラストモード対応 - 最小限 */
 @media (forced-colors: active) {
-  .app-button {
-    border: 1px solid;
+  button, a {
+    border: 1px solid ButtonText;
   }
-  
-  .app-card {
-    border: 1px solid;
-  }
-  
-  .app-header {
-    border-bottom: 1px solid;
-  }
-  
-  /* 色の上書きを回避するスタイル */
-  .forced-colors-mode {
-    forced-color-adjust: none;
-  }
-}
-
-/* アイコンとテキストのペア - アクセシビリティ強化 */
-.app-icon-text {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--app-spacing-xs);
-}
-
-.app-icon-text .app-icon {
-  /* アイコンは装飾的なのでスクリーンリーダーからは無視 */
-  aria-hidden: true;
-}
-
-/* フォームラベルのアクセシビリティ強化 */
-.app-label-enhanced {
-  display: flex;
-  align-items: center;
-  gap: var(--app-spacing-xs);
-}
-
-.app-label-enhanced .app-required-indicator {
-  color: var(--app-danger);
-}
-
-/* 色に依存しない状態表示（アイコン+テキスト） */
-.app-status {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--app-spacing-xs);
-  font-weight: var(--app-font-weight-medium);
-}
-
-.app-status-success {
-  color: var(--app-success);
-}
-
-.app-status-warning {
-  color: var(--app-warning);
-}
-
-.app-status-danger {
-  color: var(--app-danger);
-}
-
-.app-status-info {
-  color: var(--app-info);
 }

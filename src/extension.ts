@@ -9,11 +9,8 @@ import { GitManager } from './core/gitManager';
 import { TerminalInterface } from './ui/TerminalInterface';
 import { CommandHandler } from './ui/CommandHandler';
 import { FileOperationManager } from './utils/fileOperationManager';
-// import { MockupDesignerPanel } from './ui/mockupDesigner/MockupDesignerPanel'; // 廃止予定
 import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
-// 開発アシスタントは削除済み
 import { SimpleChatPanel } from './ui/simpleChat';
-// ImplementationSelectorPanel は削除済み（スコープマネージャーに統合）
 import { DashboardPanel } from './ui/dashboard/DashboardPanel';
 import { ClaudeMdEditorPanel } from './ui/claudeMd/ClaudeMdEditorPanel';
 import { ProjectManagementService } from './services/ProjectManagementService';
@@ -32,6 +29,7 @@ import { registerEnvironmentCommands } from './commands/environmentCommands';
 import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
 import { AuthGuard } from './ui/auth/AuthGuard';
 import { Feature } from './core/auth/roles';
+import { AuthStorageManager } from './utils/AuthStorageManager';
 
 // グローバル変数としてExtensionContextを保持（安全対策）
 declare global {
@@ -59,16 +57,20 @@ export function activate(context: vscode.ExtensionContext) {
 	
 	// 認証関連の初期化
 	try {
+		// AuthStorageManagerの初期化
+		const authStorageManager = AuthStorageManager.getInstance(context);
+		Logger.info('AuthStorageManager initialized successfully');
+		
 		// TokenManagerの初期化
-		TokenManager.getInstance(context);
+		const tokenManager = TokenManager.getInstance(context);
 		Logger.info('TokenManager initialized successfully');
 		
 		// AuthenticationServiceの初期化
-		AuthenticationService.getInstance();
+		const authService = AuthenticationService.getInstance(context);
 		Logger.info('AuthenticationService initialized successfully');
 		
-		// PermissionManagerの初期化
-		PermissionManager.getInstance();
+		// PermissionManagerの初期化（認証サービスに依存）
+		const permissionManager = PermissionManager.getInstance(authService);
 		Logger.info('PermissionManager initialized successfully');
 		
 		// 認証コマンドの登録
@@ -570,21 +572,6 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		})
 	);
-	
-	// ClaudeCode連携UI - 現在は廃止済み、コメントアウト
-	// context.subscriptions.push(
-	// 	vscode.commands.registerCommand('appgenius.openClaudeCodePanel', () => {
-	// 		try {
-	// 			const { ClaudeCodePanel } = require('./ui/claudeCode/ClaudeCodePanel');
-	// 			ClaudeCodePanel.createOrShow(context.extensionUri);
-	// 		} catch (error) {
-	// 			vscode.window.showErrorMessage(`ClaudeCode連携表示エラー: ${(error as Error).message}`);
-	// 		}
-	// 	})
-	// );
-
-	// 環境変数パネルコマンドはcommands/environmentCommands.tsで登録されているため
-	// ここでの重複登録は削除
 
 	Logger.info('AppGenius AI の初期化が完了しました');
 }

@@ -470,7 +470,7 @@ export class DashboardPanel extends ProtectedPanel {
       // プロジェクトを作成
       const projectId = await this._projectService.createProject({
         name,
-        description,
+        description: "",
         path: projectPath
       });
 
@@ -917,7 +917,7 @@ export class DashboardPanel extends ProtectedPanel {
     // プロジェクトを作成
     const projectData = {
       name: folderName,
-      description: description,
+      description: "",
       path: folderPath
     };
     
@@ -1307,6 +1307,12 @@ JWT_SECRET=your_jwt_secret_key
     const resetCssUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
     );
+    const designSystemUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css')
+    );
+    const accessibilityUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'accessibility.css')
+    );
     const vscodeCssUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css')
     );
@@ -1320,7 +1326,29 @@ JWT_SECRET=your_jwt_secret_key
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
   <title>AppGenius ダッシュボード</title>
   <link href="${resetCssUri}" rel="stylesheet">
+  <link href="${designSystemUri}" rel="stylesheet">
+  <link href="${accessibilityUri}" rel="stylesheet">
   <link href="${styleUri}" rel="stylesheet">
+  <style>
+    /* 青背景エリアの文字は常に白に強制上書き */
+    .header h1, 
+    .header-actions button,
+    .header-actions button span,
+    .step-number, 
+    .step-action,
+    .project-buttons button,
+    .project-buttons button span,
+    .open-button {
+      color: white !important;
+    }
+    
+    /* ライトモード固定スタイル */
+    .dashboard-container {
+      color-scheme: light !important;
+      background-color: white !important;
+      color: #333 !important;
+    }
+  </style>
 </head>
 <body>
   <div class="dashboard-container">
@@ -1329,7 +1357,7 @@ JWT_SECRET=your_jwt_secret_key
       <h1>AppGenius ダッシュボード</h1>
       <div class="header-actions">
         <button id="refresh-btn" class="button">
-          <i class="icon">🔄</i> 更新
+          <i class="icon">🔄</i> <span>更新</span>
         </button>
       </div>
     </div>
@@ -1342,10 +1370,10 @@ JWT_SECRET=your_jwt_secret_key
           <h2>プロジェクト一覧</h2>
           <div class="project-buttons">
             <button id="new-project-btn" class="button">
-              <i class="icon">➕</i> 新規作成
+              <i class="icon">➕</i> <span>新規作成</span>
             </button>
             <button id="load-project-btn" class="button">
-              <i class="icon">📂</i> 読み込む
+              <i class="icon">📂</i> <span>読み込む</span>
             </button>
           </div>
           <button id="toggle-sidebar" class="toggle-sidebar" title="サイドバー切替">
@@ -1378,10 +1406,6 @@ JWT_SECRET=your_jwt_secret_key
         <div class="form-group">
           <label for="project-name">プロジェクト名 <span style="color: #e74c3c;">*</span></label>
           <input type="text" id="project-name" required placeholder="例: MyWebApp">
-        </div>
-        <div class="form-group">
-          <label for="project-description">説明</label>
-          <textarea id="project-description" rows="3" placeholder="プロジェクトの概要や目的を記述してください"></textarea>
         </div>
         <div class="form-actions">
           <button type="button" class="button secondary" id="cancel-new-project">キャンセル</button>

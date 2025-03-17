@@ -516,6 +516,90 @@ export class ClaudeCodeIntegrationService {
       return false;
     }
   }
+  
+  /**
+   * URLからプロンプト内容を取得する
+   * @param promptUrl プロンプトURL
+   * @returns プロンプト内容
+   */
+  public async fetchPromptContent(promptUrl: string): Promise<string> {
+    try {
+      const prompt = await this._apiClient.getPromptFromPublicUrl(promptUrl);
+      if (!prompt) {
+        throw new Error(`URLからプロンプトを取得できませんでした: ${promptUrl}`);
+      }
+      
+      return prompt.content;
+    } catch (error) {
+      Logger.error(`プロンプト内容の取得に失敗しました: ${promptUrl}`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
+   * 複数プロンプトを組み合わせて起動
+   * ガイダンスプロンプトと機能プロンプトを組み合わせて使用
+   * @param guidancePromptUrl ガイダンスプロンプトのURL
+   * @param featurePromptUrl 機能プロンプトのURL
+   * @param projectPath プロジェクトパス
+   * @param additionalContent 追加コンテンツ（オプション）
+   * @returns 起動成功したかどうか
+   */
+  public async launchWithSecurityBoundary(
+    guidancePromptUrl: string,
+    featurePromptUrl: string,
+    projectPath: string,
+    additionalContent?: string
+  ): Promise<boolean> {
+    try {
+      Logger.info(`複合プロンプトでClaudeCodeを起動: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
+      
+      // 両方のプロンプトの内容を取得
+      const guidancePrompt = await this.fetchPromptContent(guidancePromptUrl);
+      if (!guidancePrompt) {
+        throw new Error(`ガイダンスプロンプトの取得に失敗しました: ${guidancePromptUrl}`);
+      }
+      
+      const featurePrompt = await this.fetchPromptContent(featurePromptUrl);
+      if (!featurePrompt) {
+        throw new Error(`機能プロンプトの取得に失敗しました: ${featurePromptUrl}`);
+      }
+      
+      // プロンプトを結合するための一時ファイル作成
+      const tempDir = os.tmpdir();
+      const combinedPromptFileName = `combined_prompt_${Date.now()}.md`;
+      const combinedPromptPath = path.join(tempDir, combinedPromptFileName);
+      
+      // ガイダンスプロンプトを先頭に配置して結合
+      let combinedContent = guidancePrompt;
+      combinedContent += '\n\n---\n\n';
+      combinedContent += featurePrompt;
+      
+      // 追加コンテンツがあれば最後に追加
+      if (additionalContent) {
+        combinedContent += '\n\n---\n\n';
+        combinedContent += additionalContent;
+      }
+      
+      // 結合したプロンプトをファイルに保存
+      fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+      Logger.info(`複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
+      
+      // ClaudeCodeを起動（プロンプトファイル即時削除オプション付き）
+      return await this._launcher.launchClaudeCodeWithPrompt(
+        projectPath,
+        combinedPromptPath,
+        {
+          title: 'AIアシスタント',
+          deletePromptFile: true // セキュリティ対策としてプロンプトファイルを即時削除
+        }
+      );
+    } catch (error) {
+      Logger.error('複合プロンプトでのClaudeCode起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`AIアシスタントの起動に失敗しました: ${(error as Error).message}`);
+      return false;
+    }
+  }
 
   /**
    * リソースの解放

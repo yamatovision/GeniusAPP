@@ -340,13 +340,26 @@
     // サイドバーの初期状態を設定
     updateSidebarState();
     
-    // テーマ関連のクラスを追加
-    const isDarkTheme = document.body.classList.contains('vscode-dark');
-    if (isDarkTheme) {
-      document.body.classList.add('dark-theme');
-    } else {
-      document.body.classList.add('light-theme');
-    }
+    // ボタンテキストの色を強制的に白に設定
+    const fixButtonTextColors = () => {
+      // ヘッダーボタンとプロジェクトボタンのテキストを白に
+      document.querySelectorAll('.header-actions button, .project-buttons button').forEach(button => {
+        button.style.color = "white";
+        
+        // ボタン内のspanも白く
+        const spans = button.querySelectorAll('span');
+        spans.forEach(span => {
+          span.style.color = "white";
+        });
+      });
+    };
+    
+    // 初回実行
+    fixButtonTextColors();
+    
+    // DOM変更を監視して、動的に追加されたボタンにも適用
+    const observer = new MutationObserver(fixButtonTextColors);
+    observer.observe(document.body, { childList: true, subtree: true });
   }
   
   /**
@@ -486,7 +499,6 @@
               <button class="icon-button delete-project" data-id="${project.id}" title="削除">🗑️</button>
             </div>
           </div>
-          <p class="project-description">${escapeHtml(project.description || '説明なし')}</p>
           <p class="project-updated">最終更新: ${lastUpdated}</p>
         </div>
       `;
@@ -663,11 +675,6 @@
           </div>
           
           ${fileProgressHtml}
-          
-          <div class="project-description-panel">
-            <h3><i class="icon">📝</i> プロジェクト説明</h3>
-            <p>${escapeHtml(project.description || '説明はありません')}</p>
-          </div>
         </div>
       `;
       
@@ -1248,6 +1255,27 @@
   function setupProcessStepHandlers() {
     // 計画プロセスのステップハンドラ
     document.querySelectorAll('.process-step').forEach(step => {
+      // ステップ番号を白色に強制
+      const stepNumber = step.querySelector('.step-number');
+      if (stepNumber) {
+        stepNumber.style.color = "white !important";
+        stepNumber.setAttribute('style', 'color: white !important');
+      }
+      
+      // ステップボタンのテキストを白色に強制
+      const stepAction = step.querySelector('.step-action');
+      if (stepAction) {
+        stepAction.style.color = "white !important";
+        stepAction.setAttribute('style', 'color: white !important');
+      }
+      
+      // 開くボタンのテキストを白色に強制
+      const openButton = step.querySelector('.open-button');
+      if (openButton) {
+        openButton.style.color = "white !important";
+        openButton.setAttribute('style', 'color: white !important');
+      }
+      
       step.addEventListener('click', (event) => {
         event.preventDefault();
         
@@ -1277,6 +1305,28 @@
           }
         }
       });
+    });
+    
+    // 青背景エリアの文字色を確実に白にするためのCSSルールを追加
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      .header h1, 
+      .header-actions button,
+      .header-actions button span,
+      .step-number, 
+      .step-action,
+      .project-buttons button,
+      .project-buttons button span,
+      .open-button {
+        color: white !important;
+      }
+    `;
+    document.head.appendChild(styleElement);
+    
+    // すべてのボタン内のspanタグに白色を適用
+    document.querySelectorAll('.project-buttons button span, .header-actions button span').forEach(span => {
+      span.style.color = "white";
+      span.setAttribute('style', 'color: white !important');
     });
   }
   
@@ -1322,12 +1372,10 @@
    */
   function createNewProject() {
     const nameEl = document.getElementById('project-name');
-    const descriptionEl = document.getElementById('project-description');
     
-    if (!nameEl || !descriptionEl) return;
+    if (!nameEl) return;
     
     const name = nameEl.value.trim();
-    const description = descriptionEl.value.trim();
     
     if (!name) {
       showError('プロジェクト名を入力してください');
@@ -1337,7 +1385,7 @@
     vscode.postMessage({
       command: 'createProject',
       name,
-      description
+      description: ""
     });
     
     hideNewProjectModal();

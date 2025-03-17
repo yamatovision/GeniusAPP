@@ -139,7 +139,7 @@ export class ClaudeCodeLauncherService {
       terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
-      terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+      terminal.sendText('echo "\n\n*** AIが自動的に解析を開始します。自動対応と日本語指示を行います ***\n"');
       terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保（出力を非表示）
@@ -159,13 +159,13 @@ export class ClaudeCodeLauncherService {
       if (scope.id) {
         // スコープIDをエスケープする必要はないが、念のため
         const escapedScopeId = scope.id.replace(/ /g, '\\ ');
-        // Claude Codeをスコープ指定で起動
-        terminal.sendText(`echo "\n" && claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
-        Logger.info(`ClaudeCode起動コマンド: claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+        // Claude Codeをスコープ指定で起動（echoとパイプを使用して自動応答）
+        terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+        Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
       } else {
-        // スコープ指定なしで起動
-        terminal.sendText(`echo "\n" && claude ${escapedClaudeMdPath}`);
-        Logger.info(`ClaudeCode起動コマンド: claude ${escapedClaudeMdPath}`);
+        // スコープ指定なしで起動（echoとパイプを使用して自動応答）
+        terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedClaudeMdPath}`);
+        Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedClaudeMdPath}`);
       }
       
       // 状態更新
@@ -306,7 +306,7 @@ export class ClaudeCodeLauncherService {
       terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
-      terminal.sendText('echo "\n\n*** AIがプロンプトに従って処理を開始します ***\n"');
+      terminal.sendText('echo "\n\n*** AIが自動的にプロンプトに従って処理を開始します。自動対応と日本語指示を行います ***\n"');
       terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保（出力を非表示）
@@ -322,12 +322,16 @@ export class ClaudeCodeLauncherService {
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedPromptFilePath = promptFilePath.replace(/ /g, '\\ ');
       
-      // 追加のコマンドラインパラメータがあれば追加 (--fileオプションはサポートされていないので使用しない)
-      const additionalParams = options?.additionalParams ? ` ${options.additionalParams}` : '';
+      // 追加のコマンドラインパラメータがあれば追加
+      // デバッグ探偵用にパラメータを設定
+      let additionalParams = options?.additionalParams ? ` ${options.additionalParams}` : '';
       
-      // プロンプトファイルを指定してClaude CLIを起動
-      terminal.sendText(`echo "\n" && claude ${escapedPromptFilePath}${additionalParams}`);
-      Logger.info(`ClaudeCode起動コマンド: claude ${escapedPromptFilePath}${additionalParams}`);
+      // オプションフラグは追加しない（Claude CLIでサポートされていないため）
+      // additionalParams += ' -y --lang=ja';
+      
+      // プロンプトファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
+      terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedPromptFilePath}${additionalParams}`);
+      Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedPromptFilePath}${additionalParams}`);
       
       // プロンプトファイルを即時削除（セキュリティ対策）
       if (options?.deletePromptFile) {
@@ -522,7 +526,7 @@ export class ClaudeCodeLauncherService {
       terminal.show(true);
       
       // 最初にユーザーガイダンスを表示
-      terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+      terminal.sendText('echo "\n\n*** AIが自動的に解析を開始します。自動対応と日本語指示を行います ***\n"');
       terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保
@@ -538,9 +542,9 @@ export class ClaudeCodeLauncherService {
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedAnalysisFilePath = processInfo.analysisFilePath.replace(/ /g, '\\ ');
       
-      // 解析用ファイルを指定してClaude CLIを起動
-      terminal.sendText(`echo "\n" && claude ${escapedAnalysisFilePath}`);
-      Logger.info(`モックアップ解析用ClaudeCode起動コマンド: claude ${escapedAnalysisFilePath}`);
+      // 解析用ファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
+      terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedAnalysisFilePath}`);
+      Logger.info(`モックアップ解析用ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedAnalysisFilePath}`);
       
       // 状態は個別に管理するが、後方互換性のために全体のステータスも更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;

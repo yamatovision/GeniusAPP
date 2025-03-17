@@ -1,22 +1,21 @@
 /**
- * AppGeniusの権限システム - ロール定義と機能マッピング
+ * AppGeniusの権限システム - シンプルな役割と機能の定義
  */
 
 /**
- * ユーザーのロール（権限レベル）
+ * ユーザーの役割（権限レベル）
  */
 export enum Role {
-  GUEST = 'guest',         // 未認証状態
-  USER = 'user',           // 一般ユーザー
-  ADMIN = 'admin',         // 管理者
-  UNSUBSCRIBE = 'unsubscribe' // 退会済みユーザー
+  GUEST = 'guest',     // 未認証状態
+  USER = 'user',       // 一般ユーザー
+  ADMIN = 'admin'      // 管理者
 }
 
 /**
- * アプリケーション機能のカテゴリー
+ * アプリケーション機能
  */
 export enum Feature {
-  // 各UIパネル（メディアリソース）
+  // 各UIパネル
   DASHBOARD = 'dashboard',
   DEBUG_DETECTIVE = 'debug_detective',
   SCOPE_MANAGER = 'scope_manager',
@@ -27,21 +26,19 @@ export enum Feature {
   SIMPLE_CHAT = 'simple_chat',
   CLAUDE_CODE = 'claude_code',
   ENV_VARIABLES = 'env_variables',
-  CLAUDE_MD_EDITOR = 'claude_md_editor',
   
   // 管理者専用機能
   USER_MANAGEMENT = 'user_management',
-  API_MANAGEMENT = 'api_management',
   SYSTEM_SETTINGS = 'system_settings'
 }
 
 /**
- * 各ロールがアクセスできる機能のマッピング
+ * 各ロールがアクセスできる機能の定義
  */
 export const RoleFeatureMap: Record<Role, Feature[]> = {
   // ゲストは限定的な機能のみアクセス可能
   [Role.GUEST]: [
-    Feature.DASHBOARD // ダッシュボードの閲覧のみ許可
+    Feature.DASHBOARD
   ],
   
   // 一般ユーザーは標準機能にアクセス可能
@@ -55,13 +52,11 @@ export const RoleFeatureMap: Record<Role, Feature[]> = {
     Feature.MOCKUP_GALLERY,
     Feature.SIMPLE_CHAT,
     Feature.CLAUDE_CODE,
-    Feature.ENV_VARIABLES,
-    Feature.CLAUDE_MD_EDITOR
+    Feature.ENV_VARIABLES
   ],
   
   // 管理者はすべての機能にアクセス可能
   [Role.ADMIN]: [
-    // ユーザーの全権限
     Feature.DASHBOARD,
     Feature.DEBUG_DETECTIVE,
     Feature.SCOPE_MANAGER,
@@ -72,16 +67,9 @@ export const RoleFeatureMap: Record<Role, Feature[]> = {
     Feature.SIMPLE_CHAT,
     Feature.CLAUDE_CODE,
     Feature.ENV_VARIABLES,
-    Feature.CLAUDE_MD_EDITOR,
-    
-    // 管理者専用機能
     Feature.USER_MANAGEMENT,
-    Feature.API_MANAGEMENT,
     Feature.SYSTEM_SETTINGS
-  ],
-  
-  // 退会済みユーザーはアクセス不可
-  [Role.UNSUBSCRIBE]: []
+  ]
 };
 
 /**
@@ -98,8 +86,15 @@ export const FeatureDisplayNames: Record<Feature, string> = {
   [Feature.SIMPLE_CHAT]: '要件定義チャット',
   [Feature.CLAUDE_CODE]: 'Claude Code 連携',
   [Feature.ENV_VARIABLES]: '環境変数管理',
-  [Feature.CLAUDE_MD_EDITOR]: 'Claude MDエディタ',
   [Feature.USER_MANAGEMENT]: 'ユーザー管理',
-  [Feature.API_MANAGEMENT]: 'API管理',
   [Feature.SYSTEM_SETTINGS]: 'システム設定'
+};
+
+/**
+ * 役割の表示名
+ */
+export const RoleDisplayNames: Record<Role, string> = {
+  [Role.GUEST]: 'ゲスト',
+  [Role.USER]: '一般ユーザー',
+  [Role.ADMIN]: '管理者'
 };

@@ -1,53 +1,27 @@
-/* AppGenius ダッシュボード用CSS */
+/* AppGenius ダッシュボード用CSS - シンプル版 */
 
 /* 共通デザインシステムを使用 */
 @import url('./design-system.css');
-@import url('./components.css');
 @import url('./accessibility.css');
 
-/* ダッシュボード固有の変数 */
-:root {
-  /* 以下の変数は下位互換性のために維持 */
-  --primary-color: var(--app-primary); 
-  --secondary-color: var(--app-secondary);
-  --accent-color: var(--app-accent);
-  --warning-color: var(--app-warning);
-  --info-color: var(--app-info);
-  --danger-color: var(--app-danger);
-  --success-color: var(--app-success);
-  
-  --primary-light: var(--app-primary-light);
-  --secondary-light: var(--app-secondary-light);
-  --accent-light: var(--app-accent-light);
-  
-  --gray-100: var(--app-gray-100);
-  --gray-200: var(--app-gray-200);
-  --gray-300: var(--app-gray-300);
-  --gray-400: var(--app-gray-400);
-  --gray-500: var(--app-gray-500);
-  --gray-600: var(--app-gray-600);
-  --gray-700: var(--app-gray-700);
-  --gray-800: var(--app-gray-800);
-  --gray-900: var(--app-gray-900);
-  
-  --header-height: var(--app-header-height);
-  --sidebar-width: var(--app-sidebar-width);
-  --sidebar-collapsed-width: var(--app-sidebar-collapsed-width);
-  --border-radius: var(--app-border-radius-lg);
-  --card-shadow: var(--app-box-shadow);
-  --card-shadow-hover: var(--app-box-shadow-hover);
-  --transition-speed: var(--app-transition);
-}
-
-/* ダッシュボードコンテナ */
+/* ダッシュボードコンテナ - ライトモード固定 */
 .dashboard-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  color: #333333;
-  background-color: #FFFFFF;
+  color: #333 !important;
+  background-color: #fff !important;
+}
+
+/* 青背景エリアの文字は常に白に */
+.header h1, 
+.step-number, 
+.step-action,
+.project-buttons button,
+.open-button {
+  color: white !important;
 }
 
 /* ヘッダーセクション */
@@ -73,6 +47,7 @@
   display: flex;
   align-items: center;
   gap: var(--app-spacing-sm);
+  color: white !important;
 }
 
 .header-actions {
@@ -163,7 +138,7 @@
   gap: var(--app-spacing-xs);
   padding: var(--app-spacing-sm);
   background-color: var(--app-primary);
-  color: white;
+  color: white !important;
   border: none;
   border-radius: var(--app-border-radius);
   font-size: var(--app-font-size-sm);
@@ -694,7 +669,7 @@
   height: 32px;
   background-color: var(--app-primary);
   background-image: linear-gradient(45deg, var(--app-primary), var(--app-primary-dark));
-  color: white;
+  color: white !important;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -703,6 +678,15 @@
   font-size: var(--app-font-size-md);
   z-index: 1;
   box-shadow: var(--app-box-shadow);
+}
+
+/* セクションヘッダーのコントラスト強化 */
+.section-header h2 {
+  color: #2d2d2d !important;
+}
+
+.section-description {
+  color: #4a4a4a !important;
 }
 
 .step-icon {
@@ -751,7 +735,7 @@
 
 .step-action {
   display: block;
-  color: white;
+  color: white !important;
   background-color: var(--app-primary);
   font-weight: var(--app-font-weight-medium);
   font-size: var(--app-font-size-sm);
@@ -1386,16 +1370,27 @@
   box-shadow: 0 0 0 4px var(--app-primary-light);
 }
 
-/* ダークモード対応 */
-.vscode-dark .modal-content {
-  background-color: var(--app-dark-card-bg);
+/* モーダルウィンドウのライトモード固定 */
+.modal-content {
+  background-color: white !important;
 }
 
-.vscode-dark .form-group input,
-.vscode-dark .form-group textarea {
-  background-color: var(--app-dark-surface);
-  border-color: var(--app-gray-400);
-  color: var(--app-gray-800);
+.form-group input,
+.form-group textarea {
+  background-color: white !important;
+  border-color: #d5d5d5 !important;
+  color: #333333 !important;
+}
+
+/* テキストコントラスト固定 */
+.section-header h2 {
+  color: #2d2d2d !important;
+}
+
+.section-description,
+.step-description,
+.project-description {
+  color: #4a4a4a !important;
 }
 
 /* 高コントラストモード対応 */
@@ -1745,14 +1740,11 @@
   background-color: var(--app-primary-light);
 }
 
-/* ダークモード対応 */
-.vscode-dark .welcome-panel {
-  background-color: var(--app-dark-card-bg);
-}
-
-.vscode-dark .welcome-step {
-  background-color: var(--app-dark-surface);
-  border-color: var(--app-gray-400);
+/* 常にライトモードで固定 */
+.dashboard-container {
+  background-color: white !important;
+  color: #333 !important;
+  color-scheme: light !important;
 }
 
 /* チュートリアル/ヒントバッジ */
@@ -1864,14 +1856,26 @@
   }
 }
 
-/* ダークモード対応 */
-.vscode-dark .tutorial-hint {
-  background-color: var(--app-accent-light);
-  color: white;
+/* すべての要素のテキストカラーを強制上書き */
+.dashboard-container h1, 
+.dashboard-container h2, 
+.dashboard-container h3, 
+.dashboard-container h4, 
+.dashboard-container h5, 
+.dashboard-container h6 {
+  color: #2d2d2d !important;
 }
 
-.vscode-dark .tutorial-hint::before {
-  background-color: var(--app-accent-light);
+.dashboard-container p,
+.dashboard-container li,
+.dashboard-container span,
+.dashboard-container div {
+  color: #4a4a4a !important;
+}
+
+/* 色反転を無効化 */
+.dashboard-container * {
+  forced-color-adjust: none !important;
 }
 
 /* ローディング表示 */
@@ -1915,9 +1919,9 @@
   border: 0;
 }
 
-/* ダークモード対応 */
-.vscode-dark .loading {
-  color: var(--app-gray-500);
+/* ローディング表示テキスト色 */
+.loading {
+  color: var(--app-gray-600) !important;
 }
 
 /* レスポンシブデザイン調整 */
