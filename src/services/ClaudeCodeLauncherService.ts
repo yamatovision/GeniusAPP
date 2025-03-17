@@ -343,7 +343,7 @@ export class ClaudeCodeLauncherService {
                 fs.unlinkSync(promptFilePath);
                 Logger.info(`プロンプトファイルを削除しました: ${promptFilePath}`);
               }
-            }, 25000); // ファイルが読み込まれる時間を考慮して25秒後に削除
+            }, 30000); // ファイルが読み込まれる時間を考慮して30秒後に削除
           }
           
           // ターミナル終了時のイベントリスナーを設定（全プラットフォーム対応）

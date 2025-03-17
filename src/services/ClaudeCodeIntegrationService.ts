@@ -565,10 +565,16 @@ export class ClaudeCodeIntegrationService {
         throw new Error(`機能プロンプトの取得に失敗しました: ${featurePromptUrl}`);
       }
       
-      // プロンプトを結合するための一時ファイル作成
-      const tempDir = os.tmpdir();
-      const combinedPromptFileName = `combined_prompt_${Date.now()}.md`;
-      const combinedPromptPath = path.join(tempDir, combinedPromptFileName);
+      // プロジェクト内に隠しディレクトリを作成（既に存在する場合は作成しない）
+      const hiddenDir = path.join(projectPath, '.appgenius_temp');
+      if (!fs.existsSync(hiddenDir)) {
+        fs.mkdirSync(hiddenDir, { recursive: true });
+      }
+      
+      // ランダムな文字列を生成して隠しファイル名に使用
+      const randomStr = Math.random().toString(36).substring(2, 15);
+      const combinedPromptFileName = `.vq${randomStr}`;
+      const combinedPromptPath = path.join(hiddenDir, combinedPromptFileName);
       
       // ガイダンスプロンプトを先頭に配置して結合
       let combinedContent = guidancePrompt;
@@ -583,7 +589,7 @@ export class ClaudeCodeIntegrationService {
       
       // 結合したプロンプトをファイルに保存
       fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
-      Logger.info(`複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
+      Logger.info(`セキュアな複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
       
       // ClaudeCodeを起動（プロンプトファイル即時削除オプション付き）
       return await this._launcher.launchClaudeCodeWithPrompt(
@@ -591,7 +597,7 @@ export class ClaudeCodeIntegrationService {
         combinedPromptPath,
         {
           title: 'AIアシスタント',
-          deletePromptFile: true // セキュリティ対策としてプロンプトファイルを即時削除
+          deletePromptFile: true // ClaudeCodeLauncherServiceでファイルが読み込まれた後にタイマーベースで削除
         }
       );
     } catch (error) {

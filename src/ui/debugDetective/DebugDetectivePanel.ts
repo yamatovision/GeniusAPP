@@ -410,8 +410,10 @@ export class DebugDetectivePanel extends ProtectedPanel {
           module => module.ClaudeCodeIntegrationService.getInstance()
         );
         
-        // 複合プロンプトでClaudeCodeを起動（エラー分析内容を追加コンテンツとして渡す）
+        // 長文プロンプトの問題を回避するため、一時ファイル方式を使用
         Logger.info(`複合プロンプトでClaudeCodeを起動します: プロンプト1=${guidancePromptUrl}, プロンプト2=${debugDetectivePromptUrl}`);
+        
+        // セキュリティ境界方式でClaudeCodeを起動
         await integrationService.launchWithSecurityBoundary(
           guidancePromptUrl,
           debugDetectivePromptUrl, 
