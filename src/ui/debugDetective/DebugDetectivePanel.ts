@@ -412,11 +412,12 @@ export class DebugDetectivePanel extends ProtectedPanel {
         // 単一プロンプトで起動
         Logger.info(`デバッグ探偵プロンプトを直接使用してClaudeCodeを起動: ${debugDetectivePromptUrl}`);
         
-        // 単一プロンプトでClaudeCodeを起動（セキュリティプロンプトは使用しない）
+        // 単一プロンプトでClaudeCodeを起動（分割表示を有効にして）
         await integrationService.launchWithPublicUrl(
           debugDetectivePromptUrl, 
           this._projectPath,
-          analysisContent // 重要：エラー分析内容を追加コンテンツとして渡す
+          analysisContent, // 重要：エラー分析内容を追加コンテンツとして渡す
+          true // 分割表示を有効にする
         );
         
         // 解析データのファイルを作成するだけで開かず、通知も表示しない
@@ -452,14 +453,16 @@ export class DebugDetectivePanel extends ProtectedPanel {
         Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
         fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
         
-        // ClaudeCodeを起動（フォールバック）
+        // ClaudeCodeを起動（フォールバック・分割表示対応）
         Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
         await this._claudeCodeLauncher.launchClaudeCodeWithPrompt(
           this._projectPath,
           combinedPromptPath,
           { 
             title: `デバッグ探偵 - 調査中: ${errorType || '不明なエラー'}`,
-            deletePromptFile: true // セキュリティ対策として自動削除
+            deletePromptFile: true, // セキュリティ対策として自動削除
+            splitView: true, // 分割表示を有効化
+            location: vscode.ViewColumn.Beside // 表示位置を指定
           }
         );
       }

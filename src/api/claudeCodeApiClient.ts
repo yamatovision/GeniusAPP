@@ -123,25 +123,80 @@ export class ClaudeCodeApiClient {
    * @param promptId プロンプトID
    * @param versionId バージョンID
    * @param context 使用コンテキスト
+   * @returns 記録が成功したかどうか
    */
   public async recordPromptUsage(promptId: string, versionId: string, context?: string): Promise<boolean> {
-    try {
-      const config = await this._getApiConfig();
-      const payload = {
-        promptId,
-        versionId,
-        context: context || 'claude-code-extension'
-      };
-      
-      const response = await axios.post(`${this._baseUrl}/sdk/prompts/usage`, payload, config);
-      
-      return response.status === 201;
-    } catch (error) {
-      // 使用履歴記録のエラーはログに残すだけで、UI通知は行わない
-      console.error('プロンプト使用履歴の記録に失敗しました:', error);
-      // エラーをUI通知せず、ログだけに記録
-      return false;
+    // リトライ設定
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1秒
+    let retryCount = 0;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        const config = await this._getApiConfig();
+        const payload = {
+          versionId,
+          context: context || 'claude-code-extension'
+        };
+        
+        // 正しいエンドポイントパス: /prompts/{promptId}/usage
+        const response = await axios.post(
+          `${this._baseUrl}/prompts/${promptId}/usage`, 
+          payload, 
+          {
+            ...config,
+            timeout: 15000 // 15秒タイムアウト
+          }
+        );
+        
+        return response.status === 201;
+      } catch (error) {
+        retryCount++;
+        
+        if (axios.isAxiosError(error)) {
+          const statusCode = error.response?.status;
+          
+          // 500エラー（サーバーエラー）またはタイムアウトの場合はリトライ
+          if ((statusCode === 500 || error.code === 'ECONNABORTED') && retryCount <= maxRetries) {
+            // 指数バックオフ（リトライ間隔を徐々に増やす）
+            const waitTime = retryDelay * Math.pow(2, retryCount - 1);
+            console.warn(`プロンプト使用履歴の記録中にエラーが発生しました。${waitTime}ms後にリトライします (${retryCount}/${maxRetries})...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+            continue;
+          } else if (statusCode === 404) {
+            // 404エラー（Not Found）の場合はレガシーエンドポイントを試す
+            // これは後方互換性のための一時的な措置
+            if (retryCount === 1) { // 初回リトライでのみレガシーエンドポイントを試す
+              try {
+                console.warn('レガシーエンドポイントでプロンプト使用履歴の記録を試みます...');
+                const legacyConfig = await this._getApiConfig();
+                const legacyResponse = await axios.post(
+                  `${this._baseUrl}/sdk/prompts/usage`, 
+                  {
+                    promptId,
+                    versionId,
+                    context: context || 'claude-code-extension'
+                  }, 
+                  legacyConfig
+                );
+                return legacyResponse.status === 201;
+              } catch (legacyError) {
+                console.error('レガシーエンドポイントでの記録にも失敗しました:', legacyError);
+              }
+            }
+          }
+        }
+        
+        // 最大リトライ回数に達した場合またはリトライ対象外のエラーの場合
+        if (retryCount > maxRetries) {
+          // 使用履歴記録のエラーはログに残すだけで、UI通知は行わない
+          console.error('プロンプト使用履歴の記録に失敗しました:', error);
+          return false;
+        }
+      }
     }
+    
+    return false; // コードがここに到達することはないはずだが、コンパイラを満足させるため
   }
 
   /**

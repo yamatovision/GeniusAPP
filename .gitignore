@@ -10,3 +10,7 @@ temp/
 
 # VSCode拡張機能パッケージ（サイズが大きいため）
 *.vsix
+
+# テスト関連の一時ファイル
+test_script/auth_token.txt
+*.log

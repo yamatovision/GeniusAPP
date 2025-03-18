@@ -193,37 +193,26 @@
       });
     }
     
-    // 「要件定義を保存してモックアップを生成」ボタンを追加
-    const saveReqAndGenBtn = document.createElement('button');
-    saveReqAndGenBtn.textContent = '要件定義を保存してモックアップを生成';
-    saveReqAndGenBtn.className = 'action-button';
-    saveReqAndGenBtn.addEventListener('click', () => {
-      // 現在の要件定義エディタの内容を取得
-      const requirementsContent = requirementsEditor.value;
+    // 「モックアップ作成プロンプトを起動」ボタンを追加
+    const launchMockupBtn = document.createElement('button');
+    launchMockupBtn.textContent = 'モックアップ作成プロンプトを起動';
+    launchMockupBtn.className = 'action-button';
+    launchMockupBtn.addEventListener('click', () => {
+      // VSCodeにモックアップ作成プロンプトの起動を要求
+      vscode.postMessage({
+        command: 'launchMockupCreator'
+      });
 
-      if (!requirementsContent.trim()) {
-        showError('要件定義が空です。要件定義を入力してください。');
-        return;
-      }
-
-      // 確認ダイアログを表示
-      if (confirm('要件定義を保存し、モックアップ生成を開始しますか？複数のClaudeCodeターミナルが開きます。')) {
-        // VSCodeに要件定義を保存してモックアップを生成するよう通知
-        vscode.postMessage({
-          command: 'saveRequirementsAndGenerateMockups',
-          content: requirementsContent
-        });
-
-        // 処理中表示
-        showLoading('要件定義を保存し、モックアップを生成しています...');
-      }
+      // 処理中表示
+      showLoading('モックアップ作成プロンプトを起動中...');
     });
+
 
     // ボタンコンテナを取得
     const buttonContainer = document.querySelector('.actions');
     if (buttonContainer) {
       // 既存のボタンコンテナに追加
-      buttonContainer.appendChild(saveReqAndGenBtn);
+      buttonContainer.appendChild(launchMockupBtn);
     } else {
       console.error('ボタンコンテナが見つかりません');
     }
@@ -477,13 +466,45 @@
     saveAsRequirementsBtn.className = 'message-action-btn requirements-btn';
     saveAsRequirementsBtn.innerHTML = '要件定義として保存';
     saveAsRequirementsBtn.addEventListener('click', function() {
-      // メッセージの内容を要件定義として保存
-      const messageContent = text;
+      // このメッセージだけを要件定義として保存（親要素のメッセージを取得）
+      const messageElement = this.closest('.message');
+      if (!messageElement) {
+        console.error('親メッセージ要素が見つかりません');
+        return;
+      }
+      
+      // メッセージのテキスト部分だけを抽出（ボタン部分や他の要素は除外）
+      const messageParagraphs = messageElement.querySelectorAll('p, code, pre');
+      let messageContent = '';
+      
+      // 各テキスト要素からコンテンツを抽出
+      messageParagraphs.forEach(element => {
+        // コードブロックの場合は特別な処理
+        if (element.tagName === 'PRE' || element.tagName === 'CODE') {
+          // コードブロックの場合はバッククォートで囲む
+          const codeContent = element.textContent || '';
+          if (codeContent.trim()) {
+            messageContent += '```\n' + codeContent + '\n```\n\n';
+          }
+        } else {
+          // 通常のテキスト
+          const text = element.textContent || '';
+          if (text.trim()) {
+            messageContent += text + '\n\n';
+          }
+        }
+      });
+      
+      // メッセージが取得できない場合のフォールバック
+      if (!messageContent.trim()) {
+        console.warn('メッセージ内容が取得できなかったため、元のテキストを使用します');
+        messageContent = text;
+      }
       
       // 要件定義としてフォーマット
       // 見出しがなければ追加する
-      let formattedContent = messageContent;
-      if (!formattedContent.trim().startsWith('# ')) {
+      let formattedContent = messageContent.trim();
+      if (!formattedContent.startsWith('# ')) {
         formattedContent = '# 要件定義\n\n' + formattedContent;
       }
       
@@ -507,7 +528,7 @@
       // 通知
       const notification = document.createElement('div');
       notification.className = 'save-notification';
-      notification.textContent = '要件定義として保存しました';
+      notification.textContent = 'このメッセージだけを要件定義として保存しました';
       document.body.appendChild(notification);
       
       setTimeout(() => {
@@ -696,6 +717,23 @@
       loadingElement.remove();
     }
   }
+  
+  // ローディングキャンセル用関数を追加
+  function cancelLoading() {
+    hideLoading();
+    // キャンセルメッセージを表示
+    const notification = document.createElement('div');
+    notification.className = 'save-notification';
+    notification.textContent = '操作をキャンセルしました';
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+      notification.classList.add('fadeout');
+      setTimeout(() => {
+        notification.remove();
+      }, 500);
+    }, 2000);
+  }
 
   // エラー表示関数
   function showError(message) {
@@ -779,6 +817,10 @@
         hideLoading();
         showError(message.message);
         break;        
+      
+      case 'hideLoading':
+        hideLoading();
+        break;
         
       case 'showMessage':
         // 情報メッセージを表示
@@ -871,13 +913,45 @@
           saveAsRequirementsBtn.className = 'message-action-btn requirements-btn';
           saveAsRequirementsBtn.innerHTML = '要件定義として保存';
           saveAsRequirementsBtn.addEventListener('click', function() {
-            // メッセージの内容を要件定義として保存
-            const messageContent = message.text;
+            // このメッセージだけを要件定義として保存（親要素のメッセージを取得）
+            const messageElement = this.closest('.message');
+            if (!messageElement) {
+              console.error('親メッセージ要素が見つかりません');
+              return;
+            }
+            
+            // メッセージのテキスト部分だけを抽出（ボタン部分や他の要素は除外）
+            const messageParagraphs = messageElement.querySelectorAll('p, code, pre');
+            let messageContent = '';
+            
+            // 各テキスト要素からコンテンツを抽出
+            messageParagraphs.forEach(element => {
+              // コードブロックの場合は特別な処理
+              if (element.tagName === 'PRE' || element.tagName === 'CODE') {
+                // コードブロックの場合はバッククォートで囲む
+                const codeContent = element.textContent || '';
+                if (codeContent.trim()) {
+                  messageContent += '```\n' + codeContent + '\n```\n\n';
+                }
+              } else {
+                // 通常のテキスト
+                const text = element.textContent || '';
+                if (text.trim()) {
+                  messageContent += text + '\n\n';
+                }
+              }
+            });
+            
+            // メッセージが取得できない場合のフォールバック
+            if (!messageContent.trim()) {
+              console.warn('メッセージ内容が取得できなかったため、元のテキストを使用します');
+              messageContent = message.text;
+            }
             
             // 要件定義としてフォーマット
             // 見出しがなければ追加する
-            let formattedContent = messageContent;
-            if (!formattedContent.trim().startsWith('# ')) {
+            let formattedContent = messageContent.trim();
+            if (!formattedContent.startsWith('# ')) {
               formattedContent = '# 要件定義\n\n' + formattedContent;
             }
             
@@ -901,7 +975,7 @@
             // 通知
             const notification = document.createElement('div');
             notification.className = 'save-notification';
-            notification.textContent = '要件定義として保存しました';
+            notification.textContent = 'このメッセージだけを要件定義として保存しました';
             document.body.appendChild(notification);
             
             setTimeout(() => {

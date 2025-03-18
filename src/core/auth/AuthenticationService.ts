@@ -113,8 +113,16 @@ export class AuthenticationService {
         const refreshed = await this.refreshToken(true); // 静かに失敗するオプションを設定
         if (!refreshed) {
           Logger.warn('トークンのリフレッシュに失敗しました');
-          // トークンをクリアせずに続行（次回起動時にも再試行できるように）
-          return;
+          // ログアウトせずにローカルデータで認証状態の回復を試みる
+          const recoverySuccess = await this._recoverUserState();
+          if (recoverySuccess) {
+            Logger.info('ローカルデータによる認証状態の回復に成功しました');
+            this._startAuthCheckInterval();
+            return;
+          } else {
+            Logger.warn('認証状態の回復に失敗しました。未認証状態で初期化します');
+            return;
+          }
         }
       }
       
@@ -130,9 +138,10 @@ export class AuthenticationService {
       } catch (fetchError) {
         Logger.error('ユーザー情報の取得中にエラーが発生しました', fetchError as Error);
         
-        // サーバーエラーの場合、ローカルデータでフォールバック
-        if (axios.isAxiosError(fetchError) && fetchError.response?.status === 500) {
-          Logger.info('サーバーエラーが発生しました。ローカルデータを使用して認証を試みます');
+        // サーバーエラーやネットワークエラーの場合、ローカルデータでフォールバック
+        if (axios.isAxiosError(fetchError) && 
+            (fetchError.response?.status === 500 || !fetchError.response)) {
+          Logger.info('サーバーエラーまたはネットワークエラーが発生しました。ローカルデータを使用して認証を試みます');
           const recoverySuccess = await this._recoverUserState();
           
           if (recoverySuccess) {
@@ -150,7 +159,17 @@ export class AuthenticationService {
     } catch (error) {
       Logger.error('認証サービスの初期化中にエラーが発生しました', error as Error);
       
-      // 致命的なエラーでも基本的な機能は提供できるようにする
+      // 致命的なエラーでも認証状態の回復を試みる
+      try {
+        const recoverySuccess = await this._recoverUserState();
+        if (recoverySuccess) {
+          Logger.info('エラー発生後、ローカルデータによる認証状態の回復に成功しました');
+        }
+      } catch (recoveryError) {
+        Logger.error('認証状態の回復中にエラーが発生しました', recoveryError as Error);
+      }
+      
+      // 基本的な機能は提供できるようにする
       this._startAuthCheckInterval();
     }
   }
@@ -272,9 +291,28 @@ export class AuthenticationService {
       
       if (refreshToken) {
         try {
-          await axios.post(`${apiUrl}/auth/logout`, { refreshToken });
+          // リフレッシュトークンが有効な形式であるか確認
+          const isValidToken = refreshToken.split('.').length === 3; // JWTの基本的な形式チェック
+          
+          if (isValidToken) {
+            try {
+              await axios.post(`${apiUrl}/auth/logout`, { refreshToken }, {
+                timeout: 5000 // タイムアウトを5秒に設定
+              });
+            } catch (error) {
+              // エラーをログに記録するだけで、ログアウト処理は続行
+              if (axios.isAxiosError(error) && error.response?.status === 400) {
+                Logger.warn('サーバーへのログアウトリクエストが拒否されました（既にログアウト済みの可能性があります）');
+              } else {
+                Logger.warn('サーバーへのログアウトリクエスト送信中にエラーが発生しました', error as Error);
+              }
+            }
+          } else {
+            Logger.warn('無効な形式のリフレッシュトークンのため、サーバーへのログアウトリクエストをスキップします');
+          }
         } catch (error) {
-          Logger.warn('サーバーへのログアウトリクエスト送信中にエラーが発生しました', error as Error);
+          // トークン形式チェックでエラーが発生した場合も、ログアウト処理は続行
+          Logger.warn('リフレッシュトークンの検証中にエラーが発生しました', error as Error);
         }
       }
       
@@ -294,6 +332,17 @@ export class AuthenticationService {
       Logger.info('ログアウトが完了しました');
     } catch (error) {
       Logger.error('ログアウト中にエラーが発生しました', error as Error);
+      
+      // 致命的なエラーが発生しても、トークンと認証状態のクリアを試みる
+      try {
+        await this._tokenManager.clearTokens();
+        const newState = AuthStateBuilder.guest().build();
+        this._updateState(newState);
+        this._onLogout.fire();
+        Logger.info('エラー発生後、強制的にログアウト処理を完了しました');
+      } catch (clearError) {
+        Logger.error('強制ログアウト処理中にエラーが発生しました', clearError as Error);
+      }
     }
   }
   
@@ -368,17 +417,28 @@ export class AuthenticationService {
         return this.refreshToken(silentOnError, retryCount + 1);
       }
       
-      // トークンが無効な場合はログアウト
+      // トークンが無効な場合はローカルデータによる回復を試みる
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        Logger.warn('リフレッシュトークンが無効です。ログアウトします');
-        // silentOnErrorがtrueの場合、静かにログアウト処理を行う
-        if (!silentOnError) {
-          await this.logout();
+        Logger.warn('リフレッシュトークンが無効です。ローカルデータによる認証状態の回復を試みます');
+        
+        // ローカルに保存されたユーザー情報でのフォールバックを試みる
+        const recoverySuccess = await this._recoverUserState();
+        
+        // 回復できなかった場合のみログアウト処理
+        if (!recoverySuccess) {
+          Logger.warn('ローカルデータによる認証状態の回復に失敗しました');
+          
+          // silentOnErrorがtrueの場合、サイレントに処理
+          if (!silentOnError) {
+            await this.logout();
+          } else {
+            // 静かにトークンをクリアするだけ
+            await this._tokenManager.clearTokens();
+            const newState = AuthStateBuilder.guest().build();
+            this._updateState(newState);
+          }
         } else {
-          // 静かにトークンをクリアするだけ
-          await this._tokenManager.clearTokens();
-          const newState = AuthStateBuilder.guest().build();
-          this._updateState(newState);
+          Logger.info('ローカルデータによる認証状態の回復に成功しました。オフラインモードで継続します');
         }
       }
       // サーバーエラー（500）が発生した場合は、現在のトークンの有効性をチェック
@@ -483,13 +543,17 @@ export class AuthenticationService {
       // トークンが無効な場合はリフレッシュを試みる
       if (axios.isAxiosError(error) && error.response?.status === 401) {
         Logger.info('アクセストークンが無効です。リフレッシュを試みます');
-        const refreshed = await this.refreshToken();
+        const refreshed = await this.refreshToken(true); // 静かに失敗するように変更
         if (refreshed) {
           Logger.info('トークンリフレッシュに成功しました。ユーザー情報を再取得します');
           await this._fetchUserInfo();
         } else {
-          Logger.warn('トークンリフレッシュに失敗しました。ログアウトします');
-          await this.logout();
+          Logger.warn('トークンリフレッシュに失敗しました。ローカルデータによるフォールバック認証を試みます');
+          // ローカルデータによるフォールバック認証を試みる
+          const fallbackSuccess = await this._tryFallbackAuthentication();
+          if (!fallbackSuccess) {
+            Logger.warn('フォールバック認証に失敗しました。認証状態は未認証になります');
+          }
         }
       }
       // サーバーエラーの場合、一定回数リトライ
@@ -499,6 +563,13 @@ export class AuthenticationService {
         await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
         return this._fetchUserInfo(retryCount + 1);
       } 
+      // ネットワークエラーの場合も、リトライを試みる
+      else if (axios.isAxiosError(error) && !error.response && retryCount < 3) {
+        Logger.info(`ネットワークエラーが発生しました。リトライします (${retryCount + 1}/3)`);
+        // 指数バックオフでリトライ（1秒、2秒、4秒）
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
+        return this._fetchUserInfo(retryCount + 1);
+      }
       // すべてのリトライが失敗、または他のエラーの場合はフォールバック認証を試みる
       else {
         Logger.info('サーバーとの通信に失敗しました。ローカルデータを使用して認証状態を維持します');
