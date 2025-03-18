@@ -1237,63 +1237,15 @@ JWT_SECRET=your_jwt_secret_key
   private async _updateWebview(): Promise<void> {
     try {
       // プロジェクト詳細情報を追加
+      // プロジェクト詳細情報は使用しない（計画と設計セクションを非表示にするため）
       let activeProjectDetails = undefined;
       
-      if (this._activeProject) {
-        const projectId = this._activeProject.id;
-        const projectPath = this._activeProject.path || '';
-        
-        // データがなくてもクラッシュしないように、安全にアクセス
-        const mockups = this._projectMockups[projectId] || [];
-        const scope = this._projectScopes[projectId] || { items: [], totalProgress: 0 };
-        const scopeItems = scope.items || [];
-        
-        // ファイル進捗情報は使用しない
-        let fileProgress = { completed: [], total: [], percentage: 0 };
-
-        // 共通関数を使用してモックアップの状態を確認（毎回のチェックはせず、既存の値を使用）
-        const hasMockupFiles = this._checkMockupFolderStatus(projectPath, projectId);
-        
-        activeProjectDetails = {
-          requirements: this._projectRequirements[projectId] || {},
-          mockups: mockups,
-          scope: scope,
-          
-          // モックアップ数
-          mockupCount: mockups.length || 0,
-          
-          // モックアップファイルの存在フラグを追加
-          hasMockupFiles: hasMockupFiles,
-          
-          // 実装項目数
-          scopeItemCount: scopeItems.length || 0,
-          
-          // 実装完了率
-          implementationProgress: scope.totalProgress || 0,
-          
-          // 実装中の項目数
-          inProgressItems: scopeItems.filter((item: any) => 
-            item && item.status === 'in-progress').length || 0,
-            
-          // 完了した項目数
-          completedItems: scopeItems.filter((item: any) => 
-            item && item.status === 'completed').length || 0,
-            
-          // ファイル進捗情報
-          fileProgress: {
-            completed: fileProgress.completed,
-            total: fileProgress.total,
-            percentage: fileProgress.percentage
-          }
-        };
-      }
-      
-      // WebViewに状態更新を送信
+      // WebViewに状態更新を送信（プロジェクト一覧のみ）
       await this._panel.webview.postMessage({
         command: 'updateState',
         projects: this._currentProjects || [],
-        activeProject: this._activeProject || null,
-        activeProjectDetails: activeProjectDetails
+        activeProject: null, // プロジェクト詳細を表示しないようにnullを送信
+        activeProjectDetails: null
       });
     } catch (error) {
       Logger.error(`WebView状態更新エラー`, error as Error);
@@ -1447,7 +1399,7 @@ JWT_SECRET=your_jwt_secret_key
     /* プロジェクトグリッド */
     .projects-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      grid-template-columns: repeat(3, 1fr);
       gap: 20px;
       margin-bottom: 2rem;
     }
@@ -1812,6 +1764,12 @@ JWT_SECRET=your_jwt_secret_key
         grid-template-columns: 1fr;
       }
     }
+    
+    @media (min-width: 769px) and (max-width: 1200px) {
+      .projects-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
 
     /* ウェルカム関連 */
     .welcome-panel {
@@ -1987,8 +1945,8 @@ JWT_SECRET=your_jwt_secret_key
       </div>
       
       <!-- アクティブなプロジェクト情報 -->
-      <div id="active-project-info">
-        <!-- プロジェクト情報がここに表示されます -->
+      <div id="active-project-info" style="display: none;">
+        <!-- プロジェクト情報はコメントアウト -->
       </div>
     </div>
   </div>
