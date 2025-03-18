@@ -18,7 +18,7 @@ export class ClaudeCodeApiClient {
   private constructor() {
     this._authService = AuthenticationService.getInstance();
     // API URLを環境変数から取得、またはデフォルト値を使用
-    this._baseUrl = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
+    this._baseUrl = process.env.PORTAL_API_URL || 'https://geniemon-portal-backend-production.up.railway.app/api';
   }
 
   /**
@@ -137,8 +137,9 @@ export class ClaudeCodeApiClient {
       
       return response.status === 201;
     } catch (error) {
+      // 使用履歴記録のエラーはログに残すだけで、UI通知は行わない
       console.error('プロンプト使用履歴の記録に失敗しました:', error);
-      this._handleApiError(error);
+      // エラーをUI通知せず、ログだけに記録
       return false;
     }
   }

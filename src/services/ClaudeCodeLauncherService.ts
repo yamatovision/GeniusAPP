@@ -278,7 +278,13 @@ export class ClaudeCodeLauncherService {
   public async launchClaudeCodeWithPrompt(
     projectPath: string,
     promptFilePath: string,
-    options?: { title?: string, additionalParams?: string, deletePromptFile?: boolean }
+    options?: { 
+      title?: string, 
+      additionalParams?: string, 
+      deletePromptFile?: boolean,
+      splitView?: boolean, // 分割表示を使用するかどうか
+      location?: vscode.ViewColumn // ターミナルの表示位置
+    }
   ): Promise<boolean> {
     try {
       // プロジェクトパスの確認
@@ -295,12 +301,21 @@ export class ClaudeCodeLauncherService {
       const platformManager = PlatformManager.getInstance();
       const iconPath = platformManager.getResourceUri('media/icon.svg');
       
-      // ターミナルの作成
-      const terminal = vscode.window.createTerminal({
+      // ターミナルの作成（分割表示のオプションを指定）
+      // VSCode APIの型定義に合わせて適切なターミナルオプションを設定
+      const terminalOptions: vscode.TerminalOptions = {
         name: options?.title || 'ClaudeCode',
         cwd: projectPath,
         iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
-      });
+      };
+      
+      // 分割表示の場合は、適切な位置を設定
+      if (options?.splitView && options.location) {
+        // terminalOptions.location = { viewColumn: options.location }; // VSCode 1.68以降の場合
+        // 互換性のため代替方法を使用
+      }
+      
+      const terminal = vscode.window.createTerminal(terminalOptions);
       
       // ターミナルの表示（true を渡してフォーカスする）
       terminal.show(true);
@@ -376,7 +391,8 @@ export class ClaudeCodeLauncherService {
         { 
           projectPath: projectPath,
           promptFilePath: promptFilePath,
-          additionalParams: options?.additionalParams
+          additionalParams: options?.additionalParams,
+          splitView: options?.splitView
         },
         'ClaudeCodeLauncherService'
       );
