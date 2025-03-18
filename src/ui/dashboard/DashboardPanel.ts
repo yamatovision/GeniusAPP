@@ -125,12 +125,18 @@ export class DashboardPanel extends ProtectedPanel {
     // WebViewからのメッセージを処理
     this._panel.webview.onDidReceiveMessage(
       async message => {
+        Logger.info(`ダッシュボードWebViewからメッセージを受信: ${message.command}`);
         switch (message.command) {
           case 'createProject':
             await this._handleCreateProject(message.name, message.description);
             break;
           case 'openProject':
             await this._handleOpenProject(message.id);
+            // プロジェクトを開いたら、メモリ内のプロジェクト情報を更新
+            this._currentProjects = this._projectService.getAllProjects();
+            this._activeProject = this._projectService.getActiveProject();
+            // WebViewにも状態を通知して同期
+            await this._updateWebview();
             break;
           case 'deleteProject':
             await this._handleDeleteProject(message.id);
@@ -330,31 +336,58 @@ export class DashboardPanel extends ProtectedPanel {
    */
   private async _refreshProjects(): Promise<void> {
     try {
-      // 基本プロジェクト情報のみ取得して画面を更新（重い処理は避ける）
-      this._currentProjects = this._projectService.getAllProjects();
-      this._activeProject = this._projectService.getActiveProject();
-      
-      // 最低限のデータだけすぐに画面に表示
-      await this._updateWebview();
-      
-      // ローディング状態を終了
-      await this._panel.webview.postMessage({
-        command: 'refreshComplete'
+      // タイムアウト処理を追加
+      const timeoutPromise = new Promise<void>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error('プロジェクト一覧の読み込みがタイムアウトしました'));
+        }, 5000); // 5秒でタイムアウト
       });
       
-      // 必要に応じて詳細データを別途バックグラウンドでロード
-      if (this._activeProject) {
-        // このメソッドは非同期だがawaitしない（UIをブロックしないため）
-        this._loadProjectDetails(this._activeProject.id);
-      }
+      // プロジェクト情報取得処理
+      const loadDataPromise = (async () => {
+        // 基本プロジェクト情報のみ取得して画面を更新（重い処理は避ける）
+        this._currentProjects = this._projectService.getAllProjects();
+        this._activeProject = this._projectService.getActiveProject();
+        
+        // 最低限のデータだけすぐに画面に表示
+        await this._updateWebview();
+        
+        // ローディング状態を終了
+        await this._panel.webview.postMessage({
+          command: 'refreshComplete'
+        });
+        
+        // 必要に応じて詳細データを別途バックグラウンドでロード（タイムアウトの影響を受けない）
+        if (this._activeProject) {
+          // このメソッドは非同期だがawaitしない（UIをブロックしないため）
+          setTimeout(() => {
+            this._loadProjectDetails(this._activeProject!.id).catch(err => {
+              Logger.warn(`プロジェクト詳細のバックグラウンドロード中にエラー: ${err.message}`);
+            });
+          }, 100);
+        }
+      })();
+      
+      // タイムアウトと実際の処理を競合させる
+      await Promise.race([timeoutPromise, loadDataPromise]);
     } catch (error) {
       Logger.error(`プロジェクト一覧更新エラー`, error as Error);
-      await this._showError(`プロジェクト一覧の更新中にエラーが発生しました: ${(error as Error).message}`);
       
-      // エラー時にもローディング状態を解除
-      await this._panel.webview.postMessage({
-        command: 'refreshComplete'
-      });
+      // エラー時にも必ずローディング状態を解除
+      try {
+        await this._panel.webview.postMessage({
+          command: 'refreshComplete'
+        });
+        
+        // タイムアウトエラーの場合は特別なメッセージ
+        if ((error as Error).message.includes('タイムアウト')) {
+          await this._showError('プロジェクト一覧の読み込みに時間がかかっています。再度試すか、VSCodeを再起動してください。');
+        } else {
+          await this._showError(`プロジェクト一覧の更新中にエラーが発生しました: ${(error as Error).message}`);
+        }
+      } catch (err) {
+        Logger.error('エラーメッセージ送信中にさらにエラーが発生', err as Error);
+      }
     }
   }
   
@@ -1247,12 +1280,33 @@ JWT_SECRET=your_jwt_secret_key
     }
 
     try {
+      Logger.info('ダッシュボードWebViewを更新開始');
+      
+      // 最新のプロジェクトデータを取得
+      this._currentProjects = this._projectService.getAllProjects();
+      this._activeProject = this._projectService.getActiveProject();
+      
+      // HTMLを設定
       this._panel.webview.html = this._getHtmlForWebview();
+      
+      // ローディング表示を開始
+      await this._panel.webview.postMessage({
+        command: 'refreshProjects'
+      });
+      
+      // データを更新してWebViewに反映
       await this._updateWebview();
+      
+      Logger.info('ダッシュボードWebView更新完了');
     } catch (error) {
       Logger.error(`WebView更新エラー`, error as Error);
       // エラーが発生しても最低限のUIは維持
       this._panel.webview.html = this._getHtmlForWebview();
+      
+      // エラー時にもローディング状態を解除
+      await this._panel.webview.postMessage({
+        command: 'refreshComplete'
+      });
     }
   }
 
@@ -1261,16 +1315,27 @@ JWT_SECRET=your_jwt_secret_key
    */
   private async _updateWebview(): Promise<void> {
     try {
-      // プロジェクト詳細情報を追加
-      // プロジェクト詳細情報は使用しない（計画と設計セクションを非表示にするため）
-      let activeProjectDetails = undefined;
+      // 最新のプロジェクト情報を取得
+      this._currentProjects = this._projectService.getAllProjects();
+      this._activeProject = this._projectService.getActiveProject();
       
-      // WebViewに状態更新を送信（プロジェクト一覧のみ）
+      Logger.info(`ダッシュボードWebView更新: プロジェクト数=${this._currentProjects.length}, アクティブプロジェクト=${this._activeProject?.name || 'なし'}`);
+      
+      // WebViewに状態更新を送信
       await this._panel.webview.postMessage({
         command: 'updateState',
         projects: this._currentProjects || [],
-        activeProject: null, // プロジェクト詳細を表示しないようにnullを送信
-        activeProjectDetails: null
+        activeProject: this._activeProject, // スコープマネージャーと共有するためにアクティブプロジェクト情報も送信
+        activeProjectDetails: this._activeProject ? {
+          id: this._activeProject.id,
+          name: this._activeProject.name,
+          path: this._activeProject.path,
+        } : null
+      });
+      
+      // ローディング状態を終了
+      await this._panel.webview.postMessage({
+        command: 'refreshComplete'
       });
     } catch (error) {
       Logger.error(`WebView状態更新エラー`, error as Error);
@@ -1278,6 +1343,11 @@ JWT_SECRET=your_jwt_secret_key
       await this._panel.webview.postMessage({
         command: 'showError',
         message: 'プロジェクトデータの読み込み中にエラーが発生しました。'
+      });
+      
+      // エラー時にもローディング状態を解除
+      await this._panel.webview.postMessage({
+        command: 'refreshComplete'
       });
     }
   }

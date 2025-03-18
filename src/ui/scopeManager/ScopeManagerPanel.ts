@@ -52,6 +52,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // プロジェクトパスが指定されている場合は更新
       if (projectPath) {
+        Logger.info(`既存のスコープマネージャーパネルを使用して、プロジェクトパスを更新: ${projectPath}`);
         ScopeManagerPanel.currentPanel.setProjectPath(projectPath);
       }
       
@@ -61,7 +62,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // 新しいパネルを作成
     const panel = vscode.window.createWebviewPanel(
       ScopeManagerPanel.viewType,
-      'AppGenius ダッシュボード',
+      'AppGenius スコープマネージャー',
       column || vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -73,7 +74,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
         ]
       }
     );
-
+    
+    Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}`);
     ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, projectPath);
     return ScopeManagerPanel.currentPanel;
   }

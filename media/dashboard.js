@@ -63,14 +63,14 @@
       // ローディング状態の更新
       updateLoadingState(true);
       
-      // 定期的な状態更新（1秒ごとに更新）
+      // 定期的な状態更新（30秒ごとに更新 - 頻度を下げて負荷を軽減）
       setInterval(() => {
         if (state.activeProject) {
           vscode.postMessage({
             command: 'refreshProjects'
           });
         }
-      }, 1000);
+      }, 30000); // 30秒に変更
     } catch (e) {
       console.error('DOMContentLoaded イベントハンドラでエラーが発生しました', e);
     }
@@ -218,9 +218,17 @@
   /**
    * ローディング状態の更新
    */
+  let loadingTimeout = null;
+  
   function updateLoadingState(isLoading) {
     state.loading = isLoading;
     saveState();
+    
+    // 既存のタイムアウトをクリア
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
+      loadingTimeout = null;
+    }
     
     // プロジェクトコンテナにローディング表示
     const projectsContainer = document.getElementById('projects-container');
@@ -234,6 +242,20 @@
             <div>読み込み中...</div>
           </div>
         `;
+        
+        // 10秒後にローディング状態を自動解除するタイムアウトを設定
+        loadingTimeout = setTimeout(() => {
+          console.log('ローディングタイムアウト: 10秒経過したため自動的にローディング状態を解除します');
+          // ローディング状態を解除
+          state.loading = false;
+          saveState();
+          
+          // プロジェクト一覧を再表示
+          renderProjects();
+          
+          // エラーメッセージを表示
+          showError('データの読み込みがタイムアウトしました。再読み込みしてください。');
+        }, 10000); // 10秒タイムアウト
       } else if (state.projects.length === 0) {
         // プロジェクトがない場合もグリッドをリセット
         projectsContainer.className = '';
@@ -243,6 +265,9 @@
             <p>新しいプロジェクトを作成するか、既存のプロジェクトを読み込んでください。</p>
             <button class="button primary" onclick="document.getElementById('new-project-btn').click()">
               <span>➕</span> 新規プロジェクト作成
+            </button>
+            <button class="button secondary" onclick="refreshData()" style="margin-top: 10px;">
+              <span>🔄</span> 再読み込み
             </button>
           </div>
         `;
@@ -771,12 +796,23 @@
     const project = state.projects.find(p => p.id === id);
     if (!project) return;
     
-    // appgenius-ai.openScopeManager コマンドを実行する
+    console.log(`プロジェクトを開きます: ID=${id}, パス=${project.path}`);
+    
+    // プロジェクトをアクティブに設定してから
     vscode.postMessage({
-      command: 'executeCommand',
-      commandId: 'appgenius-ai.openScopeManager',
-      args: [project.path]
+      command: 'openProject',
+      id: project.id
     });
+    
+    // しばらく待ってからスコープマネージャーを開く（順序を確保）
+    setTimeout(() => {
+      console.log(`スコープマネージャーを開きます: パス=${project.path}`);
+      vscode.postMessage({
+        command: 'executeCommand',
+        commandId: 'appgenius-ai.openScopeManager',
+        args: [project.path]
+      });
+    }, 500);
     
     updateLoadingState(true);
   }

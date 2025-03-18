@@ -337,20 +337,47 @@ project-root/
         return;
       }
       
+      // 同期的にファイルを読み込むが、大量のプロジェクトがある場合も考慮して最適化
       const data = fs.readFileSync(this.metadataFile, 'utf8');
-      const metadata = JSON.parse(data);
-      
-      if (metadata.projects && Array.isArray(metadata.projects)) {
-        metadata.projects.forEach((project: any) => {
-          if (project.id) {
-            this.projects.set(project.id, project);
-          }
-        });
+      if (!data || data.trim() === '') {
+        Logger.warn('Project metadata file is empty, initializing with empty projects list');
+        fs.writeFileSync(this.metadataFile, JSON.stringify({ projects: [] }), 'utf8');
+        return;
       }
       
-      Logger.info(`Loaded ${this.projects.size} projects`);
+      try {
+        const metadata = JSON.parse(data);
+        
+        if (metadata.projects && Array.isArray(metadata.projects)) {
+          // Mapをクリアしてから再構築（重複を避ける）
+          this.projects.clear();
+          
+          // 高速にプロジェクトをロード
+          metadata.projects.forEach((project: any) => {
+            if (project.id) {
+              this.projects.set(project.id, project);
+            }
+          });
+        }
+        
+        Logger.info(`Loaded ${this.projects.size} projects`);
+      } catch (parseError) {
+        // JSONパースエラーの場合、ファイルが破損している可能性がある
+        Logger.error(`Failed to parse projects metadata: ${(parseError as Error).message}`);
+        
+        // バックアップを作成して新しいファイルを作成
+        const backupPath = `${this.metadataFile}.backup-${Date.now()}`;
+        fs.copyFileSync(this.metadataFile, backupPath);
+        Logger.info(`Created backup of corrupted metadata file: ${backupPath}`);
+        
+        // 空のプロジェクトリストで初期化
+        this.projects.clear();
+        fs.writeFileSync(this.metadataFile, JSON.stringify({ projects: [] }), 'utf8');
+      }
     } catch (error) {
       Logger.error(`Failed to load projects: ${(error as Error).message}`);
+      // エラー発生時は空のプロジェクトリストを使用
+      this.projects.clear();
     }
   }
   
