@@ -2,6 +2,12 @@
   // VSCode APIアクセス
   const vscode = acquireVsCodeApi();
   
+  // デバッグログ関数
+  function debugLog(message, data) {
+    const timestamp = new Date().toISOString();
+    console.log(`[EnvAssistant][${timestamp}] ${message}`, data || '');
+  }
+  
   // 状態を保持
   let state = {
     envFiles: [],
@@ -13,6 +19,9 @@
     },
     projectPath: ''
   };
+  
+  // 初期化時にデバッグログ
+  debugLog('環境変数アシスタントを初期化中');
   
   // DOM要素のキャッシュ
   let elements = {
@@ -87,6 +96,9 @@
     const savedState = vscode.getState();
     if (savedState) {
       state = {...state, ...savedState};
+      debugLog('状態を復元しました', state);
+    } else {
+      debugLog('保存された状態がありません');
     }
   }
   
@@ -99,6 +111,19 @@
     elements.autoDetectButton = document.getElementById('auto-detect-variables');
     elements.saveAllButton = document.getElementById('save-all-variables');
     elements.launchClaudeButton = document.getElementById('launch-claude-assistant');
+    
+    // 各要素の存在をログに記録
+    debugLog('DOM要素を取得:',
+      {
+        envList: !!elements.envList,
+        progressValue: !!elements.progressValue,
+        progressBar: !!elements.progressBar,
+        aiSuggestionText: !!elements.aiSuggestionText,
+        autoDetectButton: !!elements.autoDetectButton,
+        saveAllButton: !!elements.saveAllButton,
+        launchClaudeButton: !!elements.launchClaudeButton
+      }
+    );
   }
   
   // イベントリスナーを設定
@@ -148,6 +173,8 @@
   
   // 状態更新を処理
   function handleUpdateState(message) {
+    debugLog('状態更新メッセージを受信:', message);
+    
     // 状態を更新
     state = {
       ...state,
@@ -160,6 +187,7 @@
     
     // 状態を保存
     vscode.setState(state);
+    debugLog('新しい状態を保存:', state);
     
     // UIを更新
     updateUI();
@@ -437,37 +465,65 @@
   
   // UIを更新
   function updateUI() {
+    debugLog('UIを更新開始');
+    
     // 進捗状況の更新
     updateProgress();
     
     // 環境変数リストの更新
     updateEnvList();
+    
+    debugLog('UIの更新完了');
   }
   
   // 進捗状況を更新
   function updateProgress() {
+    debugLog('進捗状況更新:', state.progress);
+    
     if (elements.progressValue && state.progress) {
       elements.progressValue.textContent = `${state.progress.configured}/${state.progress.total}`;
+      debugLog('進捗テキスト更新完了');
+    } else {
+      debugLog('進捗表示エレメントが見つからないか、進捗情報がありません', {
+        progressValueExists: !!elements.progressValue,
+        progressExists: !!state.progress
+      });
     }
     
     if (elements.progressBar && state.progress && state.progress.total > 0) {
-      const percentage = (state.progress.configured / state.progress.total) * 100;
-      elements.progressBar.style.width = `${percentage}%`;
+      try {
+        const percentage = (state.progress.configured / state.progress.total) * 100;
+        elements.progressBar.style.width = `${percentage}%`;
+        debugLog('進捗バー更新完了', { percentage });
+      } catch (error) {
+        debugLog('進捗バー更新エラー', error);
+      }
+    } else {
+      debugLog('進捗バーが見つからないか、進捗情報が不完全です', {
+        progressBarExists: !!elements.progressBar,
+        progressExists: !!state.progress,
+        totalExists: state.progress ? !!state.progress.total : false
+      });
     }
   }
   
   // 環境変数リストの更新
   function updateEnvList() {
+    debugLog('環境変数リストの更新を開始');
+    
     // envListがない場合は何もしない
     if (!elements.envList) {
+      debugLog('環境変数リスト要素が見つかりません');
       return;
     }
     
     // envListをクリア
     elements.envList.innerHTML = '';
+    debugLog('環境変数リストをクリア');
     
     // アクティブなファイルがない場合はメッセージを表示
     if (!state.activeEnvFile) {
+      debugLog('アクティブな環境変数ファイルがありません');
       const message = document.createElement('div');
       message.className = 'no-file-message';
       message.textContent = 'env.mdとCLAUDE.mdから環境変数情報を読み込み中です。「AIアシスタントを起動」をクリックして、必要な環境変数を分析してください。';
@@ -475,9 +531,18 @@
       return;
     }
     
+    debugLog('アクティブなファイル:', state.activeEnvFile);
+    
     // アクティブなファイルの変数がない場合はメッセージを表示
     const activeVars = state.envVariables[state.activeEnvFile];
+    debugLog('アクティブなファイルの変数:', {
+      exists: !!activeVars,
+      count: activeVars ? Object.keys(activeVars).length : 0,
+      sampleKeys: activeVars ? Object.keys(activeVars).slice(0, 3) : []
+    });
+    
     if (!activeVars || Object.keys(activeVars).length === 0) {
+      debugLog('環境変数情報が見つかりません');
       const message = document.createElement('div');
       message.className = 'no-variables-message';
       message.textContent = 'env.mdからの環境変数情報が見つかりません。「プロジェクト分析を開始」をクリックしてプロジェクトに必要な環境変数を特定してください。';
@@ -992,31 +1057,46 @@
   
   // 初期化処理
   function initialize() {
-    // 保存された状態を復元
-    restoreState();
+    debugLog('=== 環境変数アシスタント初期化開始 ===');
     
-    // DOM要素にClaudeIdを割り当て
-    assignClaudeIds();
-    
-    // DOM要素を取得
-    cacheElements();
-    
-    // イベントリスナーを設定
-    setupEventListeners();
-    
-    // メッセージハンドラを設定
-    setupMessageHandler();
-    
-    // テーマリスナーを設定
-    setupThemeListener();
-    
-    // UIを更新
-    updateUI();
-    
-    // 初期化完了メッセージを送信
-    vscode.postMessage({
-      command: 'initialize'
-    });
+    try {
+      // 保存された状態を復元
+      restoreState();
+      
+      // DOM要素にClaudeIdを割り当て
+      assignClaudeIds();
+      debugLog('Claude IDを割り当て完了');
+      
+      // DOM要素を取得
+      cacheElements();
+      
+      // イベントリスナーを設定
+      setupEventListeners();
+      debugLog('イベントリスナー設定完了');
+      
+      // メッセージハンドラを設定
+      setupMessageHandler();
+      debugLog('メッセージハンドラ設定完了');
+      
+      // テーマリスナーを設定
+      setupThemeListener();
+      debugLog('テーマリスナー設定完了');
+      
+      // UIを更新
+      updateUI();
+      
+      // HTML構造をログに記録（デバッグ用）
+      debugLog('現在のHTML構造:', document.body.innerHTML);
+      
+      // 初期化完了メッセージを送信
+      vscode.postMessage({
+        command: 'initialize'
+      });
+      
+      debugLog('=== 環境変数アシスタント初期化完了 ===');
+    } catch (error) {
+      debugLog('初期化処理中にエラーが発生しました:', error);
+    }
   }
   
   // DOMContentLoadedイベントで初期化を開始
