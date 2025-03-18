@@ -53,7 +53,7 @@ export class DashboardPanel extends ProtectedPanel {
     // 新しいパネルを作成
     const panel = vscode.window.createWebviewPanel(
       DashboardPanel.viewType,
-      'AppGenius ダッシュボード',
+      'AppGenius プロジェクト管理',
       column || vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -140,6 +140,16 @@ export class DashboardPanel extends ProtectedPanel {
             break;
           case 'updateProject':
             await this._handleUpdateProject(message.id, message.updates);
+            break;
+          case 'executeCommand':
+            // VSCodeコマンドを実行
+            try {
+              Logger.info(`WebViewからのコマンド実行リクエスト: ${message.commandId}, 引数=${JSON.stringify(message.args || [])}`);
+              await vscode.commands.executeCommand(message.commandId, ...(message.args || []));
+            } catch (error) {
+              Logger.error(`コマンド実行エラー: ${message.commandId}`, error as Error);
+              await this._showError(`コマンド実行に失敗しました: ${(error as Error).message}`);
+            }
             break;
           case 'openRequirementsEditor':
             await this._handleOpenRequirementsEditor();
@@ -1305,124 +1315,702 @@ JWT_SECRET=your_jwt_secret_key
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.js')
     );
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.css')
-    );
-    const resetCssUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
-    );
-    const designSystemUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css')
-    );
-    const accessibilityUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'accessibility.css')
-    );
-    const vscodeCssUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css')
-    );
 
-    // WebViewのHTMLを構築
+    // WebViewのHTMLを構築 - シンプル化したインラインスタイルで実装
     return `<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
-  <title>AppGenius ダッシュボード</title>
-  <link href="${resetCssUri}" rel="stylesheet">
-  <link href="${designSystemUri}" rel="stylesheet">
-  <link href="${accessibilityUri}" rel="stylesheet">
-  <link href="${styleUri}" rel="stylesheet">
+  <title>AppGenius プロジェクト管理</title>
   <style>
-    /* 青背景エリアの文字は常に白に強制上書き */
-    .header h1, 
-    .header-actions button,
-    .header-actions button span,
-    .step-number, 
-    .step-action,
-    .project-buttons button,
-    .project-buttons button span,
-    .open-button {
-      color: white !important;
+    /* リセットとベーススタイル */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
     }
     
-    /* ライトモード固定スタイル */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      color: #333;
+      background-color: #f8f9fa;
+      line-height: 1.6;
+    }
+    
+    /* コンテナ */
     .dashboard-container {
-      color-scheme: light !important;
-      background-color: white !important;
-      color: #333 !important;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
     }
     
-    /* ダークモード用スタイル（将来的な拡張） */
-    .dashboard-container.theme-dark {
-      color-scheme: dark !important;
-      background-color: #1e1e1e !important;
-      color: #e0e0e0 !important;
+    /* ヘッダー */
+    .header {
+      padding: 1rem 0 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e1e8f5;
+      margin-bottom: 2rem;
+    }
+    
+    .header h1 {
+      font-size: 1.8rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #4a69bd;
+      margin: 0;
+    }
+    
+    .header-logo {
+      background-color: #4a69bd;
+      color: white;
+      padding: 8px;
+      border-radius: 8px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 10px;
+    }
+    
+    /* ボタン共通スタイル */
+    .button {
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      border: none;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background-color 0.2s;
+    }
+    
+    .button.primary {
+      background-color: #4a69bd;
+      color: white;
+    }
+    
+    .button.primary:hover {
+      background-color: #3d5aa1;
+    }
+    
+    .button.secondary {
+      background-color: #f1f5fd;
+      color: #4a69bd;
+      border: 1px solid #d0def5;
+    }
+    
+    .button.secondary:hover {
+      background-color: #e1ecfc;
+    }
+    
+    /* 主要コンテンツエリア */
+    .main-content {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    
+    /* プロジェクト作成セクション */
+    .project-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+      align-items: center;
+    }
+    
+    .project-actions h2 {
+      font-size: 1.3rem;
+      color: #2d3748;
+      font-weight: 600;
+      margin: 0;
+    }
+    
+    .actions-buttons {
+      display: flex;
+      gap: 10px;
+    }
+    
+    /* プロジェクトグリッド */
+    .projects-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      margin-bottom: 2rem;
+    }
+    
+    .project-card {
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .project-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+    
+    .project-card-header {
+      padding: 20px;
+      border-bottom: 1px solid #f0f4f8;
+    }
+    
+    .project-card-header h3 {
+      font-size: 1.1rem;
+      color: #2d3748;
+      margin-bottom: 5px;
+    }
+    
+    .project-path {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #718096;
+      background-color: #f8faff;
+      padding: 5px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .project-card-body {
+      padding: 15px 20px;
+      flex: 1;
+    }
+    
+    .project-dates {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 10px;
+    }
+    
+    .date-item {
+      font-size: 0.8rem;
+      color: #718096;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    
+    .project-card-footer {
+      padding: 15px 20px;
+      border-top: 1px solid #f0f4f8;
+      background-color: #f9fafc;
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    /* 空のプロジェクト表示 */
+    .empty-projects, .no-projects {
+      text-align: center;
+      padding: 60px 20px;
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+    
+    .empty-projects h3, .no-projects h3 {
+      font-size: 1.3rem;
+      color: #4a5568;
+      margin-bottom: 10px;
+    }
+    
+    .empty-projects p, .no-projects p {
+      color: #718096;
+      margin-bottom: 25px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .empty-illustration {
+      font-size: 4rem;
+      margin-bottom: 20px;
+      opacity: 0.7;
+    }
+    
+    /* 新規プロジェクトモーダル */
+    .modal-overlay, .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+    
+    .modal-overlay.active, .modal.active {
+      opacity: 1;
+      visibility: visible;
+    }
+    
+    .modal-content, .modal > .modal {
+      background-color: white;
+      border-radius: 10px;
+      width: 100%;
+      max-width: 500px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .modal-header h2 {
+      font-size: 1.3rem;
+      color: #2d3748;
+      margin: 0;
+    }
+    
+    .modal-body {
+      padding: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #4a5568;
+    }
+    
+    .form-group input,
+    .form-group textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+    
+    .form-group input:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: #4a69bd;
+      box-shadow: 0 0 0 3px rgba(74, 105, 189, 0.2);
+    }
+    
+    .form-description {
+      font-size: 0.85rem;
+      color: #718096;
+      margin-top: 5px;
+    }
+    
+    .modal-footer, .form-actions {
+      padding: 15px 20px;
+      border-top: 1px solid #e2e8f0;
+      background-color: #f9fafc;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    
+    /* ローディング表示 */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      color: #718096;
+    }
+    
+    .loading-spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4a69bd;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 1rem;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    /* エラーメッセージ */
+    .error-message {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #f8d7da;
+      color: #721c24;
+      padding: 10px 15px;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    /* 進行中のプロジェクト用のフローUI */
+    .process-section {
+      background-color: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .section-header {
+      margin-bottom: 20px;
+    }
+    
+    .section-header h2 {
+      margin: 0 0 10px 0;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #2d3748;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e1e8f5;
+    }
+    
+    .section-description {
+      color: #4a5568;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+    
+    .process-steps-flow {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      gap: 20px;
+      margin-top: 20px;
+    }
+    
+    .process-step {
+      background-color: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    
+    .process-step:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    }
+    
+    .process-step.active {
+      border-color: #4a69bd;
+    }
+    
+    .step-number {
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      width: 30px;
+      height: 30px;
+      background-color: #4a69bd;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+    
+    .step-icon {
+      font-size: 2rem;
+      margin-bottom: 15px;
+      color: #4a69bd;
+    }
+    
+    .step-content {
+      margin-bottom: 20px;
+    }
+    
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #2d3748;
+    }
+    
+    .step-instruction {
+      font-size: 0.9rem;
+      color: #4a5568;
+      line-height: 1.5;
+    }
+    
+    .step-action {
+      background-color: #4a69bd;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-top: auto;
+    }
+    
+    /* レスポンシブ調整 */
+    @media (max-width: 768px) {
+      .projects-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .project-actions {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+      
+      .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+      
+      .dashboard-container {
+        padding: 1rem;
+      }
+      
+      .process-steps-flow {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* ウェルカム関連 */
+    .welcome-panel {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+      padding: 30px;
+      position: relative;
+      margin-bottom: 30px;
+    }
+
+    .welcome-dismiss {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      color: #a0aec0;
+      cursor: pointer;
+    }
+
+    .welcome-header {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .welcome-icon {
+      font-size: 3rem;
+      color: #4a69bd;
+    }
+
+    .welcome-title h2 {
+      font-size: 1.8rem;
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+
+    .welcome-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 25px;
+      margin-bottom: 30px;
+    }
+
+    .welcome-step {
+      background: #f8fafc;
+      border-radius: 8px;
+      padding: 20px;
+      position: relative;
+      text-align: center;
+    }
+
+    .step-count {
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      background: #4a69bd;
+      color: white;
+      width: 25px;
+      height: 25px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+    }
+
+    .welcome-actions {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+    }
+    
+    .welcome-button {
+      padding: 10px 16px;
+      background: #4a69bd;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .welcome-button.secondary {
+      background: #f1f5fd;
+      color: #4a69bd;
+      border: 1px solid #d0def5;
+    }
+
+    /* アクティブプロジェクト表示 */
+    .active-project-panel {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      padding: 25px;
+      margin-bottom: 30px;
+    }
+
+    .project-details h2 {
+      font-size: 1.6rem;
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+
+    .no-active-project {
+      text-align: center;
+      padding: 50px 20px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .no-active-project h2 {
+      font-size: 1.4rem;
+      color: #4a5568;
+      margin-bottom: 15px;
+    }
+
+    .no-active-project p {
+      color: #718096;
+      max-width: 500px;
+      margin: 0 auto;
     }
   </style>
 </head>
 <body>
-  <div class="dashboard-container theme-light">
+  <div class="dashboard-container">
     <!-- ヘッダー -->
-    <div class="header">
-      <h1>AppGenius ダッシュボード</h1>
+    <header class="header">
+      <h1>
+        <div class="header-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M2 17L12 22L22 17" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M2 12L12 17L22 12" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        AppGenius ダッシュボード
+      </h1>
       <div class="header-actions">
-        <button id="theme-toggle" class="button">
-          <i class="icon">🌓</i> <span>テーマ切替</span>
+        <button class="button secondary" id="theme-toggle">
+          <span>🌓</span> テーマ切替
         </button>
       </div>
-    </div>
+    </header>
     
     <!-- メインコンテンツ -->
-    <div class="content">
-      <!-- サイドバー -->
-      <div class="sidebar">
-        <div class="sidebar-header">
-          <h2>プロジェクト一覧</h2>
-          <div class="project-buttons">
-            <button id="new-project-btn" class="button">
-              <i class="icon">➕</i> <span>新規作成</span>
-            </button>
-            <button id="load-project-btn" class="button">
-              <i class="icon">📂</i> <span>読み込む</span>
-            </button>
-          </div>
-          <button id="toggle-sidebar" class="toggle-sidebar" title="サイドバー切替">
-            <i class="icon">◀</i>
+    <div class="main-content">
+      <!-- プロジェクト作成セクション -->
+      <div class="project-actions">
+        <h2>プロジェクト</h2>
+        <div class="actions-buttons">
+          <button class="button primary" id="new-project-btn">
+            <span>➕</span> 新規プロジェクト作成
           </button>
-        </div>
-        <div id="projects-container" class="projects-container">
-          <!-- プロジェクト一覧が動的に表示されます -->
-          <div class="loading">
-            <div class="loading-spinner"></div>
-            <div>プロジェクトを読み込み中...</div>
-          </div>
+          <button class="button secondary" id="load-project-btn">
+            <span>📂</span> 既存プロジェクトを読み込む
+          </button>
         </div>
       </div>
       
-      <!-- メインエリア -->
-      <div class="main">
-        <div id="active-project-info">
-          <!-- プロジェクト情報がここに表示されます -->
+      <!-- プロジェクトグリッド -->
+      <div id="projects-container" class="projects-grid">
+        <!-- ここにプロジェクト一覧が動的に表示されます -->
+        <div class="loading">
+          <div class="loading-spinner"></div>
+          <div>プロジェクトを読み込み中...</div>
         </div>
+      </div>
+      
+      <!-- アクティブなプロジェクト情報 -->
+      <div id="active-project-info">
+        <!-- プロジェクト情報がここに表示されます -->
       </div>
     </div>
   </div>
 
-  <!-- 新規プロジェクト作成モーダル -->
-  <div id="new-project-modal" class="modal">
-    <div class="modal-content">
-      <h2>新規プロジェクト作成</h2>
-      <form id="new-project-form">
-        <div class="form-group">
-          <label for="project-name">プロジェクト名 <span style="color: #e74c3c;">*</span></label>
-          <input type="text" id="project-name" required placeholder="例: MyWebApp">
-        </div>
-        <div class="form-actions">
-          <button type="button" class="button secondary" id="cancel-new-project">キャンセル</button>
-          <button type="submit" class="button primary">作成</button>
-        </div>
-      </form>
+  <!-- 新規プロジェクトモーダル -->
+  <div class="modal-overlay" id="new-project-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>新規プロジェクト作成</h2>
+      </div>
+      <div class="modal-body">
+        <form id="new-project-form">
+          <div class="form-group">
+            <label for="project-name">プロジェクト名 <span style="color: #e74c3c;">*</span></label>
+            <input type="text" id="project-name" required placeholder="例: MyWebApp">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="button secondary" id="cancel-new-project">キャンセル</button>
+        <button class="button primary" id="create-project-btn">作成</button>
+      </div>
     </div>
   </div>
   

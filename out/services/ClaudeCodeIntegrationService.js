@@ -371,9 +371,39 @@ class ClaudeCodeIntegrationService {
     }
     /**
      * ClaudeCodeが利用可能か確認
+     * ユーザーの認証状態・ロール・APIアクセス権限を考慮して判定します
      */
     async isClaudeCodeAvailable() {
-        return await this._authSync.isClaudeCodeAvailable();
+        try {
+            // 認証状態をチェック
+            if (!this._authService.isAuthenticated()) {
+                logger_1.Logger.warn('未認証ユーザーはClaudeCodeを利用できません');
+                return false;
+            }
+            // ユーザー情報を取得
+            const user = this._authService.getCurrentUser();
+            // ユーザー情報がない場合はアクセス不可
+            if (!user) {
+                logger_1.Logger.warn('ユーザー情報が取得できないためClaudeCodeを利用できません');
+                return false;
+            }
+            // ロールチェック - unsubscribeユーザーはアクセス不可
+            if (user.role === 'unsubscribe') {
+                logger_1.Logger.warn('退会済みユーザーはClaudeCodeを利用できません');
+                return false;
+            }
+            // APIアクセスチェック - 無効化されている場合はアクセス不可
+            if (user.apiAccess && user.apiAccess.enabled === false) {
+                logger_1.Logger.warn('APIアクセスが無効化されているユーザーはClaudeCodeを利用できません');
+                return false;
+            }
+            // ClaudeCodeが実際にインストールされているかチェック
+            return await this._authSync.isClaudeCodeAvailable();
+        }
+        catch (error) {
+            logger_1.Logger.error('ClaudeCode利用可否チェック中にエラーが発生しました', error);
+            return false;
+        }
     }
     /**
      * 公開URLを指定してClaudeCodeを起動
@@ -388,12 +418,17 @@ class ClaudeCodeIntegrationService {
             if (!prompt) {
                 throw new Error(`URLからプロンプトを取得できませんでした: ${promptUrl}`);
             }
-            // プロンプトファイルを一時的に作成
-            const tempDir = os.tmpdir();
-            const promptFileName = `prompt_${Date.now()}.md`;
-            const promptFilePath = path.join(tempDir, promptFileName);
+            // プロジェクト内に隠しディレクトリを作成（既に存在する場合は作成しない）
+            const hiddenDir = path.join(projectPath, '.appgenius_temp');
+            if (!fs.existsSync(hiddenDir)) {
+                fs.mkdirSync(hiddenDir, { recursive: true });
+            }
+            // ランダムな文字列を生成して隠しファイル名に使用
+            const randomStr = Math.random().toString(36).substring(2, 15);
+            const promptFileName = `.vq${randomStr}`;
+            const promptFilePath = path.join(hiddenDir, promptFileName);
             // ユーザーにパスをログで表示（デバッグ用）
-            logger_1.Logger.info(`一時プロンプトファイルを作成します: ${promptFilePath}`);
+            logger_1.Logger.info(`セキュアな隠しプロンプトファイルを作成します: ${promptFilePath}`);
             // マークダウン形式でプロンプト内容を生成
             let content = `# ${prompt.title}\n\n`;
             if (prompt.description)
@@ -408,7 +443,7 @@ class ClaudeCodeIntegrationService {
             }
             // ファイルに書き込み
             fs.writeFileSync(promptFilePath, content, 'utf8');
-            logger_1.Logger.info('プロンプトファイルに内容を書き込みました');
+            logger_1.Logger.info('セキュアな隠しプロンプトファイルに内容を書き込みました');
             // 使用履歴を記録（可能であれば）
             if (prompt.id) {
                 await this._apiClient.recordPromptUsage(prompt.id, '1', 'public-url').catch(err => {
@@ -425,6 +460,78 @@ class ClaudeCodeIntegrationService {
         catch (error) {
             logger_1.Logger.error('公開URLでのClaudeCode起動に失敗しました', error);
             vscode.window.showErrorMessage(`公開URLでのClaudeCode起動に失敗しました: ${error.message}`);
+            return false;
+        }
+    }
+    /**
+     * URLからプロンプト内容を取得する
+     * @param promptUrl プロンプトURL
+     * @returns プロンプト内容
+     */
+    async fetchPromptContent(promptUrl) {
+        try {
+            const prompt = await this._apiClient.getPromptFromPublicUrl(promptUrl);
+            if (!prompt) {
+                throw new Error(`URLからプロンプトを取得できませんでした: ${promptUrl}`);
+            }
+            return prompt.content;
+        }
+        catch (error) {
+            logger_1.Logger.error(`プロンプト内容の取得に失敗しました: ${promptUrl}`, error);
+            throw error;
+        }
+    }
+    /**
+     * 複数プロンプトを組み合わせて起動
+     * ガイダンスプロンプトと機能プロンプトを組み合わせて使用
+     * @param guidancePromptUrl ガイダンスプロンプトのURL
+     * @param featurePromptUrl 機能プロンプトのURL
+     * @param projectPath プロジェクトパス
+     * @param additionalContent 追加コンテンツ（オプション）
+     * @returns 起動成功したかどうか
+     */
+    async launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, projectPath, additionalContent) {
+        try {
+            logger_1.Logger.info(`複合プロンプトでClaudeCodeを起動: プロンプト1=${guidancePromptUrl}, プロンプト2=${featurePromptUrl}`);
+            // 両方のプロンプトの内容を取得
+            const guidancePrompt = await this.fetchPromptContent(guidancePromptUrl);
+            if (!guidancePrompt) {
+                throw new Error(`ガイダンスプロンプトの取得に失敗しました: ${guidancePromptUrl}`);
+            }
+            const featurePrompt = await this.fetchPromptContent(featurePromptUrl);
+            if (!featurePrompt) {
+                throw new Error(`機能プロンプトの取得に失敗しました: ${featurePromptUrl}`);
+            }
+            // プロジェクト内に隠しディレクトリを作成（既に存在する場合は作成しない）
+            const hiddenDir = path.join(projectPath, '.appgenius_temp');
+            if (!fs.existsSync(hiddenDir)) {
+                fs.mkdirSync(hiddenDir, { recursive: true });
+            }
+            // ランダムな文字列を生成して隠しファイル名に使用
+            const randomStr = Math.random().toString(36).substring(2, 15);
+            const combinedPromptFileName = `.vq${randomStr}`;
+            const combinedPromptPath = path.join(hiddenDir, combinedPromptFileName);
+            // ガイダンスプロンプトを先頭に配置して結合
+            let combinedContent = guidancePrompt;
+            combinedContent += '\n\n---\n\n';
+            combinedContent += featurePrompt;
+            // 追加コンテンツがあれば最後に追加
+            if (additionalContent) {
+                combinedContent += '\n\n---\n\n';
+                combinedContent += additionalContent;
+            }
+            // 結合したプロンプトをファイルに保存
+            fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
+            logger_1.Logger.info(`セキュアな複合プロンプトファイルを作成しました: ${combinedPromptPath}`);
+            // ClaudeCodeを起動（プロンプトファイル即時削除オプション付き）
+            return await this._launcher.launchClaudeCodeWithPrompt(projectPath, combinedPromptPath, {
+                title: 'AIアシスタント',
+                deletePromptFile: true // ClaudeCodeLauncherServiceでファイルが読み込まれた後にタイマーベースで削除
+            });
+        }
+        catch (error) {
+            logger_1.Logger.error('複合プロンプトでのClaudeCode起動に失敗しました', error);
+            vscode.window.showErrorMessage(`AIアシスタントの起動に失敗しました: ${error.message}`);
             return false;
         }
     }

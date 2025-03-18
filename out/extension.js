@@ -46,11 +46,8 @@ const gitManager_1 = require("./core/gitManager");
 const TerminalInterface_1 = require("./ui/TerminalInterface");
 const CommandHandler_1 = require("./ui/CommandHandler");
 const fileOperationManager_1 = require("./utils/fileOperationManager");
-// import { MockupDesignerPanel } from './ui/mockupDesigner/MockupDesignerPanel'; // 廃止予定
 const MockupGalleryPanel_1 = require("./ui/mockupGallery/MockupGalleryPanel");
-// 開発アシスタントは削除済み
 const simpleChat_1 = require("./ui/simpleChat");
-// ImplementationSelectorPanel は削除済み（スコープマネージャーに統合）
 const DashboardPanel_1 = require("./ui/dashboard/DashboardPanel");
 const ClaudeMdEditorPanel_1 = require("./ui/claudeMd/ClaudeMdEditorPanel");
 const PlatformManager_1 = require("./utils/PlatformManager");
@@ -60,10 +57,17 @@ const DebugDetectivePanel_1 = require("./ui/debugDetective/DebugDetectivePanel")
 const EnvironmentVariablesAssistantPanel_1 = require("./ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel");
 const TokenManager_1 = require("./core/auth/TokenManager");
 const AuthenticationService_1 = require("./core/auth/AuthenticationService");
+const PermissionManager_1 = require("./core/auth/PermissionManager");
 const authCommands_1 = require("./core/auth/authCommands");
 const promptLibraryCommands_1 = require("./commands/promptLibraryCommands");
 const environmentCommands_1 = require("./commands/environmentCommands");
+const AuthGuard_1 = require("./ui/auth/AuthGuard");
+const roles_1 = require("./core/auth/roles");
+const AuthStorageManager_1 = require("./utils/AuthStorageManager");
 function activate(context) {
+    // グローバルコンテキストを設定（安全対策）
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    global.__extensionContext = context;
     // ロガーの初期化（自動表示をオフにする）
     logger_1.Logger.initialize('AppGenius AI', logger_1.LogLevel.DEBUG, false);
     logger_1.Logger.info('AppGenius AI が起動しました');
@@ -76,12 +80,18 @@ function activate(context) {
     logger_1.Logger.info('ScopeExporter initialized successfully');
     // 認証関連の初期化
     try {
+        // AuthStorageManagerの初期化
+        const authStorageManager = AuthStorageManager_1.AuthStorageManager.getInstance(context);
+        logger_1.Logger.info('AuthStorageManager initialized successfully');
         // TokenManagerの初期化
-        TokenManager_1.TokenManager.getInstance(context);
+        const tokenManager = TokenManager_1.TokenManager.getInstance(context);
         logger_1.Logger.info('TokenManager initialized successfully');
         // AuthenticationServiceの初期化
-        AuthenticationService_1.AuthenticationService.getInstance();
+        const authService = AuthenticationService_1.AuthenticationService.getInstance(context);
         logger_1.Logger.info('AuthenticationService initialized successfully');
+        // PermissionManagerの初期化（認証サービスに依存）
+        const permissionManager = PermissionManager_1.PermissionManager.getInstance(authService);
+        logger_1.Logger.info('PermissionManager initialized successfully');
         // 認証コマンドの登録
         (0, authCommands_1.registerAuthCommands)(context);
         logger_1.Logger.info('Auth commands registered successfully');
@@ -322,17 +332,21 @@ function activate(context) {
             vscode.window.showErrorMessage(`Git コマンド実行エラー: ${error.message}`);
         }
     }));
-    // ダッシュボードを開くコマンド
+    // ダッシュボードを開くコマンド（権限チェック付き）
     context.subscriptions.push(vscode.commands.registerCommand('appgenius-ai.openDashboard', () => {
         try {
+            // 権限チェック済みの基底クラスメソッドを呼び出す
             DashboardPanel_1.DashboardPanel.createOrShow(context.extensionUri, aiService);
         }
         catch (error) {
             vscode.window.showErrorMessage(`ダッシュボード表示エラー: ${error.message}`);
         }
     }));
-    // 拡張機能起動時に自動でダッシュボードを開く
-    DashboardPanel_1.DashboardPanel.createOrShow(context.extensionUri, aiService);
+    // 拡張機能起動時に自動でダッシュボードを開く（権限チェック付き）
+    // ゲストユーザーもダッシュボードは閲覧可能
+    if (AuthGuard_1.AuthGuard.checkAccess(roles_1.Feature.DASHBOARD)) {
+        DashboardPanel_1.DashboardPanel.createOrShow(context.extensionUri, aiService);
+    }
     // Claude MD エディタを開くコマンド
     context.subscriptions.push(vscode.commands.registerCommand('appgenius-ai.openClaudeMdEditor', () => {
         try {
@@ -346,6 +360,7 @@ function activate(context) {
     context.subscriptions.push(vscode.commands.registerCommand('appgenius-ai.openMockupGallery', (projectPath) => {
         try {
             logger_1.Logger.info(`モックアップギャラリーを開きます: ${projectPath || 'プロジェクトパスなし'}`);
+            // 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
             MockupGalleryPanel_1.MockupGalleryPanel.createOrShow(context.extensionUri, aiService, projectPath);
         }
         catch (error) {
@@ -371,6 +386,7 @@ function activate(context) {
             logger_1.Logger.debug(`スコープマネージャーパネル起動: projectPath=${projectPath}`);
             // 詳細なデバッグ情報
             logger_1.Logger.info(`[Debug] スコープマネージャーコマンド: 引数=${providedProjectPath}, 使用パス=${projectPath}`);
+            // 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
             ScopeManagerPanel_1.ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
         }
         catch (error) {
@@ -403,6 +419,7 @@ function activate(context) {
             }
             // パスが有効かログ出力
             logger_1.Logger.debug(`デバッグ探偵パネル起動: projectPath=${projectPath}`);
+            // 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
             DebugDetectivePanel_1.DebugDetectivePanel.createOrShow(context.extensionUri, projectPath);
         }
         catch (error) {
@@ -426,6 +443,7 @@ function activate(context) {
             }
             // パスが有効かログ出力
             logger_1.Logger.debug(`環境変数アシスタントパネル起動: projectPath=${projectPath}`);
+            // 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
             EnvironmentVariablesAssistantPanel_1.EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
         }
         catch (error) {
@@ -451,6 +469,7 @@ function activate(context) {
             }
             // パスが有効かログ出力
             logger_1.Logger.debug(`リファレンスマネージャーパネル起動: projectPath=${projectPath}`);
+            // 権限チェックはパネル側のcreateOrShowメソッド内で行うため、ここでは行わない
             ReferenceManagerPanel.createOrShow(context.extensionUri, projectPath);
         }
         catch (error) {
@@ -491,18 +510,6 @@ function activate(context) {
             vscode.window.showErrorMessage(`surf コマンド設定エラー: ${error.message}`);
         }
     }));
-    // ClaudeCode連携UI
-    context.subscriptions.push(vscode.commands.registerCommand('appgenius.openClaudeCodePanel', () => {
-        try {
-            const { ClaudeCodePanel } = require('./ui/claudeCode/ClaudeCodePanel');
-            ClaudeCodePanel.createOrShow(context.extensionUri);
-        }
-        catch (error) {
-            vscode.window.showErrorMessage(`ClaudeCode連携表示エラー: ${error.message}`);
-        }
-    }));
-    // 環境変数パネルコマンドはcommands/environmentCommands.tsで登録されているため
-    // ここでの重複登録は削除
     logger_1.Logger.info('AppGenius AI の初期化が完了しました');
 }
 // this method is called when your extension is deactivated

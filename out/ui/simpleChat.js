@@ -45,14 +45,18 @@ const AppGeniusStateManager_1 = require("../services/AppGeniusStateManager");
 const ClaudeMdService_1 = require("../utils/ClaudeMdService");
 const ClaudeCodeLauncherService_1 = require("../services/ClaudeCodeLauncherService");
 const ClaudeCodeIntegrationService_1 = require("../services/ClaudeCodeIntegrationService");
+const ProtectedPanel_1 = require("./auth/ProtectedPanel");
+const roles_1 = require("../core/auth/roles");
 /**
  * シンプルなチャットパネルを管理するクラス
+ * 権限保護されたパネルの基底クラスを継承
  */
-class SimpleChatPanel {
+class SimpleChatPanel extends ProtectedPanel_1.ProtectedPanel {
     /**
-     * シンプルチャットパネルを作成または表示する
+     * 実際のパネル作成・表示ロジック
+     * ProtectedPanelから呼び出される
      */
-    static createOrShow(extensionUri, aiService, projectPath) {
+    static _createOrShowPanel(extensionUri, aiService, projectPath) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -64,7 +68,7 @@ class SimpleChatPanel {
                 SimpleChatPanel.currentPanel._projectPath = projectPath;
                 SimpleChatPanel.currentPanel._loadInitialData();
             }
-            return;
+            return SimpleChatPanel.currentPanel;
         }
         // 新しいパネルを作成
         const panel = vscode.window.createWebviewPanel(SimpleChatPanel.viewType, '要件定義ビジュアライザー', column || vscode.ViewColumn.One, {
@@ -75,11 +79,25 @@ class SimpleChatPanel {
             ]
         });
         SimpleChatPanel.currentPanel = new SimpleChatPanel(panel, extensionUri, aiService, projectPath);
+        return SimpleChatPanel.currentPanel;
+    }
+    /**
+     * 外部向けのパネル作成・表示メソッド
+     * 権限チェック付きで、パネルを表示する
+     */
+    static createOrShow(extensionUri, aiService, projectPath) {
+        // 権限チェック
+        if (!this.checkPermissionForFeature(roles_1.Feature.SIMPLE_CHAT, 'SimpleChatPanel')) {
+            return undefined;
+        }
+        // 権限があれば表示
+        return this._createOrShowPanel(extensionUri, aiService, projectPath);
     }
     /**
      * コンストラクタ
      */
     constructor(panel, extensionUri, aiService, projectPath) {
+        super(); // 親クラスのコンストラクタを呼び出し
         this._disposables = [];
         this._claudeMdService = ClaudeMdService_1.ClaudeMdService.getInstance();
         this._claudeCodeLauncherService = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
@@ -1661,73 +1679,29 @@ project/
             });
             // 要件定義ファイルの内容を読み込み
             const fileContent = fs.readFileSync(fullPath, 'utf8');
-            // 中央ポータルURL（要件定義アドバイザー）
-            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
-            // 一時ファイルに保存（デバッグ用・参照用）
-            const tempDir = os.tmpdir();
-            try {
-                // 追加情報として要件定義ファイルの内容を設定
-                let analysisContent = '# 追加情報\n\n';
-                analysisContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
-                analysisContent += '```markdown\n';
-                analysisContent += fileContent;
-                analysisContent += '\n```\n\n';
-                // 一時ファイルに保存（デバッグ用・参照用）
-                const analysisFilePath = path.join(tempDir, `requirements_analysis_${Date.now()}.md`);
-                fs.writeFileSync(analysisFilePath, analysisContent, 'utf8');
-                logger_1.Logger.info(`要件分析ファイルを作成しました: ${analysisFilePath}`);
-                // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
-                logger_1.Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
-                // ClaudeCodeIntegrationServiceのインスタンスを取得
-                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
-                // 公開URLからClaudeCodeを起動（要件分析内容を追加コンテンツとして渡す）
-                const success = await integrationService.launchWithPublicUrl(portalUrl, this._projectPath, analysisContent // 重要：要件分析内容を追加コンテンツとして渡す
-                );
-                if (success) {
-                    // 成功メッセージを表示
-                    this._panel.webview.postMessage({
-                        command: 'showMessage',
-                        text: `AIと相談・編集を開始しました: ${filePath}`
-                    });
-                    logger_1.Logger.info(`要件定義アドバイザーを起動しました`);
-                }
-                return success;
-            }
-            catch (error) {
-                // 中央ポータル連携に失敗した場合の処理
-                logger_1.Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
-                // ローカルのプロンプトファイルをチェック
-                const localPromptPath = path.join(this._projectPath, 'docs', 'prompts', 'requirements_advisor.md');
-                // プロンプトファイルの存在確認
-                if (!fs.existsSync(localPromptPath)) {
-                    logger_1.Logger.error(`要件定義アドバイザーファイルが見つかりません: ${localPromptPath}`);
-                    throw new Error(`要件定義アドバイザーファイル（requirements_advisor.md）が見つかりません。docs/prompts/requirements_advisor.mdを確認してください。`);
-                }
-                logger_1.Logger.info(`要件定義アドバイザーファイルを読み込みます: ${localPromptPath}`);
-                let combinedContent = fs.readFileSync(localPromptPath, 'utf8');
-                combinedContent += '\n\n# 追加情報\n\n';
-                combinedContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
-                combinedContent += '```markdown\n';
-                combinedContent += fileContent;
-                combinedContent += '\n```\n\n';
-                const combinedPromptPath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
-                logger_1.Logger.info(`調査用プロンプトを作成します: ${combinedPromptPath}`);
-                fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
-                // ClaudeCodeを起動（フォールバック）
-                logger_1.Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
-                const success = await this._claudeCodeLauncherService.launchClaudeCodeWithPrompt(this._projectPath, combinedPromptPath, {
-                    title: `要件定義アドバイザー - ${path.basename(fullPath)}`,
-                    deletePromptFile: true // セキュリティ対策として自動削除
+            // 追加情報として要件定義ファイルの内容を設定
+            let analysisContent = '# 追加情報\n\n';
+            analysisContent += `## 要件定義ファイル: ${path.basename(fullPath)}\n\n`;
+            analysisContent += '```markdown\n';
+            analysisContent += fileContent;
+            analysisContent += '\n```\n\n';
+            // ClaudeCodeIntegrationServiceのインスタンスを取得
+            const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+            // 要件定義アドバイザーのプロンプトURL（セキュリティプロンプトなしで直接使用）
+            const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39';
+            logger_1.Logger.info(`要件定義アドバイザープロンプトを直接使用してClaudeCodeを起動: ${featurePromptUrl}`);
+            // 単一プロンプトでClaudeCodeを起動（セキュリティプロンプトは使用しない）
+            const success = await integrationService.launchWithPublicUrl(featurePromptUrl, this._projectPath, analysisContent // 重要：要件分析内容を追加コンテンツとして渡す
+            );
+            if (success) {
+                // 成功メッセージを表示
+                this._panel.webview.postMessage({
+                    command: 'showMessage',
+                    text: `AIと相談・編集を開始しました: ${filePath}`
                 });
-                if (success) {
-                    // 成功メッセージを表示
-                    this._panel.webview.postMessage({
-                        command: 'showMessage',
-                        text: `AIと相談・編集を開始しました: ${filePath} (ローカルフォールバック)`
-                    });
-                }
-                return success;
+                logger_1.Logger.info(`要件定義アドバイザーを起動しました`);
             }
+            return success;
         }
         catch (error) {
             logger_1.Logger.error(`AI起動エラー: ${filePath}`, error);
@@ -1760,4 +1734,6 @@ project/
 }
 exports.SimpleChatPanel = SimpleChatPanel;
 SimpleChatPanel.viewType = 'simpleChat';
+// 必要な権限を指定
+SimpleChatPanel._feature = roles_1.Feature.SIMPLE_CHAT;
 //# sourceMappingURL=simpleChat.js.map

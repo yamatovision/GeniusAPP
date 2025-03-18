@@ -39,17 +39,21 @@ const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const os = __importStar(require("os"));
 const logger_1 = require("../../utils/logger");
-const ClaudeCodeLauncherService_1 = require("../../services/ClaudeCodeLauncherService");
+const ClaudeCodeIntegrationService_1 = require("../../services/ClaudeCodeIntegrationService");
 const AppGeniusEventBus_1 = require("../../services/AppGeniusEventBus");
+const ProtectedPanel_1 = require("../auth/ProtectedPanel");
+const roles_1 = require("../../core/auth/roles");
 /**
  * 環境変数アシスタントのメインパネルクラス
  * 環境変数の検出、表示、編集、検証をサポートする
+ * 権限保護されたパネルの基底クラスを継承
  */
-class EnvironmentVariablesAssistantPanel {
+class EnvironmentVariablesAssistantPanel extends ProtectedPanel_1.ProtectedPanel {
     /**
-     * パネルの作成または表示（シングルトンパターン）
+     * 実際のパネル作成・表示ロジック
+     * ProtectedPanelから呼び出される
      */
-    static createOrShow(extensionUri, projectPath) {
+    static _createOrShowPanel(extensionUri, projectPath) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -75,9 +79,22 @@ class EnvironmentVariablesAssistantPanel {
         return EnvironmentVariablesAssistantPanel.currentPanel;
     }
     /**
+     * 外部向けのパネル作成・表示メソッド
+     * 権限チェック付きで、パネルを表示する
+     */
+    static createOrShow(extensionUri, projectPath) {
+        // 権限チェック
+        if (!this.checkPermissionForFeature(roles_1.Feature.ENV_ASSISTANT, 'EnvironmentVariablesAssistantPanel')) {
+            return undefined;
+        }
+        // 権限があれば表示
+        return this._createOrShowPanel(extensionUri, projectPath);
+    }
+    /**
      * コンストラクタ
      */
     constructor(panel, extensionUri, projectPath) {
+        super(); // 親クラスのコンストラクタを呼び出し
         this._domSnapshotInterval = null;
         this._disposables = [];
         this._projectPath = '';
@@ -1973,21 +1990,18 @@ ${this._generateEnvironmentVariablesList('production')}
                     throw new Error(`環境変数アシスタントファイル（environment_manager.md）が見つかりません。docs/prompts/environment_manager.mdを確認してください。`);
                 }
                 logger_1.Logger.info(`環境変数アシスタントファイルを読み込みます: ${promptFilePath}`);
-                let combinedContent = fs.readFileSync(promptFilePath, 'utf8');
-                combinedContent += '\n\n# 追加情報\n\n';
-                combinedContent += `## プロジェクト情報\n\n`;
-                combinedContent += `プロジェクトパス: ${this._projectPath}\n\n`;
-                combinedContent += environmentInfo;
-                const combinedPromptPath = path.join(tempDir, `combined_env_prompt_${Date.now()}.md`);
-                logger_1.Logger.info(`フォールバック用プロンプトを作成します: ${combinedPromptPath}`);
-                fs.writeFileSync(combinedPromptPath, combinedContent, 'utf8');
-                // ClaudeCodeを起動（フォールバック）
-                logger_1.Logger.info(`ClaudeCodeを起動します（フォールバック）: ${combinedPromptPath}`);
-                const launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
-                const success = await launcher.launchClaudeCodeWithPrompt(this._projectPath, combinedPromptPath, {
-                    title: `環境変数アシスタント`,
-                    deletePromptFile: true // セキュリティ対策として自動削除
-                });
+                // 追加情報を作成
+                let additionalContent = '# 追加情報\n\n';
+                additionalContent += `## プロジェクト情報\n\n`;
+                additionalContent += `プロジェクトパス: ${this._projectPath}\n\n`;
+                additionalContent += environmentInfo;
+                // ClaudeCodeIntegrationServiceのインスタンスを取得
+                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+                // セキュリティガイドライン付きで起動
+                logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します（フォールバック）`);
+                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589';
+                const success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, additionalContent);
                 if (success) {
                     vscode.window.showInformationMessage('環境変数アシスタント用のClaudeCodeを起動しました（フォールバック）');
                 }
@@ -2963,4 +2977,6 @@ ${this._generateEnvironmentVariablesList('production')}
 }
 exports.EnvironmentVariablesAssistantPanel = EnvironmentVariablesAssistantPanel;
 EnvironmentVariablesAssistantPanel.viewType = 'environmentVariablesAssistant';
+// 必要な権限を指定
+EnvironmentVariablesAssistantPanel._feature = roles_1.Feature.ENV_ASSISTANT;
 //# sourceMappingURL=EnvironmentVariablesAssistantPanel.js.map

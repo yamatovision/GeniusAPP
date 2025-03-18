@@ -37,7 +37,6 @@ exports.AuthStatusBar = void 0;
 const vscode = __importStar(require("vscode"));
 const AuthenticationService_1 = require("../../core/auth/AuthenticationService");
 const logger_1 = require("../../utils/logger");
-const AuthEventBus_1 = require("../../services/AuthEventBus");
 /**
  * AuthStatusBar - VSCodeのステータスバーに認証状態を表示するクラス
  *
@@ -57,11 +56,8 @@ class AuthStatusBar {
         this.ICON_ERROR = '$(warning)';
         this.ICON_UPDATING = '$(sync~spin)';
         this._authService = AuthenticationService_1.AuthenticationService.getInstance();
-        this._authEventBus = AuthEventBus_1.AuthEventBus.getInstance();
         // ステータスバーアイテムの作成
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-        // 認証状態変更時のイベントリスナー
-        this._disposables.push(this._authService.onAuthStateChanged(this._updateStatusBar.bind(this)));
         // 認証イベント監視
         this._registerAuthEventListeners();
         // 初期状態の表示
@@ -82,20 +78,22 @@ class AuthStatusBar {
      * 認証イベントリスナーを登録
      */
     _registerAuthEventListeners() {
-        // 認証イベントバスのイベントを監視
-        this._disposables.push(this._authEventBus.on(AuthEventBus_1.AuthEventType.LOGIN_SUCCESS, () => {
+        // 認証サービスのイベントを監視
+        this._disposables.push(this._authService.onStateChanged(state => {
+            this._updateStatusBar(state.isAuthenticated);
+        }), this._authService.onLoginSuccess(() => {
             this._updateStatusBar(true);
-        }), this._authEventBus.on(AuthEventBus_1.AuthEventType.LOGOUT, () => {
+        }), this._authService.onLogout(() => {
             this._updateStatusBar(false);
-        }), this._authEventBus.on(AuthEventBus_1.AuthEventType.TOKEN_REFRESHED, () => {
+        }), this._authService.onTokenRefreshed(() => {
             this._showUpdatingStatus(true);
             setTimeout(() => {
                 this._showUpdatingStatus(false);
                 this._updateStatusBar(this._authService.isAuthenticated());
             }, 1000);
-        }), this._authEventBus.on(AuthEventBus_1.AuthEventType.AUTH_ERROR, (event) => {
+        }), this._authService.onLoginFailed((error) => {
             // 一時的にエラーアイコンを表示
-            this._showErrorStatus(event.payload?.error?.message);
+            this._showErrorStatus(error.message);
             setTimeout(() => {
                 this._updateStatusBar(this._authService.isAuthenticated());
             }, 3000);

@@ -42,15 +42,20 @@ const logger_1 = require("../../utils/logger");
 const fileOperationManager_1 = require("../../utils/fileOperationManager");
 const types_1 = require("../../types");
 const ClaudeCodeLauncherService_1 = require("../../services/ClaudeCodeLauncherService");
+const ClaudeCodeIntegrationService_1 = require("../../services/ClaudeCodeIntegrationService");
+const ProtectedPanel_1 = require("../auth/ProtectedPanel");
+const roles_1 = require("../../core/auth/roles");
 /**
  * スコープマネージャーパネルクラス
  * CURRENT_STATUS.mdファイルと連携して実装スコープの管理を行う
+ * 権限保護されたパネルの基底クラスを継承
  */
-class ScopeManagerPanel {
+class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
     /**
-     * パネルを作成または表示
+     * 実際のパネル作成・表示ロジック
+     * ProtectedPanelから呼び出される
      */
-    static createOrShow(extensionUri, projectPath) {
+    static _createOrShowPanel(extensionUri, projectPath) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -77,9 +82,22 @@ class ScopeManagerPanel {
         return ScopeManagerPanel.currentPanel;
     }
     /**
+     * 外部向けのパネル作成・表示メソッド
+     * 権限チェック付きで、パネルを表示する
+     */
+    static createOrShow(extensionUri, projectPath) {
+        // 権限チェック
+        if (!this.checkPermissionForFeature(roles_1.Feature.SCOPE_MANAGER, 'ScopeManagerPanel')) {
+            return undefined;
+        }
+        // 権限があれば表示
+        return this._createOrShowPanel(extensionUri, projectPath);
+    }
+    /**
      * コンストラクタ
      */
     constructor(panel, extensionUri, projectPath) {
+        super(); // 親クラスのコンストラクタを呼び出し
         this._disposables = [];
         this._projectPath = '';
         this._statusFilePath = '';
@@ -141,6 +159,9 @@ class ScopeManagerPanel {
                         break;
                     case 'launchImplementationAssistant':
                         await this._handleLaunchImplementationAssistant();
+                        break;
+                    case 'openRequirementsVisualizer':
+                        await this._handleOpenRequirementsVisualizer();
                         break;
                 }
             }
@@ -888,15 +909,24 @@ APIエンドポイントはまだ定義されていません。
                 new RegExp(`### 現在のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
                 // ### 次のスコープ: スコープ名\n...\n**実装予定ファイル**:
                 new RegExp(`### 次のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
+                // スコープ専用セクション: ## スコープ名\n直後にファイルリストが続くパターン
+                new RegExp(`## ([^#\\n]+)\\s*\\n(?:\\s*\\n)*((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
             ];
             for (const pattern of fileListPatterns) {
                 const matches = [...content.matchAll(pattern)];
                 for (const match of matches) {
                     const scopeName = match[1].trim();
                     const fileListText = match[2];
-                    // 対象のスコープを見つける
+                    // スコープ名の前後の空白を除去し、正規化
+                    const normalizedScopeName = scopeName.replace(/^\s+|\s+$/g, '');
+                    // 部分一致を許容してスコープを探す
                     const targetScope = [...completedScopes, ...inProgressScopes, ...pendingScopes]
-                        .find(s => s.name === scopeName);
+                        .find(s => {
+                        const normalizedSName = s.name.replace(/^\s+|\s+$/g, '');
+                        return normalizedSName === normalizedScopeName ||
+                            normalizedScopeName.includes(normalizedSName) ||
+                            normalizedSName.includes(normalizedScopeName);
+                    });
                     if (targetScope) {
                         // ファイルリストを解析
                         const fileLines = fileListText.split('\n').filter(line => line.trim().startsWith('- '));
@@ -927,8 +957,11 @@ APIエンドポイントはまだ定義されていません。
                                     targetScope.files.push(file);
                                 }
                             }
-                            logger_1.Logger.info(`スコープ "${scopeName}" に ${files.length} 個のファイルを追加しました`);
+                            logger_1.Logger.info(`スコープ "${scopeName}" に ${files.length} 個のファイルを追加しました (マッチ: ${targetScope.name})`);
                         }
+                    }
+                    else {
+                        logger_1.Logger.info(`スコープが見つかりませんでした: "${scopeName}" - 対象の候補: ${[...completedScopes, ...inProgressScopes, ...pendingScopes].map(s => `"${s.name}"`).join(', ')}`);
                     }
                 }
             }
@@ -937,7 +970,7 @@ APIエンドポイントはまだ定義されていません。
             // スコープにインデックス情報を追加
             this._scopes.forEach((scope, index) => {
                 scope.index = index;
-                // スコープ詳細情報の関連付け
+                // #### 形式のスコープ詳細情報を関連付け
                 const detailMatch = content.match(new RegExp(`#### [^:\n]*${scope.name}[^:\n]*\\s*\\n\\s*\\*\\*スコープID\\*\\*: ([^\\n]*)`, 'i'));
                 if (detailMatch) {
                     scope.id = detailMatch[1].trim();
@@ -946,6 +979,53 @@ APIエンドポイントはまだ定義されていません。
                     if (featuresSection) {
                         const featuresText = featuresSection[1];
                         scope.features = featuresText.split('\n').map(line => line.replace(/^\d+\. /, '').trim());
+                    }
+                }
+                // ## 形式のスコープセクションも検索
+                const sectionMatch = content.match(new RegExp(`## ${scope.name}\\s*\\n`, 'i'));
+                if (sectionMatch) {
+                    // ## 形式のスコープセクションが見つかった場合、そのスコープの情報を設定
+                    logger_1.Logger.info(`スコープ "${scope.name}" の専用セクションが見つかりました`);
+                    // このセクションの下のファイルリストをチェック
+                    const sectionStart = content.indexOf(sectionMatch[0]);
+                    const sectionEnd = content.indexOf('##', sectionStart + 2);
+                    const sectionContent = sectionEnd !== -1
+                        ? content.substring(sectionStart, sectionEnd)
+                        : content.substring(sectionStart);
+                    // セクション内のファイルリストを解析
+                    const fileLines = sectionContent.split('\n')
+                        .filter(line => line.trim().startsWith('- ['));
+                    if (fileLines.length > 0) {
+                        // ファイルリストを解析してスコープに追加
+                        const files = fileLines.map(line => {
+                            const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
+                            if (checkboxMatch) {
+                                return {
+                                    path: checkboxMatch[2].trim(),
+                                    completed: checkboxMatch[1] === 'x'
+                                };
+                            }
+                            else {
+                                // 単純な箇条書き形式の場合
+                                return {
+                                    path: line.replace(/^- /, '').trim(),
+                                    completed: false
+                                };
+                            }
+                        }).filter(file => file.path && !file.path.includes('ファイルはまだ定義されていません'));
+                        // スコープにファイル情報を追加
+                        if (files.length > 0) {
+                            if (!scope.files) {
+                                scope.files = [];
+                            }
+                            // 重複を避けて追加
+                            for (const file of files) {
+                                if (!scope.files.some(f => f.path === file.path)) {
+                                    scope.files.push(file);
+                                }
+                            }
+                            logger_1.Logger.info(`スコープセクションから "${scope.name}" に ${files.length} 個のファイルを追加しました`);
+                        }
                     }
                 }
                 // 現在のスコープを特定
@@ -1131,18 +1211,23 @@ APIエンドポイントはまだ定義されていません。
                 const tempFilePath = path.join(tempDir, `combined_scope_${Date.now()}.md`);
                 // プロンプトファイルの内容を読み込む
                 let promptContent = fs.readFileSync(promptFilePath, 'utf8');
-                // ステータスの内容を追加
+                // 追加コンテンツの準備
+                let scopeAdditionalContent = '';
+                // ステータスの内容を追加（外部から渡されたもの）
                 if (additionalContent) {
                     promptContent += '\n\n' + additionalContent;
                 }
                 // 一時的なテンプレートファイルを作成
                 fs.writeFileSync(tempFilePath, promptContent, 'utf8');
-                // ClaudeCodeの起動
-                const launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
-                const success = await launcher.launchClaudeCodeWithPrompt(this._projectPath, tempFilePath, {
-                    title: 'ClaudeCode - スコープ作成',
-                    deletePromptFile: true // 25秒後に削除
-                });
+                // ClaudeCodeIntegrationServiceを使用して起動
+                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+                // セキュリティガイドライン付きで起動
+                logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704';
+                // プロンプトファイルの内容を追加コンテンツとして渡す
+                scopeAdditionalContent = promptContent;
+                const success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, scopeAdditionalContent);
                 if (success) {
                     vscode.window.showInformationMessage('スコープ作成のためのClaudeCodeを起動しました（ローカルモード）。');
                 }
@@ -1210,12 +1295,15 @@ APIエンドポイントはまだ定義されていません。
                 // 一時的なテンプレートファイルを作成
                 fs.writeFileSync(tempFilePath, promptContent, 'utf8');
                 logger_1.Logger.info(`フォールバック用プロンプトを作成しました: ${tempFilePath}`);
-                // ClaudeCodeの起動
-                const launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
-                const success = await launcher.launchClaudeCodeWithPrompt(this._projectPath, tempFilePath, {
-                    title: 'ClaudeCode - 実装アシスタント',
-                    deletePromptFile: true // 25秒後に削除
-                });
+                // ClaudeCodeIntegrationServiceを使用して起動
+                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+                // セキュリティガイドライン付きで起動
+                logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+                // プロンプトファイルの内容を追加コンテンツとして渡す
+                const implementerAdditionalContent = promptContent;
+                const success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, implementerAdditionalContent);
                 if (success) {
                     vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました（ローカルモード）。');
                 }
@@ -1241,6 +1329,20 @@ APIエンドポイントはまだ定義されていません。
         catch (error) {
             logger_1.Logger.error('環境変数アシスタントの起動に失敗しました', error);
             await this._showError(`環境変数アシスタントの起動に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * 要件定義ビジュアライザーを開く
+     */
+    async _handleOpenRequirementsVisualizer() {
+        try {
+            // 要件定義ビジュアライザーを開くコマンドを実行
+            await vscode.commands.executeCommand('appgenius-ai.openRequirementsVisualizer', this._projectPath);
+            logger_1.Logger.info('要件定義ビジュアライザーを開きました');
+        }
+        catch (error) {
+            logger_1.Logger.error('要件定義ビジュアライザーの起動に失敗しました', error);
+            await this._showError(`要件定義ビジュアライザーの起動に失敗しました: ${error.message}`);
         }
     }
     async _handleStartImplementation() {
@@ -1329,12 +1431,14 @@ APIエンドポイントはまだ定義されていません。
                             `進捗: ${this._currentScope.progress || 0}%`;
                         fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
                         logger_1.Logger.info(`結合プロンプトファイルを作成しました: ${combinedFilePath}`);
-                        // ClaudeCodeの起動
-                        const launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
-                        success = await launcher.launchClaudeCodeWithPrompt(this._projectPath, combinedFilePath, {
-                            title: 'ClaudeCode - 実装アシスタント',
-                            deletePromptFile: true // 25秒後に自動削除
-                        });
+                        // ClaudeCodeIntegrationServiceを使用して起動
+                        const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+                        // セキュリティガイドライン付きで起動
+                        logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+                        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+                        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+                        // プロンプトコンテンツを追加コンテンツとして渡す
+                        success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, combinedContent);
                         // メッセージを変更してローカルモードであることを示す
                         if (success) {
                             vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました（ローカルモード）。');
@@ -1725,13 +1829,26 @@ APIエンドポイントはまだ定義されていません。
                     files: this._currentScope?.files || []
                 };
             }
+            // 全体進捗の計算
+            const totalFiles = this._scopes.reduce((sum, scope) => sum + (scope.files?.length || 0), 0);
+            const completedFiles = this._scopes.reduce((sum, scope) => {
+                return sum + (scope.files?.filter((f) => f.completed)?.length || 0);
+            }, 0);
+            const totalProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
             // WebViewにデータを送信
             await this._panel.webview.postMessage({
                 command: 'updateState',
                 scopes: this._scopes,
                 selectedScopeIndex: this._selectedScopeIndex,
                 selectedScope,
-                directoryStructure: this._directoryStructure
+                directoryStructure: this._directoryStructure,
+                projectPath: this._projectPath,
+                totalProgress: totalProgress,
+                projectStats: {
+                    totalFiles,
+                    completedFiles,
+                    totalProgress
+                }
             });
         }
         catch (error) {
@@ -1750,8 +1867,10 @@ APIエンドポイントはまだ定義されていません。
         // モックアップのJS/CSSを使用
         const scopeManagerCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.css'));
         const scopeManagerJsUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js'));
+        const designSystemCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css'));
+        const componentsCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components.css'));
         // WebViewのHTMLを構築
-        // モックアップを参考にしたHTML
+        // ハブ＆スポークデザインを採用したHTML
         return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -1760,6 +1879,8 @@ APIエンドポイントはまだ定義されていません。
   <title>スコープマネージャー</title>
   <link href="${styleResetUri}" rel="stylesheet">
   <link href="${styleVSCodeUri}" rel="stylesheet">
+  <link href="${designSystemCssUri}" rel="stylesheet">
+  <link href="${componentsCssUri}" rel="stylesheet">
   <link href="${scopeManagerCssUri}" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
   <style>
@@ -1767,167 +1888,438 @@ APIエンドポイントはまだ定義されていません。
       margin: 0;
       padding: 0;
       font-family: var(--vscode-font-family);
-      color: var(--vscode-editor-foreground);
-      background-color: var(--vscode-editor-background);
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
     
-    .scope-tree-item {
-      padding: 8px 16px;
+    /* ライトモード (デフォルト) */
+    body {
+      color: #333333;
+      background-color: #f5f5f5;
+    }
+    
+    /* ダークモード */
+    body.theme-dark {
+      color: #e0e0e0;
+      background-color: #1e1e1e;
+    }
+    
+    /* 全体のレイアウト */
+    .layout-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    /* メインコンテンツ */
+    .main-content {
+      display: flex;
+      flex: 1;
+    }
+    
+    /* サイドバー */
+    .sidebar {
+      width: 280px;
+      padding: 20px;
+      overflow-y: auto;
+      transition: background-color 0.3s ease;
+    }
+    
+    /* ライトモード */
+    .sidebar {
+      background-color: #ffffff;
+      border-right: 1px solid #e0e0e0;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .sidebar {
+      background-color: #252526;
+      border-right: 1px solid #3c3c3c;
+    }
+    
+    .sidebar-header {
+      margin-bottom: 20px;
+    }
+    
+    .sidebar-header h2 {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+    }
+    
+    .project-buttons {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .project-buttons button {
+      flex: 1;
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
       border-radius: 4px;
-      margin-bottom: 2px;
+      padding: 8px;
+      cursor: pointer;
       display: flex;
       align-items: center;
-      cursor: pointer;
+      justify-content: center;
+      gap: 5px;
     }
     
-    .scope-tree-item.active {
+    .scope-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .scope-item {
+      padding: 15px;
+      background-color: var(--vscode-editor-background);
+      border-radius: 6px;
+      border: 1px solid var(--vscode-panel-border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .scope-item.active {
+      border-left: 4px solid var(--vscode-button-background);
       background-color: var(--vscode-list-activeSelectionBackground);
       color: var(--vscode-list-activeSelectionForeground);
-      font-weight: 500;
     }
     
-    .scope-tree-item:hover:not(.active) {
+    .scope-item:hover:not(.active) {
       background-color: var(--vscode-list-hoverBackground);
+      border-color: var(--vscode-button-background);
+    }
+    
+    .scope-item h3 {
+      font-size: 1.1rem;
+      margin-bottom: 5px;
     }
     
     .scope-progress {
-      height: 6px;
-      border-radius: 3px;
-      margin-top: 4px;
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 8px;
       overflow: hidden;
       background-color: var(--vscode-progressBar-background);
     }
     
     .scope-progress-bar {
       height: 100%;
-      transition: width 0.3s;
+      transition: width 0.5s ease;
     }
     
-    .status-pending {
-      background-color: var(--vscode-terminal-ansiYellow);
-    }
-    
-    .status-in-progress {
-      background-color: var(--vscode-terminal-ansiBlue);
-    }
-    
-    .status-completed {
-      background-color: var(--vscode-terminal-ansiGreen);
-    }
-    
-    .status-blocked {
-      background-color: var(--vscode-terminal-ansiRed);
-    }
-    
-    .file-list {
-      max-height: 300px;
+    /* ダッシュボードエリア */
+    .dashboard {
+      flex: 1;
+      padding: 20px;
       overflow-y: auto;
+    }
+    
+    .project-info {
+      background-color: var(--vscode-editor-background);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
       border: 1px solid var(--vscode-panel-border);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .project-info h2 {
+      font-size: 1.4rem;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .project-path {
+      font-family: monospace;
+      background-color: var(--vscode-textCodeBlock-background);
+      padding: 10px;
       border-radius: 4px;
-      padding: 8px;
-      margin-top: 12px;
+      font-size: 0.9rem;
+      color: var(--vscode-foreground);
+    }
+    
+    /* グリッドレイアウト */
+    .grid-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    /* メインのスコープ詳細 */
+    .main-scope {
+      grid-column: 1;
+      grid-row: 1 / span 2;
+      background-color: var(--vscode-editor-background);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--vscode-panel-border);
+    }
+    
+    /* 右側のスコープ関連情報 */
+    .scope-info-blocks {
+      grid-column: 2;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 20px;
+    }
+    
+    /* カード共通スタイル */
+    .card {
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    
+    /* ライトモード */
+    .card {
+      background-color: #ffffff;
+      border: 1px solid #e0e0e0;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .card {
+      background-color: #2d2d2d;
+      border: 1px solid #3c3c3c;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+    
+    .card-header {
+      padding: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+    
+    /* ライトモード */
+    .card-header {
+      border-bottom: 1px solid #e0e0e0;
+      background-color: #f8f8f8;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .card-header {
+      border-bottom: 1px solid #3c3c3c;
+      background-color: #333333;
+    }
+    
+    .card-header h3 {
+      margin: 0;
+      font-size: 1.1rem;
+    }
+    
+    .card-content {
+      padding: 15px;
+      flex: 1;
+      overflow-y: auto;
+    }
+    
+    .card-footer {
+      padding: 10px 15px;
+      border-top: 1px solid var(--vscode-panel-border);
+      display: flex;
+      justify-content: flex-end;
+      background-color: var(--vscode-tab-inactiveBackground);
+    }
+    
+    .card-button {
+      background-color: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .card-button:hover {
+      background-color: var(--vscode-button-hoverBackground);
+    }
+    
+    /* スコープ関連スタイル */
+    /* ライトモード */
+    .main-scope .card-header {
+      background-color: #4a69bd;
+      color: white;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .main-scope .card-header {
+      background-color: #0e639c;
+      color: white;
+    }
+    
+    .files-list {
+      margin-top: 10px;
     }
     
     .file-item {
       display: flex;
       align-items: center;
-      padding: 4px 0;
+      padding: 8px;
+      transition: background-color 0.2s ease;
+    }
+    
+    /* ライトモード */
+    .file-item {
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .file-item:hover {
+      background-color: #f0f0f0;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .file-item {
+      border-bottom: 1px solid #3c3c3c;
+    }
+    
+    body.theme-dark .file-item:hover {
+      background-color: #3c3c3c;
+    }
+    
+    .file-item:last-child {
+      border-bottom: none;
     }
     
     .file-checkbox {
       margin-right: 8px;
-      cursor: default;
+      cursor: pointer;
     }
     
-    .inheritance-info {
-      margin-top: 20px;
-      padding: 12px;
-      background-color: var(--vscode-editor-infoBackground);
+    .progress-bar {
+      height: 8px;
+      background-color: var(--vscode-progressBar-background);
       border-radius: 4px;
-      border-left: 4px solid var(--vscode-infoForeground);
-      font-size: 14px;
-      line-height: 1.5;
+      overflow: hidden;
+      margin-top: 8px;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
     }
     
-    .scope-action-button {
-      margin-top: 16px !important;
+    .progress-fill {
+      height: 100%;
+      background-color: var(--vscode-button-background);
+      border-radius: 4px;
+      transition: width 0.5s ease, background-color 0.5s ease;
     }
     
-    .status-chip {
-      margin-left: auto !important;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 12px;
+    .status-pending {
+      background-color: var(--vscode-charts-yellow);
+    }
+    
+    .status-in-progress {
+      background-color: var(--vscode-charts-blue);
+    }
+    
+    .status-completed {
+      background-color: var(--vscode-charts-green);
+    }
+    
+    .status-blocked {
+      background-color: var(--vscode-charts-red);
+    }
+    
+    /* 環境変数、ディレクトリ、要件の共通スタイル */
+    /* ライトモード */
+    .env-vars .card-header {
+      background-color: #42a5f5;
       color: white;
     }
     
-    .progress-section {
-      margin-top: 24px;
+    .directory .card-header {
+      background-color: #66bb6a;
+      color: white;
     }
     
-    .scope-detail-header {
+    .requirements .card-header {
+      background-color: #ec407a;
+      color: white;
+    }
+    
+    .tools .card-header {
+      background-color: #ffa726;
+      color: white;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .env-vars .card-header {
+      background-color: #1976d2;
+      color: white;
+    }
+    
+    body.theme-dark .directory .card-header {
+      background-color: #2e7d32;
+      color: white;
+    }
+    
+    body.theme-dark .requirements .card-header {
+      background-color: #c2185b;
+      color: white;
+    }
+    
+    body.theme-dark .tools .card-header {
+      background-color: #ef6c00;
+      color: white;
+    }
+    
+    .item-list {
+      list-style: none;
+      padding: 0;
+    }
+    
+    .item-list li {
+      padding: 8px;
+      margin-bottom: 8px;
+      background-color: var(--vscode-editor-background);
+      border-radius: 4px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      margin-bottom: 16px;
+      gap: 8px;
+      border: 1px solid var(--vscode-panel-border);
+      transition: all 0.2s ease;
     }
     
-    .button {
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none;
-      padding: 8px 16px;
-      border-radius: 2px;
-      cursor: pointer;
-      margin-right: 10px;
-      font-size: 13px;
-    }
-    
-    .button:hover {
-      background-color: var(--vscode-button-hoverBackground);
-    }
-    
-    .button-secondary {
-      background-color: var(--vscode-button-secondaryBackground);
-      color: var(--vscode-button-secondaryForeground);
-    }
-    
-    .button-secondary:hover {
-      background-color: var(--vscode-button-secondaryHoverBackground);
-    }
-    
-    .icon-button {
-      background: transparent;
-      border: none;
-      color: var(--vscode-editor-foreground);
-      cursor: pointer;
-      padding: 4px;
-      border-radius: 4px;
-    }
-    
-    .icon-button:hover {
+    .item-list li:hover {
       background-color: var(--vscode-list-hoverBackground);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
     
-    .material-icons {
-      font-size: 20px;
-      vertical-align: middle;
-    }
-    
-    .metadata-item {
-      padding: 8px;
-    }
-    
-    .metadata-label {
-      font-size: 12px;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 4px;
-    }
-    
-    .metadata-value {
+    /* 継承情報 */
+    .inheritance-info {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 4px;
       font-size: 14px;
+      line-height: 1.5;
+      transition: all 0.3s ease;
     }
     
+    /* ライトモード */
+    .inheritance-info {
+      background-color: #e3f2fd;
+      border-left: 4px solid #2196f3;
+      color: #0d47a1;
+    }
+    
+    /* ダークモード */
+    body.theme-dark .inheritance-info {
+      background-color: rgba(33, 150, 243, 0.1);
+      border-left: 4px solid #1976d2;
+      color: #bbdefb;
+    }
+    
+    /* ダイアログスタイル */
     .dialog-overlay {
       position: fixed;
       top: 0;
@@ -1966,95 +2358,270 @@ APIエンドポイントはまだ定義されていません。
       padding-top: 16px;
       border-top: 1px solid var(--vscode-panel-border);
     }
+    
+    /* レスポンシブデザイン調整 */
+    @media (max-width: 1200px) {
+      .grid-layout {
+        grid-template-columns: 1fr;
+      }
+      
+      .main-scope {
+        grid-column: 1;
+        grid-row: 1;
+        margin-bottom: 20px;
+      }
+      
+      .scope-info-blocks {
+        grid-column: 1;
+        grid-row: 2;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .main-content {
+        flex-direction: column;
+      }
+      
+      .sidebar {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid var(--vscode-panel-border);
+      }
+      
+      .scope-info-blocks {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(4, auto);
+      }
+    }
   </style>
 </head>
 <body>
-  <div id="app">
-    <div style="padding: 20px;">
-      <h1>スコープマネージャー</h1>
-      <p>プロジェクトの実装単位を管理し、ClaudeCodeに実装を依頼します</p>
-      
-      <div style="display: flex; margin-top: 20px;">
-        <!-- 左側：スコープリスト -->
-        <div style="width: 30%; padding-right: 20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <h2>実装スコープ</h2>
-            <button id="add-scope-button" class="icon-button">
-              <i class="material-icons">add</i>
+  <div class="layout-container">
+    <!-- メインコンテンツ -->
+    <div class="main-content">
+      <!-- サイドバー -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>実装スコープ</h2>
+          <div class="project-buttons">
+            <button id="add-scope-button">
+              <span class="material-icons">add</span> 新規作成
+            </button>
+            <button id="create-scope-button">
+              <span class="material-icons">create_new_folder</span> AI作成
             </button>
           </div>
+        </div>
+        
+        <div id="scope-list" class="scope-list">
+          <!-- スコープリストがここに動的に生成されます -->
+          <div class="scope-item">
+            <h3>スコープを読み込んでいます...</h3>
+            <div class="scope-progress">
+              <div class="scope-progress-bar status-in-progress" style="width: 50%;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- ダッシュボードエリア -->
+      <div class="dashboard">
+        <!-- プロジェクト情報 -->
+        <div class="project-info">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2><span class="material-icons">folder</span> <span id="project-title">プロジェクト</span></h2>
+            <button id="theme-toggle" class="card-button" style="margin-left: 10px;">
+              <span class="material-icons theme-icon">dark_mode</span>
+              <span class="theme-text">ダークモード</span>
+            </button>
+            <div class="overall-progress">
+              <div style="font-size: 0.9rem; margin-bottom: 4px; text-align: right;">全体進捗</div>
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="project-progress-text" style="font-weight: bold; font-size: 1.2rem;">0%</div>
+                <div class="progress-bar" style="width: 120px; height: 8px;">
+                  <div id="project-progress-bar" class="progress-fill" style="width: 0%;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="project-path" class="project-path">/path/to/project</div>
           
-          <div id="scope-list">
-            <!-- スコープリストがここに動的に生成されます -->
-            <div class="scope-tree-item">
-              <div style="flex-grow: 1;">
-                <div>スコープを読み込んでいます...</div>
+          <div class="project-stats" style="display: flex; margin-top: 15px; font-size: 0.9rem; background-color: var(--vscode-editor-background); padding: 10px; border-radius: 4px; border: 1px solid var(--vscode-panel-border);">
+            <div style="flex: 1; text-align: center; border-right: 1px solid var(--vscode-panel-border);">
+              <div>総ファイル数</div>
+              <div id="total-files" style="font-weight: bold; margin-top: 4px;">0</div>
+            </div>
+            <div style="flex: 1; text-align: center; border-right: 1px solid var(--vscode-panel-border);">
+              <div>完了ファイル数</div>
+              <div id="completed-files" style="font-weight: bold; margin-top: 4px; color: var(--vscode-charts-green);">0</div>
+            </div>
+            <div style="flex: 1; text-align: center;">
+              <div>スコープ進捗率</div>
+              <div id="scope-completion-rate" style="font-weight: bold; margin-top: 4px;">0%</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- グリッドレイアウト -->
+        <div class="grid-layout">
+          <!-- メインのスコープ詳細 -->
+          <div class="main-scope">
+            <div class="card">
+              <div class="card-header">
+                <span class="material-icons">assignment</span>
+                <h3 id="scope-title">スコープを選択してください</h3>
+              </div>
+              
+              <div id="scope-detail-content" class="card-content" style="display: none;">
+                <p id="scope-description"></p>
+                <div style="margin-top: 12px;">
+                  <div style="font-size: 0.9rem; color: var(--vscode-descriptionForeground);">進捗状況</div>
+                  <div style="display: flex; align-items: center; margin-top: 4px;">
+                    <div id="scope-progress" style="font-weight: bold; margin-right: 10px;">0%</div>
+                    <div class="progress-bar" style="flex-grow: 1;">
+                      <div id="scope-progress-bar" class="progress-fill status-pending" style="width: 0%;"></div>
+                    </div>
+                  </div>
+                </div>
+                
+                <h4 style="margin-top: 20px;">実装予定ファイル</h4>
+                <div id="implementation-files" class="files-list">
+                  <!-- ファイルリストがここに動的に生成されます -->
+                  <div class="file-item">実装予定ファイルが定義されていません</div>
+                </div>
+                
+                <div id="inheritance-info" class="inheritance-info">
+                  引継ぎ情報はありません
+                </div>
+              </div>
+              
+              <div id="scope-empty-message" class="card-content">
+                <p>左側のリストからスコープを選択してください。</p>
+                <p style="margin-top: 10px;">スコープとは、アプリケーションの機能単位であり、実装の作業範囲を定義します。</p>
+                <p style="margin-top: 10px;">スコープを選択すると、その詳細情報や実装予定ファイル、進捗状況などが表示されます。</p>
+              </div>
+              
+              <div class="card-footer">
+                <button id="implement-button" class="card-button" style="display: none;">
+                  <span class="material-icons">code</span> 実装開始
+                </button>
               </div>
             </div>
           </div>
           
-          <button id="directory-structure-button" class="button" style="width: 100%; margin-top: 16px;">
-            <i class="material-icons" style="margin-right: 4px;">folder</i>
-            ディレクトリ構造を表示
-          </button>
-          <button id="create-scope-button" class="button button-secondary" style="width: 100%; margin-top: 10px;">
-            <i class="material-icons" style="margin-right: 4px;">create_new_folder</i>
-            スコープを作成する
-          </button>
-        </div>
-        
-        <!-- 右側：スコープ詳細 -->
-        <div style="width: 70%; padding-left: 20px;">
-          <div id="scope-detail-panel">
-            <div class="scope-detail-header">
-              <h2 id="scope-title">スコープを選択してください</h2>
-              <div id="scope-actions" style="display: none;">
-                <button id="implement-button" class="button">
-                  <i class="material-icons" style="margin-right: 4px;">code</i>
-                  実装開始
+          <!-- 右側のスコープ関連情報 -->
+          <div class="scope-info-blocks">
+            <!-- 環境変数設定 -->
+            <div class="card env-vars">
+              <div class="card-header">
+                <span class="material-icons">key</span>
+                <h3>環境変数</h3>
+              </div>
+              
+              <div class="card-content">
+                <p>環境変数の設定をサポートします</p>
+                
+                <ul class="item-list">
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> API認証キー</li>
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> データベース設定</li>
+                  <li><span style="color: var(--vscode-charts-red);">⚠️</span> サーバー設定</li>
+                </ul>
+              </div>
+              
+              <div class="card-footer">
+                <button id="env-vars-button" class="card-button">
+                  <span class="material-icons">settings</span> 環境変数を設定
                 </button>
               </div>
             </div>
             
-            <div id="scope-detail-content" style="display: none;">
-              <p id="scope-description"></p>
-              
-              <div class="metadata-item" style="margin-bottom: 16px;">
-                <div class="metadata-label">進捗</div>
-                <div id="scope-progress" class="metadata-value"></div>
+            <!-- ディレクトリ構造 -->
+            <div class="card directory">
+              <div class="card-header">
+                <span class="material-icons">folder_open</span>
+                <h3>ディレクトリ構造</h3>
               </div>
               
-              <h3 style="margin-top: 20px;">実装予定ファイル</h3>
-              <div id="implementation-files" class="file-list">
-                <!-- ファイルリストがここに動的に生成されます -->
-                <div class="file-item">実装予定ファイルが定義されていません</div>
+              <div class="card-content">
+                <p>プロジェクトのファイル構成を表示します</p>
+                
+                <div style="font-family: monospace; font-size: 0.9em; margin-top: 10px; max-height: 100px; overflow-y: auto;">
+                  <pre style="margin: 0; white-space: pre-wrap;">project/
+├── src/
+│   ├── components/
+│   ├── utils/
+│   └── index.js
+└── docs/</pre>
+                </div>
               </div>
               
-              <div id="inheritance-info" class="inheritance-info">
-                引継ぎ情報はありません
-              </div>
-              
-              <div id="scope-warn-message" style="color: var(--vscode-errorForeground); margin-top: 8px; text-align: center; display: none;">
-                このスコープを実装するには、事前に必要な準備をすべて完了させてください。
+              <div class="card-footer">
+                <button id="directory-structure-button" class="card-button">
+                  <span class="material-icons">folder</span> 詳細を表示
+                </button>
               </div>
             </div>
             
-            <div id="scope-empty-message">
-              左側のリストからスコープを選択してください。
+            <!-- 要件定義 -->
+            <div class="card requirements">
+              <div class="card-header">
+                <span class="material-icons">description</span>
+                <h3>要件定義</h3>
+              </div>
+              
+              <div class="card-content">
+                <p>アプリの目的と機能の明確化</p>
+                
+                <ul class="item-list">
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> ログイン/認証</li>
+                  <li><span style="color: var(--vscode-charts-blue);">⏳</span> データ表示</li>
+                  <li><span style="color: var(--vscode-charts-yellow);">⭕</span> 設定画面</li>
+                </ul>
+              </div>
+              
+              <div class="card-footer">
+                <button id="requirements-button" class="card-button">
+                  <span class="material-icons">edit</span> 要件を確認
+                </button>
+              </div>
+            </div>
+            
+            <!-- 実装ツール -->
+            <div class="card tools">
+              <div class="card-header">
+                <span class="material-icons">build</span>
+                <h3>実装ツール</h3>
+              </div>
+              
+              <div class="card-content">
+                <p>AIによる実装アシスタントを起動</p>
+                
+                <ul class="item-list">
+                  <li><span class="material-icons" style="font-size: 18px;">construction</span> 実装アシスタント</li>
+                  <li><span class="material-icons" style="font-size: 18px;">psychology</span> スコープマネージャー</li>
+                  <li><span class="material-icons" style="font-size: 18px;">bug_report</span> デバッグ探偵</li>
+                </ul>
+              </div>
+              
+              <div class="card-footer">
+                <button id="launch-implementation-assistant" class="card-button">
+                  <span class="material-icons">play_arrow</span> AIを起動
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-    
-    <!-- ディレクトリ構造ダイアログ -->
-    <div id="directory-dialog" class="dialog-overlay" style="display: none;">
-      <div class="dialog">
-        <h3 class="dialog-title">ディレクトリ構造</h3>
-        <pre id="directory-structure" style="background-color: var(--vscode-editor-background); padding: 10px; overflow: auto; max-height: 400px; white-space: pre-wrap; font-family: monospace;"></pre>
-        <div class="dialog-footer">
-          <button id="directory-close" class="button">閉じる</button>
-        </div>
+  </div>
+  
+  <!-- ディレクトリ構造ダイアログ -->
+  <div id="directory-dialog" class="dialog-overlay" style="display: none;">
+    <div class="dialog">
+      <h3 class="dialog-title">ディレクトリ構造</h3>
+      <pre id="directory-structure" style="background-color: var(--vscode-textCodeBlock-background); padding: 10px; overflow: auto; max-height: 400px; white-space: pre-wrap; font-family: monospace;"></pre>
+      <div class="dialog-footer">
+        <button id="directory-close" class="card-button">閉じる</button>
       </div>
     </div>
   </div>
@@ -2079,4 +2646,6 @@ APIエンドポイントはまだ定義されていません。
 }
 exports.ScopeManagerPanel = ScopeManagerPanel;
 ScopeManagerPanel.viewType = 'scopeManager';
+// 必要な権限を指定
+ScopeManagerPanel._feature = roles_1.Feature.SCOPE_MANAGER;
 //# sourceMappingURL=ScopeManagerPanel.js.map

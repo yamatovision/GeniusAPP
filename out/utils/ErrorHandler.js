@@ -125,6 +125,7 @@ class ErrorHandler {
         // 一般的なJavaScriptエラーの場合
         if (error instanceof Error) {
             return {
+                name: error.name || 'Error',
                 code: error.name || 'unknown_error',
                 message: error.message || 'エラーが発生しました',
                 detail: error.stack,
@@ -139,6 +140,7 @@ class ErrorHandler {
         // 文字列の場合
         if (typeof error === 'string') {
             return {
+                name: 'StringError',
                 code: 'string_error',
                 message: error,
                 severity: ErrorSeverity.ERROR,
@@ -150,8 +152,10 @@ class ErrorHandler {
         }
         // オブジェクトの場合
         if (typeof error === 'object' && error !== null) {
+            const code = error.code || error.errorCode || 'unknown_error';
             return {
-                code: error.code || error.errorCode || 'unknown_error',
+                name: `ObjectError_${code}`,
+                code: code,
                 message: error.message || error.errorMessage || '不明なエラーが発生しました',
                 detail: error.detail || error.errorDetail || JSON.stringify(error),
                 severity: this._mapSeverity(error.severity),
@@ -165,6 +169,7 @@ class ErrorHandler {
         }
         // その他の場合 (プリミティブなど)
         return {
+            name: 'UnknownError',
             code: 'unknown_error',
             message: '不明なエラーが発生しました',
             detail: String(error),
@@ -244,6 +249,7 @@ class ErrorHandler {
             ? ErrorSeverity.ERROR
             : ErrorSeverity.WARNING;
         return {
+            name: `AxiosError_${code}`,
             code,
             message,
             detail: JSON.stringify({
@@ -280,14 +286,14 @@ class ErrorHandler {
         const logMessage = `[${error.category.toUpperCase()}] ${error.code}: ${error.message}`;
         switch (error.severity) {
             case ErrorSeverity.INFO:
-                logger_1.Logger.info(logMessage, { error });
+                logger_1.Logger.info(logMessage, error);
                 break;
             case ErrorSeverity.WARNING:
-                logger_1.Logger.warn(logMessage, { error });
+                logger_1.Logger.warn(logMessage, error);
                 break;
             case ErrorSeverity.ERROR:
             case ErrorSeverity.CRITICAL:
-                logger_1.Logger.error(logMessage, { error });
+                logger_1.Logger.error(logMessage, error);
                 if (error.detail) {
                     logger_1.Logger.debug(`エラー詳細: ${error.detail}`);
                 }

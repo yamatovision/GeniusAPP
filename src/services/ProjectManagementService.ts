@@ -212,41 +212,76 @@ export class ProjectManagementService {
         }
       }
       
-      // CURRENT_STATUS.mdを作成（既存ファイルがある場合は作成しない）
+      // CURRENT_STATUSTEMPLATE.mdを作成（既存ファイルがある場合は作成しない）
       try {
-        const currentStatusPath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
+        const currentStatusTemplatePath = path.join(projectPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
         
-        // 既存のCURRENT_STATUS.mdファイルが存在するかチェック
-        if (!fs.existsSync(currentStatusPath)) {
+        // 既存のCURRENT_STATUSTEMPLATE.mdファイルが存在するかチェック
+        if (!fs.existsSync(currentStatusTemplatePath)) {
           // ファイルが存在しない場合のみ作成
           const templatePath = path.join(__dirname, '../../docs/CURRENT_STATUSTEMPLATE.md');
           
           if (fs.existsSync(templatePath)) {
+            // システムのテンプレートをコピー
             const templateContent = fs.readFileSync(templatePath, 'utf8');
-            // プロジェクト名と現在の日付で置換
-            const today = new Date();
-            const formattedDate = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
-            
-            const projectName = path.basename(projectPath);
-            const modifiedContent = templateContent
-              .replace('プロジェクト名', projectName)
-              .replace('YYYY/MM/DD', formattedDate);
-            
-            fs.writeFileSync(currentStatusPath, modifiedContent, 'utf8');
-            Logger.info(`CURRENT_STATUS.md created from template for project at: ${projectPath}`);
+            fs.writeFileSync(currentStatusTemplatePath, templateContent, 'utf8');
+            Logger.info(`CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
           } else {
-            // テンプレートが見つからない場合は基本的なCURRENT_STATUS.mdを作成
+            // テンプレートが見つからない場合は基本的なCURRENT_STATUSTEMPLATE.mdを作成
             fs.writeFileSync(
-              currentStatusPath,
-              `# ${path.basename(projectPath)} - 実装状況 (${new Date().toISOString().split('T')[0].replace(/-/g, '/')})
+              currentStatusTemplatePath,
+              `# CURRENT_STATUSTEMPLATE
+
+このプロジェクトは複数のAIがプロジェクト完遂のために統一性のある綺麗な重複のないジョブスもニッコリのシンプルかつ美しいコードアーキテクチャーで堅牢性と拡張性の高いアプリケーションを開発を行えることを目的にCURRENT_STATUSに基づいて実装管理を行っています。
+
+CURRENT_STATUSTEMPLATEはこのCURRENT_STATUSを更新していくための手順書です。
+なお、このプロジェクトはCURRENT_STATUSの記述ルールをパースしてプロジェクトスコープに反映させてユーザーに開発進捗を知らせることになりますのでパースルールから外れないように下記の形式を必ず守って記述更新をしてください。
+
+## パースルール
+
+ScopeManagerPanelはCURRENT_STATUS.mdの内容を以下のルールでパースして表示します：
+
+1. **スコープの検出**:
+   - 「### 完了済みスコープ」セクションから \`- [x] スコープ名 (100%)\` 形式のスコープを検出
+   - 「### 進行中スコープ」セクションから \`- [ ] スコープ名 (進捗率%)\` 形式のスコープを検出
+   - 「### 未着手スコープ」セクションから \`- [ ] スコープ名 (0%)\` または \`- [ ] スコープ名\` 形式のスコープを検出
+
+2. **ファイルリストの検出**:
+   - 「## スコープ名」形式のセクションからそのスコープに関連するファイルリストを検出
+   - \`- [x] ファイルパス\` は完了したファイル、\`- [ ] ファイルパス\` は未完了のファイルとして認識
+
+3. **進捗率の計算**:
+   - 各スコープの進捗率はファイルリストの完了状態から自動計算される
+   - 明示的に記載された進捗率（例：\`スコープ名 (50%)\`）も認識される
+
+4. **セクション名の重要性**:
+   - 「### 完了済みスコープ」「### 進行中スコープ」「### 未着手スコープ」の見出しは正確に記述する必要がある
+   - 「## スコープ名」の見出しはスコープ名と完全に一致する必要がある
+
+これらのルールに従わない記述や形式はパースエラーを引き起こす可能性があります。
+
+<具体例>
+
+# プロジェクト名 - 実装状況 (YYYY/MM/DD更新)
+
+## 全体進捗
+- 完成予定ファイル数: 82
+- 作成済みファイル数: 41
+- 進捗率: 50%
+- 最終更新日: 2025/03/12
 
 ## スコープ状況
 
 ### 完了済みスコープ
+- [x] スコープ名1 (100%)
+- [x] スコープ名2 (100%)
 
 ### 進行中スコープ
+- [ ] スコープ名3 (50%)
 
 ### 未着手スコープ
+- [ ] スコープ名4 (0%)
+- [ ] スコープ名5 (0%)
 
 ## 最終的なディレクトリ構造(予測)
 \`\`\`
@@ -259,16 +294,31 @@ project-root/
 project-root/
 └── [ディレクトリ構造]
 \`\`\`
-`,
+
+## スコープ名1 
+- [x] src/ui/auth/AuthStatusBar.ts
+- [x] src/services/AuthEventBus.ts
+- [x] src/core/auth/authCommands.ts
+- [ ] src/ui/promptLibrary/PromptLibraryPanel.ts
+- [ ] src/ui/promptLibrary/PromptEditor.ts
+- [ ] src/ui/promptLibrary/CategoryManager.ts
+- [ ] src/ui/promptLibrary/PromptImportExport.ts
+- [ ] src/commands/promptLibraryCommands.ts
+
+### 参考資料
+- 要件定義書: docs/requirements.md
+- スコープ仕様書: docs/scopes/scope-name1.md
+- API仕様: docs/api.md
+</具体例>`,
               'utf8'
             );
-            Logger.info(`Basic CURRENT_STATUS.md created for project at: ${projectPath}`);
+            Logger.info(`Basic CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
           }
         } else {
-          Logger.info(`CURRENT_STATUS.md already exists for project at: ${projectPath}, skipping creation`);
+          Logger.info(`CURRENT_STATUSTEMPLATE.md already exists for project at: ${projectPath}, skipping creation`);
         }
       } catch (error) {
-        Logger.error(`Failed to create CURRENT_STATUS.md: ${(error as Error).message}`);
+        Logger.error(`Failed to create CURRENT_STATUSTEMPLATE.md: ${(error as Error).message}`);
         // エラーが発生しても処理は続行
       }
     } catch (error) {

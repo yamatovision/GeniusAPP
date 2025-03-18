@@ -369,7 +369,7 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 	
-	// 拡張機能起動時に自動でダッシュボードを開く（権限チェック付き）
+	// 拡張機能起動時に自動でプロジェクト管理画面（簡易ダッシュボード）を開く
 	// ゲストユーザーもダッシュボードは閲覧可能
 	if (AuthGuard.checkAccess(Feature.DASHBOARD)) {
 		DashboardPanel.createOrShow(context.extensionUri, aiService);

@@ -41,15 +41,19 @@ const logger_1 = require("../../utils/logger");
 const ProjectManagementService_1 = require("../../services/ProjectManagementService");
 const AppGeniusEventBus_1 = require("../../services/AppGeniusEventBus");
 const AppGeniusStateManager_1 = require("../../services/AppGeniusStateManager");
+const ProtectedPanel_1 = require("../auth/ProtectedPanel");
+const roles_1 = require("../../core/auth/roles");
 /**
  * ダッシュボードパネル
  * プロジェクト管理と機能選択のためのWebViewインターフェース
+ * 権限保護されたパネルの基底クラスを継承
  */
-class DashboardPanel {
+class DashboardPanel extends ProtectedPanel_1.ProtectedPanel {
     /**
-     * パネルを作成または表示
+     * 実際のパネル作成・表示ロジック
+     * ProtectedPanelから呼び出される
      */
-    static createOrShow(extensionUri, aiService) {
+    static _createOrShowPanel(extensionUri, aiService) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -74,9 +78,22 @@ class DashboardPanel {
         return DashboardPanel.currentPanel;
     }
     /**
+     * 外部向けのパネル作成・表示メソッド
+     * 権限チェック付きで、パネルを表示する
+     */
+    static createOrShow(extensionUri, aiService) {
+        // 権限チェック
+        if (!this.checkPermissionForFeature(roles_1.Feature.DASHBOARD, 'DashboardPanel')) {
+            return undefined;
+        }
+        // 権限があれば表示
+        return this._createOrShowPanel(extensionUri, aiService);
+    }
+    /**
      * コンストラクタ
      */
     constructor(panel, extensionUri, aiService) {
+        super(); // 親クラスのコンストラクタを呼び出し
         this._disposables = [];
         // 現在の作業状態
         this._currentProjects = [];
@@ -403,7 +420,7 @@ class DashboardPanel {
             // プロジェクトを作成
             const projectId = await this._projectService.createProject({
                 name,
-                description,
+                description: "",
                 path: projectPath
             });
             // 作成したプロジェクトをアクティブに設定
@@ -574,14 +591,9 @@ class DashboardPanel {
                 throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
             }
             logger_1.Logger.info(`要件定義エディタを開きます。プロジェクトパス: ${projectPath}`);
-            // WebViewにも処理中メッセージを通知
-            await this._panel.webview.postMessage({
-                command: 'showMessage',
-                type: 'info',
-                message: `要件定義エディタを開いています: ${projectPath}`
-            });
+            // 先にメッセージを表示せずに直接コマンド実行
             // 要件定義エディタを開く（プロジェクトパスを引数として渡す）
-            vscode.commands.executeCommand('appgenius-ai.openSimpleChat', projectPath);
+            await vscode.commands.executeCommand('appgenius-ai.openSimpleChat', projectPath);
         }
         catch (error) {
             logger_1.Logger.error(`要件定義エディタ起動エラー`, error);
@@ -600,7 +612,7 @@ class DashboardPanel {
             // プロジェクトのパスを取得
             const projectPath = this._activeProject.path;
             // プロジェクトパスをパラメータとして渡してモックアップギャラリーを開く
-            vscode.commands.executeCommand('appgenius-ai.openMockupGallery', projectPath);
+            await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', projectPath);
             // ユーザーに通知
             logger_1.Logger.info(`モックアップギャラリーを開きます。プロジェクトパス: ${projectPath}`);
         }
@@ -624,17 +636,10 @@ class DashboardPanel {
                 throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
             }
             logger_1.Logger.info(`スコープマネージャーを開きます。プロジェクトパス: ${projectPath}`);
-            // WebViewにも処理中メッセージを通知
-            await this._panel.webview.postMessage({
-                command: 'showMessage',
-                type: 'info',
-                message: `スコープマネージャーを開いています: ${projectPath}`
-            });
-            // ユーザーにも通知
-            vscode.window.showInformationMessage(`スコープマネージャーを開きます: ${projectPath}`);
+            // 先にメッセージを表示せずに直接コマンド実行
             // スコープマネージャーを開く（プロジェクトパスを引数として渡す）
             logger_1.Logger.info(`[Debug] openScopeManagerコマンド実行: パラメータ=${projectPath}`);
-            vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
+            await vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
         }
         catch (error) {
             logger_1.Logger.error(`スコープマネージャー起動エラー`, error);
@@ -655,8 +660,13 @@ class DashboardPanel {
             }
             // プロジェクトパスを取得
             const projectPath = this._activeProject.path;
-            // デバッグ探偵を開く
-            vscode.commands.executeCommand('appgenius-ai.openDebugDetective', projectPath);
+            if (!projectPath) {
+                throw new Error('プロジェクトパスが設定されていません。プロジェクト設定を確認してください。');
+            }
+            logger_1.Logger.info(`デバッグ探偵を開きます。プロジェクトパス: ${projectPath}`);
+            // 先にメッセージを表示せずに直接コマンド実行
+            // デバッグ探偵を開く（プロジェクトパスを引数として渡す）
+            await vscode.commands.executeCommand('appgenius-ai.openDebugDetective', projectPath);
         }
         catch (error) {
             logger_1.Logger.error(`デバッグ探偵起動エラー`, error);
@@ -675,7 +685,7 @@ class DashboardPanel {
             // プロジェクトパスを取得
             const projectPath = this._activeProject.path;
             // 環境変数アシスタントを開く
-            vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', projectPath);
+            await vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', projectPath);
         }
         catch (error) {
             logger_1.Logger.error(`環境変数アシスタント起動エラー`, error);
@@ -791,7 +801,7 @@ class DashboardPanel {
         // プロジェクトを作成
         const projectData = {
             name: folderName,
-            description: description,
+            description: "",
             path: folderPath
         };
         try {
@@ -915,8 +925,12 @@ project/
      */
     _createInitialDocuments(projectPath) {
         try {
-            // requirements.md
-            fs.writeFileSync(path.join(projectPath, 'docs', 'requirements.md'), `# 要件定義
+            const docsDir = path.join(projectPath, 'docs');
+            // 各ファイルの作成（既存のファイルは上書きしない）
+            const files = [
+                {
+                    path: path.join(docsDir, 'requirements.md'),
+                    content: `# 要件定義
 
 ## 機能要件
 
@@ -941,9 +955,11 @@ project/
 ## ユーザーストーリー
 
 - ユーザーとして、[機能]を使いたい。それによって[目的]を達成できる。
-`, 'utf8');
-            // structure.md
-            fs.writeFileSync(path.join(projectPath, 'docs', 'structure.md'), `# ディレクトリ構造
+`
+                },
+                {
+                    path: path.join(docsDir, 'structure.md'),
+                    content: `# ディレクトリ構造
 
 \`\`\`
 project/
@@ -962,9 +978,11 @@ project/
 │   ├── services/
 │   └── models/
 \`\`\`
-`, 'utf8');
-            // scope.md
-            fs.writeFileSync(path.join(projectPath, 'docs', 'scope.md'), `# 実装スコープ
+`
+                },
+                {
+                    path: path.join(docsDir, 'scope.md'),
+                    content: `# 実装スコープ
 
 ## 完了
 
@@ -985,9 +1003,11 @@ project/
    - 説明: メインデータの一覧表示
    - 優先度: 高
    - 関連ファイル: 未定
-`, 'utf8');
-            // api.md
-            fs.writeFileSync(path.join(projectPath, 'docs', 'api.md'), `# API設計
+`
+                },
+                {
+                    path: path.join(docsDir, 'api.md'),
+                    content: `# API設計
 
 ## エンドポイント一覧
 
@@ -1009,9 +1029,11 @@ project/
   - 説明: データ一覧取得
   - リクエストパラメータ: \`{ page: number, limit: number }\`
   - レスポンス: \`{ data: DataItem[], total: number }\`
-`, 'utf8');
-            // env.example
-            fs.writeFileSync(path.join(projectPath, 'docs', 'env.example'), `# 環境変数サンプル
+`
+                },
+                {
+                    path: path.join(docsDir, 'env.example'),
+                    content: `# 環境変数サンプル
 # 実際の値は.envファイルに設定してください
 
 # サーバー設定
@@ -1027,7 +1049,21 @@ DB_PASSWORD=password
 
 # 認証設定
 JWT_SECRET=your_jwt_secret_key
-`, 'utf8');
+`
+                }
+            ];
+            // 各ファイルを順番に処理
+            for (const file of files) {
+                // ファイルが存在しない場合のみ作成
+                if (!fs.existsSync(file.path)) {
+                    fs.writeFileSync(file.path, file.content, 'utf8');
+                    logger_1.Logger.info(`${path.basename(file.path)} を作成しました: ${file.path}`);
+                }
+                else {
+                    logger_1.Logger.info(`${path.basename(file.path)} は既に存在するため、スキップします: ${file.path}`);
+                }
+            }
+            // CURRENT_STATUS.mdの作成は ProjectManagementService.createInitialDocuments で行うため、ここでは実装しない
             logger_1.Logger.info(`初期ドキュメントを作成しました: ${projectPath}`);
         }
         catch (error) {
@@ -1120,6 +1156,8 @@ JWT_SECRET=your_jwt_secret_key
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.js'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'dashboard.css'));
         const resetCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css'));
+        const designSystemUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css'));
+        const accessibilityUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'accessibility.css'));
         const vscodeCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css'));
         // WebViewのHTMLを構築
         return `<!DOCTYPE html>
@@ -1130,16 +1168,45 @@ JWT_SECRET=your_jwt_secret_key
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource} 'unsafe-inline'; style-src ${webview.cspSource} 'unsafe-inline'; frame-src https:;">
   <title>AppGenius ダッシュボード</title>
   <link href="${resetCssUri}" rel="stylesheet">
+  <link href="${designSystemUri}" rel="stylesheet">
+  <link href="${accessibilityUri}" rel="stylesheet">
   <link href="${styleUri}" rel="stylesheet">
+  <style>
+    /* 青背景エリアの文字は常に白に強制上書き */
+    .header h1, 
+    .header-actions button,
+    .header-actions button span,
+    .step-number, 
+    .step-action,
+    .project-buttons button,
+    .project-buttons button span,
+    .open-button {
+      color: white !important;
+    }
+    
+    /* ライトモード固定スタイル */
+    .dashboard-container {
+      color-scheme: light !important;
+      background-color: white !important;
+      color: #333 !important;
+    }
+    
+    /* ダークモード用スタイル（将来的な拡張） */
+    .dashboard-container.theme-dark {
+      color-scheme: dark !important;
+      background-color: #1e1e1e !important;
+      color: #e0e0e0 !important;
+    }
+  </style>
 </head>
 <body>
-  <div class="dashboard-container">
+  <div class="dashboard-container theme-light">
     <!-- ヘッダー -->
     <div class="header">
       <h1>AppGenius ダッシュボード</h1>
       <div class="header-actions">
-        <button id="refresh-btn" class="button">
-          <i class="icon">🔄</i> 更新
+        <button id="theme-toggle" class="button">
+          <i class="icon">🌓</i> <span>テーマ切替</span>
         </button>
       </div>
     </div>
@@ -1152,10 +1219,10 @@ JWT_SECRET=your_jwt_secret_key
           <h2>プロジェクト一覧</h2>
           <div class="project-buttons">
             <button id="new-project-btn" class="button">
-              <i class="icon">➕</i> 新規作成
+              <i class="icon">➕</i> <span>新規作成</span>
             </button>
             <button id="load-project-btn" class="button">
-              <i class="icon">📂</i> 読み込む
+              <i class="icon">📂</i> <span>読み込む</span>
             </button>
           </div>
           <button id="toggle-sidebar" class="toggle-sidebar" title="サイドバー切替">
@@ -1189,10 +1256,6 @@ JWT_SECRET=your_jwt_secret_key
           <label for="project-name">プロジェクト名 <span style="color: #e74c3c;">*</span></label>
           <input type="text" id="project-name" required placeholder="例: MyWebApp">
         </div>
-        <div class="form-group">
-          <label for="project-description">説明</label>
-          <textarea id="project-description" rows="3" placeholder="プロジェクトの概要や目的を記述してください"></textarea>
-        </div>
         <div class="form-actions">
           <button type="button" class="button secondary" id="cancel-new-project">キャンセル</button>
           <button type="submit" class="button primary">作成</button>
@@ -1222,4 +1285,6 @@ JWT_SECRET=your_jwt_secret_key
 }
 exports.DashboardPanel = DashboardPanel;
 DashboardPanel.viewType = 'dashboard';
+// 必要な権限を指定
+DashboardPanel._feature = roles_1.Feature.DASHBOARD;
 //# sourceMappingURL=DashboardPanel.js.map

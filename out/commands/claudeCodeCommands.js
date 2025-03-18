@@ -101,7 +101,7 @@ function registerClaudeCodeCommands(context) {
             if (!authService.isAuthenticated()) {
                 const answer = await vscode.window.showInformationMessage('この機能を使用するにはログインが必要です。', 'ログイン', 'キャンセル');
                 if (answer === 'ログイン') {
-                    vscode.commands.executeCommand('appgenius.auth.login');
+                    vscode.commands.executeCommand('appgenius.login');
                 }
                 return;
             }
@@ -180,7 +180,7 @@ function registerClaudeCodeCommands(context) {
             if (!authService.isAuthenticated()) {
                 const answer = await vscode.window.showInformationMessage('この機能を使用するにはログインが必要です。', 'ログイン', 'キャンセル');
                 if (answer === 'ログイン') {
-                    vscode.commands.executeCommand('appgenius.auth.login');
+                    vscode.commands.executeCommand('appgenius.login');
                 }
                 return;
             }
@@ -205,7 +205,7 @@ function registerClaudeCodeCommands(context) {
             if (!authService.isAuthenticated()) {
                 const answer = await vscode.window.showInformationMessage('この機能を使用するにはログインが必要です。', 'ログイン', 'キャンセル');
                 if (answer === 'ログイン') {
-                    vscode.commands.executeCommand('appgenius.auth.login');
+                    vscode.commands.executeCommand('appgenius.login');
                 }
                 return;
             }

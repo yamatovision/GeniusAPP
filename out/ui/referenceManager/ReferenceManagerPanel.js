@@ -39,17 +39,21 @@ const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const referenceStorageService_1 = require("../../services/referenceStorageService");
 const logger_1 = require("../../utils/logger");
+const ProtectedPanel_1 = require("../auth/ProtectedPanel");
+const roles_1 = require("../../core/auth/roles");
 /**
  * リファレンスマネージャーパネル
  * テキストや画像を入力して、自動的に分類・保存するUI
+ * 権限保護されたパネルの基底クラスを継承
  */
-class ReferenceManagerPanel {
+class ReferenceManagerPanel extends ProtectedPanel_1.ProtectedPanel {
     /**
-     * パネルシングルトンの作成
+     * 実際のパネル作成・表示ロジック
+     * ProtectedPanelから呼び出される
      * @param extensionUri 拡張機能のURI
      * @param projectPath プロジェクトパス
      */
-    static createOrShow(extensionUri, projectPath) {
+    static _createOrShowPanel(extensionUri, projectPath) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -72,12 +76,27 @@ class ReferenceManagerPanel {
         return ReferenceManagerPanel.instance;
     }
     /**
+     * 外部向けのパネル作成・表示メソッド
+     * 権限チェック付きで、パネルを表示する
+     * @param extensionUri 拡張機能のURI
+     * @param projectPath プロジェクトパス
+     */
+    static createOrShow(extensionUri, projectPath) {
+        // 権限チェック
+        if (!this.checkPermissionForFeature(roles_1.Feature.REFERENCE_MANAGER, 'ReferenceManagerPanel')) {
+            return undefined;
+        }
+        // 権限があれば表示
+        return this._createOrShowPanel(extensionUri, projectPath);
+    }
+    /**
      * コンストラクタ
      * @param panel WebViewパネル
      * @param extensionUri 拡張機能のURI
      * @param projectPath プロジェクトパス
      */
     constructor(panel, extensionUri, projectPath) {
+        super(); // 親クラスのコンストラクタを呼び出し
         this._disposables = [];
         this._panel = panel;
         this._extensionUri = extensionUri;
@@ -674,4 +693,6 @@ class ReferenceManagerPanel {
 }
 exports.ReferenceManagerPanel = ReferenceManagerPanel;
 ReferenceManagerPanel.viewType = 'appgenius.referenceManager';
+// 必要な権限を指定
+ReferenceManagerPanel._feature = roles_1.Feature.REFERENCE_MANAGER;
 //# sourceMappingURL=ReferenceManagerPanel.js.map

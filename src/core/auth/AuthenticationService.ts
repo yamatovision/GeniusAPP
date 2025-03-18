@@ -385,6 +385,21 @@ export class AuthenticationService {
       else if (axios.isAxiosError(error) && error.response?.status === 500) {
         Logger.warn('トークンリフレッシュ中にサーバーエラーが発生しました。現在のトークンの有効性をチェックします');
         
+        // サーバーエラーの原因がアカウント無効化の場合
+        if (error.response?.data?.error?.details === 'アカウントが無効化されています') {
+          Logger.warn('アカウントが無効化されています。ログアウトします');
+          if (!silentOnError) {
+            await this.logout();
+            vscode.window.showErrorMessage('アカウントが無効化されています。管理者にお問い合わせください。');
+          } else {
+            // 静かにトークンをクリアするだけ
+            await this._tokenManager.clearTokens();
+            const newState = AuthStateBuilder.guest().build();
+            this._updateState(newState);
+          }
+          return false;
+        }
+        
         try {
           // 現在のトークンの有効期限をチェック
           const isValid = await this._tokenManager.isTokenValid();
@@ -392,10 +407,15 @@ export class AuthenticationService {
             Logger.info('現在のトークンはまだ有効です。リフレッシュを中断して現在のトークンを使用します');
             
             // ユーザー情報を取得して認証状態を回復
-            await this._recoverUserState();
+            const recovered = await this._recoverUserState();
             
-            // サーバーエラーでも認証状態を維持
-            return true;
+            // 回復に成功した場合
+            if (recovered) {
+              // サーバーエラーでも認証状態を維持
+              return true;
+            } else {
+              Logger.warn('認証状態の回復に失敗しました');
+            }
           } else {
             Logger.warn('現在のトークンも有効期限切れです。リフレッシュに失敗しました');
             if (!silentOnError) {
@@ -428,8 +448,8 @@ export class AuthenticationService {
       
       const apiUrl = this._getAuthApiUrl();
       
-      // ユーザー情報取得APIを呼び出し
-      const response = await axios.get(`${apiUrl}/users/me`, {
+      // ユーザー情報取得APIを呼び出し - 正しいパスを使用（/auth/users/me）
+      const response = await axios.get(`${apiUrl}/auth/users/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -699,7 +719,7 @@ export class AuthenticationService {
       }
       
       const apiUrl = this._getAuthApiUrl();
-      const response = await axios.get(`${apiUrl}/users/me`, {
+      const response = await axios.get(`${apiUrl}/auth/users/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

@@ -44,15 +44,19 @@ const requirementsParser_1 = require("../../core/requirementsParser");
 const MockupQueueManager_1 = require("./MockupQueueManager");
 const ClaudeCodeLauncherService_1 = require("../../services/ClaudeCodeLauncherService");
 const ClaudeCodeIntegrationService_1 = require("../../services/ClaudeCodeIntegrationService");
+const ProtectedPanel_1 = require("../auth/ProtectedPanel");
+const roles_1 = require("../../core/auth/roles");
 /**
  * モックアップギャラリーパネル
  * モックアップの一覧表示、編集、プレビューを提供するウェブビューパネル
+ * 権限保護されたパネルの基底クラスを継承
  */
-class MockupGalleryPanel {
+class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
     /**
-     * パネルを作成または表示
+     * 実際のパネル作成・表示ロジック
+     * ProtectedPanelから呼び出される
      */
-    static createOrShow(extensionUri, aiService, projectPath) {
+    static _createOrShowPanel(extensionUri, aiService, projectPath) {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -80,6 +84,18 @@ class MockupGalleryPanel {
         return MockupGalleryPanel.currentPanel;
     }
     /**
+     * 外部向けのパネル作成・表示メソッド
+     * 権限チェック付きで、パネルを表示する
+     */
+    static createOrShow(extensionUri, aiService, projectPath) {
+        // 権限チェック
+        if (!this.checkPermissionForFeature(roles_1.Feature.MOCKUP_GALLERY, 'MockupGalleryPanel')) {
+            return undefined;
+        }
+        // 権限があれば表示
+        return this._createOrShowPanel(extensionUri, aiService, projectPath);
+    }
+    /**
      * 特定のモックアップを選択した状態で開く
      */
     static openWithMockup(extensionUri, aiService, mockupId, projectPath) {
@@ -91,6 +107,7 @@ class MockupGalleryPanel {
      * コンストラクタ
      */
     constructor(panel, extensionUri, aiService, projectPath) {
+        super(); // 親クラスのコンストラクタを呼び出し
         this._disposables = [];
         this._panel = panel;
         this._extensionUri = extensionUri;
@@ -585,7 +602,7 @@ class MockupGalleryPanel {
                 // ターミナルの表示
                 terminal.show(true);
                 // ガイダンスメッセージを表示
-                terminal.sendText('echo "\n\n*** AIが自動解析の許可を得ますのでyesを押し続けてください ***\n"');
+                terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
                 terminal.sendText('sleep 1'); // 1秒待機
                 // macOSの場合は環境変数の設定（必要に応じて）
                 if (process.platform === 'darwin') {
@@ -612,10 +629,16 @@ class MockupGalleryPanel {
                 fs.writeFileSync(tempTemplatePath, templateContent, 'utf8');
                 // エスケープされたパス
                 const escapedTempTemplatePath = tempTemplatePath.replace(/ /g, '\\ ');
-                // コマンド実行
-                terminal.sendText(`echo "ローカルテンプレートを使用して解析を開始します: ${path.basename(templatePath)}"`);
-                terminal.sendText(`echo "現在のプロジェクトパス: ${this._projectPath}"`);
-                terminal.sendText(`claude ${escapedTempTemplatePath}`);
+                // ClaudeCodeIntegrationServiceを使用
+                // 一時ファイルを閉じる
+                terminal.dispose();
+                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+                // セキュリティガイドライン付きで起動
+                logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
+                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+                // テンプレートの内容を追加コンテンツとして渡す
+                await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, templateContent);
                 // 一時ファイルの自動削除（25秒後）
                 setTimeout(() => {
                     try {
@@ -934,4 +957,6 @@ class MockupGalleryPanel {
 }
 exports.MockupGalleryPanel = MockupGalleryPanel;
 MockupGalleryPanel.viewType = 'mockupGallery';
+// 必要な権限を指定
+MockupGalleryPanel._feature = roles_1.Feature.MOCKUP_GALLERY;
 //# sourceMappingURL=MockupGalleryPanel.js.map

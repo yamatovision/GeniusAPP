@@ -10,7 +10,8 @@ const vscode = acquireVsCodeApi();
     selectedScopeIndex: -1,
     selectedScope: null,
     directoryStructure: '',
-    theme: 'light'
+    theme: 'light',
+    isPreparationMode: false // 開発準備モードかどうかのフラグを追加
   };
   
   // テーマの適用
@@ -56,14 +57,15 @@ const vscode = acquireVsCodeApi();
     }
   }
   
-  // 保存されているテーマを適用
+  // 常にダークモードを適用
   function applyStoredTheme() {
-    const theme = localStorage.getItem('app-theme') || 'light';
-    // 初期状態ではテーマのクラス名は含まれていないため、初期状態を設定する
-    if (!document.body.classList.contains('theme-light') && !document.body.classList.contains('theme-dark')) {
-      document.body.classList.add('theme-light');
-    }
-    applyTheme(theme);
+    // テーマは常に'dark'に設定
+    localStorage.setItem('app-theme', 'dark');
+    // ダークモードクラスを適用
+    document.body.classList.remove('theme-light');
+    document.body.classList.add('theme-dark');
+    // ダークモードを適用
+    applyTheme('dark');
   }
   
   // テーマの切り替え
@@ -133,16 +135,23 @@ const vscode = acquireVsCodeApi();
    * 状態更新ハンドラー
    */
   function handleUpdateState(data) {
+    // 準備モードフラグを取得
+    const isPreparationMode = data.isPreparationMode !== undefined ? data.isPreparationMode : previousState.isPreparationMode;
+    
     // 状態の更新
     vscode.setState({
       scopes: data.scopes || previousState.scopes,
       selectedScopeIndex: data.selectedScopeIndex !== undefined ? data.selectedScopeIndex : previousState.selectedScopeIndex,
       selectedScope: data.selectedScope || previousState.selectedScope,
-      directoryStructure: data.directoryStructure || previousState.directoryStructure
+      directoryStructure: data.directoryStructure || previousState.directoryStructure,
+      isPreparationMode: isPreparationMode // 準備モードフラグを保存
     });
     
     // プロジェクト情報を更新
     updateProjectInfo(data);
+    
+    // モードに応じたUIの表示切替
+    updateModeView(isPreparationMode);
     
     // UIの更新
     updateScopeList(data.scopes || []);
@@ -150,6 +159,64 @@ const vscode = acquireVsCodeApi();
     
     // ディレクトリ構造の更新
     updateDirectoryStructure(data.directoryStructure);
+  }
+  
+  /**
+   * モードに応じたUI表示の切替
+   */
+  function updateModeView(isPreparationMode) {
+    // 開発準備モード用の要素を取得
+    const preparationModeView = document.getElementById('preparation-mode-view');
+    // 実装モード用の要素を取得
+    const implementationModeView = document.getElementById('implementation-mode-view');
+    
+    // ヘッダータイトルを取得
+    const headerTitle = document.getElementById('panel-header-title');
+    
+    // AIボタンのテキスト要素
+    const aiButtonText = document.getElementById('ai-button-text');
+    const aiButtonTextAlt = document.getElementById('ai-button-text-alt');
+    
+    // モードに応じて表示を切り替え
+    if (isPreparationMode) {
+      // 開発準備モードの表示
+      if (preparationModeView) preparationModeView.style.display = 'block';
+      if (implementationModeView) implementationModeView.style.display = 'none';
+      if (headerTitle) headerTitle.textContent = 'AppGenius 開発準備ガイド';
+      
+      // 通常のスコープ選択リストは隠す
+      const scopeListContainer = document.getElementById('scope-list-container');
+      if (scopeListContainer) scopeListContainer.style.display = 'none';
+      
+      // 実装ボタンを隠す
+      const implementButton = document.getElementById('implement-button');
+      if (implementButton) implementButton.style.display = 'none';
+      
+      // 「実装フェーズに移行」ボタンを表示
+      const switchToImplementationButton = document.getElementById('switch-to-implementation-button');
+      if (switchToImplementationButton) switchToImplementationButton.style.display = 'block';
+      
+      // AIボタンのテキスト更新 - 準備モードでは「実装計画を立てる」
+      if (aiButtonText) aiButtonText.textContent = '実装計画を立てる';
+      if (aiButtonTextAlt) aiButtonTextAlt.textContent = '実装計画を立てる';
+    } else {
+      // 実装モードの表示
+      if (preparationModeView) preparationModeView.style.display = 'none';
+      if (implementationModeView) implementationModeView.style.display = 'block';
+      if (headerTitle) headerTitle.textContent = 'AppGenius スコープマネージャー';
+      
+      // 通常のスコープ選択リストを表示
+      const scopeListContainer = document.getElementById('scope-list-container');
+      if (scopeListContainer) scopeListContainer.style.display = 'block';
+      
+      // 「実装フェーズに移行」ボタンを隠す
+      const switchToImplementationButton = document.getElementById('switch-to-implementation-button');
+      if (switchToImplementationButton) switchToImplementationButton.style.display = 'none';
+      
+      // AIボタンのテキスト更新 - 実装モードでは「開発案件を追加する」
+      if (aiButtonText) aiButtonText.textContent = '開発案件を追加する';
+      if (aiButtonTextAlt) aiButtonTextAlt.textContent = '開発案件を追加する';
+    }
   }
   
   /**
@@ -504,11 +571,24 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // スコープ作成ボタン (AI)
+    // スコープ作成ボタン (AI) - モードに応じた機能を提供
     const createScopeButton = document.getElementById('create-scope-button');
     if (createScopeButton) {
       createScopeButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'launchScopeCreator' });
+        // 現在のモードを取得
+        const currentState = vscode.getState() || {};
+        const isPreparationMode = currentState.isPreparationMode !== undefined 
+          ? currentState.isPreparationMode 
+          : false;
+          
+        // モードに応じたコマンドを実行
+        if (isPreparationMode) {
+          // 開発準備モード - スコープ作成プロンプト
+          vscode.postMessage({ command: 'launchScopeCreator' });
+        } else {
+          // 実装モード - プロジェクト分析プロンプト
+          vscode.postMessage({ command: 'launchImplementationAssistant' });
+        }
       });
     }
     
@@ -530,25 +610,72 @@ const vscode = acquireVsCodeApi();
     const launchAssistantButton = document.getElementById('launch-implementation-assistant');
     if (launchAssistantButton) {
       launchAssistantButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'launchImplementationAssistant' });
+        // 現在のモードを取得
+        const currentState = vscode.getState() || {};
+        const isPreparationMode = currentState.isPreparationMode !== undefined 
+          ? currentState.isPreparationMode 
+          : false;
+          
+        // モードに応じたコマンドを実行
+        if (isPreparationMode) {
+          // 開発準備モード - スコープ作成プロンプト
+          vscode.postMessage({ command: 'launchScopeCreator' });
+        } else {
+          // 実装モード - プロジェクト分析プロンプト
+          vscode.postMessage({ command: 'launchImplementationAssistant' });
+        }
       });
     }
     
-    // 要件定義ビジュアライザーボタン
+    // 要件定義エディタボタン
     const requirementsButton = document.getElementById('requirements-button');
     if (requirementsButton) {
       requirementsButton.addEventListener('click', () => {
-        // 要件定義ビジュアライザーコマンドを実行
+        // 要件定義エディタコマンドを実行
         vscode.postMessage({ command: 'openRequirementsVisualizer' });
       });
     }
     
-    // テーマ切り替えボタン
-    const themeToggle = document.getElementById('theme-toggle');
-    if (themeToggle) {
-      themeToggle.addEventListener('click', () => {
-        toggleTheme();
+    // モックアップギャラリーボタン
+    const mockupGalleryButton = document.getElementById('mockup-gallery-button');
+    if (mockupGalleryButton) {
+      mockupGalleryButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'openMockupGallery' });
       });
     }
+    
+    // デバッグ探偵ボタン
+    const debugDetectiveButton = document.getElementById('debug-detective-button');
+    if (debugDetectiveButton) {
+      debugDetectiveButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'openDebugDetective' });
+      });
+    }
+    
+    // リファレンスマネージャーボタン
+    const referenceManagerButton = document.getElementById('reference-manager-button');
+    if (referenceManagerButton) {
+      referenceManagerButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'openReferenceManager' });
+      });
+    }
+    
+    // 実装フェーズに移行ボタン
+    const switchToImplementationButton = document.getElementById('switch-to-implementation-button');
+    if (switchToImplementationButton) {
+      switchToImplementationButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'switchToImplementationMode' });
+      });
+    }
+    
+    // 開発準備モードに戻るボタン
+    const resetToPreparationButton = document.getElementById('reset-to-preparation-button');
+    if (resetToPreparationButton) {
+      resetToPreparationButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'resetToPreparationMode' });
+      });
+    }
+    
+    // ダークモードのみのため、テーマ切り替えボタンの処理は削除
   }
 })();

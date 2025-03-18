@@ -854,7 +854,7 @@ class SecurityAuditor {
             status,
             message,
             details,
-            recommendations: status !== 'pass' && status !== 'info' ? [
+            recommendations: (status !== 'pass' && status !== 'info') ? [
                 'WebViewでContent Security Policyを設定する',
                 'ユーザー入力をエスケープして表示する',
                 'localResourceRootsを適切に設定してリソースアクセスを制限する'
@@ -911,7 +911,7 @@ class SecurityAuditor {
             status,
             message,
             details,
-            recommendations: status === 'warning' || status === 'fail' ? [
+            recommendations: (status !== 'pass' && status !== 'info') ? [
                 '状態変更を伴うリクエストにCSRFトークンを使用する',
                 'カスタムHTTPヘッダーを使用して制御する',
                 'SameSite Cookieポリシーを実装する'
