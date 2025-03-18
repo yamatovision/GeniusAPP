@@ -27,31 +27,53 @@
   
   // DOMが読み込まれた後に実行
   document.addEventListener('DOMContentLoaded', () => {
-    // 初期化処理
-    initializeEventListeners();
-    // 強制的にライトモードに設定
-    const container = document.querySelector('.dashboard-container');
-    if (container) {
-      container.classList.remove('theme-dark');
-      container.classList.add('theme-light');
-    }
+    console.log('DOMContentLoaded イベントが発生しました');
     
-    // プロジェクト一覧の更新をリクエスト
-    vscode.postMessage({
-      command: 'refreshProjects'
-    });
+    // 現在のHTMLボディの構造をログ出力
+    console.log('現在のDOM構造を部分的に表示:');
+    console.log(document.body.innerHTML.substring(0, 200) + '...');
     
-    // ローディング状態の更新
-    updateLoadingState(true);
-    
-    // 定期的な状態更新（1秒ごとに更新）
-    setInterval(() => {
-      if (state.activeProject) {
-        vscode.postMessage({
-          command: 'refreshProjects'
-        });
+    try {
+      // 初期化処理
+      console.log('イベントリスナーの初期化を行います');
+      initializeEventListeners();
+      console.log('イベントリスナーの初期化が完了しました');
+      
+      // 強制的にライトモードに設定
+      const container = document.querySelector('.dashboard-container');
+      if (container) {
+        console.log('ダッシュボードコンテナが見つかりました');
+        container.classList.remove('theme-dark');
+        container.classList.add('theme-light');
+      } else {
+        console.warn('ダッシュボードコンテナが見つかりません');
       }
-    }, 1000);
+      
+      // 現在のDOM状態をログに出力
+      console.log('現在のモーダル要素:', document.getElementById('new-project-modal'));
+      console.log('現在のフォーム要素:', document.getElementById('new-project-form'));
+      console.log('現在の作成ボタン要素:', document.getElementById('create-project-btn'));
+      
+      // プロジェクト一覧の更新をリクエスト
+      console.log('プロジェクト一覧の更新をリクエストします');
+      vscode.postMessage({
+        command: 'refreshProjects'
+      });
+      
+      // ローディング状態の更新
+      updateLoadingState(true);
+      
+      // 定期的な状態更新（1秒ごとに更新）
+      setInterval(() => {
+        if (state.activeProject) {
+          vscode.postMessage({
+            command: 'refreshProjects'
+          });
+        }
+      }, 1000);
+    } catch (e) {
+      console.error('DOMContentLoaded イベントハンドラでエラーが発生しました', e);
+    }
   });
   
   // メッセージのハンドラーを登録
@@ -81,29 +103,69 @@
    * イベントリスナーの初期化
    */
   function initializeEventListeners() {
+    console.log("イベントリスナーの初期化を開始します");
+    
+    // スタート時点でのモーダル要素の状態確認
+    console.log("初期化時点でのモーダル状態:", document.getElementById('new-project-modal'));
+    
     // 新規プロジェクトボタン
     const newProjectBtn = document.getElementById('new-project-btn');
     if (newProjectBtn) {
+      console.log("新規プロジェクトボタンを検出しました", newProjectBtn);
       newProjectBtn.addEventListener('click', () => {
+        console.log("新規プロジェクトボタンがクリックされました");
         showNewProjectModal();
       });
+    } else {
+      console.warn("新規プロジェクトボタン(#new-project-btn)が見つかりません");
     }
     
     // プロジェクト読み込みボタン
     const loadProjectBtn = document.getElementById('load-project-btn');
     if (loadProjectBtn) {
+      console.log("プロジェクト読み込みボタンを検出しました");
       loadProjectBtn.addEventListener('click', () => {
+        console.log("プロジェクト読み込みボタンがクリックされました");
         loadExistingProject();
       });
+    } else {
+      console.warn("プロジェクト読み込みボタン(#load-project-btn)が見つかりません");
     }
     
     // 新規プロジェクトフォーム
     const newProjectForm = document.getElementById('new-project-form');
     if (newProjectForm) {
+      console.log("新規プロジェクトフォームを検出しました");
       newProjectForm.addEventListener('submit', event => {
+        console.log("フォームのsubmitイベントが発生しました");
         event.preventDefault();
         createNewProject();
       });
+    } else {
+      console.warn("新規プロジェクトフォーム(#new-project-form)が見つかりません");
+    }
+    
+    // 「作成」ボタンのイベントリスナー - ダイレクトクリックで対応
+    const createProjectBtn = document.getElementById('create-project-btn');
+    if (createProjectBtn) {
+      console.log("作成ボタンを検出しました", createProjectBtn);
+      createProjectBtn.addEventListener('click', (event) => {
+        console.log("作成ボタンがクリックされました (イベント):", event);
+        event.preventDefault(); // ボタンのデフォルト動作を停止
+        console.log("createNewProject関数を直接呼び出します");
+        createNewProject(); // 直接処理関数を呼び出し
+      });
+      
+      // submitイベントも念のためリッスン
+      const form = document.getElementById('new-project-form');
+      if (form) {
+        console.log("フォームにsubmitイベントリスナーを追加します");
+        form.addEventListener('submit', (event) => {
+          console.log("フォームのsubmitイベントが発火しました", event);
+        });
+      }
+    } else {
+      console.warn("作成ボタン(#create-project-btn)が見つかりません");
     }
     
     // モーダルキャンセルボタン
@@ -516,17 +578,140 @@
    * 新規プロジェクトモーダルを表示
    */
   function showNewProjectModal() {
-    const modal = document.getElementById('new-project-modal');
-    if (modal) {
-      modal.classList.add('active');
+    console.log('新規プロジェクトモーダル表示処理を開始します');
+    
+    try {
+      // 既存のモーダルを削除
+      document.querySelectorAll('#new-project-modal').forEach(m => {
+        console.log('モーダル要素を削除します:', m.id);
+        m.remove();
+      });
       
-      // フォームをリセット
+      // 変数の初期化
+      let modal;
+      
+      // モーダルを新規作成（純粋なdivで、クラス名なし）
+      console.log('モーダルを新規作成します');
+      modal = document.createElement('div');
+      modal.id = 'new-project-modal';
+      
+      // スタイルを詳細に設定
+      const modalStyles = {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        right: '0',
+        bottom: '0',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: '10000'
+      };
+      
+      // 全てのスタイルを適用
+      Object.assign(modal.style, modalStyles);
+      
+      // スタイル適用後の状態をログに出力
+      console.log('モーダルスタイル設定:', {
+        display: modal.style.display,
+        position: modal.style.position,
+        zIndex: modal.style.zIndex
+      });
+      
+      // テストモーダルは削除（問題解決済み）
+      
+      // 非常にシンプルなモーダル内容
+      modal.innerHTML = `
+        <div style="background-color: white; border-radius: 10px; width: 400px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);">
+          <div style="padding: 20px; border-bottom: 1px solid #ddd;">
+            <h2 style="margin: 0; font-size: 18px;">新規プロジェクト作成</h2>
+          </div>
+          <div style="padding: 20px;">
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px;">プロジェクト名 <span style="color: red;">*</span></label>
+              <input type="text" id="project-name" required placeholder="例: MyWebApp" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+          </div>
+          <div style="padding: 15px 20px; border-top: 1px solid #ddd; text-align: right;">
+            <button type="button" id="cancel-new-project" style="padding: 6px 12px; margin-right: 10px; background: #f1f1f1; border: none; border-radius: 4px; cursor: pointer;">キャンセル</button>
+            <button type="button" id="create-project-btn" style="padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px; cursor: pointer;">作成</button>
+          </div>
+        </div>
+      `;
+      
+      // 内容設定後の確認
+      console.log('モーダル内容設定後のHTML：', modal.innerHTML.substring(0, 100) + '...');
+      
+      // ボディにモーダルを追加
+      document.body.appendChild(modal);
+      
+      // イベントリスナーを設定
+      const cancelBtn = document.getElementById('cancel-new-project');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideNewProjectModal);
+      }
+      
+      const createBtn = document.getElementById('create-project-btn');
+      if (createBtn) {
+        createBtn.addEventListener('click', createNewProject);
+      }
+      
+      // フォームのリセットとフォーカス
       const form = document.getElementById('new-project-form');
-      if (form) form.reset();
+      if (form) {
+        form.reset();
+        
+        // 名前フィールドにフォーカス
+        const projectName = document.getElementById('project-name');
+        if (projectName) {
+          projectName.focus();
+        }
+      }
       
-      // 名前フィールドにフォーカス
-      const projectName = document.getElementById('project-name');
-      if (projectName) projectName.focus();
+      // モーダルが本当に表示されていることを確認
+      console.log('モーダル表示処理が完了しました');
+      console.log('モーダルの現在の状態:', {
+        exists: !!document.getElementById('new-project-modal'),
+        bodyChildrenCount: document.body.children.length,
+        display: modal.style.display,
+        visibility: modal.style.visibility,
+        computedDisplay: window.getComputedStyle(modal).display,
+        computedVisibility: window.getComputedStyle(modal).visibility
+      });
+      
+      // モーダルを強制的に前面表示
+      setTimeout(() => {
+        const modalCheck = document.getElementById('new-project-modal');
+        if (modalCheck) {
+          // 強制的に全てのスタイルを再設定
+          Object.assign(modalCheck.style, {
+            display: 'flex',
+            visibility: 'visible',
+            opacity: '1',
+            position: 'fixed',
+            top: '0',
+            left: '0',
+            right: '0',
+            bottom: '0',
+            zIndex: '10000',
+            backgroundColor: 'rgba(0, 0, 0, 0.5)'
+          });
+          
+          // テストモーダル関連のコードは削除
+          
+          console.log('モーダル表示を強制的に再設定しました');
+          
+          // モーダル表示のための別のアプローチを試す
+          const projectNameInput = document.getElementById('project-name');
+          if (projectNameInput) {
+            projectNameInput.focus();
+            console.log('プロジェクト名フィールドにフォーカスしました');
+          }
+        }
+      }, 100);
+    } catch (e) {
+      console.error('モーダル表示処理中にエラーが発生しました', e);
     }
   }
   
@@ -534,9 +719,10 @@
    * 新規プロジェクトモーダルを非表示
    */
   function hideNewProjectModal() {
+    console.log('モーダルを非表示にします');
     const modal = document.getElementById('new-project-modal');
     if (modal) {
-      modal.classList.remove('active');
+      modal.remove();
     }
   }
   
@@ -544,22 +730,34 @@
    * 新規プロジェクト作成処理
    */
   function createNewProject() {
+    console.log('新規プロジェクト作成処理を開始します');
     const nameEl = document.getElementById('project-name');
     
-    if (!nameEl) return;
+    if (!nameEl) {
+      console.error('プロジェクト名入力フィールド(#project-name)が見つかりません');
+      return;
+    }
     
     const name = nameEl.value.trim();
+    console.log('入力されたプロジェクト名:', name);
     
     if (!name) {
+      console.warn('プロジェクト名が空です');
       showError('プロジェクト名を入力してください');
       return;
     }
     
-    vscode.postMessage({
-      command: 'createProject',
-      name,
-      description: ""
-    });
+    console.log('VSCodeにメッセージを送信します: createProject');
+    try {
+      vscode.postMessage({
+        command: 'createProject',
+        name,
+        description: ""
+      });
+      console.log('VSCodeへのメッセージ送信成功');
+    } catch (e) {
+      console.error('VSCodeへのメッセージ送信中にエラーが発生しました', e);
+    }
     
     hideNewProjectModal();
     updateLoadingState(true);
@@ -590,54 +788,67 @@
     const project = state.projects.find(p => p.id === id);
     if (!project) return;
     
-    // モーダル要素の作成
-    let modal = document.getElementById('edit-path-modal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'edit-path-modal';
-      modal.className = 'modal-overlay';
-      
-      // モーダルの内容を設定
-      modal.innerHTML = `
-        <div class="modal">
-          <div class="modal-header">
-            <h2>プロジェクトパスの編集</h2>
-          </div>
-          <div class="modal-body">
-            <form id="edit-path-form">
-              <div class="form-group">
-                <label for="project-path">プロジェクトパス <span style="color: #e74c3c;">*</span></label>
-                <input type="text" id="project-path" value="${escapeHtml(project.path || '')}" required placeholder="/path/to/your/project">
-                <div class="form-description">フォルダが移動または名前変更された場合に更新してください</div>
-              </div>
-            </form>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="button secondary" id="cancel-edit-path">キャンセル</button>
-            <button type="submit" form="edit-path-form" class="button primary">更新</button>
-          </div>
-        </div>
-      `;
-      
-      // モーダルをDOMに追加
-      document.body.appendChild(modal);
+    // 既存のモーダルがあれば削除
+    let existingModal = document.getElementById('edit-path-modal');
+    if (existingModal) {
+      existingModal.remove();
     }
     
-    // モーダルを表示
-    modal.classList.add('active');
+    // モーダル要素の作成
+    let modal = document.createElement('div');
+    modal.id = 'edit-path-modal';
+    modal.className = 'modal-overlay';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.right = '0';
+    modal.style.bottom = '0';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+    modal.style.zIndex = '9999';
+    
+    // モーダルの内容を設定
+    modal.innerHTML = `
+      <div class="modal" style="background-color: white; border-radius: 10px; width: 100%; max-width: 500px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); overflow: hidden;">
+        <div class="modal-header" style="padding: 20px; border-bottom: 1px solid #e2e8f0;">
+          <h2 style="font-size: 1.3rem; color: #2d3748; margin: 0;">プロジェクトパスの編集</h2>
+        </div>
+        <div class="modal-body" style="padding: 20px;">
+          <form id="edit-path-form">
+            <div class="form-group" style="margin-bottom: 20px;">
+              <label for="project-path" style="display: block; margin-bottom: 8px; font-weight: 500; color: #4a5568;">プロジェクトパス <span style="color: #e74c3c;">*</span></label>
+              <input type="text" id="project-path" value="${escapeHtml(project.path || '')}" required placeholder="/path/to/your/project" style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.95rem;">
+              <div class="form-description" style="margin-top: 8px; font-size: 0.9rem; color: #718096;">フォルダが移動または名前変更された場合に更新してください</div>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer" style="padding: 15px 20px; border-top: 1px solid #e2e8f0; background-color: #f9fafc; display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="button secondary" id="cancel-edit-path">キャンセル</button>
+          <button type="button" class="button primary" id="update-path-btn">更新</button>
+        </div>
+      </div>
+    `;
+    
+    // ボディにモーダルを追加
+    document.body.appendChild(modal);
     
     // キャンセルボタンのイベントリスナー
     const cancelButton = document.getElementById('cancel-edit-path');
     if (cancelButton) {
-      cancelButton.addEventListener('click', hideEditPathModal);
+      cancelButton.addEventListener('click', function() {
+        const modal = document.getElementById('edit-path-modal');
+        if (modal) {
+          modal.remove();
+        }
+      });
     }
     
-    // フォームのイベントリスナー
-    const form = document.getElementById('edit-path-form');
-    if (form) {
-      form.addEventListener('submit', (event) => {
-        event.preventDefault();
-        
+    // 更新ボタンのイベントリスナー
+    const updateButton = document.getElementById('update-path-btn');
+    if (updateButton) {
+      updateButton.addEventListener('click', function() {
         const pathInput = document.getElementById('project-path');
         if (!pathInput) return;
         
@@ -651,18 +862,11 @@
         updateProjectPath(id, newPath);
         
         // モーダルを閉じる
-        hideEditPathModal();
+        const modal = document.getElementById('edit-path-modal');
+        if (modal) {
+          modal.remove();
+        }
       });
-    }
-  }
-  
-  /**
-   * プロジェクトパス編集モーダルを非表示
-   */
-  function hideEditPathModal() {
-    const modal = document.getElementById('edit-path-modal');
-    if (modal) {
-      modal.classList.remove('active');
     }
   }
   
@@ -715,6 +919,16 @@
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
     errorDiv.innerHTML = `<span>⚠️</span> ${escapeHtml(message)}`;
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '20px';
+    errorDiv.style.left = '50%';
+    errorDiv.style.transform = 'translateX(-50%)';
+    errorDiv.style.backgroundColor = '#f8d7da';
+    errorDiv.style.color = '#721c24';
+    errorDiv.style.padding = '10px 20px';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    errorDiv.style.zIndex = '10000';
     
     document.body.appendChild(errorDiv);
     

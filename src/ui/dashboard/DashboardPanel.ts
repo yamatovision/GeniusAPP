@@ -457,6 +457,8 @@ export class DashboardPanel extends ProtectedPanel {
    */
   private async _handleCreateProject(name: string, description: string): Promise<void> {
     try {
+      Logger.info(`プロジェクト作成処理が開始されました: ${name}`);
+      
       if (!name) {
         throw new Error('プロジェクト名を入力してください');
       }
@@ -469,6 +471,7 @@ export class DashboardPanel extends ProtectedPanel {
         openLabel: `プロジェクト「${name}」の保存先を選択`
       };
       
+      Logger.info(`フォルダ選択ダイアログを表示します`);
       const folderUri = await vscode.window.showOpenDialog(options);
       if (!folderUri || folderUri.length === 0) {
         throw new Error('プロジェクトの保存先が選択されていません');
@@ -476,8 +479,10 @@ export class DashboardPanel extends ProtectedPanel {
       
       // 選択されたフォルダに、プロジェクト名のサブフォルダを作成
       const projectPath = path.join(folderUri[0].fsPath, name);
+      Logger.info(`プロジェクトパス: ${projectPath}`);
       
       // プロジェクトを作成
+      Logger.info(`ProjectManagementServiceでプロジェクトを作成します`);
       const projectId = await this._projectService.createProject({
         name,
         description: "",
@@ -485,16 +490,47 @@ export class DashboardPanel extends ProtectedPanel {
       });
 
       // 作成したプロジェクトをアクティブに設定
+      Logger.info(`プロジェクトをアクティブに設定します: ${projectId}`);
       await this._projectService.setActiveProject(projectId);
 
       // データを更新
+      Logger.info(`プロジェクト一覧を更新します`);
       await this._refreshProjects();
 
       // 成功メッセージを表示
+      Logger.info(`プロジェクト作成成功: ${name}, パス: ${projectPath}`);
       vscode.window.showInformationMessage(`プロジェクト「${name}」が作成されました: ${projectPath}`);
     } catch (error) {
       Logger.error(`プロジェクト作成エラー`, error as Error);
       await this._showError(`プロジェクトの作成に失敗しました: ${(error as Error).message}`);
+      
+      // エラー後にモーダルを再表示
+      try {
+        Logger.info('エラー後にモーダルを再表示します');
+        await this._panel.webview.postMessage({
+          command: 'showModal'
+        });
+      } catch (e) {
+        Logger.error('モーダル再表示に失敗しました', e as Error);
+      }
+    }
+  }
+  
+  /**
+   * VSCodeのエラーダイアログとWebViewエラーメッセージを表示
+   */
+  private async _showError(message: string): Promise<void> {
+    // VSCode拡張のエラーダイアログを表示
+    vscode.window.showErrorMessage(message);
+    
+    // WebViewにエラーメッセージを送信
+    try {
+      await this._panel.webview.postMessage({
+        command: 'showError',
+        message
+      });
+    } catch (e) {
+      Logger.error('WebViewへのエラーメッセージ送信に失敗しました', e as Error);
     }
   }
 
@@ -1026,18 +1062,7 @@ project/
     return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
   }
 
-  /**
-   * エラーメッセージの表示
-   */
-  private async _showError(message: string): Promise<void> {
-    vscode.window.showErrorMessage(message);
-    
-    // WebViewにもエラーを表示
-    await this._panel.webview.postMessage({ 
-      command: 'showError', 
-      message 
-    });
-  }
+  // エラーメッセージの表示メソッドは522行目に定義済み
   
   /**
    * VSCodeメッセージ表示処理
@@ -1950,25 +1975,9 @@ JWT_SECRET=your_jwt_secret_key
     </div>
   </div>
 
-  <!-- 新規プロジェクトモーダル -->
-  <div class="modal-overlay" id="new-project-modal">
-    <div class="modal">
-      <div class="modal-header">
-        <h2>新規プロジェクト作成</h2>
-      </div>
-      <div class="modal-body">
-        <form id="new-project-form">
-          <div class="form-group">
-            <label for="project-name">プロジェクト名 <span style="color: #e74c3c;">*</span></label>
-            <input type="text" id="project-name" required placeholder="例: MyWebApp">
-          </div>
-        </form>
-      </div>
-      <div class="modal-footer">
-        <button class="button secondary" id="cancel-new-project">キャンセル</button>
-        <button class="button primary" id="create-project-btn">作成</button>
-      </div>
-    </div>
+  <!-- 新規プロジェクトモーダル（インラインスタイル適用） -->
+  <div class="modal-overlay" id="new-project-modal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.5); display: none !important; align-items: center; justify-content: center; z-index: 9999;">
+    <!-- モーダルは動的に生成されるため、このテンプレートは使用されません。JSで生成したモーダルを優先 -->
   </div>
   
   <!-- スクリプト -->

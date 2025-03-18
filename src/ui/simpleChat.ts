@@ -12,6 +12,7 @@ import { ClaudeCodeLauncherService } from '../services/ClaudeCodeLauncherService
 import { ClaudeCodeIntegrationService } from '../services/ClaudeCodeIntegrationService';
 import { ProtectedPanel } from './auth/ProtectedPanel';
 import { Feature } from '../core/auth/roles';
+import { RequirementsParser, PageInfo } from '../core/requirementsParser';
 
 /**
  * シンプルなチャットパネルを管理するクラス
