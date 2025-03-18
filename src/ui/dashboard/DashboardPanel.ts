@@ -1913,10 +1913,9 @@ JWT_SECRET=your_jwt_secret_key
         </div>
         AppGenius ダッシュボード
       </h1>
+      <!-- テーマ切替ボタンを削除 -->
       <div class="header-actions">
-        <button class="button secondary" id="theme-toggle">
-          <span>🌓</span> テーマ切替
-        </button>
+        <!-- 空のヘッダーアクション - 将来的に必要なボタンがあれば追加 -->
       </div>
     </header>
     

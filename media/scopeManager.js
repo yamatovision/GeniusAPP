@@ -83,6 +83,9 @@ const vscode = acquireVsCodeApi();
     // 保存されているテーマを適用
     applyStoredTheme();
     
+    // リファレンスマネージャーカードを非表示にする
+    hideReferenceManagerCard();
+    
     // イベントリスナー設定
     setupEventListeners();
   });
@@ -176,6 +179,12 @@ const vscode = acquireVsCodeApi();
     // AIボタンのテキスト要素
     const aiButtonText = document.getElementById('ai-button-text');
     const aiButtonTextAlt = document.getElementById('ai-button-text-alt');
+    
+    // 新規作成ボタンを非表示にする
+    const addScopeButton = document.getElementById('add-scope-button');
+    if (addScopeButton) {
+      addScopeButton.style.display = 'none';
+    }
     
     // モードに応じて表示を切り替え
     if (isPreparationMode) {
@@ -306,6 +315,30 @@ const vscode = acquireVsCodeApi();
   }
   
   /**
+   * リファレンスマネージャーカードを非表示にする
+   */
+  function hideReferenceManagerCard() {
+    // リファレンスマネージャーカードを検索（classやidで特定）
+    const referenceCards = document.querySelectorAll('.card.reference, .reference-card, [id*="reference-manager"]');
+    
+    // 見つかったカードを非表示に
+    referenceCards.forEach(card => {
+      if (card) {
+        card.style.display = 'none';
+      }
+    });
+    
+    // または親要素からリファレンスマネージャーという文字列を含む要素を検索して非表示に
+    const allCards = document.querySelectorAll('.card, .card-container');
+    allCards.forEach(card => {
+      if (card.textContent.includes('リファレンスマネージャー') || 
+          card.textContent.includes('リファレンスを管理')) {
+        card.style.display = 'none';
+      }
+    });
+  }
+  
+  /**
    * スコープリストの更新
    */
   function updateScopeList(scopes) {
@@ -324,7 +357,7 @@ const vscode = acquireVsCodeApi();
         <div class="scope-item">
           <h3>スコープがありません</h3>
           <p style="color: var(--vscode-descriptionForeground); font-size: 0.9rem; margin-top: 5px;">
-            新規作成または「AI作成」ボタンをクリックしてスコープを作成してください
+            「実装計画を立てる」ボタンをクリックしてスコープを作成してください
           </p>
         </div>
       `;
@@ -563,17 +596,16 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // スコープ追加ボタン
-    const addScopeButton = document.getElementById('add-scope-button');
-    if (addScopeButton) {
-      addScopeButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'addNewScope' });
-      });
-    }
+    // スコープ追加ボタンの機能は削除
     
     // スコープ作成ボタン (AI) - モードに応じた機能を提供
     const createScopeButton = document.getElementById('create-scope-button');
     if (createScopeButton) {
+      // ボタンを大きく表示するスタイル適用
+      createScopeButton.style.padding = '12px 20px';
+      createScopeButton.style.fontSize = '1.1rem';
+      createScopeButton.style.fontWeight = 'bold';
+      
       createScopeButton.addEventListener('click', () => {
         // 現在のモードを取得
         const currentState = vscode.getState() || {};
@@ -600,15 +632,22 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // 環境変数アシスタントボタン
-    const envVarsButton = document.getElementById('env-vars-button');
-    if (envVarsButton) {
-      envVarsButton.addEventListener('click', handleOpenEnvironmentVariables);
+    // 環境変数アシスタントボタン - 全てのボタンにイベントリスナーを設定
+    const envVarsButtons = document.querySelectorAll('#env-vars-button, .env-vars-button, .environment-variables-button');
+    if (envVarsButtons.length > 0) {
+      envVarsButtons.forEach(button => {
+        button.addEventListener('click', handleOpenEnvironmentVariables);
+      });
     }
     
     // 実装アシスタント起動ボタン
     const launchAssistantButton = document.getElementById('launch-implementation-assistant');
     if (launchAssistantButton) {
+      // ボタンを大きく表示するスタイル適用
+      launchAssistantButton.style.padding = '12px 20px';
+      launchAssistantButton.style.fontSize = '1.1rem';
+      launchAssistantButton.style.fontWeight = 'bold';
+      
       launchAssistantButton.addEventListener('click', () => {
         // 現在のモードを取得
         const currentState = vscode.getState() || {};
@@ -627,20 +666,24 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // 要件定義エディタボタン
-    const requirementsButton = document.getElementById('requirements-button');
-    if (requirementsButton) {
-      requirementsButton.addEventListener('click', () => {
-        // 要件定義エディタコマンドを実行
-        vscode.postMessage({ command: 'openRequirementsVisualizer' });
+    // 要件定義エディタボタン - 全てのボタンにイベントリスナーを設定
+    const requirementsButtons = document.querySelectorAll('#requirements-button, .requirements-edit-button');
+    if (requirementsButtons.length > 0) {
+      requirementsButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          // 要件定義エディタコマンドを実行
+          vscode.postMessage({ command: 'openRequirementsVisualizer' });
+        });
       });
     }
     
-    // モックアップギャラリーボタン
-    const mockupGalleryButton = document.getElementById('mockup-gallery-button');
-    if (mockupGalleryButton) {
-      mockupGalleryButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'openMockupGallery' });
+    // モックアップギャラリーボタン - 全てのボタンにイベントリスナーを設定
+    const mockupGalleryButtons = document.querySelectorAll('#mockup-gallery-button, .mockup-gallery-button');
+    if (mockupGalleryButtons.length > 0) {
+      mockupGalleryButtons.forEach(button => {
+        button.addEventListener('click', () => {
+          vscode.postMessage({ command: 'openMockupGallery' });
+        });
       });
     }
     
@@ -652,13 +695,15 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // リファレンスマネージャーボタン
+    // リファレンスマネージャーボタン - 一時的に無効化
+    /* 
     const referenceManagerButton = document.getElementById('reference-manager-button');
     if (referenceManagerButton) {
       referenceManagerButton.addEventListener('click', () => {
         vscode.postMessage({ command: 'openReferenceManager' });
       });
     }
+    */
     
     // 実装フェーズに移行ボタン
     const switchToImplementationButton = document.getElementById('switch-to-implementation-button');

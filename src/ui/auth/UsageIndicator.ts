@@ -90,13 +90,16 @@ export class UsageIndicator {
       
       const apiUrl = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
       
-      const response = await axios.get(`${apiUrl}/usage/current`, {
+      // 正しいエンドポイントに修正
+      const response = await axios.get(`${apiUrl}/proxy/usage/me`, {
         headers: authHeader
       });
       
       if (response.status === 200 && response.data) {
-        this._currentUsage = response.data.tokensUsed || 0;
-        this._usageLimit = response.data.tokenLimit || 0;
+        // レスポンス構造に合わせてデータマッピングを修正
+        const usage = response.data.usage?.monthly || {};
+        this._currentUsage = usage.totalTokens || 0;
+        this._usageLimit = response.data.limits?.monthly || 0;
         
         // ステータスバーの表示を更新
         this._updateStatusBarDisplay();

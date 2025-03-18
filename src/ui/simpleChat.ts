@@ -129,6 +129,9 @@ export class SimpleChatPanel extends ProtectedPanel implements vscode.Disposable
           case 'exportRequirements':
             await this._handleExportRequirements();
             break;
+          case 'saveRequirementsAndGenerateMockups':
+            await this._handleSaveRequirementsAndGenerateMockups(message.content);
+            break;
           case 'initialize':
             // 初期化時にファイル内容を読み込む
             await this._loadInitialData();
@@ -1891,6 +1894,118 @@ project/
     
     const diffPercentage = differentLines / Math.min(contentLines.length, templateLines.length);
     return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
+  }
+
+  /**
+   * 「要件定義を保存してモックアップを生成」ボタンのハンドラ
+   */
+  private async _handleSaveRequirementsAndGenerateMockups(requirementsContent: string): Promise<void> {
+    try {
+      // 1. まず要件定義を保存
+      const fileName = 'requirements.md';
+      const filePath = path.join(this._projectPath || this._getDefaultProjectPath(), 'docs', fileName);
+
+      // ディレクトリが存在しない場合は作成
+      const dirPath = path.dirname(filePath);
+      if (!fs.existsSync(dirPath)) {
+        fs.mkdirSync(dirPath, { recursive: true });
+      }
+
+      // ファイルに書き込み
+      fs.writeFileSync(filePath, requirementsContent, 'utf8');
+      Logger.info(`要件定義を保存しました: ${filePath}`);
+
+      // 2. 要件定義からページリストを抽出
+      const pages = await RequirementsParser.extractPagesFromRequirements(filePath);
+
+      if (pages.length === 0) {
+        throw new Error('要件定義からページ情報を抽出できませんでした。要件定義に「ページ」または「画面」セクションが含まれていることを確認してください。');
+      }
+
+      // 3. ClaudeCodeIntegrationServiceのインスタンスを取得
+      const integrationService = ClaudeCodeIntegrationService.getInstance();
+
+      // 4. モックアップクリエイター用のプロンプトURL
+      const mockupCreatorUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed';
+
+      // 5. 並列モックアップ生成を開始
+      await this._launchParallelMockupGeneration(pages, filePath, mockupCreatorUrl, integrationService);
+
+      // 成功メッセージを表示
+      vscode.window.showInformationMessage(`要件定義を保存し、${pages.length}ページのモックアップ生成を開始しました。`);
+
+      // WebViewに通知
+      this._panel?.webview.postMessage({
+        command: 'showSuccess',
+        message: `要件定義を保存し、${pages.length}ページのモックアップ生成を開始しました。`
+      });
+
+    } catch (error) {
+      Logger.error('要件定義の保存とモックアップ生成に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`要件定義の保存とモックアップ生成に失敗しました: ${(error as Error).message}`);
+
+      // WebViewに通知
+      this._panel?.webview.postMessage({
+        command: 'showError',
+        message: `要件定義の保存とモックアップ生成に失敗しました: ${(error as Error).message}`
+      });
+    }
+  }
+
+  /**
+   * 並列モックアップ生成機能
+   */
+  private async _launchParallelMockupGeneration(
+    pages: PageInfo[],
+    requirementsPath: string,
+    promptUrl: string,
+    integrationService: ClaudeCodeIntegrationService
+  ): Promise<void> {
+    // 同時実行数の制限（設定値または3をデフォルトとする）
+    const maxConcurrent = 3;
+
+    // ページごとにClaudeCodeを起動（同時実行数を考慮）
+    for (let i = 0; i < pages.length; i += maxConcurrent) {
+      // 現在のバッチのページを取得
+      const batchPages = pages.slice(i, i + maxConcurrent);
+
+      // バッチ内のページを並列処理
+      await Promise.all(batchPages.map(async (page) => {
+        try {
+          // ページ情報を含む追加コンテンツを生成
+          const additionalContent = `
+# 追加情報
+
+## ページ情報
+- ページ名: ${page.name}
+- 説明: ${page.description || 'なし'}
+- 主要機能: ${(page.features || []).join(', ')}
+
+## 要件定義ファイル
+- パス: ${requirementsPath}
+
+## 指示
+このページ（${page.name}）に関するモックアップのみを作成してください。
+`;
+
+          // ClaudeCodeを起動
+          await integrationService.launchWithPublicUrl(
+            promptUrl,
+            path.dirname(requirementsPath),
+            additionalContent
+          );
+
+          Logger.info(`モックアップ生成を開始しました: ${page.name}`);
+        } catch (error) {
+          Logger.error(`モックアップ生成エラー (${page.name}): ${(error as Error).message}`);
+        }
+      }));
+
+      // バッチ間で少し待機（システム負荷を考慮）
+      if (i + maxConcurrent < pages.length) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
   }
 
   /**

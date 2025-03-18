@@ -192,6 +192,41 @@
         });
       });
     }
+    
+    // 「要件定義を保存してモックアップを生成」ボタンを追加
+    const saveReqAndGenBtn = document.createElement('button');
+    saveReqAndGenBtn.textContent = '要件定義を保存してモックアップを生成';
+    saveReqAndGenBtn.className = 'action-button';
+    saveReqAndGenBtn.addEventListener('click', () => {
+      // 現在の要件定義エディタの内容を取得
+      const requirementsContent = requirementsEditor.value;
+
+      if (!requirementsContent.trim()) {
+        showError('要件定義が空です。要件定義を入力してください。');
+        return;
+      }
+
+      // 確認ダイアログを表示
+      if (confirm('要件定義を保存し、モックアップ生成を開始しますか？複数のClaudeCodeターミナルが開きます。')) {
+        // VSCodeに要件定義を保存してモックアップを生成するよう通知
+        vscode.postMessage({
+          command: 'saveRequirementsAndGenerateMockups',
+          content: requirementsContent
+        });
+
+        // 処理中表示
+        showLoading('要件定義を保存し、モックアップを生成しています...');
+      }
+    });
+
+    // ボタンコンテナを取得
+    const buttonContainer = document.querySelector('.actions');
+    if (buttonContainer) {
+      // 既存のボタンコンテナに追加
+      buttonContainer.appendChild(saveReqAndGenBtn);
+    } else {
+      console.error('ボタンコンテナが見つかりません');
+    }
   }
 
   // Tab switching function
@@ -642,6 +677,53 @@
     return textarea.value;
   }
   
+  // ローディング表示/非表示関数
+  function showLoading(message) {
+    const loadingElement = document.createElement('div');
+    loadingElement.className = 'loading-overlay';
+    loadingElement.innerHTML = `
+      <div class="loading-spinner"></div>
+      <div class="loading-message">${message}</div>
+    `;
+    loadingElement.id = 'loading-overlay';
+
+    document.body.appendChild(loadingElement);
+  }
+
+  function hideLoading() {
+    const loadingElement = document.getElementById('loading-overlay');
+    if (loadingElement) {
+      loadingElement.remove();
+    }
+  }
+
+  // エラー表示関数
+  function showError(message) {
+    const errorElement = document.createElement('div');
+    errorElement.className = 'save-notification error';
+    errorElement.textContent = message;
+    document.body.appendChild(errorElement);
+
+    setTimeout(() => {
+      errorElement.classList.add('fadeout');
+      setTimeout(() => {
+        errorElement.remove();
+      }, 500);
+    }, 3000);
+  }
+
+  // 成功メッセージ表示関数
+  function showSuccess(message) {
+    const successElement = document.createElement('div');
+    successElement.className = 'save-notification success';
+    successElement.textContent = message;
+    document.body.appendChild(successElement);
+
+    setTimeout(() => {
+      successElement.remove();
+    }, 5000);
+  }
+
   // 拡張機能からのメッセージ処理
   window.addEventListener('message', event => {
     const message = event.data;
@@ -687,6 +769,16 @@
           }, 500);
         }, 3000);
         break;
+        
+      case 'showSuccess':
+        hideLoading();
+        showSuccess(message.message);
+        break;
+
+      case 'showError':
+        hideLoading();
+        showError(message.message);
+        break;        
         
       case 'showMessage':
         // 情報メッセージを表示

@@ -111,12 +111,14 @@ class UsageIndicator {
                 return;
             }
             const apiUrl = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
-            const response = await axios_1.default.get(`${apiUrl}/usage/current`, {
+            const response = await axios_1.default.get(`${apiUrl}/proxy/usage/me`, {
                 headers: authHeader
             });
             if (response.status === 200 && response.data) {
-                this._currentUsage = response.data.tokensUsed || 0;
-                this._usageLimit = response.data.tokenLimit || 0;
+                // レスポンス構造に合わせてデータマッピングを修正
+                const usage = response.data.usage?.monthly || {};
+                this._currentUsage = usage.totalTokens || 0;
+                this._usageLimit = response.data.limits?.monthly || 0;
                 // ステータスバーの表示を更新
                 this._updateStatusBarDisplay();
             }

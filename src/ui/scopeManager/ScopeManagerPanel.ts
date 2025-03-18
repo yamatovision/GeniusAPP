@@ -1692,8 +1692,8 @@ project-root/
         throw new Error('プロジェクトパスが設定されていません');
       }
       
-      // 中央ポータルURL
-      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+      // 中央ポータルURL - プロジェクト分析アシスタント
+      const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6';
       
       // ステータスファイルの内容を追加コンテンツとして渡す
       let additionalContent = '';
@@ -1715,9 +1715,9 @@ project-root/
       try {
         // 一時ファイルにも保存（デバッグ用・参照用）
         const tempDir = os.tmpdir();
-        const analysisFilePath = path.join(tempDir, `implementer_content_${Date.now()}.md`);
+        const analysisFilePath = path.join(tempDir, `analyzer_content_${Date.now()}.md`);
         fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
-        Logger.info(`実装アシスタント用の分析ファイルを作成しました: ${analysisFilePath}`);
+        Logger.info(`プロジェクト分析アシスタント用の分析ファイルを作成しました: ${analysisFilePath}`);
         
         // 公開URLから起動（追加情報も渡す）
         Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
@@ -1727,7 +1727,7 @@ project-root/
           additionalContent
         );
         
-        vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました。');
+        vscode.window.showInformationMessage('開発案件追加のためのプロジェクト分析アシスタントを起動しました。');
       } catch (error) {
         // URL起動に失敗した場合、ローカルファイルにフォールバック
         Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
@@ -2226,33 +2226,16 @@ project-root/
   /**
    * 開発準備モードにリセットすべきかユーザーに確認
    * ファイルが存在するがモードをリセットして開発準備に戻りたい場合に使用
+   * 
+   * 注：確認ダイアログは現在無効化されています
    */
   private async _shouldResetToPreparationMode(): Promise<boolean> {
     try {
-      // 既存のCURRENT_STATUSを読み取り
-      const content = await this._fileManager.readFileAsString(this._statusFilePath);
-      
-      // 既に開発準備モードのフォーマットか確認（フェーズに関連するキーワードで判断）
-      const isPrepFormat = content.includes('プロジェクト開発 - 準備フェーズ') || 
-                          content.includes('スコープ1: 要件定義を作成する') ||
-                          content.includes('スコープ2: モックアップを完成させる');
-      
-      // 準備モードのフォーマットでない場合のみ、リセット確認ダイアログを表示
-      if (!isPrepFormat) {
-        // 確認ダイアログを表示
-        const reset = await vscode.window.showInformationMessage(
-          '既存のCURRENT_STATUS.mdを開発準備モードに戻しますか？これにより既存の実装計画が上書きされます。',
-          { modal: true },
-          'はい', 'いいえ'
-        );
-        
-        return reset === 'はい';
-      }
-      
-      // 既に準備モードのフォーマットの場合はリセット不要
+      // 常にfalseを返して確認ダイアログを表示せず、
+      // 既存のCURRENT_STATUS.mdを上書きしないようにする
       return false;
     } catch (error) {
-      Logger.error('開発準備モードのリセット確認中にエラーが発生しました', error as Error);
+      Logger.error('開発準備モードの確認中にエラーが発生しました', error as Error);
       return false;
     }
   }

@@ -233,3 +233,7 @@ await integrationService.launchWithPublicUrl(
 
 - **スコープインプリメンター**
   - URL: `http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a`
+
+- **モックアップクリエイター**
+  http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed
+
