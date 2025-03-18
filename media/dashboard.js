@@ -164,6 +164,8 @@
     const projectsContainer = document.getElementById('projects-container');
     if (projectsContainer) {
       if (isLoading) {
+        // ローディング中はグリッドをリセット
+        projectsContainer.className = '';
         projectsContainer.innerHTML = `
           <div class="loading">
             <div class="loading-spinner"></div>
@@ -171,6 +173,8 @@
           </div>
         `;
       } else if (state.projects.length === 0) {
+        // プロジェクトがない場合もグリッドをリセット
+        projectsContainer.className = '';
         projectsContainer.innerHTML = `
           <div class="no-projects">
             <div>プロジェクトがありません</div>
@@ -241,8 +245,11 @@
       return;
     }
     
-    // プロジェクト一覧を描画
-    let projectsHtml = '<div class="projects-grid">';
+    // プロジェクトコンテナ自体がグリッドになるように変更
+    projectsContainer.className = 'projects-grid';
+    
+    // 各プロジェクトカードを直接生成
+    let projectsHtml = '';
     
     state.projects.forEach(project => {
       const createdDate = new Date(project.createdAt || Date.now()).toLocaleDateString();
@@ -276,7 +283,6 @@
       `;
     });
     
-    projectsHtml += '</div>';
     projectsContainer.innerHTML = projectsHtml;
     
     // プロジェクトカードの「開く」ボタンイベント
