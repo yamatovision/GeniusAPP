@@ -81,29 +81,74 @@ class AuthService {
 
   /**
    * トークンのリフレッシュ
+   * @param {Object} options - リフレッシュオプション
+   * @param {boolean} options.silent - エラー時に静かに失敗するか
+   * @param {number} options.retryCount - リトライ回数
    * @returns {Promise} 新しいアクセストークン
    */
-  async refreshToken() {
+  async refreshToken(options = {}) {
     try {
+      const { silent = false, retryCount = 0 } = options;
       const refreshToken = localStorage.getItem('refreshToken');
       
       if (!refreshToken) {
         throw new Error('リフレッシュトークンがありません');
       }
       
-      const response = await axios.post(`${API_URL}/refresh-token`, { refreshToken });
+      // VSCode拡張用のクライアント情報を追加
+      const clientId = 'appgenius_vscode_client_29a7fb3e';
+      const clientSecret = 'appgenius_refresh_token_secret_key_for_production';
+      
+      const response = await axios.post(`${API_URL}/refresh-token`, { 
+        refreshToken,
+        clientId,
+        clientSecret
+      }, {
+        // タイムアウト設定を追加（20秒）
+        timeout: 20000
+      });
       
       if (response.data.accessToken) {
         localStorage.setItem('accessToken', response.data.accessToken);
+        
+        // 新しいリフレッシュトークンが含まれる場合は保存
+        if (response.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.refreshToken);
+        }
       }
       
       return response.data;
     } catch (error) {
       console.error('Token refresh error:', error);
       
+      // ネットワークエラーの場合、リトライを試みる（最大3回まで）
+      if ((!error.response || error.code === 'ECONNABORTED') && options.retryCount < 3) {
+        console.log(`リフレッシュトークンリトライ (${options.retryCount + 1}/3)`);
+        // 指数バックオフでリトライ（1秒、2秒、4秒）
+        const delay = 1000 * Math.pow(2, options.retryCount);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.refreshToken({ ...options, retryCount: options.retryCount + 1 });
+      }
+      
       // リフレッシュトークンが無効な場合はログアウト
       if (error.response?.status === 401) {
-        this.logout();
+        // サイレントモードでない場合のみログアウト処理
+        if (!options.silent) {
+          // ローカルストレージから直接クリア (循環参照を避けるため)
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (refreshToken) {
+            // 直接APIを呼び出し、this.logoutは使わない
+            try {
+              axios.post(`${API_URL}/logout`, { refreshToken })
+                .catch(e => console.error('Logout error:', e));
+            } catch (e) {
+              console.error('Logout request error:', e);
+            }
+          }
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+        }
       }
       
       throw error;
@@ -142,8 +187,19 @@ class AuthService {
           // リフレッシュ成功後に再度ユーザー情報を取得
           return this.getCurrentUser();
         } catch (refreshError) {
-          // リフレッシュに失敗した場合はログアウト
-          this.logout();
+          // リフレッシュに失敗した場合は直接ログアウト処理（循環参照を避けるため）
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (refreshToken) {
+            try {
+              axios.post(`${API_URL}/logout`, { refreshToken })
+                .catch(e => console.error('Logout error:', e));
+            } catch (e) {
+              console.error('Logout request error:', e);
+            }
+          }
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
           throw refreshError;
         }
       }
@@ -185,8 +241,19 @@ class AuthService {
           // リフレッシュ成功後に再度更新を試みる
           return this.updateUser(userData);
         } catch (refreshError) {
-          // リフレッシュに失敗した場合はログアウト
-          this.logout();
+          // リフレッシュに失敗した場合は直接ログアウト処理（循環参照を避けるため）
+          const refreshToken = localStorage.getItem('refreshToken');
+          if (refreshToken) {
+            try {
+              axios.post(`${API_URL}/logout`, { refreshToken })
+                .catch(e => console.error('Logout error:', e));
+            } catch (e) {
+              console.error('Logout request error:', e);
+            }
+          }
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
           throw refreshError;
         }
       }

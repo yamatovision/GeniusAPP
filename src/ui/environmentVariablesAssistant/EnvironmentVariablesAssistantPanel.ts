@@ -219,7 +219,16 @@ export class EnvironmentVariablesAssistantPanel extends ProtectedPanel {
    */
   private _setupEventListeners(): void {
     try {
-      // 必要に応じて他のイベントリスナーをここに追加
+      // 環境変数の更新イベントをリッスン
+      this._disposables.push(
+        this._eventBus.onEventType(AppGeniusEventType.ENV_VARIABLES_UPDATED, (event) => {
+          Logger.info('環境変数アシスタント: 環境変数の更新を検出しました', event.data);
+          // 環境変数が更新されたら、WebViewを更新
+          this._loadEnvironmentVariablesFromEnvMd().then(() => {
+            this._updateWebview();
+          });
+        })
+      );
       
       Logger.info('環境変数アシスタント: イベントリスナーを設定しました');
     } catch (error) {

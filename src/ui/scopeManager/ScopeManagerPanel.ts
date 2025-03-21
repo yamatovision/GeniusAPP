@@ -7,6 +7,7 @@ import { FileOperationManager } from '../../utils/fileOperationManager';
 import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../../types';
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 import { ClaudeCodeIntegrationService } from '../../services/ClaudeCodeIntegrationService';
+import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
 import { ProtectedPanel } from '../auth/ProtectedPanel';
 import { Feature } from '../../core/auth/roles';
 
@@ -33,6 +34,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _currentScope: any = null;
   private _directoryStructure: string = '';
   private _fileWatcher: vscode.FileSystemWatcher | null = null;
+  private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   
   // 開発モード管理
   private _isPreparationMode: boolean = false; // 準備モードまたは実装モード
@@ -218,6 +220,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._fileWatcher = null;
     }
     
+    // Node.jsのファイルシステムウォッチャーも破棄
+    if (this._docsDirWatcher) {
+      this._docsDirWatcher.close();
+      this._docsDirWatcher = null;
+    }
+    
     // ファイルウォッチャーを設定
     this._setupFileWatcher();
 
@@ -244,7 +252,56 @@ export class ScopeManagerPanel extends ProtectedPanel {
         fs.mkdirSync(docsDir, { recursive: true });
       }
       
-      // CURRENT_STATUS.md の変更を監視
+      // Node.jsのネイティブfs.watchを使用してdocsディレクトリを監視
+      // これにより、OSレベルのファイルシステムイベントを直接検知できる
+      this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
+        if (filename === 'CURRENT_STATUS.md') {
+          Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)');
+          Logger.info(`ファイルパス: ${this._statusFilePath}, 存在確認: ${fs.existsSync(this._statusFilePath) ? '存在します' : '存在しません'}`);
+          
+          // イベントバスに通知を送信 - グローバルイベントとして通知
+          const eventBus = AppGeniusEventBus.getInstance();
+          // プロジェクトIDは現在のプロジェクトパスから抽出する
+          const projectId = this._projectPath ? path.basename(this._projectPath) : undefined;
+          
+          eventBus.emit(
+            AppGeniusEventType.CURRENT_STATUS_UPDATED,
+            { filePath: this._statusFilePath, timestamp: Date.now() },
+            'ScopeManagerPanel',
+            projectId
+          );
+          
+          // 直接ファイルを読み込み、WebViewを強制更新する
+          // 実装モードの場合はリアルタイムで更新する
+          setTimeout(() => {
+            Logger.info('CURRENT_STATUS.mdファイルの変更を検出 - 遅延読み込みによる強制更新を実行');
+            if (fs.existsSync(this._statusFilePath)) {
+              try {
+                const content = fs.readFileSync(this._statusFilePath, 'utf8');
+                this._parseStatusFile(content);
+                this._updateWebview();
+                
+                // 二重の更新を防ぐための追加ログ
+                Logger.info('CURRENT_STATUS.mdファイルの強制更新が完了しました');
+              } catch (err) {
+                Logger.error('強制更新中にエラーが発生しました', err as Error);
+              }
+            }
+          }, 200); // 少し遅延させて確実にファイル書き込みが完了した後に読み込む
+          
+          // 通常の更新処理も維持
+          if (!this._isPreparationMode) {
+            Logger.info('実装モードでCURRENT_STATUSが更新されました - リアルタイム更新を行います');
+            this._loadStatusFile();
+          } else {
+            Logger.info('準備モードでの変更は標準の処理を実行します');
+            this._loadStatusFile();
+          }
+        }
+      });
+      
+      // VS Codeのファイルシステムウォッチャーもバックアップとして維持
+      // このウォッチャーはVS Code内部での操作を監視するために使用
       this._fileWatcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(
           this._projectPath, 
@@ -254,7 +311,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // ファイル変更時の処理
       this._fileWatcher.onDidChange(() => {
-        Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました');
+        Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (VSCode watcher)');
         this._loadStatusFile();
       });
       
@@ -341,6 +398,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
       
+      Logger.info(`CURRENT_STATUS.mdファイルを読み込みます。パス: ${this._statusFilePath}`);
+      
       // ファイルが存在しない場合、開発準備モードで表示する
       if (!fs.existsSync(this._statusFilePath)) {
         Logger.info(`CURRENT_STATUS.mdファイルが見つかりません - 開発準備モードを有効化します`);
@@ -403,9 +462,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
       // ファイルの内容を読み込む
       let content = await this._fileManager.readFileAsString(this._statusFilePath);
+      Logger.info(`ファイル読み込み完了 - 内容の長さ: ${content.length}バイト`);
       
       // ステータスファイルからスコープ情報を解析
       this._parseStatusFile(content);
+      Logger.info(`ステータスファイル解析完了 - スコープ数: ${this._scopes.length}`);
+      
+      // 明示的にWebViewを更新
+      await this._updateWebview();
       
       // フォーマットチェックを行い、問題があればファイルに警告コメントを追加（一度だけ）
       let needsWarning = false;
@@ -2594,22 +2658,31 @@ project-root/
       const totalProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
       
       // WebViewにデータを送信
-      await this._panel.webview.postMessage({
+      Logger.info(`WebViewに状態更新を送信します - スコープ数: ${this._scopes.length}, 実装フェーズ: ${!this._isPreparationMode}`);
+      
+      // メッセージオブジェクトを作成（デバッグ用に変数に格納）
+      const message = {
         command: 'updateState',
         scopes: this._scopes,
         selectedScopeIndex: this._selectedScopeIndex,
         selectedScope,
         directoryStructure: this._directoryStructure,
         projectPath: this._projectPath,
+        isPreparationMode: this._isPreparationMode, // 明示的に追加して確実に送信
         totalProgress: totalProgress,
         projectStats: {
           totalFiles,
           completedFiles,
           totalProgress
-        },
-        // モード情報を追加
-        isPreparationMode: this._isPreparationMode
-      });
+        }
+      };
+      
+      // 実際にメッセージを送信
+      Logger.info(`WebView更新メッセージ送信: ${JSON.stringify(message, (key, value) => 
+        key === 'scopes' || key === 'selectedScope' || key === 'directoryStructure' 
+          ? '[省略]' : value)}`);
+      
+      await this._panel.webview.postMessage(message);
     } catch (error) {
       Logger.error('WebViewの状態更新中にエラーが発生しました', error as Error);
       vscode.window.showErrorMessage(`WebViewの状態更新に失敗しました: ${(error as Error).message}`);
@@ -3542,6 +3615,12 @@ project-root/
     ScopeManagerPanel.currentPanel = undefined;
 
     this._panel.dispose();
+
+    // Node.jsのファイルシステムウォッチャーを解放
+    if (this._docsDirWatcher) {
+      this._docsDirWatcher.close();
+      this._docsDirWatcher = null;
+    }
 
     while (this._disposables.length) {
       const disposable = this._disposables.pop();

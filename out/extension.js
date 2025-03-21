@@ -342,7 +342,7 @@ function activate(context) {
             vscode.window.showErrorMessage(`ダッシュボード表示エラー: ${error.message}`);
         }
     }));
-    // 拡張機能起動時に自動でダッシュボードを開く（権限チェック付き）
+    // 拡張機能起動時に自動でプロジェクト管理画面（簡易ダッシュボード）を開く
     // ゲストユーザーもダッシュボードは閲覧可能
     if (AuthGuard_1.AuthGuard.checkAccess(roles_1.Feature.DASHBOARD)) {
         DashboardPanel_1.DashboardPanel.createOrShow(context.extensionUri, aiService);

@@ -140,13 +140,16 @@ export class ClaudeCodeLauncherService {
       
       // 最初にユーザーガイダンスを表示
       terminal.sendText('echo "\n\n*** AIが自動的に解析を開始します。自動対応と日本語指示を行います ***\n"');
-      terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保（出力を非表示）
       if (process.platform === 'darwin') {
         terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
         terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
       }
+      
+      // Raw mode問題を回避するための環境変数設定
+      terminal.sendText('export NODE_NO_READLINE=1');
+      terminal.sendText('export TERM=xterm-256color');
       
       // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
       const escapedProjectPath = this.projectPath.replace(/"/g, '\\"');
@@ -155,17 +158,52 @@ export class ClaudeCodeLauncherService {
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedClaudeMdPath = claudeMdPath.replace(/ /g, '\\ ');
       
+      // インポートとインスタンス取得
+      const authSync = await import('../services/ClaudeCodeAuthSync').then(module => module.ClaudeCodeAuthSync.getInstance());
+      
+      // CLIログイン状態を確認
+      const isLoggedIn = authSync.isClaudeCliLoggedIn();
+      Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
+      
+      // 認証モードを確認
+      const useIsolatedAuth = process.env.APPGENIUS_USE_ISOLATED_AUTH === 'true';
+      
+      // AppGenius専用の認証情報を保存
+      if (useIsolatedAuth) {
+        await authSync.syncTokensToAppGeniusAuth();
+        Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
+      }
+      
+      // AppGenius専用の認証ファイルパス
+      const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
+      
+      // コマンド設定
+      let baseCommand = 'claude';
+      
+      // 分離認証モードの場合、環境変数を設定してコマンドを構築
+      if (useIsolatedAuth) {
+        // 環境変数を設定する前に別々のコマンドとして実行（2行に分ける）
+        terminal.sendText(`export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+        Logger.info(`分離認証モードで環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+      } else if (!isLoggedIn) {
+        // 標準モードかつ未ログイン状態（--no-interactiveオプションはサポートされていないため削除）
+        baseCommand = 'claude';
+        Logger.info('未ログイン状態で起動します');
+      }
+      
       // スコープIDが存在する場合はスコープを指定して起動
       if (scope.id) {
         // スコープIDをエスケープする必要はないが、念のため
         const escapedScopeId = scope.id.replace(/ /g, '\\ ');
         // Claude Codeをスコープ指定で起動（echoとパイプを使用して自動応答）
-        terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
-        Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+        terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+        const authMode = useIsolatedAuth ? '（分離認証モード）' : '';
+        Logger.info(`ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "y" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
       } else {
         // スコープ指定なしで起動（echoとパイプを使用して自動応答）
-        terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedClaudeMdPath}`);
-        Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedClaudeMdPath}`);
+        terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedClaudeMdPath}`);
+        const authMode = useIsolatedAuth ? '（分離認証モード）' : '';
+        Logger.info(`ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedClaudeMdPath}`);
       }
       
       // 状態更新
@@ -322,13 +360,16 @@ export class ClaudeCodeLauncherService {
       
       // 最初にユーザーガイダンスを表示
       terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
-      terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保（出力を非表示）
       if (process.platform === 'darwin') {
         terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
         terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
       }
+      
+      // Raw mode問題を回避するための環境変数設定
+      terminal.sendText('export NODE_NO_READLINE=1');
+      terminal.sendText('export TERM=xterm-256color');
       
       // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
       const escapedProjectPath = projectPath.replace(/"/g, '\\"');
@@ -344,9 +385,43 @@ export class ClaudeCodeLauncherService {
       // オプションフラグは追加しない（Claude CLIでサポートされていないため）
       // additionalParams += ' -y --lang=ja';
       
+      // インポートとインスタンス取得
+      const authSync = await import('../services/ClaudeCodeAuthSync').then(module => module.ClaudeCodeAuthSync.getInstance());
+      
+      // CLIログイン状態を確認
+      const isLoggedIn = authSync.isClaudeCliLoggedIn();
+      Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
+      
+      // 認証モードを確認
+      const useIsolatedAuth = process.env.APPGENIUS_USE_ISOLATED_AUTH === 'true';
+      
+      // AppGenius専用の認証情報を保存
+      if (useIsolatedAuth) {
+        await authSync.syncTokensToAppGeniusAuth();
+        Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
+      }
+      
+      // AppGenius専用の認証ファイルパス
+      const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
+      
+      // コマンド設定
+      let baseCommand = 'claude';
+      
+      // 分離認証モードの場合、環境変数を設定してコマンドを構築
+      if (useIsolatedAuth) {
+        // 環境変数を設定する前に別々のコマンドとして実行（2行に分ける）
+        terminal.sendText(`export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+        Logger.info(`分離認証モードで環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+      } else if (!isLoggedIn) {
+        // 標準モードかつ未ログイン状態（--no-interactiveオプションはサポートされていないため削除）
+        baseCommand = 'claude';
+        Logger.info('未ログイン状態で起動します');
+      }
+      
       // プロンプトファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
-      terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedPromptFilePath}${additionalParams}`);
-      Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedPromptFilePath}${additionalParams}`);
+      terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
+      const authMode = useIsolatedAuth ? '（分離認証モード）' : '';
+      Logger.info(`ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
       
       // プロンプトファイルを即時削除（セキュリティ対策）
       if (options?.deletePromptFile) {
@@ -543,7 +618,7 @@ export class ClaudeCodeLauncherService {
       
       // 最初にユーザーガイダンスを表示
       terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
-      terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
+      terminal.sendText('sleep 0.5'); // 0.5秒待機してメッセージを読む時間を確保
       
       // macOSの場合は環境変数のソースを確保
       if (process.platform === 'darwin') {
@@ -558,9 +633,33 @@ export class ClaudeCodeLauncherService {
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedAnalysisFilePath = processInfo.analysisFilePath.replace(/ /g, '\\ ');
       
+      // インポートとインスタンス取得
+      const authSync = await import('../services/ClaudeCodeAuthSync').then(module => module.ClaudeCodeAuthSync.getInstance());
+      
+      // 認証モードを確認
+      const useIsolatedAuth = process.env.APPGENIUS_USE_ISOLATED_AUTH === 'true';
+      
+      // AppGenius専用の認証情報を保存
+      if (useIsolatedAuth) {
+        await authSync.syncTokensToAppGeniusAuth();
+        Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
+      }
+      
+      // コマンド設定
+      let baseCommand = 'claude';
+      
+      // 分離認証モードの場合、環境変数を設定してコマンドを構築
+      if (useIsolatedAuth) {
+        const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
+        // 環境変数を設定する前に別々のコマンドとして実行（2行に分ける）
+        terminal.sendText(`export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+        Logger.info(`分離認証モードで環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+      }
+      
       // 解析用ファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
-      terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedAnalysisFilePath}`);
-      Logger.info(`モックアップ解析用ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedAnalysisFilePath}`);
+      terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedAnalysisFilePath}`);
+      const authMode = useIsolatedAuth ? '（分離認証モード）' : '';
+      Logger.info(`モックアップ解析用ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedAnalysisFilePath}`);
       
       // 状態は個別に管理するが、後方互換性のために全体のステータスも更新
       this.status = ClaudeCodeExecutionStatus.RUNNING;

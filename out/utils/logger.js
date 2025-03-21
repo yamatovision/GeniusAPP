@@ -89,11 +89,42 @@ class Logger {
             this.log('WARN', message, data);
         }
     }
-    static error(message, error, data, autoShow = true) {
+    static error(message, error, data, autoShow = false) {
         if (this.logLevel <= LogLevel.ERROR) {
             this.log('ERROR', message);
             if (error) {
+                // 詳細なエラー情報をログに記録
                 this.log('ERROR', `Error details: ${error.message}`);
+                // AxiosエラーからHTTPステータスなどの詳細情報を抽出
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-var-requires
+                    const axios = require('axios');
+                    if (axios && axios.isAxiosError && axios.isAxiosError(error)) {
+                        // axiosエラーとしてのプロパティにアクセスするため型アサーション
+                        const axiosError = error;
+                        if (axiosError.response) {
+                            const statusCode = axiosError.response?.status;
+                            const responseData = axiosError.response?.data;
+                            const requestUrl = axiosError.config?.url;
+                            const requestMethod = axiosError.config?.method;
+                            this.log('ERROR', `API Error: ${statusCode} ${requestMethod?.toUpperCase() || 'UNKNOWN'} ${requestUrl || 'UNKNOWN_URL'}`);
+                            if (responseData) {
+                                try {
+                                    const formattedData = typeof responseData === 'object'
+                                        ? JSON.stringify(responseData, null, 2)
+                                        : responseData;
+                                    this.log('ERROR', `Response data: ${formattedData}`);
+                                }
+                                catch (e) {
+                                    this.log('ERROR', `Response data: [非シリアル化データ]`);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (e) {
+                    // axiosモジュールが読み込めない場合は何もしない
+                }
                 if (error.stack) {
                     this.log('ERROR', `Stack trace: ${error.stack}`);
                 }
@@ -101,7 +132,7 @@ class Logger {
             if (data) {
                 this.log('ERROR', 'Additional data:', data);
             }
-            // エラー時には設定に応じてログウィンドウを表示
+            // エラー時には設定に応じてログウィンドウを表示（デフォルトで非表示に変更）
             if (autoShow) {
                 this.show();
             }

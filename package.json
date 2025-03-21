@@ -308,6 +308,36 @@
           "type": "string",
           "default": "",
           "description": "現在アクティブなプロジェクトID"
+        },
+        "appgenius.global.tokenExpiry": {
+          "type": "number",
+          "default": 0,
+          "description": "トークンの有効期限タイムスタンプ（Unix秒）"
+        },
+        "appgenius.global.lastRefresh": {
+          "type": "number",
+          "default": 0,
+          "description": "最後にトークンをリフレッシュした時刻（Unix秒）"
+        },
+        "appgenius.auth.lastTokenUpdate": {
+          "type": "string",
+          "default": "",
+          "description": "最後にアクセストークンを更新した時刻（ISO文字列）"
+        },
+        "appgenius.auth.lastRefreshTokenUpdate": {
+          "type": "string",
+          "default": "",
+          "description": "最後にリフレッシュトークンを更新した時刻（ISO文字列）"
+        },
+        "appgenius.global.hasRefreshToken": {
+          "type": "boolean",
+          "default": false,
+          "description": "リフレッシュトークンが存在するかどうかのフラグ"
+        },
+        "appgenius.global.userData": {
+          "type": "object",
+          "default": {},
+          "description": "ユーザーの基本情報（センシティブ情報は含まない）"
         }
       }
     }
@@ -360,6 +390,7 @@
   },
   "dependencies": {
     "axios": "^1.4.0",
+    "fs-extra": "^11.3.0",
     "marked": "^15.0.7",
     "marked-terminal": "^7.3.0",
     "terminal-link": "^3.0.0",

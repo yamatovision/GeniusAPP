@@ -1,0 +1,11 @@
+{
+  "id": "m8ccdj4r-8f28",
+  "errorLog": "環境変数アシスタントのUIがenv.mdと連携して本来表示されるものが表示されなくなっている気がするんですが調べてみてください",
+  "status": "archived",
+  "createdAt": "2025-03-17T00:44:09.627Z",
+  "errorType": "環境変数エラー",
+  "relatedFiles": [
+    "/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/.env"
+  ],
+  "investigationStartTime": "2025-03-17T00:44:09.630Z"
+}

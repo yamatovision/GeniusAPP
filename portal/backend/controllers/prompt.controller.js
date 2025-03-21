@@ -1,6 +1,5 @@
 const Prompt = require('../models/prompt.model');
 const PromptVersion = require('../models/promptVersion.model');
-const PromptUsage = require('../models/promptUsage.model');
 const Project = require('../models/project.model');
 const promptService = require('../services/prompt.service');
 const crypto = require('crypto');
@@ -484,12 +483,9 @@ const promptController = {
         return res.status(404).json({ message: '指定されたバージョンが見つかりません' });
       }
       
-      // バージョン使用統計取得
-      const stats = await PromptUsage.find({ versionId }).countDocuments();
-      
       res.json({
         version,
-        usageCount: stats
+        usageCount: 0 // 使用統計機能は削除されたため、常に0を返す
       });
     } catch (error) {
       console.error('プロンプトバージョン詳細取得エラー:', error);
@@ -498,24 +494,13 @@ const promptController = {
   },
   
   /**
-   * プロンプト使用を記録
+   * プロンプト使用を記録（非推奨 - 統計機能削除済み）
    * @param {Object} req - リクエストオブジェクト
    * @param {Object} res - レスポンスオブジェクト
    */
   async recordPromptUsage(req, res) {
     try {
       const { id } = req.params;
-      const { 
-        versionId, 
-        projectId, 
-        context,
-        inputTokens,
-        outputTokens,
-        responseTime,
-        isSuccess,
-        errorType,
-        metadata
-      } = req.body;
       
       // プロンプト存在チェック
       const prompt = await Prompt.findById(id);
@@ -523,200 +508,13 @@ const promptController = {
         return res.status(404).json({ message: 'プロンプトが見つかりません' });
       }
       
-      // 指定されたバージョンが存在するかチェック
-      const version = await PromptVersion.findOne({
-        _id: versionId,
-        promptId: id
-      });
-      
-      if (!version) {
-        return res.status(404).json({ message: '指定されたプロンプトバージョンが見つかりません' });
-      }
-      
-      // アクセス権限チェック（所有者、管理者、公開プロンプト、またはプロジェクトメンバー）
-      const isOwner = prompt.ownerId.toString() === req.userId;
-      const isPublic = prompt.isPublic;
-      const isAdmin = req.userRole === 'admin';
-      
-      let isProjectMember = false;
-      if (prompt.projectId) {
-        const project = await Project.findById(prompt.projectId);
-        isProjectMember = project && project.members.some(
-          member => member.userId.toString() === req.userId
-        );
-      }
-      
-      if (!isOwner && !isAdmin && !isPublic && !isProjectMember) {
-        return res.status(403).json({ message: 'このプロンプトを使用する権限がありません' });
-      }
-      
-      // 使用記録作成
-      const usage = new PromptUsage({
-        promptId: id,
-        versionId,
-        userId: req.userId,
-        projectId: projectId || prompt.projectId,
-        context: context || '',
-        inputTokens: inputTokens || 0,
-        outputTokens: outputTokens || 0,
-        responseTime: responseTime || 0,
-        isSuccess: isSuccess !== undefined ? isSuccess : true,
-        errorType: errorType || 'なし',
-        metadata: metadata || {},
-        usedAt: new Date()
-      });
-      
-      await usage.save();
-      
-      // プロンプトの使用回数更新
+      // プロンプトの使用回数更新のみ実行
       await Prompt.incrementUsage(id);
       
-      // バージョンのパフォーマンス統計更新
-      await PromptVersion.updatePerformance(versionId, {
-        success: isSuccess,
-        responseTime
-      });
-      
-      res.status(201).json({ message: 'プロンプト使用が記録されました', usageId: usage._id });
+      res.status(201).json({ message: 'プロンプト使用記録は非推奨になりました', success: true });
     } catch (error) {
       console.error('プロンプト使用記録エラー:', error);
-      
-      // バリデーションエラーの場合
-      if (error.name === 'ValidationError') {
-        const errors = Object.values(error.errors).map(err => err.message);
-        return res.status(400).json({ message: errors.join(', ') });
-      }
-      
       res.status(500).json({ message: 'プロンプト使用の記録中にエラーが発生しました' });
-    }
-  },
-  
-  /**
-   * プロンプト使用統計の取得
-   * @param {Object} req - リクエストオブジェクト
-   * @param {Object} res - レスポンスオブジェクト
-   */
-  async getPromptUsageStats(req, res) {
-    try {
-      const { id } = req.params;
-      const { period, interval } = req.query;
-      
-      // プロンプト存在チェック
-      const prompt = await Prompt.findById(id);
-      if (!prompt) {
-        return res.status(404).json({ message: 'プロンプトが見つかりません' });
-      }
-      
-      // アクセス権限チェック（所有者、管理者、またはプロジェクト管理者のみ詳細統計閲覧可能）
-      const isOwner = prompt.ownerId.toString() === req.userId;
-      const isAdmin = req.userRole === 'admin';
-      
-      let isProjectAdmin = false;
-      if (prompt.projectId) {
-        const project = await Project.findById(prompt.projectId);
-        isProjectAdmin = project && project.members.some(
-          member => member.userId.toString() === req.userId && member.role === 'owner'
-        );
-      }
-      
-      if (!isOwner && !isAdmin && !isProjectAdmin) {
-        return res.status(403).json({ message: 'このプロンプトの使用統計を閲覧する権限がありません' });
-      }
-      
-      // 期間指定
-      let timeRange = {};
-      const now = new Date();
-      
-      switch (period) {
-        case 'today':
-          timeRange.start = new Date(now.setHours(0, 0, 0, 0));
-          break;
-        case 'yesterday':
-          const yesterday = new Date(now);
-          yesterday.setDate(yesterday.getDate() - 1);
-          yesterday.setHours(0, 0, 0, 0);
-          timeRange.start = yesterday;
-          timeRange.end = new Date(now.setHours(0, 0, 0, 0));
-          break;
-        case 'week':
-          const lastWeek = new Date(now);
-          lastWeek.setDate(lastWeek.getDate() - 7);
-          timeRange.start = lastWeek;
-          break;
-        case 'month':
-          const lastMonth = new Date(now);
-          lastMonth.setMonth(lastMonth.getMonth() - 1);
-          timeRange.start = lastMonth;
-          break;
-        case 'year':
-          const lastYear = new Date(now);
-          lastYear.setFullYear(lastYear.getFullYear() - 1);
-          timeRange.start = lastYear;
-          break;
-        case 'custom':
-          if (req.query.start) timeRange.start = new Date(req.query.start);
-          if (req.query.end) timeRange.end = new Date(req.query.end);
-          break;
-        default: // 'all' またはデフォルト
-          // 期間指定なし（全期間）
-          break;
-      }
-      
-      // 統計データ取得
-      const [overallStats, versionStats, timeSeriesData] = await Promise.all([
-        // 全体統計
-        PromptUsage.getUsageStats(id, timeRange),
-        // バージョン別統計
-        PromptUsage.getVersionStats(id),
-        // 時系列データ
-        PromptUsage.getTimeSeriesStats(id, interval || 'day')
-      ]);
-      
-      res.json({
-        overall: overallStats,
-        versions: versionStats,
-        timeSeries: timeSeriesData
-      });
-    } catch (error) {
-      console.error('プロンプト使用統計取得エラー:', error);
-      res.status(500).json({ message: 'プロンプト使用統計の取得中にエラーが発生しました' });
-    }
-  },
-  
-  /**
-   * ユーザーフィードバック登録
-   * @param {Object} req - リクエストオブジェクト
-   * @param {Object} res - レスポンスオブジェクト
-   */
-  async recordUserFeedback(req, res) {
-    try {
-      const { usageId } = req.params;
-      const { rating, comment, tags } = req.body;
-      
-      // 使用記録の存在確認
-      const usage = await PromptUsage.findById(usageId);
-      if (!usage) {
-        return res.status(404).json({ message: '指定された使用記録が見つかりません' });
-      }
-      
-      // 権限チェック（自分の使用記録のみフィードバック可能）
-      if (usage.userId.toString() !== req.userId) {
-        return res.status(403).json({ message: 'この使用記録にフィードバックする権限がありません' });
-      }
-      
-      // フィードバック更新
-      usage.userFeedback = {
-        rating: rating,
-        comment: comment || '',
-        tags: tags || []
-      };
-      
-      await usage.save();
-      
-      res.json({ message: 'フィードバックが記録されました' });
-    } catch (error) {
-      console.error('ユーザーフィードバック記録エラー:', error);
-      res.status(500).json({ message: 'フィードバックの記録中にエラーが発生しました' });
     }
   },
 

@@ -76,7 +76,8 @@ class SimpleChatPanel extends ProtectedPanel_1.ProtectedPanel {
             retainContextWhenHidden: true,
             localResourceRoots: [
                 vscode.Uri.joinPath(extensionUri, 'media')
-            ]
+            ],
+            enableFindWidget: true
         });
         SimpleChatPanel.currentPanel = new SimpleChatPanel(panel, extensionUri, aiService, projectPath);
         return SimpleChatPanel.currentPanel;
@@ -135,6 +136,9 @@ class SimpleChatPanel extends ProtectedPanel_1.ProtectedPanel {
                 case 'exportRequirements':
                     await this._handleExportRequirements();
                     break;
+                case 'launchMockupCreator':
+                    await this._handleLaunchMockupCreator();
+                    break;
                 case 'initialize':
                     // 初期化時にファイル内容を読み込む
                     await this._loadInitialData();
@@ -165,18 +169,19 @@ class SimpleChatPanel extends ProtectedPanel_1.ProtectedPanel {
             this._chatHistory.push({ role: 'user', content: text });
             // ストリーミングモードを取得
             const useStreaming = vscode.workspace.getConfiguration('appgeniusAI').get('useStreaming', true);
-            // 要件定義ビジュアライザー用のシステムメッセージを追加
-            // docs/mockup_designer_system_prompt.mdから読み込む
+            // 要件定義クリエイター用のシステムメッセージを追加
+            // docs/prompts/requirements_creator.mdから取得
             const systemMessage = {
                 role: 'system',
-                content: `あなたはUI/UX設計のエキスパートビジュアライザーです。
-非技術者の要望を具体的な形にし、技術者が実装できる明確なモックアップと仕様に変換する役割を担います。
+                content: `# 要件定義クリエイター
 
-目的：
-非技術者の要望を視覚的に具現化し、ページや機能を洗い出して完璧なモックアップを形成します。
-＊モックアップはモックデータを使い、この時点でかなり精密につくりあげておくこと。
+あなたはUI/UXと要件定義のエキスパートです。
+非技術者の要望を具体的な要件定義書に変換し、必要なページと機能を洗い出す役割を担います。
 
-Phase#1： プロジェクト情報の収集
+## 目的
+ユーザーのビジネス要件をヒアリングし、具体的な要件定義書と必要ページリストを作成します。
+
+## Phase#1：プロジェクト情報の収集
 まず以下の情報を収集することから始めてください：
   - 業界や分野（ECサイト、SNS、情報サイト、管理ツールなど）
   - ターゲットユーザー（年齢層、技術レベルなど）
@@ -184,45 +189,52 @@ Phase#1： プロジェクト情報の収集
   - デザインテイスト（モダン、シンプル、カラフルなど）
 このフェーズは会話形式で進め、ユーザーの回答を深掘りしてください。
 
-Phase#2： 必要なページと機能の策定
+## Phase#2：機能要件の策定
 収集した情報をもとに、以下を明確にします：
-  - 必要なページ一覧とその役割
-  - 各ページの主要コンポーネント
+  - コアとなる機能
+  - 必須機能と追加機能の区別
+  - データ構造と主要エンティティ
   - ユーザーフロー
-  - データ構造
 
-Phase#3：各ページの詳細モックアップ作成
+## Phase#3：必要ページの洗い出し
+機能要件に基づいて、以下の形式で必要なページリストを作成します：
 
-【生成規則】
-・必ず以下の要素を含む完全なHTMLファイルを一括生成すること:
-  1. 必要なすべてのCDNライブラリ（最新の安定バージョンを使用）
-  2. スタイリングとレイアウト用のCSS
-  3. モックデータとロジック
-  4. エラーハンドリング
-  5. 視覚的フィードバック用のローディング表示
+### ページリスト
+1. **ページ名**: [ページ名]
+   - **説明**: [簡潔な説明]
+   - **主要機能**:
+     - [機能1]
+     - [機能2]
+     - [機能3]
 
-【テンプレート必須要素】
-1. Reactの初期化コード
-2. MaterialUIのセットアップ
-3. グローバルスタイルの定義
-4. エラーバウンダリ
-5. ローディング表示
-6. レスポンシブ対応
-7. アニメーションとトランジション
+2. **ページ名**: [ページ名]
+   - **説明**: [簡潔な説明]
+   - **主要機能**:
+     - [機能1]
+     - [機能2]
 
-【品質保証項目】
-・HTMLファイルを開いた直後から正常動作すること
-・すべてのライブラリが正しい順序で読み込まれること
-・視覚的要素が即座に表示されること
-・コンソールエラーが発生しないこと
+※このページリストは後続のモックアップ生成に使用されるため、明確かつ詳細に記述してください。
 
-鉄の掟：
-・常に1問1答を心がける
-・具体的で詳細な質問を通じて、ユーザーの真のニーズを引き出す
-・モックアップは常に実際のユースケースを想定した実用的なものにする
-・会話の流れを優先し、必要な情報を柔軟に収集する
+## Phase#4：要件定義書の作成
+すべての情報を統合し、構造化された要件定義書を作成します。以下の項目を含めてください：
 
-重要：モックアップを作成したら、それに対して即時に詳細なフィードバックを提供してください。ブラウザでの表示方法を案内し、モックアップの主要な機能や特徴を説明してください。`
+1. **プロジェクト概要**
+2. **目標とゴール**
+3. **ターゲットユーザー**
+4. **機能要件**
+5. **非機能要件**
+6. **ページリスト**（Phase#3で作成したもの）
+7. **データモデル**
+8. **技術スタック**（もし特定の技術やフレームワークが決まっている場合）
+9. **制約条件**
+10. **マイルストーン**
+
+## 鉄の掟
+- 常に1問1答を心がける
+- 具体的で詳細な質問を通じて、ユーザーの真のニーズを引き出す
+- 要件は明確かつ具体的に記述する
+- ページリストは漏れなく作成する
+- 要件定義書はマークダウン形式で構造化する`
             };
             // 会話履歴をAPI形式に変換
             const formattedChatHistory = this._chatHistory.map(msg => ({
@@ -1650,6 +1662,93 @@ project/
         }
         const diffPercentage = differentLines / Math.min(contentLines.length, templateLines.length);
         return diffPercentage > 0.3; // 30%以上の行が異なる場合は変更されたと判断
+    }
+    /**
+     * 「モックアップ作成プロンプトを起動」ボタンのハンドラ
+     */
+    async _handleLaunchMockupCreator() {
+        try {
+            // 確認ダイアログを表示
+            const result = await vscode.window.showInformationMessage('モックアップ作成プロンプトを起動しますか？', { modal: true }, '起動する');
+            // キャンセルされた場合
+            if (result !== '起動する') {
+                this._panel?.webview.postMessage({
+                    command: 'hideLoading'
+                });
+                return;
+            }
+            // プロジェクトパスを取得
+            const projectPath = this._projectPath || this._getDefaultProjectPath();
+            // ClaudeCodeIntegrationServiceのインスタンスを取得
+            const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
+            // モックアップクリエイター用のプロンプトURL
+            const mockupCreatorUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed';
+            // 単一プロンプトでモックアップ作成を起動
+            const success = await integrationService.launchWithPublicUrl(mockupCreatorUrl, projectPath);
+            // WebViewに通知
+            if (success) {
+                // 成功メッセージを表示
+                vscode.window.showInformationMessage('モックアップ作成プロンプトを起動しました');
+                this._panel?.webview.postMessage({
+                    command: 'showSuccess',
+                    message: 'モックアップ作成プロンプトを起動しました'
+                });
+            }
+            else {
+                throw new Error('モックアップ作成プロンプトの起動に失敗しました');
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('モックアップ作成プロンプトの起動に失敗しました', error);
+            vscode.window.showErrorMessage(`モックアップ作成プロンプトの起動に失敗しました: ${error.message}`);
+            // WebViewに通知
+            this._panel?.webview.postMessage({
+                command: 'showError',
+                message: `モックアップ作成プロンプトの起動に失敗しました: ${error.message}`
+            });
+        }
+    }
+    /**
+     * 並列モックアップ生成機能
+     */
+    async _launchParallelMockupGeneration(pages, requirementsPath, promptUrl, integrationService) {
+        // 同時実行数の制限（設定値または3をデフォルトとする）
+        const maxConcurrent = 3;
+        // ページごとにClaudeCodeを起動（同時実行数を考慮）
+        for (let i = 0; i < pages.length; i += maxConcurrent) {
+            // 現在のバッチのページを取得
+            const batchPages = pages.slice(i, i + maxConcurrent);
+            // バッチ内のページを並列処理
+            await Promise.all(batchPages.map(async (page) => {
+                try {
+                    // ページ情報を含む追加コンテンツを生成
+                    const additionalContent = `
+# 追加情報
+
+## ページ情報
+- ページ名: ${page.name}
+- 説明: ${page.description || 'なし'}
+- 主要機能: ${(page.features || []).join(', ')}
+
+## 要件定義ファイル
+- パス: ${requirementsPath}
+
+## 指示
+このページ（${page.name}）に関するモックアップのみを作成してください。
+`;
+                    // ClaudeCodeを起動
+                    await integrationService.launchWithPublicUrl(promptUrl, path.dirname(requirementsPath), additionalContent);
+                    logger_1.Logger.info(`モックアップ生成を開始しました: ${page.name}`);
+                }
+                catch (error) {
+                    logger_1.Logger.error(`モックアップ生成エラー (${page.name}): ${error.message}`);
+                }
+            }));
+            // バッチ間で少し待機（システム負荷を考慮）
+            if (i + maxConcurrent < pages.length) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+        }
     }
     /**
      * ClaudeCodeをファイル参照モードで起動

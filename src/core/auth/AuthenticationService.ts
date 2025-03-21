@@ -112,17 +112,10 @@ export class AuthenticationService {
         Logger.info('トークンの有効期限が切れています。リフレッシュを試みます');
         const refreshed = await this.refreshToken(true); // 静かに失敗するオプションを設定
         if (!refreshed) {
-          Logger.warn('トークンのリフレッシュに失敗しました');
-          // ログアウトせずにローカルデータで認証状態の回復を試みる
-          const recoverySuccess = await this._recoverUserState();
-          if (recoverySuccess) {
-            Logger.info('ローカルデータによる認証状態の回復に成功しました');
-            this._startAuthCheckInterval();
-            return;
-          } else {
-            Logger.warn('認証状態の回復に失敗しました。未認証状態で初期化します');
-            return;
-          }
+          Logger.warn('トークンのリフレッシュに失敗しました。認証が必要です');
+          // トークンをクリアし、未認証状態で初期化
+          await this._tokenManager.clearTokens();
+          return;
         }
       }
       
@@ -138,20 +131,26 @@ export class AuthenticationService {
       } catch (fetchError) {
         Logger.error('ユーザー情報の取得中にエラーが発生しました', fetchError as Error);
         
-        // サーバーエラーやネットワークエラーの場合、ローカルデータでフォールバック
-        if (axios.isAxiosError(fetchError) && 
-            (fetchError.response?.status === 500 || !fetchError.response)) {
-          Logger.info('サーバーエラーまたはネットワークエラーが発生しました。ローカルデータを使用して認証を試みます');
-          const recoverySuccess = await this._recoverUserState();
-          
-          if (recoverySuccess) {
-            Logger.info('ローカルデータによる認証状態の回復に成功しました');
-          } else {
-            Logger.warn('ローカルデータによる認証状態の回復に失敗しました。機能が制限される場合があります');
+        // サーバーエラーやネットワークエラーの場合、明確なエラーメッセージを表示
+        if (axios.isAxiosError(fetchError)) {
+          if (fetchError.response?.status === 401) {
+            Logger.warn('認証エラーが発生しました。再ログインが必要です');
+            // トークンをクリアし、未認証状態にする
+            await this._tokenManager.clearTokens();
+            const newState = AuthStateBuilder.guest().build();
+            this._updateState(newState);
+            // ユーザーへの通知は初期化中は控えめに
+            return;
+          } else if (fetchError.response?.status === 500) {
+            Logger.warn('サーバーエラーが発生しました。しばらく経ってから再試行してください');
+            // ユーザーへの通知は初期化中は控えめに
+          } else if (!fetchError.response) {
+            Logger.warn('ネットワークエラーが発生しました。インターネット接続を確認してください');
+            // ユーザーへの通知は初期化中は控えめに
           }
         }
         
-        // エラーが発生しても、権限チェックは開始する（次回の自動チェックでリカバリー可能にする）
+        // 認証エラー以外の場合は、権限チェックは開始する（次回の自動チェックでリカバリー可能にする）
         this._startAuthCheckInterval();
         
         Logger.info('認証サービスの初期化が完了しました（一部エラーあり）');
@@ -373,19 +372,20 @@ export class AuthenticationService {
         clientId,
         clientSecret
       }, {
-        // タイムアウト設定を追加
-        timeout: 15000
+        // タイムアウト設定を増やして信頼性を向上
+        timeout: 30000
       });
       
       if (response.status === 200 && response.data.accessToken) {
-        // トークンの有効期限を取得
+        // トークンの有効期限を取得 - バックエンドから提供されるようになった
         const expiresIn = response.data.expiresIn || 86400;
         
         // 新しいアクセストークンを保存
         await this._tokenManager.setAccessToken(response.data.accessToken, expiresIn);
         
-        // リフレッシュトークンも更新される場合は保存
+        // リフレッシュトークンも更新される場合は保存（セキュリティのためローテーション）
         if (response.data.refreshToken) {
+          Logger.info('新しいリフレッシュトークンを保存します');
           await this._tokenManager.setRefreshToken(response.data.refreshToken);
         }
         
@@ -399,7 +399,7 @@ export class AuthenticationService {
         // トークンリフレッシュイベントを発行
         this._onTokenRefreshed.fire();
         
-        Logger.info('トークンのリフレッシュに成功しました');
+        Logger.info(`トークンのリフレッシュに成功しました（有効期限: ${new Date((Math.floor(Date.now() / 1000) + expiresIn) * 1000).toLocaleString()}）`);
         return true;
       }
       
@@ -408,37 +408,41 @@ export class AuthenticationService {
     } catch (error) {
       Logger.error('トークンリフレッシュ中にエラーが発生しました', error as Error);
       
-      // ネットワークエラーの場合はリトライを試みる（最大3回まで）
-      if (axios.isAxiosError(error) && !error.response && retryCount < 3) {
-        const retryDelayMs = 1000 * Math.pow(2, retryCount); // 指数バックオフ（1秒、2秒、4秒）
-        Logger.info(`ネットワークエラー発生。${retryDelayMs/1000}秒後にリトライします (${retryCount + 1}/3)`);
+      // ネットワークエラーの場合はリトライを試みる（最大5回まで - 増加）
+      if (axios.isAxiosError(error) && !error.response && retryCount < 5) {
+        const retryDelayMs = 1000 * Math.pow(2, retryCount); // 指数バックオフ（1秒、2秒、4秒、8秒、16秒）
+        Logger.info(`ネットワークエラー発生。${retryDelayMs/1000}秒後にリトライします (${retryCount + 1}/5)`);
         
         await new Promise(resolve => setTimeout(resolve, retryDelayMs));
         return this.refreshToken(silentOnError, retryCount + 1);
       }
       
-      // トークンが無効な場合はローカルデータによる回復を試みる
+      // トークンが無効な場合は明示的にログアウトを要求する
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        Logger.warn('リフレッシュトークンが無効です。ローカルデータによる認証状態の回復を試みます');
+        Logger.warn('リフレッシュトークンが無効です。ログアウトが必要です');
         
-        // ローカルに保存されたユーザー情報でのフォールバックを試みる
-        const recoverySuccess = await this._recoverUserState();
-        
-        // 回復できなかった場合のみログアウト処理
-        if (!recoverySuccess) {
-          Logger.warn('ローカルデータによる認証状態の回復に失敗しました');
-          
-          // silentOnErrorがtrueの場合、サイレントに処理
-          if (!silentOnError) {
-            await this.logout();
-          } else {
-            // 静かにトークンをクリアするだけ
-            await this._tokenManager.clearTokens();
-            const newState = AuthStateBuilder.guest().build();
-            this._updateState(newState);
-          }
+        // silentOnErrorがtrueの場合、サイレントに処理
+        if (!silentOnError) {
+          // ユーザーに通知してからログアウト
+          vscode.window.showWarningMessage(
+            'ログインセッションの有効期限が切れました。再ログインしてください。',
+            '再ログイン'
+          ).then(async selection => {
+            if (selection === '再ログイン') {
+              // ログアウト後、ログイン画面を表示
+              await this.logout();
+              // ログイン画面表示のイベントを発行
+              vscode.commands.executeCommand('appgenius.showLogin');
+            } else {
+              await this.logout();
+            }
+          });
         } else {
-          Logger.info('ローカルデータによる認証状態の回復に成功しました。オフラインモードで継続します');
+          // 静かにトークンをクリアするだけ
+          await this._tokenManager.clearTokens();
+          const newState = AuthStateBuilder.guest().build();
+          this._updateState(newState);
+          Logger.info('認証トークンが無効です。ログアウトしました');
         }
       }
       // サーバーエラー（500）が発生した場合は、現在のトークンの有効性をチェック
@@ -472,6 +476,8 @@ export class AuthenticationService {
             // 回復に成功した場合
             if (recovered) {
               // サーバーエラーでも認証状態を維持
+              // 5分後に再度リフレッシュを試みる
+              this._scheduleRefreshRetry(5 * 60 * 1000);
               return true;
             } else {
               Logger.warn('認証状態の回復に失敗しました');
@@ -490,6 +496,50 @@ export class AuthenticationService {
       
       return false;
     }
+  }
+  
+  /**
+   * トークンリフレッシュのリトライをスケジュール
+   * ネットワークエラーなどの一時的な問題から回復するため
+   * 
+   * @param {number} delayMs - 再試行までの待機時間（ミリ秒）
+   * @param {number} maxRetries - 最大リトライ回数
+   * @param {number} currentRetry - 現在のリトライ回数
+   */
+  private _scheduleRefreshRetry(delayMs: number, maxRetries: number = 5, currentRetry: number = 0): void {
+    setTimeout(async () => {
+      try {
+        // 現在のトークンが有効期限切れかどうかを確認
+        const isValid = await this._tokenManager.isTokenValid();
+        if (!isValid) {
+          Logger.info(`スケジュールされたトークンリフレッシュを実行します (${currentRetry + 1}/${maxRetries})`);
+          const refreshed = await this.refreshToken(true);
+          
+          // リフレッシュに失敗し、リトライ回数が残っている場合は再度スケジュール
+          if (!refreshed && currentRetry < maxRetries - 1) {
+            Logger.info(`トークンリフレッシュに失敗しました。再試行をスケジュールします (${currentRetry + 2}/${maxRetries})`);
+            // 指数バックオフでリトライ間隔を増加（例: 5分、10分、20分...）
+            const nextDelay = delayMs * 2;
+            this._scheduleRefreshRetry(nextDelay, maxRetries, currentRetry + 1);
+          } else if (!refreshed) {
+            Logger.warn(`最大リトライ回数に達しました (${maxRetries}回)。リフレッシュ試行を終了します`);
+          } else {
+            Logger.info('トークンリフレッシュ成功');
+          }
+        } else {
+          Logger.info('トークンはまだ有効です。リフレッシュは不要です');
+        }
+      } catch (error) {
+        Logger.error('スケジュールされたトークンリフレッシュに失敗しました', error as Error);
+        
+        // エラーが発生した場合も、リトライ回数が残っていれば再試行
+        if (currentRetry < maxRetries - 1) {
+          Logger.info(`エラーが発生しましたが、再試行をスケジュールします (${currentRetry + 2}/${maxRetries})`);
+          const nextDelay = delayMs * 2;
+          this._scheduleRefreshRetry(nextDelay, maxRetries, currentRetry + 1);
+        }
+      }
+    }, delayMs);
   }
   
   /**
@@ -642,35 +692,82 @@ export class AuthenticationService {
   
   /**
    * 認証チェックインターバルを開始
+   * トークンの有効期限をチェックし、必要に応じてリフレッシュを行う
    */
   private _startAuthCheckInterval(): void {
     // 既存のインターバルがあれば停止
     this._stopAuthCheckInterval();
     
-    // 環境変数からチェック間隔を取得（デフォルトは5分）
+    // 環境変数からチェック間隔を取得（デフォルトは30分 - 延長）
     const checkIntervalSeconds = Math.min(
-      parseInt(process.env.CHECK_INTERVAL || '300', 10),
-      300 // 最大5分
+      parseInt(process.env.CHECK_INTERVAL || '1800', 10),
+      3600 // 最大1時間
     );
+    
+    // トークンの有効期限を事前に計算（予測値）
+    let tokenExpiryTime: number | null = null;
+    try {
+      const state = this.getCurrentState();
+      if (state.expiresAt) {
+        tokenExpiryTime = state.expiresAt;
+        const expiryDate = new Date(tokenExpiryTime * 1000);
+        Logger.info(`トークン有効期限の予測: ${expiryDate.toLocaleString()}`);
+      }
+    } catch (e) {
+      Logger.warn('トークン有効期限の予測に失敗しました', e as Error);
+    }
     
     // 定期的なトークン検証を設定
     this._authCheckInterval = setInterval(async () => {
       try {
+        // 現在の時刻とトークン有効期限を比較（既知の場合）
+        const now = Math.floor(Date.now() / 1000);
+        
+        // 有効期限が既知で、有効期限まで1時間以上ある場合はスキップ（最適化）
+        if (tokenExpiryTime && tokenExpiryTime - now > 3600) {
+          Logger.info(`トークン有効期限まで十分な時間があります (${Math.floor((tokenExpiryTime - now) / 3600)}時間以上)。チェックをスキップします`);
+          return;
+        }
+        
         // トークンの有効期限をチェック
+        Logger.info('トークン有効性チェックを実行します');
         const isValid = await this._tokenManager.isTokenValid();
         
         if (!isValid) {
           Logger.info('トークンの有効期限が近づいているか、期限切れです。リフレッシュを試みます');
           
           // トークンリフレッシュを試みる
-          const refreshed = await this.refreshToken();
-          if (!refreshed) {
-            Logger.warn('トークンのリフレッシュに失敗しました。ログアウトします');
-            await this.logout();
+          const refreshed = await this.refreshToken(true); // サイレントモード
+          if (refreshed) {
+            // 更新成功した場合、新しい有効期限を取得
+            const newState = this.getCurrentState();
+            tokenExpiryTime = newState.expiresAt || null;
+            if (tokenExpiryTime) {
+              const expiryDate = new Date(tokenExpiryTime * 1000);
+              Logger.info(`トークンリフレッシュ成功。新しい有効期限: ${expiryDate.toLocaleString()}`);
+            }
+          } else {
+            // 重要な操作時のみ自動ログアウト
+            Logger.warn('トークンのリフレッシュに失敗しましたが、自動ログアウトは行いません。現在の認証状態を維持します');
+            
+            // オフラインとして扱い、随時リトライ
+            this._recoverUserState();
+            
+            // 1時間後に再試行
+            this._scheduleRefreshRetry(3600 * 1000);
           }
+        } else {
+          Logger.info('トークンは有効です');
         }
       } catch (error) {
         Logger.error('認証チェック中にエラーが発生しました', error as Error);
+        
+        // エラーが発生しても完全失敗にせず、ローカルデータでの回復を試みる
+        try {
+          await this._recoverUserState();
+        } catch (recoveryError) {
+          Logger.error('認証状態の回復に失敗しました', recoveryError as Error);
+        }
       }
     }, checkIntervalSeconds * 1000);
     

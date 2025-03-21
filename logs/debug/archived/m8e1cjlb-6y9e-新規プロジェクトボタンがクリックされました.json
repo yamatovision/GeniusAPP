@@ -1,0 +1,9 @@
+{
+  "id": "m8e1cjlb-6y9e",
+  "errorLog": "新規プロジェクトボタンがクリックされました\ndashboard.js:574 新規プロジェクトモーダル表示処理を開始します\ndashboard.js:577 モーダル要素が見つかりました <div class=​\"modal-overlay active\" id=​\"new-project-modal\">​…​</div>​flex\ndashboard.js:585 モーダルにactiveクラスを追加し、表示スタイルを設定しました\ndashboard.js:588 モーダルの内部構造: \n    <div class=\"modal\">\n      <div class=\"modal-header\">\n        <h2>新規プロジェクト作成</h2>\n      </div>\n      <div class=\"modal-body\">\n        <form id=\"new-project-form\">\n          <div class=\"form-group\">\n            <label for=\"project-name\">プロジェクト名 <span style=\"color: #e74c3c;\">*</span></label>\n            <input type=\"text\" id=\"project-name\" required=\"\" placeholder=\"例: MyWebApp\">\n          </div>\n        </form>\n      </div>\n      <div class=\"modal-footer\">\n        <button type=\"button\" class=\"button secondary\" id=\"cancel-new-project\">キャンセル</button>\n        <button type=\"submit\" class=\"button primary\" id=\"create-project-btn\" form=\"new-project-form\">作成</button>\n      </div>\n    </div>\n  \ndashboard.js:593 フォーム要素が見つかりました <form id=​\"new-project-form\">​…​</form>​\ndashboard.js:602 プロジェクト名入力フィールドが見つかりました <input type=​\"text\" id=​\"project-name\" required placeholder=​\"例:​ MyWebApp\">​　これがあるんですがモーダルウィンドウがUI嬢には見えません",
+  "status": "archived",
+  "createdAt": "2025-03-18T05:11:00.143Z",
+  "errorType": "不明なエラー",
+  "relatedFiles": [],
+  "investigationStartTime": "2025-03-18T05:11:00.148Z"
+}

@@ -55,6 +55,9 @@ class UsageIndicator {
         this._currentUsage = 0;
         this._usageLimit = 0;
         this._warningThreshold = 0.8; // 80%のデフォルト警告閾値
+        this._isUpdating = false; // 更新中フラグ
+        this._lastSuccessfulFetch = 0; // 最後に成功した取得時間のタイムスタンプ
+        this._errorCount = 0; // エラー発生回数
         this._authService = AuthenticationService_1.AuthenticationService.getInstance();
         // ステータスバーアイテムの作成
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 99 // 認証ステータスの左側に表示
@@ -100,65 +103,182 @@ class UsageIndicator {
     }
     /**
      * 使用量データを取得
+     * 複数のAPIエンドポイントを試行し、リトライロジックとエラーハンドリングを強化
      */
     async _fetchUsageData() {
         if (!this._authService.isAuthenticated()) {
             return;
         }
+        if (this._isUpdating) {
+            return; // 既に更新中の場合は重複実行を防止
+        }
+        this._isUpdating = true;
         try {
             const authHeader = await this._authService.getAuthHeader();
             if (!authHeader) {
+                this._isUpdating = false;
                 return;
             }
-            const apiUrl = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
-            const response = await axios_1.default.get(`${apiUrl}/proxy/usage/me`, {
-                headers: authHeader
-            });
-            if (response.status === 200 && response.data) {
-                // レスポンス構造に合わせてデータマッピングを修正
-                const usage = response.data.usage?.monthly || {};
-                this._currentUsage = usage.totalTokens || 0;
-                this._usageLimit = response.data.limits?.monthly || 0;
-                // ステータスバーの表示を更新
-                this._updateStatusBarDisplay();
+            // フォールバック用のAPIエンドポイントリストを取得
+            const apiUrls = this._getFallbackApiUrls();
+            // 各APIエンドポイントを順番に試行
+            for (const apiUrl of apiUrls) {
+                if (!apiUrl)
+                    continue; // 無効なURLはスキップ
+                // リトライロジックを追加
+                let retryCount = 0;
+                const maxRetries = 3;
+                const retryDelay = 1000; // 1秒
+                while (retryCount <= maxRetries) {
+                    try {
+                        if (retryCount > 0) {
+                            console.log(`使用量データ取得リトライ (${retryCount}/${maxRetries})...`);
+                        }
+                        // タイムアウト設定付きリクエスト
+                        const response = await axios_1.default.get(`${apiUrl}/proxy/usage/me`, {
+                            headers: authHeader,
+                            timeout: 15000 // 15秒タイムアウト
+                        });
+                        if (response.status === 200 && response.data) {
+                            // レスポンス構造に合わせてデータマッピングを修正
+                            const usage = response.data.usage?.monthly || {};
+                            this._currentUsage = usage.totalTokens || 0;
+                            this._usageLimit = response.data.limits?.monthly || 0;
+                            // 成功したエンドポイントとタイムスタンプを記録
+                            this._lastSuccessfulFetch = Date.now();
+                            this._errorCount = 0; // エラーカウントをリセット
+                            // ステータスバーの表示を更新
+                            this._updateStatusBarDisplay();
+                            this._isUpdating = false;
+                            return; // 成功したら終了
+                        }
+                        break; // 200以外のレスポンスの場合は次のエンドポイントに進む
+                    }
+                    catch (error) {
+                        retryCount++;
+                        // エラーの種類を特定
+                        if (axios_1.default.isAxiosError(error)) {
+                            const isServerError = error.response?.status === 500;
+                            const isTimeout = error.code === 'ECONNABORTED';
+                            const isNetworkError = !error.response && error.code !== 'ECONNABORTED';
+                            // サーバーエラー(500)またはタイムアウトの場合のみリトライ
+                            if ((isServerError || isTimeout) && retryCount <= maxRetries) {
+                                // 指数バックオフ（リトライ回数に応じて待ち時間を増やす）
+                                const waitTime = retryDelay * Math.pow(2, retryCount - 1);
+                                await new Promise(resolve => setTimeout(resolve, waitTime));
+                                continue;
+                            }
+                            else if (isNetworkError && retryCount > maxRetries) {
+                                // ネットワークエラーで最大リトライ回数に達した場合は次のエンドポイントに進む
+                                break;
+                            }
+                            else if (error.response?.status === 401 || error.response?.status === 403) {
+                                // 認証エラーの場合は処理を終了
+                                this._isUpdating = false;
+                                // 詳細なログ出力
+                                console.error(`認証エラーが発生しました (Status: ${error.response?.status}):`, error.message);
+                                // ステータスバーの表示を更新
+                                this._updateStatusBarDisplay();
+                                return;
+                            }
+                        }
+                        // 最大リトライ回数に達した場合は次のエンドポイントに進む
+                        if (retryCount > maxRetries) {
+                            break;
+                        }
+                    }
+                }
             }
+            // すべてのエンドポイントが失敗した場合
+            this._errorCount++;
+            // エラーをより詳細にログ出力
+            console.error(`使用量データの取得に失敗しました。すべてのエンドポイントが応答しませんでした。エラー回数: ${this._errorCount}`);
+            // エラー発生時でもUIが機能するようにデフォルト表示を設定
+            this._updateStatusBarDisplay();
         }
         catch (error) {
-            console.error('使用量データ取得中にエラーが発生しました:', error);
+            // 予期しないエラーも捕捉
+            if (axios_1.default.isAxiosError(error)) {
+                const statusCode = error.response?.status;
+                const responseData = error.response?.data;
+                console.error(`使用量データ取得中にエラーが発生しました (Status: ${statusCode}):`, error.message, responseData);
+            }
+            else {
+                console.error('使用量データ取得中に予期しないエラーが発生しました:', error);
+            }
+            this._errorCount++;
+            // エラー発生時でもUIが機能するようにデフォルト表示を設定
+            this._updateStatusBarDisplay();
         }
+        finally {
+            this._isUpdating = false;
+        }
+    }
+    /**
+     * API URLを取得
+     * 環境変数から取得するか、デフォルト値を返す
+     * フォールバック機構を追加し、複数のエンドポイントを試行
+     */
+    _getApiUrl() {
+        // 環境変数が設定されている場合は優先
+        if (process.env.PORTAL_API_URL) {
+            return process.env.PORTAL_API_URL;
+        }
+        // デフォルトは本番環境URL
+        return 'https://geniemon-portal-backend-production.up.railway.app/api';
+    }
+    /**
+     * フォールバックAPIエンドポイントリストを取得
+     * 優先順位順に返す
+     */
+    _getFallbackApiUrls() {
+        return [
+            process.env.PORTAL_API_URL, // 環境変数から取得（もし設定されていれば）
+            'https://geniemon-portal-backend-production.up.railway.app/api', // 本番環境URL
+            'https://geniemon-portal-backend-staging.up.railway.app/api' // ステージング環境URL
+        ].filter(Boolean); // undefined/nullを除外
     }
     /**
      * ステータスバーの表示を更新
      */
     _updateStatusBarDisplay() {
-        if (this._usageLimit <= 0) {
-            // 使用制限が設定されていない場合
-            this._statusBarItem.text = `$(graph) ${this._formatNumber(this._currentUsage)} トークン`;
-            this._statusBarItem.tooltip = `現在の使用量: ${this._formatNumber(this._currentUsage)} トークン\n制限なし`;
-        }
-        else {
-            // 使用率の計算
-            const usagePercentage = this._currentUsage / this._usageLimit;
-            const formattedPercentage = Math.round(usagePercentage * 100);
-            // 残りトークン数
-            const remainingTokens = Math.max(0, this._usageLimit - this._currentUsage);
-            // 表示形式の設定
-            if (usagePercentage >= this._warningThreshold) {
-                // 警告表示（80%以上）
-                this._statusBarItem.text = `$(warning) ${formattedPercentage}%`;
-                this._statusBarItem.color = new vscode.ThemeColor('statusBarItem.warningForeground');
+        try {
+            if (this._usageLimit <= 0) {
+                // 使用制限が設定されていない場合
+                this._statusBarItem.text = `$(graph) ${this._formatNumber(this._currentUsage)} トークン`;
+                this._statusBarItem.tooltip = `現在の使用量: ${this._formatNumber(this._currentUsage)} トークン\n制限なし`;
             }
             else {
-                // 通常表示
-                this._statusBarItem.text = `$(graph) ${formattedPercentage}%`;
-                this._statusBarItem.color = undefined; // デフォルトの色に戻す
+                // 使用率の計算
+                const usagePercentage = this._currentUsage / this._usageLimit;
+                const formattedPercentage = Math.round(usagePercentage * 100);
+                // 残りトークン数
+                const remainingTokens = Math.max(0, this._usageLimit - this._currentUsage);
+                // 表示形式の設定
+                if (usagePercentage >= this._warningThreshold) {
+                    // 警告表示（80%以上）
+                    this._statusBarItem.text = `$(warning) ${formattedPercentage}%`;
+                    this._statusBarItem.color = new vscode.ThemeColor('statusBarItem.warningForeground');
+                }
+                else {
+                    // 通常表示
+                    this._statusBarItem.text = `$(graph) ${formattedPercentage}%`;
+                    this._statusBarItem.color = undefined; // デフォルトの色に戻す
+                }
+                // ツールチップの設定
+                this._statusBarItem.tooltip =
+                    `現在の使用量: ${this._formatNumber(this._currentUsage)} / ${this._formatNumber(this._usageLimit)} トークン\n` +
+                        `使用率: ${formattedPercentage}%\n` +
+                        `残り: ${this._formatNumber(remainingTokens)} トークン\n\n` +
+                        `クリックして詳細を表示`;
             }
-            // ツールチップの設定
-            this._statusBarItem.tooltip =
-                `現在の使用量: ${this._formatNumber(this._currentUsage)} / ${this._formatNumber(this._usageLimit)} トークン\n` +
-                    `使用率: ${formattedPercentage}%\n` +
-                    `残り: ${this._formatNumber(remainingTokens)} トークン\n\n` +
-                    `クリックして詳細を表示`;
+        }
+        catch (error) {
+            // エラー発生時にはフォールバック表示を設定
+            this._statusBarItem.text = `$(graph) --`;
+            this._statusBarItem.tooltip = `使用量データを取得できませんでした。\nクリックして再試行`;
+            this._statusBarItem.color = undefined;
+            console.error('ステータスバー表示の更新中にエラーが発生しました:', error);
         }
         // コマンドの設定
         this._statusBarItem.command = 'appgenius.showUsageDetails';

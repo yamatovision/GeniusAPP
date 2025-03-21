@@ -47,8 +47,9 @@ exports.verifyToken = (req, res, next) => {
   }
 
   try {
-    // トークンを検証
-    const decoded = jwt.verify(token, authConfig.jwtSecret);
+    // トークンを検証（時計ずれの許容設定を追加）
+    const clockTolerance = authConfig.tokenSettings?.validation?.jwtClockTolerance || 30; // 30秒のデフォルト許容値
+    const decoded = jwt.verify(token, authConfig.jwtSecret, { clockTolerance });
     
     // デコードされたユーザーIDをリクエストオブジェクトに追加
     req.userId = decoded.id;
@@ -59,7 +60,8 @@ exports.verifyToken = (req, res, next) => {
       return res.status(401).json({
         error: {
           code: 'TOKEN_EXPIRED',
-          message: 'トークンの有効期限が切れています'
+          message: 'トークンの有効期限が切れています',
+          requireRefresh: true // クライアントにリフレッシュが必要なことを通知
         }
       });
     }

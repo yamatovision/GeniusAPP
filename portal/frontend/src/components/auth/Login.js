@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Container, 
   Box, 
@@ -8,17 +8,35 @@ import {
   Paper, 
   Alert, 
   CircularProgress, 
-  Link 
+  Link,
+  Checkbox,
+  FormControlLabel
 } from '@mui/material';
 import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import authService from '../../services/auth.service';
+
+// VSCode環境からのログインかを判定する関数
+const isVSCodeClient = () => {
+  return window.location.href.includes('vscode-webview') || 
+         navigator.userAgent.includes('VSCode') ||
+         window.name.includes('vscode');
+};
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [rememberMe, setRememberMe] = useState(true); // VSCode用のログイン記憶設定
   const navigate = useNavigate();
+  
+  // 保存されたメールアドレスを読み込む
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('rememberedEmail');
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+  }, []);
 
   // 入力検証
   const validateInput = () => {
@@ -56,10 +74,34 @@ const Login = () => {
     setLoading(true);
     
     try {
+      // メールアドレス記憶
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', email);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+      
       // 認証サービスを使用してログイン
       await authService.login(email, password);
       
-      // ダッシュボードにリダイレクト
+      // VSCodeの場合は閉じる指示を表示
+      if (isVSCodeClient()) {
+        // VSCode拡張にメッセージを送信
+        try {
+          if (window.acquireVsCodeApi) {
+            const vscode = window.acquireVsCodeApi();
+            vscode.postMessage({ type: 'login-success' });
+          }
+        } catch (e) {
+          console.error('VSCode API呼び出しエラー:', e);
+        }
+        
+        // メッセージを表示（VSCode拡張が処理を続行）
+        setError('');
+        return;
+      }
+      
+      // 通常のウェブアプリの場合はダッシュボードにリダイレクト
       navigate('/dashboard');
     } catch (err) {
       setError(
@@ -83,6 +125,11 @@ const Login = () => {
               <Typography variant="subtitle1" color="textSecondary">
                 プロンプト管理ポータル
               </Typography>
+              {isVSCodeClient() && (
+                <Typography variant="caption" color="primary" sx={{ mt: 1 }}>
+                  VSCode拡張用ログイン画面
+                </Typography>
+              )}
             </Box>
             
             {error && (
@@ -134,7 +181,18 @@ const Login = () => {
                 </Button>
               </Box>
               
-              <Box display="flex" justifyContent="center">
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      color="primary"
+                      size="small"
+                    />
+                  }
+                  label="メールアドレスを記憶する"
+                />
                 <Link component="button" variant="body2" onClick={() => alert('この機能は準備中です')}>
                   パスワードをお忘れですか？
                 </Link>

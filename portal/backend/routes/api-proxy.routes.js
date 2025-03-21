@@ -27,6 +27,11 @@ router.get('/usage/me', apiProxyController.getCurrentUsage);
 router.get('/usage/limits', apiProxyController.getUsageLimits);
 router.get('/usage/history', apiProxyController.getUsageHistory);
 
+// トークン使用記録エンドポイント（複数の代替パスを提供して互換性を確保）
+router.post('/usage/record', apiProxyController.recordTokenUsage);
+router.post('/usage/me/record', apiProxyController.recordTokenUsage);
+router.post('/claude/usage', apiProxyController.recordTokenUsage);
+
 // 管理者向けエンドポイント
 router.get('/admin/usage/:userId', authMiddleware.isAdmin, apiProxyController.getUserUsage);
 router.put('/admin/limits/:userId', authMiddleware.isAdmin, apiProxyController.updateUserLimits);

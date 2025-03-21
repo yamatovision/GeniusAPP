@@ -2,7 +2,7 @@ import axios from 'axios';
 import authHeader from '../utils/auth-header';
 import { refreshTokenService } from '../utils/token-refresh';
 import { withRetry, withLoading } from '../utils/api-retry';
-import { formatTimeSeriesForChart, formatVersionStatsForPieChart, formatOverallStats } from '../utils/stats-formatter';
+// 使用統計フォーマッター関連のimportは削除されました
 import WebSocketManager, { EventTypes } from '../utils/websocket-manager';
 
 // APIのベースURL
@@ -21,7 +21,6 @@ class PromptService {
     this.onPromptUpdated = null;
     this.onPromptCreated = null;
     this.onPromptDeleted = null;
-    this.onUsageRecorded = null;
   }
   
   /**
@@ -46,13 +45,6 @@ class PromptService {
     WebSocketManager.on(EventTypes.PROMPT_DELETED, (data) => {
       if (this.onPromptDeleted) {
         this.onPromptDeleted(data);
-      }
-    });
-    
-    // プロンプト使用記録イベント
-    WebSocketManager.on(EventTypes.PROMPT_USAGE_RECORDED, (data) => {
-      if (this.onUsageRecorded) {
-        this.onUsageRecorded(data);
       }
     });
   }
@@ -352,145 +344,26 @@ class PromptService {
   }
   
   /**
-   * プロンプト使用を記録
+   * プロンプト使用を記録（非推奨 - 統計機能削除済み）
    * @param {string} id - プロンプトID
    * @param {Object} usageData - 使用データ
    * @returns {Promise} 記録結果
+   * @deprecated 使用統計機能は削除されました
    */
   async recordPromptUsage(id, usageData) {
     try {
-      const response = await axios.post(`${API_URL}/${id}/usage`, usageData, {
+      console.warn('recordPromptUsageは非推奨になりました - 統計機能は削除されました');
+      
+      // 後方互換性のために、APIを呼び出す
+      const response = await axios.post(`${API_URL}/${id}/usage`, {}, {
         headers: authHeader()
       });
       
       return response.data;
     } catch (error) {
       console.error('プロンプト使用記録エラー:', error);
-      
-      // トークンが無効な場合、リフレッシュを試みる
-      if (error.response?.status === 401) {
-        try {
-          await this.refreshToken();
-          // リフレッシュ成功後に再度記録を試みる
-          return this.recordPromptUsage(id, usageData);
-        } catch (refreshError) {
-          throw refreshError;
-        }
-      }
-      
-      throw error;
-    }
-  }
-  
-  /**
-   * プロンプト使用統計の取得
-   * @param {string} id - プロンプトID
-   * @param {Object} options - オプション
-   * @param {string} options.period - 期間（'today', 'week', 'month', 'year', 'all'）
-   * @param {string} options.interval - 間隔（'hour', 'day', 'week', 'month'）
-   * @param {Object} loadingOptions - ローディング状態管理オプション
-   * @returns {Promise} 統計データ（フォーマット済み）
-   */
-  async getPromptUsageStats(id, options = {}, loadingOptions = {}) {
-    const fetchStats = async () => {
-      const queryParams = new URLSearchParams();
-      
-      // オプションをクエリパラメータに追加
-      Object.entries(options).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          queryParams.append(key, value);
-        }
-      });
-      
-      // 再試行ロジックを適用してAPIを呼び出し
-      const response = await withRetry(
-        () => axios.get(`${API_URL}/${id}/stats?${queryParams.toString()}`, {
-          headers: authHeader()
-        }),
-        {
-          maxRetries: 3,
-          onRetry: ({ attempt, waitTime }) => {
-            console.log(`統計取得リトライ中 (${attempt}/3) - ${waitTime}ms後に再試行`);
-          }
-        }
-      );
-      
-      // 生の統計データ
-      const rawStats = response.data;
-      
-      // UIで使いやすい形式にフォーマット
-      return {
-        raw: rawStats,
-        formatted: {
-          overall: formatOverallStats(rawStats.overall),
-          versionChart: formatVersionStatsForPieChart(rawStats.versions),
-          timeSeriesChart: formatTimeSeriesForChart(rawStats.timeSeries, options.interval || 'day')
-        }
-      };
-    };
-    
-    // ローディング状態管理
-    return withLoading(fetchStats, loadingOptions);
-  }
-  
-  /**
-   * プロンプト使用統計の詳細取得（バージョン別比較など）
-   * @param {string} id - プロンプトID
-   * @param {Array<string>} versionIds - 比較するバージョンID配列
-   * @param {Object} options - オプション
-   * @returns {Promise} 詳細統計データ
-   */
-  async getPromptUsageComparison(id, versionIds = [], options = {}) {
-    try {
-      // バージョンIDをカンマ区切りの文字列に変換
-      const versionParam = versionIds.join(',');
-      const queryParams = new URLSearchParams({
-        versions: versionParam,
-        ...options
-      });
-      
-      // 再試行ロジックを適用してAPIを呼び出し
-      const response = await withRetry(
-        () => axios.get(`${API_URL}/${id}/stats/comparison?${queryParams.toString()}`, {
-          headers: authHeader()
-        })
-      );
-      
-      return response.data;
-    } catch (error) {
-      console.error('プロンプト使用比較データ取得エラー:', error);
-      throw error;
-    }
-  }
-  
-  /**
-   * プロンプト利用へのフィードバック登録
-   * @param {string} usageId - 使用記録ID
-   * @param {Object} feedbackData - フィードバックデータ
-   * @returns {Promise} 記録結果
-   */
-  async recordUserFeedback(usageId, feedbackData) {
-    try {
-      const response = await axios.post(`${API_URL}/usage/${usageId}/feedback`, feedbackData, {
-        headers: authHeader()
-      });
-      
-      return response.data;
-    } catch (error) {
-      console.error('ユーザーフィードバック記録エラー:', error);
-      
-      // トークンが無効な場合、リフレッシュを試みる
-      if (error.response?.status === 401) {
-        try {
-          await this.refreshToken();
-          // リフレッシュ成功後に再度記録を試みる
-          return this.recordUserFeedback(usageId, feedbackData);
-        } catch (refreshError) {
-          throw refreshError;
-        }
-      }
-      
-      throw error;
+      // エラーは無視して正常応答を返す
+      return { success: true, message: 'プロンプト使用記録は削除されました' };
     }
   }
   

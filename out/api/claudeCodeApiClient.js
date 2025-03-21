@@ -40,6 +40,8 @@ exports.ClaudeCodeApiClient = void 0;
 const axios_1 = __importDefault(require("axios"));
 const vscode = __importStar(require("vscode"));
 const AuthenticationService_1 = require("../core/auth/AuthenticationService");
+const logger_1 = require("../utils/logger");
+const ErrorHandler_1 = require("../utils/ErrorHandler");
 /**
  * ClaudeCodeApiClient - ClaudeCode CLIと連携するためのAPIクライアント
  *
@@ -51,8 +53,10 @@ class ClaudeCodeApiClient {
      */
     constructor() {
         this._authService = AuthenticationService_1.AuthenticationService.getInstance();
+        this._errorHandler = ErrorHandler_1.ErrorHandler.getInstance();
         // API URLを環境変数から取得、またはデフォルト値を使用
-        this._baseUrl = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
+        this._baseUrl = process.env.PORTAL_API_URL || 'https://geniemon-portal-backend-production.up.railway.app/api';
+        logger_1.Logger.info('ClaudeCodeApiClient initialized with baseUrl: ' + this._baseUrl);
     }
     /**
      * シングルトンインスタンスを取得
@@ -130,8 +134,14 @@ class ClaudeCodeApiClient {
         try {
             const config = await this._getApiConfig();
             const response = await axios_1.default.get(`${this._baseUrl}/sdk/prompts/${promptId}/versions`, config);
-            if (response.status === 200 && Array.isArray(response.data.versions)) {
-                return response.data.versions;
+            // レスポンスがオブジェクトかつversionsプロパティがある場合、またはレスポンスが直接配列の場合に対応
+            if (response.status === 200) {
+                if (Array.isArray(response.data.versions)) {
+                    return response.data.versions;
+                }
+                else if (Array.isArray(response.data)) {
+                    return response.data;
+                }
             }
             return [];
         }
@@ -142,27 +152,18 @@ class ClaudeCodeApiClient {
         }
     }
     /**
-     * プロンプト使用履歴を記録
+     * プロンプト使用履歴を記録 (使用統計機能削除済み)
      * @param promptId プロンプトID
      * @param versionId バージョンID
      * @param context 使用コンテキスト
+     * @returns 記録が成功したかどうか
+     * @deprecated 使用統計機能は削除されました。後方互換性のために維持されています。
      */
     async recordPromptUsage(promptId, versionId, context) {
-        try {
-            const config = await this._getApiConfig();
-            const payload = {
-                promptId,
-                versionId,
-                context: context || 'claude-code-extension'
-            };
-            const response = await axios_1.default.post(`${this._baseUrl}/sdk/prompts/usage`, payload, config);
-            return response.status === 201;
-        }
-        catch (error) {
-            console.error('プロンプト使用履歴の記録に失敗しました:', error);
-            this._handleApiError(error);
-            return false;
-        }
+        // 使用統計機能は削除されたため、実際にはAPIを呼び出さない
+        // 後方互換性のために、成功したというレスポンスを返す
+        logger_1.Logger.info(`プロンプト使用履歴記録 (非推奨) - promptId: ${promptId}, versionId: ${versionId}`);
+        return true;
     }
     /**
      * プロンプト同期情報を取得
@@ -198,32 +199,111 @@ class ClaudeCodeApiClient {
         }
     }
     /**
+     * 指数バックオフとジッターを用いたリトライ処理
+     * @param operation 実行する非同期操作
+     * @param maxRetries 最大リトライ回数
+     * @param retryableStatusCodes リトライ可能なHTTPステータスコード
+     * @param operationName 操作名（ログ用）
+     * @returns 操作の結果
+     */
+    async _retryWithExponentialBackoff(operation, maxRetries = 3, retryableStatusCodes = [429, 500, 502, 503, 504], operationName = '操作') {
+        let retries = 0;
+        const baseDelay = 1000; // 1秒
+        while (true) {
+            try {
+                return await operation();
+            }
+            catch (error) {
+                retries++;
+                // エラーを適切にログに記録
+                logger_1.Logger.error(`【API連携】${operationName}に失敗しました (${retries}回目)`, error);
+                // リトライ判断
+                let shouldRetry = false;
+                if (axios_1.default.isAxiosError(error)) {
+                    const statusCode = error.response?.status;
+                    // 認証エラーの場合、トークンをリフレッシュしてリトライ
+                    if (statusCode === 401) {
+                        logger_1.Logger.info('【API連携】トークンの有効期限切れ。リフレッシュを試みます');
+                        const refreshSucceeded = await this._authService.refreshToken();
+                        shouldRetry = refreshSucceeded && retries <= maxRetries;
+                        if (!refreshSucceeded && retries >= maxRetries) {
+                            // 最大リトライ回数に達し、かつリフレッシュに失敗した場合はログアウト
+                            logger_1.Logger.warn('【API連携】トークンリフレッシュに失敗し、最大リトライ回数に達しました。ログアウトします');
+                            await this._authService.logout();
+                            vscode.window.showErrorMessage('認証の有効期限が切れました。再度ログインしてください。');
+                        }
+                    }
+                    // ネットワークエラーまたは特定のステータスコードならリトライ
+                    else if (!statusCode || retryableStatusCodes.includes(statusCode)) {
+                        shouldRetry = retries <= maxRetries;
+                    }
+                }
+                else {
+                    // その他のエラーの場合もリトライ
+                    shouldRetry = retries <= maxRetries;
+                }
+                // リトライしない場合はエラーを再スロー
+                if (!shouldRetry) {
+                    // ErrorHandlerを使用して詳細なエラー情報を記録
+                    this._errorHandler.handleError(error, 'ClaudeCodeApiClient');
+                    throw error;
+                }
+                // 指数バックオフ + ジッター計算
+                const delay = baseDelay * Math.pow(2, retries - 1) * (0.5 + Math.random() * 0.5);
+                logger_1.Logger.info(`【API連携】${operationName}を${delay}ms後に再試行します (${retries}/${maxRetries})`);
+                // 指定時間待機
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+    }
+    /**
      * APIエラー処理
      * 認証エラーの場合はトークンリフレッシュを試みる
      */
     async _handleApiError(error) {
-        if (axios_1.default.isAxiosError(error) && error.response?.status === 401) {
-            // 認証エラーの場合、トークンリフレッシュを試みる
-            const refreshSucceeded = await this._authService.refreshToken();
-            if (!refreshSucceeded) {
-                // リフレッシュに失敗した場合はログアウト
-                await this._authService.logout();
-                vscode.window.showErrorMessage('認証の有効期限が切れました。再度ログインしてください。');
+        // ErrorHandlerを使用して詳細なエラー情報を記録
+        this._errorHandler.handleError(error, 'ClaudeCodeApiClient');
+        if (axios_1.default.isAxiosError(error)) {
+            const statusCode = error.response?.status;
+            if (statusCode === 401) {
+                // 認証エラーの場合、トークンリフレッシュを試みる
+                logger_1.Logger.info('【API連携】認証エラー(401)。トークンリフレッシュを試みます');
+                const refreshSucceeded = await this._authService.refreshToken();
+                if (!refreshSucceeded) {
+                    // リフレッシュに失敗した場合はログアウト
+                    logger_1.Logger.warn('【API連携】トークンリフレッシュに失敗しました。ログアウトします');
+                    await this._authService.logout();
+                    vscode.window.showErrorMessage('認証の有効期限が切れました。再度ログインしてください。');
+                }
+            }
+            else if (statusCode === 403) {
+                // 権限エラー
+                logger_1.Logger.warn('【API連携】権限エラー(403): アクセス権限がありません');
+                vscode.window.showErrorMessage('この操作を行う権限がありません。');
+            }
+            else if (statusCode === 404) {
+                // リソースが見つからない
+                logger_1.Logger.warn(`【API連携】リソースが見つかりません(404): ${error.config?.url}`);
+                vscode.window.showErrorMessage('リクエストされたリソースが見つかりません。');
+            }
+            else if (statusCode && statusCode >= 500) {
+                // サーバーエラー
+                logger_1.Logger.error(`【API連携】サーバーエラー(${statusCode}): ${error.config?.url}`, error);
+                vscode.window.showErrorMessage(`サーバーエラーが発生しました(${statusCode})。しばらく時間をおいて再試行してください。`);
+            }
+            else {
+                // その他のエラー
+                const errorMessage = error.response?.data?.message
+                    ? error.response.data.message
+                    : '不明なエラーが発生しました。';
+                logger_1.Logger.error(`【API連携】API呼び出しエラー: ${errorMessage}`, error);
+                vscode.window.showErrorMessage(`API呼び出し中にエラーが発生しました: ${errorMessage}`);
             }
         }
-        else if (axios_1.default.isAxiosError(error) && error.response?.status === 403) {
-            // 権限エラー
-            vscode.window.showErrorMessage('この操作を行う権限がありません。');
-        }
-        else if (axios_1.default.isAxiosError(error) && error.response?.status === 404) {
-            // リソースが見つからない
-            vscode.window.showErrorMessage('リクエストされたリソースが見つかりません。');
-        }
         else {
-            // その他のエラー
-            const errorMessage = axios_1.default.isAxiosError(error) && error.response?.data?.message
-                ? error.response.data.message
-                : '不明なエラーが発生しました。';
+            // Axiosエラーでない場合
+            const errorMessage = error instanceof Error ? error.message : '不明なエラーが発生しました。';
+            logger_1.Logger.error(`【API連携】不明なエラー: ${errorMessage}`, error instanceof Error ? error : new Error(errorMessage));
             vscode.window.showErrorMessage(`API呼び出し中にエラーが発生しました: ${errorMessage}`);
         }
     }
@@ -234,24 +314,86 @@ class ClaudeCodeApiClient {
      */
     async getPromptFromPublicUrl(url) {
         try {
-            // URLからトークンを抽出（例: https://example.com/api/prompts/public/abcd1234 からabcd1234を抽出）
-            const token = url.split('/').pop();
-            if (!token) {
-                throw new Error('Invalid prompt URL format');
-            }
-            // トークンを使用して公開APIからプロンプト情報を取得
-            // 認証不要のため、通常のaxiosインスタンスを使用
-            const baseUrl = new URL(url).origin + '/api';
-            const response = await axios_1.default.get(`${baseUrl}/prompts/public/${token}`);
-            if (response.status === 200 && response.data) {
-                return response.data;
-            }
-            return null;
+            return await this._retryWithExponentialBackoff(async () => {
+                // URLからトークンを抽出（例: https://example.com/api/prompts/public/abcd1234 からabcd1234を抽出）
+                const token = url.split('/').pop();
+                if (!token) {
+                    throw new Error('Invalid prompt URL format');
+                }
+                // トークンを使用して公開APIからプロンプト情報を取得
+                // 認証不要のため、通常のaxiosインスタンスを使用
+                const baseUrl = new URL(url).origin + '/api';
+                logger_1.Logger.info(`【API連携】公開プロンプトの取得を開始: ${baseUrl}/prompts/public/${token}`);
+                const response = await axios_1.default.get(`${baseUrl}/prompts/public/${token}`);
+                if (response.status === 200 && response.data) {
+                    logger_1.Logger.info('【API連携】公開プロンプトの取得が成功しました');
+                    return response.data;
+                }
+                return null;
+            }, 3, [429, 500, 502, 503, 504], '公開プロンプト取得');
         }
         catch (error) {
-            console.error(`公開URLからのプロンプト取得に失敗しました (URL: ${url}):`, error);
+            logger_1.Logger.error(`【API連携】公開URLからのプロンプト取得に失敗しました (URL: ${url})`, error);
             this._handleApiError(error);
             return null;
+        }
+    }
+    /**
+     * Claude APIのトークン使用を記録
+     * @param tokenCount 使用されたトークン数
+     * @param modelId モデルID (例: "claude-3-opus-20240229")
+     * @param context 使用コンテキスト (オプション)
+     * @returns 記録が成功したかどうか
+     */
+    async recordTokenUsage(tokenCount, modelId, context) {
+        try {
+            return await this._retryWithExponentialBackoff(async () => {
+                const config = await this._getApiConfig();
+                // API呼び出し前にログ
+                logger_1.Logger.info(`【API連携】トークン使用履歴の記録を開始: ${tokenCount}トークン, モデル: ${modelId}`);
+                // 主要APIエンドポイント
+                const primaryEndpoint = `${this._baseUrl}/usage/claude-tokens`;
+                try {
+                    // 主要エンドポイントで記録を試みる
+                    const response = await axios_1.default.post(primaryEndpoint, {
+                        tokenCount,
+                        modelId,
+                        context: context || 'vscode-extension'
+                    }, {
+                        ...config,
+                        timeout: 15000 // 15秒タイムアウト
+                    });
+                    logger_1.Logger.info(`【API連携】トークン使用履歴の記録に成功しました: ステータス ${response.status}`);
+                    return response.status === 201 || response.status === 200;
+                }
+                catch (error) {
+                    // 主要エンドポイントが404の場合、フォールバックエンドポイントを試す
+                    if (axios_1.default.isAxiosError(error) && error.response?.status === 404) {
+                        logger_1.Logger.warn('【API連携】主要エンドポイントが見つかりません。フォールバックエンドポイントを試みます');
+                        // フォールバックエンドポイント
+                        const fallbackEndpoint = `${this._baseUrl}/tokens/usage`;
+                        const fallbackResponse = await axios_1.default.post(fallbackEndpoint, {
+                            tokenCount,
+                            modelId,
+                            context: context || 'vscode-extension'
+                        }, {
+                            ...config,
+                            timeout: 15000
+                        });
+                        logger_1.Logger.info(`【API連携】フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${fallbackResponse.status}`);
+                        return fallbackResponse.status === 201 || fallbackResponse.status === 200;
+                    }
+                    // その他のエラーは再スロー
+                    throw error;
+                }
+            }, 3, [429, 500, 502, 503, 504], 'トークン使用履歴記録');
+        }
+        catch (error) {
+            // エラーの詳細をログに記録（ユーザーには通知しない）
+            logger_1.Logger.error('【API連携】トークン使用履歴の記録に失敗しました', error);
+            // 使用履歴記録の失敗はユーザー体験に影響しないため、エラーメッセージは表示せず
+            // ただしエラーはログに残す
+            return false;
         }
     }
 }

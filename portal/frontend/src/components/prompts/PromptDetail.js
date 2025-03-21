@@ -34,17 +34,12 @@ import {
   Delete as DeleteIcon,
   ContentCopy as CopyIcon,
   History as HistoryIcon,
-  BarChart as ChartIcon,
   Description as DescriptionIcon,
   ArrowBack as ArrowBackIcon,
   MoreVert as MoreVertIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
-  BarChart, Bar
-} from 'recharts';
 import promptService from '../../services/prompt.service';
 
 // タブパネルのコンテナ
@@ -87,6 +82,21 @@ const formatDate = (dateString) => {
   });
 };
 
+// バージョン比較関数 - 2つのバージョンが同じかどうかを判定
+const isVersionSelected = (selectedVersion, version) => {
+  // MongoDB IDは_idまたはidで格納されている場合がある
+  const selectedId = selectedVersion._id || selectedVersion.id;
+  const versionId = version._id || version.id;
+  
+  // どちらかがnullやundefinedの場合
+  if (!selectedId || !versionId) {
+    return false;
+  }
+  
+  // 文字列に変換して比較
+  return String(selectedId) === String(versionId);
+};
+
 const PromptDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -94,7 +104,6 @@ const PromptDetail = () => {
   const [loading, setLoading] = useState(true);
   const [prompt, setPrompt] = useState(null);
   const [versions, setVersions] = useState([]);
-  const [usageStats, setUsageStats] = useState(null);
   const [selectedVersion, setSelectedVersion] = useState(null);
   const [error, setError] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -119,11 +128,8 @@ const PromptDetail = () => {
         
         // バージョン履歴の取得
         const versionData = await promptService.getPromptVersions(id);
-        setVersions(versionData.versions || []);
-        
-        // 使用統計の取得
-        const usageData = await promptService.getPromptUsageStats(id, { period: 'month' });
-        setUsageStats(usageData);
+        // バックエンドが直接バージョン配列を返す場合と、versions プロパティに含まれる場合の両方に対応
+        setVersions(Array.isArray(versionData) ? versionData : (versionData.versions || []));
         
         setError(null);
       } catch (err) {
@@ -212,12 +218,63 @@ const PromptDetail = () => {
 
   // バージョン表示切替
   const handleViewVersion = (version) => {
+    // バージョンを選択して内容を表示
+    if (!version) {
+      console.error('バージョンデータがありません');
+      return;
+    }
+    
+    // MongoDB IDは_idまたはidプロパティに格納されている可能性がある
+    const versionId = version._id || version.id;
+    console.log('選択されたバージョン:', versionId, version);
+    
+    // 選択されたバージョンを設定
     setSelectedVersion(version);
+    
+    // コンテンツタブに切り替え
+    setTabValue(0);
   };
 
   // 最新バージョンに戻る
   const handleBackToLatest = () => {
     setSelectedVersion(null);
+  };
+  
+  // 選択したバージョンを最新に設定
+  const handleSetAsLatest = async (version) => {
+    if (!version || !prompt) return;
+    
+    try {
+      setError(null);
+      
+      // 確認ダイアログを表示
+      const confirmResult = window.confirm(
+        `バージョン ${version.versionNumber} を最新バージョンとして設定しますか？\n` +
+        `このバージョンの内容が公式バージョンになります。`
+      );
+      
+      if (!confirmResult) return;
+      
+      // バージョンの内容でプロンプトを更新
+      const updateData = {
+        content: version.content
+      };
+      
+      // プロンプト更新APIを呼び出し
+      await promptService.updatePrompt(prompt.id || prompt._id, updateData);
+      
+      // 更新成功メッセージ
+      window.alert(`バージョン ${version.versionNumber} が最新バージョンとして設定されました。`);
+      
+      // データを再読み込み
+      const promptData = await promptService.getPromptById(id);
+      setPrompt(promptData);
+      
+    } catch (err) {
+      console.error('最新バージョン設定エラー:', err);
+      const errorMsg = err.response?.data?.message || '不明なエラー';
+      setError(`バージョンの設定に失敗しました: ${errorMsg}`);
+    }
   };
 
   // プロンプト内容のレンダリング
@@ -247,12 +304,26 @@ const PromptDetail = () => {
             severity="info" 
             sx={{ mb: 2 }}
             action={
-              <Button color="inherit" size="small" onClick={handleBackToLatest}>
-                最新バージョンに戻る
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button 
+                  color="success" 
+                  size="small" 
+                  variant="outlined"
+                  onClick={() => handleSetAsLatest(selectedVersion)}
+                >
+                  このバージョンを最新に設定
+                </Button>
+                <Button 
+                  color="inherit" 
+                  size="small" 
+                  onClick={handleBackToLatest}
+                >
+                  最新バージョンを表示
+                </Button>
+              </Box>
             }
           >
-            バージョン {selectedVersion.versionNumber} を表示しています（{formatDate(selectedVersion.createdAt)}）
+            選択中: バージョン {selectedVersion.versionNumber} （作成日: {formatDate(selectedVersion.createdAt)}）
           </Alert>
         )}
         
@@ -373,7 +444,7 @@ const PromptDetail = () => {
             <ListItem 
               alignItems="flex-start"
               sx={{ 
-                backgroundColor: selectedVersion?._id === version._id ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
+                backgroundColor: selectedVersion && isVersionSelected(selectedVersion, version) ? 'rgba(25, 118, 210, 0.08)' : 'transparent',
                 borderRadius: 1
               }}
             >
@@ -382,8 +453,12 @@ const PromptDetail = () => {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Typography variant="h6">
                       バージョン {version.versionNumber || index + 1}
-                      {index === 0 && !selectedVersion && (
-                        <Chip label="現在" size="small" color="primary" sx={{ ml: 1 }} />
+                      {selectedVersion && isVersionSelected(selectedVersion, version) ? (
+                        <Chip label="選択中" size="small" color="primary" sx={{ ml: 1 }} />
+                      ) : (
+                        index === 0 && !selectedVersion && (
+                          <Chip label="最新" size="small" color="success" sx={{ ml: 1 }} />
+                        )
                       )}
                     </Typography>
                   </Box>
@@ -403,11 +478,12 @@ const PromptDetail = () => {
                     <Box sx={{ mt: 2 }}>
                       <Button 
                         size="small" 
-                        variant={selectedVersion?._id === version._id ? "contained" : "outlined"}
+                        variant={selectedVersion && isVersionSelected(selectedVersion, version) ? "contained" : "outlined"}
                         onClick={() => handleViewVersion(version)}
                         startIcon={<DescriptionIcon />}
+                        color="primary"
                       >
-                        {selectedVersion?._id === version._id ? "表示中" : "内容を表示"}
+                        選択
                       </Button>
                     </Box>
                   </Box>
@@ -421,125 +497,7 @@ const PromptDetail = () => {
     );
   };
 
-  // 使用統計のレンダリング
-  const renderUsageStats = () => {
-    if (loading) {
-      return (
-        <Box sx={{ mt: 2 }}>
-          <Skeleton variant="rectangular" height={300} />
-          <Skeleton variant="rectangular" height={300} sx={{ mt: 3 }} />
-        </Box>
-      );
-    }
-    
-    if (!usageStats || !usageStats.data || usageStats.data.length === 0) {
-      return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
-          <Typography variant="h6" color="text.secondary">
-            使用統計データはありません
-          </Typography>
-        </Box>
-      );
-    }
-    
-    // 使用統計データの整形
-    const monthlyData = usageStats.data.map(item => ({
-      month: item.period,
-      count: item.count,
-      tokens: item.totalTokens || 0
-    }));
-    
-    // クライアント分布
-    const clientData = usageStats.clients?.map(client => ({
-      name: client.name,
-      count: client.count
-    })) || [];
-    
-    return (
-      <Grid container spacing={3}>
-        <Grid item xs={12}>
-          <Typography variant="h6" gutterBottom>
-            月別使用統計
-          </Typography>
-          <Paper elevation={0} variant="outlined" sx={{ p: 2, height: 350 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={monthlyData}
-                margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <RechartsTooltip />
-                <Legend />
-                <Line type="monotone" dataKey="count" name="使用回数" stroke="#8884d8" activeDot={{ r: 8 }} />
-                <Line type="monotone" dataKey="tokens" name="トークン数" stroke="#82ca9d" />
-              </LineChart>
-            </ResponsiveContainer>
-          </Paper>
-        </Grid>
-        
-        {clientData.length > 0 && (
-          <Grid item xs={12} md={6}>
-            <Typography variant="h6" gutterBottom>
-              クライアント別使用回数
-            </Typography>
-            <Paper elevation={0} variant="outlined" sx={{ p: 2, height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={clientData}
-                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <RechartsTooltip />
-                  <Bar dataKey="count" name="使用回数" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
-            </Paper>
-          </Grid>
-        )}
-        
-        <Grid item xs={12} md={clientData.length > 0 ? 6 : 12}>
-          <Typography variant="h6" gutterBottom>
-            使用統計サマリー
-          </Typography>
-          <Paper elevation={0} variant="outlined" sx={{ p: 2 }}>
-            <List>
-              <ListItem>
-                <ListItemText 
-                  primary="総使用回数" 
-                  secondary={usageStats.totalUsage || 0} 
-                />
-              </ListItem>
-              <Divider component="li" />
-              <ListItem>
-                <ListItemText 
-                  primary="総トークン数" 
-                  secondary={usageStats.totalTokens || 0} 
-                />
-              </ListItem>
-              <Divider component="li" />
-              <ListItem>
-                <ListItemText 
-                  primary="最初の使用" 
-                  secondary={usageStats.firstUsed ? formatDate(usageStats.firstUsed) : '情報なし'} 
-                />
-              </ListItem>
-              <Divider component="li" />
-              <ListItem>
-                <ListItemText 
-                  primary="最新の使用" 
-                  secondary={usageStats.lastUsed ? formatDate(usageStats.lastUsed) : '情報なし'} 
-                />
-              </ListItem>
-            </List>
-          </Paper>
-        </Grid>
-      </Grid>
-    );
-  };
+  // 使用統計表示は削除されました
 
   // 戻るボタン
   const handleBack = () => {
@@ -600,7 +558,6 @@ const PromptDetail = () => {
           >
             <Tab icon={<DescriptionIcon />} label="コンテンツ" {...a11yProps(0)} />
             <Tab icon={<HistoryIcon />} label="バージョン履歴" {...a11yProps(1)} />
-            <Tab icon={<ChartIcon />} label="使用統計" {...a11yProps(2)} />
           </Tabs>
           
           <TabPanel value={tabValue} index={0}>
@@ -609,10 +566,6 @@ const PromptDetail = () => {
           
           <TabPanel value={tabValue} index={1}>
             {renderVersionHistory()}
-          </TabPanel>
-          
-          <TabPanel value={tabValue} index={2}>
-            {renderUsageStats()}
           </TabPanel>
         </Paper>
         

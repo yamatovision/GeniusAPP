@@ -137,7 +137,6 @@ class ClaudeCodeLauncherService {
             terminal.show(true);
             // 最初にユーザーガイダンスを表示
             terminal.sendText('echo "\n\n*** AIが自動的に解析を開始します。自動対応と日本語指示を行います ***\n"');
-            terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
             // macOSの場合は環境変数のソースを確保（出力を非表示）
             if (process.platform === 'darwin') {
                 terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
@@ -265,17 +264,23 @@ class ClaudeCodeLauncherService {
             // アイコンURIを取得
             const platformManager = PlatformManager_1.PlatformManager.getInstance();
             const iconPath = platformManager.getResourceUri('media/icon.svg');
-            // ターミナルの作成
-            const terminal = vscode.window.createTerminal({
+            // ターミナルの作成（分割表示のオプションを指定）
+            // VSCode APIの型定義に合わせて適切なターミナルオプションを設定
+            const terminalOptions = {
                 name: options?.title || 'ClaudeCode',
                 cwd: projectPath,
                 iconPath: iconPath && typeof iconPath !== 'string' && fs.existsSync(iconPath.fsPath) ? iconPath : undefined
-            });
+            };
+            // 分割表示の場合は、適切な位置を設定
+            if (options?.splitView && options.location) {
+                // terminalOptions.location = { viewColumn: options.location }; // VSCode 1.68以降の場合
+                // 互換性のため代替方法を使用
+            }
+            const terminal = vscode.window.createTerminal(terminalOptions);
             // ターミナルの表示（true を渡してフォーカスする）
             terminal.show(true);
             // 最初にユーザーガイダンスを表示
             terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
-            terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
             // macOSの場合は環境変数のソースを確保（出力を非表示）
             if (process.platform === 'darwin') {
                 terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
@@ -334,7 +339,8 @@ class ClaudeCodeLauncherService {
             this.eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.CLAUDE_CODE_STARTED, {
                 projectPath: projectPath,
                 promptFilePath: promptFilePath,
-                additionalParams: options?.additionalParams
+                additionalParams: options?.additionalParams,
+                splitView: options?.splitView
             }, 'ClaudeCodeLauncherService');
             return true;
         }
@@ -461,7 +467,7 @@ class ClaudeCodeLauncherService {
             terminal.show(true);
             // 最初にユーザーガイダンスを表示
             terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
-            terminal.sendText('sleep 2'); // 2秒待機してメッセージを読む時間を確保
+            terminal.sendText('sleep 0.5'); // 0.5秒待機してメッセージを読む時間を確保
             // macOSの場合は環境変数のソースを確保
             if (process.platform === 'darwin') {
                 terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');

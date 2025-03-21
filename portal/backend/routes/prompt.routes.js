@@ -49,13 +49,7 @@ const checkManageAccess = authMiddleware.checkAccess({
   errorMessage: 'このプロンプトを管理する権限がありません'
 });
 
-// 統計閲覧権限チェック（所有者/管理者/プロジェクト管理者可）
-const checkStatsAccess = authMiddleware.checkAccess({
-  resourceType: 'プロンプト',
-  checkProjectAdmin: true,
-  resourceLoader: loadPrompt,
-  errorMessage: 'このプロンプトの使用統計を閲覧する権限がありません'
-});
+// 統計閲覧権限の定義は削除 - 使用統計機能は廃止済み
 
 // ====================================
 // ルート定義
@@ -100,14 +94,8 @@ router.post('/:id/versions', checkEditAccess, promptController.createPromptVersi
 // プロンプトバージョン詳細取得（閲覧権限）
 router.get('/:id/versions/:versionId', checkViewAccess, promptController.getPromptVersionById);
 
-// プロンプト使用統計取得（統計閲覧権限）
-router.get('/:id/stats', checkStatsAccess, promptController.getPromptUsageStats);
-
-// プロンプト使用記録（閲覧権限）
+// プロンプト使用記録API（閲覧権限） - 後方互換性のために維持
 router.post('/:id/usage', checkViewAccess, promptController.recordPromptUsage);
-
-// ユーザーフィードバック登録（認証のみ）
-router.post('/usage/:usageId/feedback', promptController.recordUserFeedback);
 
 // プロンプト複製（閲覧権限）
 router.post('/:id/clone', checkViewAccess, promptController.clonePrompt);

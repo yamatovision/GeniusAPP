@@ -27,6 +27,7 @@ export class DashboardPanel extends ProtectedPanel {
   private readonly _stateManager: AppGeniusStateManager;
   private readonly _eventBus: AppGeniusEventBus;
   private _disposables: vscode.Disposable[] = [];
+  private _fileWatcher?: vscode.FileSystemWatcher; // CURRENT_STATUS.md監視用
 
   // 現在の作業状態
   private _currentProjects: Project[] = [];
@@ -329,6 +330,25 @@ export class DashboardPanel extends ProtectedPanel {
         await this._refreshProjects();
       })
     );
+    
+    // CURRENT_STATUS更新イベントの処理
+    this._disposables.push(
+      this._eventBus.onEventType(AppGeniusEventType.CURRENT_STATUS_UPDATED, async (event) => {
+        Logger.info('CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始');
+        
+        // プロジェクト一覧と詳細情報を最新化
+        await this._refreshProjects();
+        
+        // アクティブなプロジェクトがあり、そのプロジェクトのファイルが更新された場合は、
+        // 明示的にウェブビューをリフレッシュする
+        if (this._activeProject && (!event.projectId || event.projectId === this._activeProject.id)) {
+          Logger.info('アクティブプロジェクトのCURRENT_STATUSが更新されたため、ウェブビューを強制更新します');
+          await this._updateWebview();
+        }
+        
+        Logger.info('CURRENT_STATUS更新に伴うダッシュボード更新完了');
+      })
+    );
   }
 
   /**
@@ -348,6 +368,11 @@ export class DashboardPanel extends ProtectedPanel {
         // 基本プロジェクト情報のみ取得して画面を更新（重い処理は避ける）
         this._currentProjects = this._projectService.getAllProjects();
         this._activeProject = this._projectService.getActiveProject();
+        
+        // プロジェクトパスが変更されたら、ファイル監視を設定
+        if (this._activeProject?.path) {
+          this._setupFileWatcher(this._activeProject.path);
+        }
         
         // 最低限のデータだけすぐに画面に表示
         await this._updateWebview();
@@ -391,6 +416,87 @@ export class DashboardPanel extends ProtectedPanel {
     }
   }
   
+  /**
+   * ファイル監視の設定
+   * docs/CURRENT_STATUS.mdファイルの変更を監視する
+   * イベントバスとの連携を強化し、独自の変更検出とリフレッシュも実施
+   */
+  private _setupFileWatcher(projectPath: string): void {
+    try {
+      // 既存のウォッチャーがあれば解放
+      if (this._fileWatcher) {
+        this._fileWatcher.dispose();
+        this._disposables = this._disposables.filter(d => d !== this._fileWatcher);
+      }
+
+      // docs ディレクトリが存在しない場合は作成
+      const docsDir = path.join(projectPath, 'docs');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      
+      // CURRENT_STATUS.md の変更を監視
+      this._fileWatcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(
+          projectPath, 
+          'docs/CURRENT_STATUS.md'
+        ),
+        false, // ファイル作成を通知
+        false, // ファイル変更を通知
+        false  // ファイル削除を通知
+      );
+      
+      // 変更を検出したときに複数回の処理を防ぐためのデバウンス実装
+      let debounceTimer: NodeJS.Timeout | null = null;
+      const debouncedRefresh = () => {
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(async () => {
+          Logger.info('CURRENT_STATUS.mdファイル変更のデバウンス処理を実行します');
+          await this._refreshProjects();
+          
+          // ウェブビューを確実に更新
+          await this._updateWebview();
+          
+          // イベントバスに通知（他のコンポーネントにも変更を伝播）
+          const eventBus = AppGeniusEventBus.getInstance();
+          eventBus.emit(
+            AppGeniusEventType.CURRENT_STATUS_UPDATED,
+            { filePath: path.join(projectPath, 'docs/CURRENT_STATUS.md'), timestamp: Date.now(), source: 'Dashboard' },
+            'DashboardPanel',
+            this._activeProject?.id
+          );
+        }, 300); // 300ms のデバウンス時間
+      };
+      
+      // ファイル変更時の処理
+      this._fileWatcher.onDidChange(() => {
+        Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (Dashboard)');
+        debouncedRefresh();
+      });
+      
+      // 新規ファイル作成時の処理
+      this._fileWatcher.onDidCreate(() => {
+        Logger.info('CURRENT_STATUS.mdファイルが新規作成されました (Dashboard)');
+        debouncedRefresh();
+      });
+      
+      // ファイル削除時の処理（必要に応じて）
+      this._fileWatcher.onDidDelete(() => {
+        Logger.info('CURRENT_STATUS.mdファイルが削除されました (Dashboard)');
+        debouncedRefresh();
+      });
+      
+      // ウォッチャーをdisposablesに追加
+      this._disposables.push(this._fileWatcher);
+      
+      Logger.info('拡張されたCURRENT_STATUS.mdファイルの監視を設定しました');
+    } catch (error) {
+      Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
+    }
+  }
+
   /**
    * プロジェクト詳細情報を非同期でバックグラウンドロード
    * UI応答性を維持するため、メインのレンダリング後に実行

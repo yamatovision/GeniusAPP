@@ -357,3 +357,63 @@ exports.getApiStatus = async (req, res) => {
     });
   }
 };
+
+/**
+ * トークン使用量を記録
+ * @route POST /api/proxy/usage/record
+ * @route POST /api/proxy/usage/me/record
+ * @route POST /api/proxy/claude/usage
+ */
+exports.recordTokenUsage = async (req, res) => {
+  try {
+    // ユーザーID（認証ミドルウェアで設定済み）
+    const userId = req.userId;
+    
+    // リクエスト本体からトークン情報を取得
+    const { tokenCount, modelId, context } = req.body;
+    
+    // 入力検証
+    if (tokenCount === undefined || modelId === undefined) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_REQUEST',
+          message: 'tokenCountとmodelIdは必須です'
+        }
+      });
+    }
+    
+    // API使用量を記録
+    await apiUsageService.recordUsage(userId, {
+      apiType: 'completions',
+      endpoint: 'token-usage',
+      inputTokens: 0,           // トークン記録自体は入力なし
+      outputTokens: 0,          // トークン記録自体は出力なし
+      totalTokens: tokenCount,  // 記録対象の総トークン数
+      success: true,
+      metadata: {
+        modelId,
+        context: context || 'vscode-extension',
+        recordedAt: new Date().toISOString(),
+        source: req.headers['user-agent'] || 'unknown'
+      }
+    });
+    
+    // 成功レスポンス
+    return res.status(200).json({
+      success: true,
+      message: 'トークン使用量が正常に記録されました',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    // エラー処理
+    console.error('トークン使用量記録エラー:', error);
+    
+    return res.status(500).json({
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'トークン使用量の記録中にエラーが発生しました',
+        details: error.message
+      }
+    });
+  }
+};

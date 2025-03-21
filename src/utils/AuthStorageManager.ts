@@ -99,23 +99,61 @@ export class AuthStorageManager {
 
   /**
    * アクセストークンの保存
+   * 有効期限のデフォルトは24時間（86400秒）
    */
   public async setAccessToken(token: string, expiryInSeconds: number = 86400): Promise<void> {
-    await this.set(this.ACCESS_TOKEN_KEY, token);
-    
-    // 有効期限を計算して保存（Unix timestamp）
-    const expiryTime = Math.floor(Date.now() / 1000) + expiryInSeconds;
-    await this.set(this.TOKEN_EXPIRY_KEY, expiryTime.toString());
-    
-    Logger.info(`AuthStorageManager: アクセストークンを保存しました (有効期限: ${new Date(expiryTime * 1000).toLocaleString()})`);
+    try {
+      // トークンを保存
+      await this.set(this.ACCESS_TOKEN_KEY, token);
+      
+      // 有効期限を計算して保存（Unix timestamp）
+      const expiryTime = Math.floor(Date.now() / 1000) + expiryInSeconds;
+      await this.set(this.TOKEN_EXPIRY_KEY, expiryTime.toString());
+      
+      // グローバル設定にも有効期限を保存（VSCode再起動時に利用）
+      // メモリ内キャッシュではなくSecretStorageに保存するため
+      try {
+        await vscode.workspace.getConfiguration().update('appgenius.global.tokenExpiry', expiryTime, vscode.ConfigurationTarget.Global);
+      } catch (configError) {
+        // 設定が登録されていない場合のエラーをログに記録
+        Logger.warn(`設定更新エラー: ${(configError as Error).message}`);
+        Logger.info('グローバル設定の更新はスキップします。メモリキャッシュを使用します');
+      }
+      
+      // 常にメモリキャッシュに保存
+      this._updateMemoryCache('tokenExpiry', expiryTime);
+      
+      Logger.info(`AuthStorageManager: アクセストークンを保存しました (有効期限: ${new Date(expiryTime * 1000).toLocaleString()})`);
+    } catch (error) {
+      Logger.error('アクセストークン保存中にエラーが発生しました', error as Error);
+      throw error;
+    }
   }
 
   /**
    * リフレッシュトークンの保存
+   * VSCode永続化ストレージと設定の両方に保存して信頼性を向上
    */
   public async setRefreshToken(token: string): Promise<void> {
-    await this.set(this.REFRESH_TOKEN_KEY, token);
-    Logger.debug('AuthStorageManager: リフレッシュトークンを保存しました');
+    try {
+      // SecretStorageに保存
+      await this.set(this.REFRESH_TOKEN_KEY, token);
+      
+      // リフレッシュトークンの有効期限は長いので、グローバル設定にも保存
+      // （VSCode再起動後のバックアップとして）
+      // 注: セキュリティ上の理由からハッシュ化してから保存することも検討
+      const globalRefreshKey = 'global.hasRefreshToken';
+      await vscode.workspace.getConfiguration('appgenius').update(
+        globalRefreshKey, 
+        true, // トークン自体ではなく存在フラグだけ保存
+        vscode.ConfigurationTarget.Global
+      );
+      
+      Logger.debug('AuthStorageManager: リフレッシュトークンを保存しました');
+    } catch (error) {
+      Logger.error('リフレッシュトークン保存中にエラーが発生しました', error as Error);
+      throw error;
+    }
   }
 
   /**
@@ -127,42 +165,249 @@ export class AuthStorageManager {
 
   /**
    * リフレッシュトークンの取得
+   * 基本的にはSecretStorageから取得するが、フラグを使って存在確認も行う
    */
   public async getRefreshToken(): Promise<string | undefined> {
-    return this.get(this.REFRESH_TOKEN_KEY);
+    try {
+      // まずSecretStorageから取得を試みる
+      const token = await this.get(this.REFRESH_TOKEN_KEY);
+      if (token) {
+        return token;
+      }
+      
+      // グローバル設定を確認
+      const globalRefreshKey = 'global.hasRefreshToken';
+      const hasRefreshToken = vscode.workspace.getConfiguration('appgenius').get<boolean>(globalRefreshKey);
+      
+      // フラグがあるのにトークンがない場合はログ記録
+      if (hasRefreshToken) {
+        Logger.warn('リフレッシュトークンフラグは存在するが、実際のトークンが見つかりません。VSCode再起動による損失の可能性があります。');
+      }
+      
+      return undefined;
+    } catch (error) {
+      Logger.error('リフレッシュトークン取得中にエラーが発生しました', error as Error);
+      return undefined;
+    }
   }
 
   /**
    * トークンの有効期限を取得
+   * 通常のストレージとグローバル設定の両方をチェック
+   * 
+   * 改善点:
+   * - 複数のストレージ間での有効期限の整合性確保
+   * - エラー処理の強化
+   * - ログ出力の詳細化
    */
   public async getTokenExpiry(): Promise<number | undefined> {
-    const expiryStr = await this.get(this.TOKEN_EXPIRY_KEY);
-    return expiryStr ? parseInt(expiryStr, 10) : undefined;
+    try {
+      // 通常のSecretStorageから取得
+      const expiryStr = await this.get(this.TOKEN_EXPIRY_KEY);
+      if (expiryStr) {
+        const expiry = parseInt(expiryStr, 10);
+        Logger.debug(`AuthStorageManager: SecretStorageからトークン有効期限を取得 (${new Date(expiry * 1000).toLocaleString()}まで)`);
+        return expiry;
+      }
+      
+      // グローバル設定から取得（VSCode再起動後のフォールバック）
+      const globalExpiry = vscode.workspace.getConfiguration().get<number>('appgenius.global.tokenExpiry');
+      
+      if (globalExpiry) {
+        Logger.info(`AuthStorageManager: グローバル設定からトークン有効期限を取得 (${new Date(globalExpiry * 1000).toLocaleString()}まで)`);
+        
+        // 現在時刻と比較して有効期限が未来の場合のみ有効と判断
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (globalExpiry > currentTime) {
+          // グローバル設定から取得できた場合、SecretStorageに同期しておく
+          await this.set(this.TOKEN_EXPIRY_KEY, globalExpiry.toString());
+          
+          // メモリキャッシュにも保存（冗長性向上）
+          this._updateMemoryCache('tokenExpiry', globalExpiry);
+          
+          return globalExpiry;
+        } else {
+          Logger.warn(`AuthStorageManager: グローバル設定のトークン有効期限が過去の日時です (${new Date(globalExpiry * 1000).toLocaleString()})`);
+        }
+      }
+      
+      // メモリキャッシュからの回復を試みる
+      const cachedExpiry = this._getFromMemoryCache('tokenExpiry');
+      if (cachedExpiry && typeof cachedExpiry === 'number') {
+        Logger.info(`AuthStorageManager: メモリキャッシュからトークン有効期限を回復 (${new Date(cachedExpiry * 1000).toLocaleString()}まで)`);
+        
+        // 現在時刻と比較して有効期限が未来の場合のみ有効と判断
+        const currentTime = Math.floor(Date.now() / 1000);
+        if (cachedExpiry > currentTime) {
+          // キャッシュから取得できた場合、各ストレージに同期
+          await this.set(this.TOKEN_EXPIRY_KEY, cachedExpiry.toString());
+          await vscode.workspace.getConfiguration().update(
+            'appgenius.global.tokenExpiry', 
+            cachedExpiry, 
+            vscode.ConfigurationTarget.Global
+          );
+          
+          return cachedExpiry;
+        }
+      }
+      
+      Logger.debug('AuthStorageManager: トークン有効期限が見つかりません');
+      return undefined;
+    } catch (error) {
+      Logger.error('AuthStorageManager: トークン有効期限の取得中にエラー', error as Error);
+      
+      // エラー発生時もメモリキャッシュから回復を試みる
+      try {
+        const cachedExpiry = this._getFromMemoryCache('tokenExpiry');
+        if (cachedExpiry && typeof cachedExpiry === 'number') {
+          Logger.info('AuthStorageManager: エラー発生後、メモリキャッシュからトークン有効期限を回復');
+          return cachedExpiry;
+        }
+      } catch (cacheError) {
+        Logger.error('AuthStorageManager: メモリキャッシュからの回復にも失敗', cacheError as Error);
+      }
+      
+      return undefined;
+    }
+  }
+  
+  // メモリキャッシュ用プライベートデータ
+  private static _memoryCache: Map<string, any> = new Map();
+  
+  /**
+   * メモリキャッシュに値を保存
+   * VSCode再起動時にはリセットされるが、ストレージアクセスエラー時のフォールバックとして使用
+   */
+  private _updateMemoryCache(key: string, value: any): void {
+    AuthStorageManager._memoryCache.set(key, value);
+  }
+  
+  /**
+   * メモリキャッシュから値を取得
+   */
+  private _getFromMemoryCache(key: string): any {
+    return AuthStorageManager._memoryCache.get(key);
+  }
+  
+  /**
+   * トークン有効期限を更新
+   * TokenManagerの新機能をサポートするための追加メソッド
+   */
+  public async updateTokenExpiry(expiryTime: number): Promise<void> {
+    try {
+      // SecretStorageに保存
+      await this.set(this.TOKEN_EXPIRY_KEY, expiryTime.toString());
+      
+      // グローバル設定にも保存
+      try {
+        await vscode.workspace.getConfiguration().update(
+          'appgenius.global.tokenExpiry', 
+          expiryTime, 
+          vscode.ConfigurationTarget.Global
+        );
+      } catch (configError) {
+        // 設定が登録されていない場合のエラーをログに記録
+        Logger.warn(`設定更新エラー: ${(configError as Error).message}`);
+        Logger.info('グローバル設定の更新はスキップします。メモリキャッシュを使用します');
+      }
+      
+      // メモリキャッシュには常に保存
+      this._updateMemoryCache('tokenExpiry', expiryTime);
+      
+      Logger.debug(`AuthStorageManager: トークン有効期限を更新しました (${new Date(expiryTime * 1000).toLocaleString()}まで)`);
+    } catch (error) {
+      Logger.error('AuthStorageManager: トークン有効期限更新エラー', error as Error);
+      throw error;
+    }
   }
 
   /**
    * ユーザーデータの保存
+   * SecretStorageとVSCodeグローバル設定の両方に保存して信頼性を向上
    */
   public async setUserData(userData: any): Promise<void> {
-    await this.set(this.USER_DATA_KEY, userData);
-    Logger.debug('AuthStorageManager: ユーザーデータを保存しました');
+    try {
+      // 完全なユーザーデータをSecretStorageに保存
+      await this.set(this.USER_DATA_KEY, userData);
+      
+      // 重要なユーザー情報をグローバル設定にも保存（VSCode再起動時用）
+      // 重要: センシティブ情報は含めないこと
+      const minimalUserData = {
+        id: userData.id,
+        name: userData.name,
+        role: userData.role,
+        lastSaved: new Date().toISOString()
+      };
+      
+      await vscode.workspace.getConfiguration('appgenius').update(
+        'global.userData', 
+        minimalUserData,
+        vscode.ConfigurationTarget.Global
+      );
+      
+      Logger.debug('AuthStorageManager: ユーザーデータを保存しました');
+    } catch (error) {
+      Logger.error('ユーザーデータ保存中にエラーが発生しました', error as Error);
+      throw error;
+    }
   }
 
   /**
    * ユーザーデータの取得
+   * SecretStorageから取得し、必要に応じてグローバル設定をフォールバックとして使用
    */
   public async getUserData<T>(): Promise<T | undefined> {
-    return this.getObject<T>(this.USER_DATA_KEY);
+    try {
+      // まずSecretStorageから取得を試みる
+      const userData = await this.getObject<T>(this.USER_DATA_KEY);
+      if (userData) {
+        return userData;
+      }
+      
+      // グローバル設定から最小限のユーザーデータを取得
+      const minimalUserData = vscode.workspace.getConfiguration('appgenius').get('global.userData');
+      if (minimalUserData) {
+        Logger.info('SecretStorageからユーザーデータを取得できませんでした。グローバル設定からの最小限データを使用します。');
+        
+        // SecretStorageに同期しておく
+        // minimalUserDataをstringに変換して保存
+        const userData = typeof minimalUserData === 'object' 
+          ? JSON.stringify(minimalUserData)
+          : String(minimalUserData);
+          
+        await this.set(this.USER_DATA_KEY, userData);
+        
+        return minimalUserData as unknown as T;
+      }
+      
+      return undefined;
+    } catch (error) {
+      Logger.error('ユーザーデータ取得中にエラーが発生しました', error as Error);
+      return undefined;
+    }
   }
 
   /**
    * 全ての認証データを削除
+   * SecretStorageとVSCodeグローバル設定の両方をクリア
    */
   public async clearAll(): Promise<void> {
-    await this.remove(this.ACCESS_TOKEN_KEY);
-    await this.remove(this.REFRESH_TOKEN_KEY);
-    await this.remove(this.TOKEN_EXPIRY_KEY);
-    await this.remove(this.USER_DATA_KEY);
-    Logger.info('AuthStorageManager: すべての認証データを削除しました');
+    try {
+      // SecretStorageのデータを削除
+      await this.remove(this.ACCESS_TOKEN_KEY);
+      await this.remove(this.REFRESH_TOKEN_KEY);
+      await this.remove(this.TOKEN_EXPIRY_KEY);
+      await this.remove(this.USER_DATA_KEY);
+      
+      // グローバル設定の認証関連データも削除
+      await vscode.workspace.getConfiguration().update('appgenius.global.tokenExpiry', undefined, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration().update('appgenius.global.hasRefreshToken', undefined, vscode.ConfigurationTarget.Global);
+      await vscode.workspace.getConfiguration().update('appgenius.global.userData', undefined, vscode.ConfigurationTarget.Global);
+      
+      Logger.info('AuthStorageManager: すべての認証データを削除しました');
+    } catch (error) {
+      Logger.error('認証データ削除中にエラーが発生しました', error as Error);
+      throw error;
+    }
   }
 }

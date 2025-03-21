@@ -191,7 +191,14 @@ class EnvironmentVariablesAssistantPanel extends ProtectedPanel_1.ProtectedPanel
      */
     _setupEventListeners() {
         try {
-            // 必要に応じて他のイベントリスナーをここに追加
+            // 環境変数の更新イベントをリッスン
+            this._disposables.push(this._eventBus.onEventType(AppGeniusEventBus_1.AppGeniusEventType.ENV_VARIABLES_UPDATED, (event) => {
+                logger_1.Logger.info('環境変数アシスタント: 環境変数の更新を検出しました', event.data);
+                // 環境変数が更新されたら、WebViewを更新
+                this._loadEnvironmentVariablesFromEnvMd().then(() => {
+                    this._updateWebview();
+                });
+            }));
             logger_1.Logger.info('環境変数アシスタント: イベントリスナーを設定しました');
         }
         catch (error) {
@@ -234,7 +241,7 @@ class EnvironmentVariablesAssistantPanel extends ProtectedPanel_1.ProtectedPanel
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource}; style-src ${webview.cspSource}; font-src ${webview.cspSource};">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; script-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource};">
   <title>環境変数アシスタント</title>
   <link href="${resetCssUri}" rel="stylesheet">
   <link href="${vscodeCssUri}" rel="stylesheet">
@@ -253,6 +260,14 @@ class EnvironmentVariablesAssistantPanel extends ProtectedPanel_1.ProtectedPanel
     </header>
     
     <div class="main-content">
+      <!-- 環境変数リスト - この要素が必要 -->
+      <div class="env-list">
+        <div id="env-loading" class="loading">
+          <div class="spinner"></div>
+          <div>環境変数を読み込み中...</div>
+        </div>
+      </div>
+      
       <div class="guide-panel">
         <div class="guide-panel-title">環境変数設定ガイド</div>
         <div class="guide-steps">
@@ -2904,6 +2919,20 @@ ${this._generateEnvironmentVariablesList('production')}
         if (!this._activeEnvFile || !this._envVariables[this._activeEnvFile]) {
             return 0;
         }
+        // env.mdから総数を取得する
+        const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
+        if (fs.existsSync(envMdPath)) {
+            try {
+                const envMdContent = fs.readFileSync(envMdPath, 'utf-8');
+                // [x]または[ ]で始まる行を数える（env.mdの全変数）
+                const totalCount = (envMdContent.match(/- \[[x ]\]/g) || []).length;
+                return totalCount;
+            }
+            catch (error) {
+                logger_1.Logger.warn('env.mdの読み込みに失敗しました', error);
+            }
+        }
+        // フォールバック
         return Object.keys(this._envVariables[this._activeEnvFile]).length;
     }
     /**
@@ -2914,6 +2943,21 @@ ${this._generateEnvironmentVariablesList('production')}
         if (!this._activeEnvFile || !this._envVariables[this._activeEnvFile]) {
             return 0;
         }
+        // env.mdでは[x]のある変数はすべて設定済みとみなす
+        // バックエンドで取得時にすでにチェックボックスが変換されている場合は、すべての変数を設定済みとする場合
+        const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
+        if (fs.existsSync(envMdPath)) {
+            try {
+                const envMdContent = fs.readFileSync(envMdPath, 'utf-8');
+                // [x]で始まる行を数える（env.mdの設定済み変数）
+                const configuredCount = (envMdContent.match(/- \[x\]/g) || []).length;
+                return configuredCount;
+            }
+            catch (error) {
+                logger_1.Logger.warn('env.mdの読み込みに失敗しました', error);
+            }
+        }
+        // 上記の方法で取得できない場合はフォールバック
         // 値が設定されている変数の数をカウント
         return Object.values(this._envVariables[this._activeEnvFile])
             .filter(value => !!value && value !== 'your-api-key' && value !== 'your-secret-key').length;

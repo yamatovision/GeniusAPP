@@ -195,7 +195,7 @@ export class FileOperationManager {
       
       // ファイルを読み込み
       const content = fs.readFileSync(filePath, 'utf8');
-      Logger.debug(`ファイルを読み込みました: ${filePath}`);
+      Logger.info(`ファイルを読み込みました: ${filePath} (サイズ: ${content.length} バイト)`);
       return content;
     } catch (error) {
       Logger.error(`ファイル読み込みエラー: ${(error as Error).message}`);

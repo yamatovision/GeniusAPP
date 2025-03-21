@@ -409,9 +409,12 @@ class ClaudeCodeIntegrationService {
      * 公開URLを指定してClaudeCodeを起動
      * @param promptUrl 公開プロンプトURL
      * @param projectPath プロジェクトパス
+     * @param additionalContent 追加コンテンツ（オプション）
+     * @param splitView 分割表示を使用するかどうか（オプション）
+     * @param location ターミナルの表示位置（オプション）
      * @returns 起動成功したかどうか
      */
-    async launchWithPublicUrl(promptUrl, projectPath, additionalContent) {
+    async launchWithPublicUrl(promptUrl, projectPath, additionalContent, splitView, location) {
         try {
             // URLからプロンプト情報を取得
             const prompt = await this._apiClient.getPromptFromPublicUrl(promptUrl);
@@ -451,10 +454,19 @@ class ClaudeCodeIntegrationService {
                     logger_1.Logger.warn('プロンプト使用履歴の記録に失敗しました', err);
                 });
             }
-            // ClaudeCodeを起動（プロンプトファイル即時削除オプション付き）
+            // 分割表示が指定されている場合はログ出力
+            if (splitView) {
+                logger_1.Logger.info(`分割表示モードでClaudeCodeを起動します: ${splitView ? 'Enabled' : 'Disabled'}`);
+                if (location) {
+                    logger_1.Logger.info(`ターミナル表示位置: ${location}`);
+                }
+            }
+            // ClaudeCodeを起動（プロンプトファイル即時削除オプションと分割表示オプション付き）
             return await this._launcher.launchClaudeCodeWithPrompt(projectPath, promptFilePath, {
                 title: `ClaudeCode - ${prompt.title}`,
-                deletePromptFile: true // セキュリティ対策としてプロンプトファイルを即時削除
+                deletePromptFile: true, // セキュリティ対策としてプロンプトファイルを即時削除
+                splitView: splitView, // 分割表示
+                location: location // 表示位置
             });
         }
         catch (error) {

@@ -43,6 +43,7 @@ const fileOperationManager_1 = require("../../utils/fileOperationManager");
 const types_1 = require("../../types");
 const ClaudeCodeLauncherService_1 = require("../../services/ClaudeCodeLauncherService");
 const ClaudeCodeIntegrationService_1 = require("../../services/ClaudeCodeIntegrationService");
+const AppGeniusEventBus_1 = require("../../services/AppGeniusEventBus");
 const ProtectedPanel_1 = require("../auth/ProtectedPanel");
 const roles_1 = require("../../core/auth/roles");
 /**
@@ -64,12 +65,13 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             ScopeManagerPanel.currentPanel._panel.reveal(column);
             // プロジェクトパスが指定されている場合は更新
             if (projectPath) {
+                logger_1.Logger.info(`既存のスコープマネージャーパネルを使用して、プロジェクトパスを更新: ${projectPath}`);
                 ScopeManagerPanel.currentPanel.setProjectPath(projectPath);
             }
             return ScopeManagerPanel.currentPanel;
         }
         // 新しいパネルを作成
-        const panel = vscode.window.createWebviewPanel(ScopeManagerPanel.viewType, 'スコープマネージャー', column || vscode.ViewColumn.One, {
+        const panel = vscode.window.createWebviewPanel(ScopeManagerPanel.viewType, 'AppGenius スコープマネージャー', column || vscode.ViewColumn.One, {
             enableScripts: true,
             retainContextWhenHidden: true,
             localResourceRoots: [
@@ -78,6 +80,7 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
                 vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons')
             ]
         });
+        logger_1.Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}`);
         ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, projectPath);
         return ScopeManagerPanel.currentPanel;
     }
@@ -106,6 +109,8 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
         this._currentScope = null;
         this._directoryStructure = '';
         this._fileWatcher = null;
+        // 開発モード管理
+        this._isPreparationMode = false; // 準備モードまたは実装モード
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._fileManager = fileOperationManager_1.FileOperationManager.getInstance();
@@ -154,6 +159,15 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
                     case 'openEnvironmentVariablesAssistant':
                         await this._handleOpenEnvironmentVariablesAssistant();
                         break;
+                    case 'openMockupGallery':
+                        await this._handleOpenMockupGallery();
+                        break;
+                    case 'openDebugDetective':
+                        await this._handleOpenDebugDetective();
+                        break;
+                    case 'openReferenceManager':
+                        await this._handleOpenReferenceManager();
+                        break;
                     case 'launchScopeCreator':
                         await this._handleLaunchScopeCreator();
                         break;
@@ -162,6 +176,12 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
                         break;
                     case 'openRequirementsVisualizer':
                         await this._handleOpenRequirementsVisualizer();
+                        break;
+                    case 'switchToImplementationMode':
+                        await this._handleSwitchToImplementationMode();
+                        break;
+                    case 'resetToPreparationMode':
+                        await this._handleResetToPreparationMode();
                         break;
                 }
             }
@@ -219,7 +239,21 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             // ファイル変更時の処理
             this._fileWatcher.onDidChange(() => {
                 logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました');
-                this._loadStatusFile();
+                logger_1.Logger.info(`ファイルパス: ${this._statusFilePath}, 存在確認: ${fs.existsSync(this._statusFilePath) ? '存在します' : '存在しません'}`);
+                // イベントバスに通知を送信 - グローバルイベントとして通知
+                const eventBus = AppGeniusEventBus_1.AppGeniusEventBus.getInstance();
+                // プロジェクトIDは現在のプロジェクトパスから抽出する
+                const projectId = this._projectPath ? path.basename(this._projectPath) : undefined;
+                eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.CURRENT_STATUS_UPDATED, { filePath: this._statusFilePath, timestamp: Date.now() }, 'ScopeManagerPanel', projectId);
+                // 実装モードの場合はリアルタイムで更新する
+                if (!this._isPreparationMode) {
+                    logger_1.Logger.info('実装モードでCURRENT_STATUSが更新されました - リアルタイム更新を行います');
+                    this._loadStatusFile();
+                }
+                else {
+                    logger_1.Logger.info('準備モードでの変更は標準の処理を実行します');
+                    this._loadStatusFile();
+                }
             });
             // 新規ファイル作成時の処理
             this._fileWatcher.onDidCreate(() => {
@@ -235,6 +269,35 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             });
             // ウォッチャーをdisposablesに追加
             this._disposables.push(this._fileWatcher);
+            // スコープ進捗のトリガーとなる重要ファイルの監視（docs/requirements.md, mockups/*.html, docs/scopes/*.md, docs/env.md）
+            // 要件定義ファイルの監視
+            const requirementsWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/requirements.md'));
+            requirementsWatcher.onDidCreate(() => {
+                logger_1.Logger.info('requirements.mdファイルが作成されました - スコープ1の完了を確認します');
+                this._checkAndUpdateScopeCompletion();
+            });
+            this._disposables.push(requirementsWatcher);
+            // モックアップディレクトリの監視
+            const mockupsWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'mockups/**/*.html'));
+            mockupsWatcher.onDidCreate(() => {
+                logger_1.Logger.info('新しいモックアップファイルが作成されました - スコープ2の完了を確認します');
+                this._checkAndUpdateScopeCompletion();
+            });
+            this._disposables.push(mockupsWatcher);
+            // スコープディレクトリの監視
+            const scopesWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/scopes/**/*.md'));
+            scopesWatcher.onDidCreate(() => {
+                logger_1.Logger.info('新しいスコープ定義ファイルが作成されました - スコープ3の完了を確認します');
+                this._checkAndUpdateScopeCompletion();
+            });
+            this._disposables.push(scopesWatcher);
+            // 環境変数ファイルの監視
+            const envWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/env.md'));
+            envWatcher.onDidCreate(() => {
+                logger_1.Logger.info('env.mdファイルが作成されました - スコープ4の完了を確認します');
+                this._checkAndUpdateScopeCompletion();
+            });
+            this._disposables.push(envWatcher);
             logger_1.Logger.info('ファイル監視を設定しました');
         }
         catch (error) {
@@ -250,12 +313,24 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
                 logger_1.Logger.warn(`ステータスファイルのパスが未設定です`);
                 return;
             }
-            // ファイルが存在しない場合、テンプレートを使用してファイルを作成するオプションを表示
+            logger_1.Logger.info(`CURRENT_STATUS.mdファイルを読み込みます。パス: ${this._statusFilePath}`);
+            // ファイルが存在しない場合、開発準備モードで表示する
             if (!fs.existsSync(this._statusFilePath)) {
-                logger_1.Logger.warn(`ステータスファイルが見つかりません: ${this._statusFilePath}`);
-                // ユーザーにテンプレートファイルを作成するか確認
-                const createTemplate = await vscode.window.showInformationMessage(`CURRENT_STATUS.mdファイルが見つかりません。テンプレートから新規作成しますか？`, { modal: true }, 'はい', 'いいえ');
-                if (createTemplate === 'はい') {
+                logger_1.Logger.info(`CURRENT_STATUS.mdファイルが見つかりません - 開発準備モードを有効化します`);
+                // 開発準備モードを有効化
+                this._isPreparationMode = true;
+                // 準備モード用のスコープを解析
+                let preparationTemplate = this._getPreparationStepsTemplate();
+                this._parseStatusFile(preparationTemplate);
+                // WebViewを更新（準備モードUI）
+                this._updateWebview();
+                return; // ここで処理を終了（ファイル読み込みは不要）
+            }
+            else {
+                // CURRENT_STATUS.mdが存在する場合は実装モードで動作
+                this._isPreparationMode = false;
+                // ユーザーに再作成の確認（開発準備フェーズに戻る場合）
+                if (await this._shouldResetToPreparationMode()) {
                     try {
                         // docsディレクトリが存在するか確認し、必要に応じて作成
                         const docsDir = path.dirname(this._statusFilePath);
@@ -263,12 +338,17 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
                             fs.mkdirSync(docsDir, { recursive: true });
                             logger_1.Logger.info(`ディレクトリを作成しました: ${docsDir}`);
                         }
-                        // テンプレートファイルを作成
-                        const template = this._getStatusFileTemplate();
+                        // 内部定義のテンプレートを使用
+                        let template = this._getPreparationStepsTemplate();
+                        logger_1.Logger.info(`内部テンプレートを使用してCURRENT_STATUSを作成します`);
                         fs.writeFileSync(this._statusFilePath, template, 'utf8');
                         logger_1.Logger.info(`CURRENT_STATUS.mdテンプレートを作成しました: ${this._statusFilePath}`);
+                        // 開発準備モードを有効化
+                        this._isPreparationMode = true;
                         // 作成したファイルを読み込み
                         let content = template;
+                        // 自動的にファイル存在に基づいてスコープ状態を更新
+                        await this._checkAndUpdateScopeCompletion();
                     }
                     catch (error) {
                         logger_1.Logger.error(`テンプレートファイルの作成に失敗しました: ${error.message}`);
@@ -287,8 +367,12 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             }
             // ファイルの内容を読み込む
             let content = await this._fileManager.readFileAsString(this._statusFilePath);
+            logger_1.Logger.info(`ファイル読み込み完了 - 内容の長さ: ${content.length}バイト`);
             // ステータスファイルからスコープ情報を解析
             this._parseStatusFile(content);
+            logger_1.Logger.info(`ステータスファイル解析完了 - スコープ数: ${this._scopes.length}`);
+            // 明示的にWebViewを更新
+            await this._updateWebview();
             // フォーマットチェックを行い、問題があればファイルに警告コメントを追加（一度だけ）
             let needsWarning = false;
             let warningMessage = '';
@@ -1062,6 +1146,175 @@ APIエンドポイントはまだ定義されていません。
         }
     }
     /**
+     * ファイルの存在に基づいてスコープの完了状態を確認し更新する
+     */
+    async _checkAndUpdateScopeCompletion() {
+        try {
+            if (!this._projectPath) {
+                logger_1.Logger.warn('プロジェクトパスが設定されていないため、スコープ完了状態の確認をスキップします');
+                return;
+            }
+            // 現在のスコープを取得
+            let content = await this._fileManager.readFileAsString(this._statusFilePath);
+            // スコープの更新が必要かどうかを追跡
+            let needsUpdate = false;
+            // スコープ1: 要件定義を作成する - docs/requirements.mdの存在を確認
+            const requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
+            const requirementsExists = fs.existsSync(requirementsPath);
+            // スコープ2: モックアップを完成させる - mockups/*.htmlファイルの存在を確認
+            const mockupsDir = path.join(this._projectPath, 'mockups');
+            let mockupsExist = false;
+            if (fs.existsSync(mockupsDir)) {
+                const mockupFiles = fs.readdirSync(mockupsDir)
+                    .filter(file => file.endsWith('.html'));
+                mockupsExist = mockupFiles.length > 0;
+            }
+            // スコープ3: モックアップを完璧にし要件定義を整える - docs/scopes/*.mdファイルの存在を確認
+            const scopesDir = path.join(this._projectPath, 'docs', 'scopes');
+            let scopesExist = false;
+            if (fs.existsSync(scopesDir)) {
+                const scopeFiles = fs.readdirSync(scopesDir)
+                    .filter(file => file.endsWith('.md'));
+                scopesExist = scopeFiles.length > 0;
+            }
+            // スコープ4: プロジェクトの計画を立てる - docs/env.mdファイルの存在を確認
+            const envPath = path.join(this._projectPath, 'docs', 'env.md');
+            const envExists = fs.existsSync(envPath);
+            // スコープ状態を更新
+            if (requirementsExists) {
+                // スコープ1を完了状態に更新
+                content = content.replace(/- \[ \] スコープ1: 要件定義を作成する \(0%\)/g, '- [x] スコープ1: 要件定義を作成する (100%)');
+                needsUpdate = true;
+                logger_1.Logger.info('スコープ1（要件定義）が完了しています - ステータスを更新します');
+            }
+            if (mockupsExist) {
+                // スコープ2を完了状態に更新
+                content = content.replace(/- \[ \] スコープ2: モックアップを完成させる \(0%\)/g, '- [x] スコープ2: モックアップを完成させる (100%)');
+                needsUpdate = true;
+                logger_1.Logger.info('スコープ2（モックアップ）が完了しています - ステータスを更新します');
+            }
+            if (scopesExist) {
+                // スコープ3を完了状態に更新
+                content = content.replace(/- \[ \] スコープ3: モックアップを完璧にし要件定義を整える \(0%\)/g, '- [x] スコープ3: モックアップを完璧にし要件定義を整える (100%)');
+                needsUpdate = true;
+                logger_1.Logger.info('スコープ3（詳細要件定義）が完了しています - ステータスを更新します');
+            }
+            if (envExists) {
+                // スコープ4を完了状態に更新
+                content = content.replace(/- \[ \] スコープ4: プロジェクトの計画を立てる \(0%\)/g, '- [x] スコープ4: プロジェクトの計画を立てる (100%)');
+                needsUpdate = true;
+                logger_1.Logger.info('スコープ4（プロジェクト計画）が完了しています - ステータスを更新します');
+                // スコープ4が完了した場合、スコープ5を進行中状態に更新
+                content = content.replace(/- \[ \] スコープ5: 環境変数を設定する \(0%\)/g, '- [ ] スコープ5: 環境変数を設定する (10%)');
+                // スコープマネージャーが本格的な実装フェーズに移行する準備ができていることを示す
+                if (requirementsExists && mockupsExist && scopesExist) {
+                    logger_1.Logger.info('すべての初期フェーズが完了しました - CURRENT_STATUSを更新して実装フェーズに移行します');
+                    // このタイミングでCURRENT_STATUSファイルを完全に更新（実装フェーズ用の内容に変更）
+                    // このロジックは別のメソッドに分けるか、または特別な処理としてフラグを立てるなどの対応が必要かもしれません
+                }
+            }
+            // 更新が必要な場合はファイルを書き込み
+            if (needsUpdate) {
+                await fs.promises.writeFile(this._statusFilePath, content, 'utf8');
+                logger_1.Logger.info('ファイル存在チェックに基づいてCURRENT_STATUS.mdを更新しました');
+                // 更新後のファイルを再読み込み
+                await this._parseStatusFile(content);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('スコープ完了状態の確認中にエラーが発生しました', error);
+        }
+    }
+    /**
+     * 開発準備ステップのテンプレートを取得
+     * 開発の初期段階で表示するCURRENT_STATUSの内容
+     */
+    _getPreparationStepsTemplate() {
+        const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+        return `# プロジェクト開発 - 準備フェーズ (${today}更新)
+
+## 全体進捗
+- 要件定義: 未完了
+- モックアップ: 未完了
+- スコープ計画: 未完了
+- 環境変数設定: 未設定
+- 実装: 未開始
+- テスト: 未開始
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+- [ ] スコープ1: 要件定義を作成する (0%)
+  - 説明: 要件定義ビジュアライザーに行って要件定義書を作成する
+  - 優先度: 高
+  - 関連ファイル: docs/requirements.md
+- [ ] スコープ2: モックアップを完成させる (0%)
+  - 説明: 要件定義ビジュアライザーでモックアップを作成する
+  - 優先度: 高
+  - 関連ファイル: mockups/*.html
+- [ ] スコープ3: モックアップを完璧にし要件定義を整える (0%)
+  - 説明: モックアップギャラリーでモックアップをブラッシュアップし各ページの要件定義を完成させる
+  - 優先度: 高
+  - 関連ファイル: docs/scopes/*.md
+- [ ] スコープ4: プロジェクトの計画を立てる (0%)
+  - 説明: スコープマネージャーで新規スコープを作成し、プロジェクト計画を立てる
+  - 優先度: 高
+  - 関連ファイル: docs/env.md
+- [ ] スコープ5: 環境変数を設定する (0%)
+  - 説明: 環境変数設定アシスタントで環境変数をセットしCI/CDパイプラインを作成する
+  - 優先度: 高
+  - 関連ファイル: .env, .github/workflows/*.yml
+- [ ] スコープ6: スコープマネージャーの計画に沿ってプロジェクトを完成させる (0%)
+  - 説明: スコープマネージャーの実装計画に沿って開発を進める
+  - 優先度: 高
+  - 関連ファイル: src/**/*.*
+
+## 最終的なディレクトリ構造(予測)
+\`\`\`
+project-root/
+└── [ディレクトリ構造はスコープ4の完了後に更新されます]
+\`\`\`
+
+## 現在のディレクトリ構造
+\`\`\`
+project-root/
+└── [現在の実際のディレクトリ構造]
+\`\`\`
+
+## 開発フェーズのガイド
+1. まず要件定義を作成してください（スコープ1）
+2. 次にモックアップを作成してください（スコープ2）
+3. モックアップを完璧にして詳細な要件定義を作成してください（スコープ3）
+4. プロジェクト計画を立て、実装スコープを定義してください（スコープ4）
+5. 環境変数を設定し、開発環境を整えてください（スコープ5）
+6. 定義されたスコープに沿って実装を進めてください（スコープ6）
+
+## スコープ1: 要件定義を作成する
+- [ ] docs/requirements.md
+
+## スコープ2: モックアップを完成させる
+- [ ] mockups/*.html
+
+## スコープ3: モックアップを完璧にし要件定義を整える
+- [ ] docs/scopes/*.md
+
+## スコープ4: プロジェクトの計画を立てる
+- [ ] docs/env.md
+
+## スコープ5: 環境変数を設定する
+- [ ] .env
+- [ ] .github/workflows/*.yml
+
+## スコープ6: スコープマネージャーの計画に沿ってプロジェクトを完成させる
+- [ ] src/**/*.*`;
+    }
+    /**
      * 初期化処理
      */
     async _handleInitialize() {
@@ -1078,6 +1331,8 @@ APIエンドポイントはまだ定義されていません。
             }
             // ステータスファイルを読み込む
             await this._loadStatusFile();
+            // ファイル存在チェックによるスコープ状態の更新
+            await this._checkAndUpdateScopeCompletion();
             // WebViewを更新
             this._updateWebview();
         }
@@ -1176,8 +1431,13 @@ APIエンドポイントはまだ定義されていません。
             if (!this._projectPath) {
                 throw new Error('プロジェクトパスが設定されていません');
             }
-            // 中央ポータルURL
-            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704';
+            // 中央ポータルURL 
+            // 開発準備モードではスコープマネージャー、実装モードではプロジェクト分析アシスタントを使用
+            const portalUrl = this._isPreparationMode
+                ? 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704' // スコープマネージャー
+                : 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6'; // プロジェクト分析アシスタント
+            // ログにモードと使用プロンプトを記録
+            logger_1.Logger.info(`現在のモード: ${this._isPreparationMode ? '開発準備モード' : '実装モード'}, 使用プロンプト: ${portalUrl}`);
             // ステータスファイルの内容を追加コンテンツとして渡す
             let additionalContent = '';
             const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
@@ -1249,8 +1509,8 @@ APIエンドポイントはまだ定義されていません。
             if (!this._projectPath) {
                 throw new Error('プロジェクトパスが設定されていません');
             }
-            // 中央ポータルURL
-            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
+            // 中央ポータルURL - プロジェクト分析アシスタント
+            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6';
             // ステータスファイルの内容を追加コンテンツとして渡す
             let additionalContent = '';
             const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
@@ -1267,13 +1527,13 @@ APIエンドポイントはまだ定義されていません。
             try {
                 // 一時ファイルにも保存（デバッグ用・参照用）
                 const tempDir = os.tmpdir();
-                const analysisFilePath = path.join(tempDir, `implementer_content_${Date.now()}.md`);
+                const analysisFilePath = path.join(tempDir, `analyzer_content_${Date.now()}.md`);
                 fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
-                logger_1.Logger.info(`実装アシスタント用の分析ファイルを作成しました: ${analysisFilePath}`);
+                logger_1.Logger.info(`プロジェクト分析アシスタント用の分析ファイルを作成しました: ${analysisFilePath}`);
                 // 公開URLから起動（追加情報も渡す）
                 logger_1.Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
                 await integrationService.launchWithPublicUrl(portalUrl, this._projectPath, additionalContent);
-                vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました。');
+                vscode.window.showInformationMessage('開発案件追加のためのプロジェクト分析アシスタントを起動しました。');
             }
             catch (error) {
                 // URL起動に失敗した場合、ローカルファイルにフォールバック
@@ -1332,17 +1592,179 @@ APIエンドポイントはまだ定義されていません。
         }
     }
     /**
-     * 要件定義ビジュアライザーを開く
+     * 実装モードに切り替え、CURRENT_STATUSを作成
+     */
+    async _handleSwitchToImplementationMode() {
+        try {
+            // 既に実装モードの場合は何もしない
+            if (!this._isPreparationMode) {
+                vscode.window.showInformationMessage('すでに実装モードです');
+                return;
+            }
+            // 正式なCURRENT_STATUSファイルを作成するか確認
+            const confirm = await vscode.window.showInformationMessage('実装フェーズに移行し、CURRENT_STATUS.mdを作成しますか？これにより開発準備フェーズが完了し、実装フェーズに進みます。', { modal: true }, 'はい', 'いいえ');
+            if (confirm !== 'はい') {
+                return;
+            }
+            // ユーザーに実装フェーズのCURRENT_STATUSの初期内容を入力させるか確認
+            const useTemplate = await vscode.window.showQuickPick(['新規作成', '準備フェーズの内容を保持'], {
+                placeHolder: 'CURRENT_STATUSの初期化方法を選択してください',
+                canPickMany: false
+            });
+            let initialContent = '';
+            if (useTemplate === '準備フェーズの内容を保持') {
+                // 準備フェーズのテンプレートをベースに、進捗情報を維持した状態でCURRENT_STATUSを作成
+                initialContent = this._getPreparationStepsTemplate();
+                // [スコープを作成してください] 部分を [実装フェーズに移行しました] に変更
+                initialContent = initialContent.replace('# プロジェクト開発 - 準備フェーズ', '# プロジェクト開発 - 実装フェーズ');
+            }
+            else {
+                // 実装フェーズ用の新しいテンプレートでCURRENT_STATUSを作成
+                initialContent = `# プロジェクト開発 - 実装フェーズ (${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)
+
+## 全体進捗
+- 完成予定ファイル数: 0
+- 作成済みファイル数: 0
+- 進捗率: 0%
+- 最終更新日: ${new Date().toISOString().split('T')[0].replace(/-/g, '/')}
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+（スコープを追加するには「新規スコープ作成」ボタンを使用してください）
+
+## 最終的なディレクトリ構造
+\`\`\`
+project-root/
+└── [ディレクトリ構造]
+\`\`\`
+
+## 現在のディレクトリ構造
+\`\`\`
+project-root/
+└── [ディレクトリ構造]
+\`\`\`
+`;
+            }
+            // docsディレクトリが存在するか確認し、必要に応じて作成
+            const docsDir = path.dirname(this._statusFilePath);
+            if (!fs.existsSync(docsDir)) {
+                fs.mkdirSync(docsDir, { recursive: true });
+                logger_1.Logger.info(`ディレクトリを作成しました: ${docsDir}`);
+            }
+            // CURRENT_STATUSファイルを作成
+            fs.writeFileSync(this._statusFilePath, initialContent, 'utf8');
+            logger_1.Logger.info(`実装フェーズ用のCURRENT_STATUS.mdを作成しました: ${this._statusFilePath}`);
+            // モードを実装モードに変更
+            this._isPreparationMode = false;
+            // ファイルを読み込み直して表示を更新
+            await this._loadStatusFile();
+            // 通知
+            vscode.window.showInformationMessage('実装フェーズに移行しました。CURRENT_STATUS.mdが作成されました。');
+        }
+        catch (error) {
+            logger_1.Logger.error('実装モードへの切り替え中にエラーが発生しました', error);
+            await this._showError(`実装モードへの切り替えに失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * 開発準備モードに戻す
+     */
+    async _handleResetToPreparationMode() {
+        try {
+            // 既に準備モードの場合は何もしない
+            if (this._isPreparationMode) {
+                vscode.window.showInformationMessage('既に開発準備モードです');
+                return;
+            }
+            // 確認
+            const confirm = await vscode.window.showInformationMessage('開発準備モードに戻しますか？現在のCURRENT_STATUS.mdは上書きされます。', { modal: true }, 'はい', 'いいえ');
+            if (confirm !== 'はい') {
+                return;
+            }
+            // 準備モードのテンプレートを使用
+            const template = this._getPreparationStepsTemplate();
+            // docsディレクトリが存在するか確認し、必要に応じて作成
+            const docsDir = path.dirname(this._statusFilePath);
+            if (!fs.existsSync(docsDir)) {
+                fs.mkdirSync(docsDir, { recursive: true });
+                logger_1.Logger.info(`ディレクトリを作成しました: ${docsDir}`);
+            }
+            // CURRENT_STATUSファイルを上書き
+            fs.writeFileSync(this._statusFilePath, template, 'utf8');
+            logger_1.Logger.info(`開発準備モードのCURRENT_STATUS.mdを作成しました: ${this._statusFilePath}`);
+            // モードを準備モードに変更
+            this._isPreparationMode = true;
+            // ファイルを読み込み直して表示を更新
+            await this._loadStatusFile();
+            // 通知
+            vscode.window.showInformationMessage('開発準備モードに戻しました。CURRENT_STATUS.mdが更新されました。');
+        }
+        catch (error) {
+            logger_1.Logger.error('開発準備モードへの切り替え中にエラーが発生しました', error);
+            await this._showError(`開発準備モードへの切り替えに失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * 要件定義エディタを開く（シンプルチャット）
      */
     async _handleOpenRequirementsVisualizer() {
         try {
-            // 要件定義ビジュアライザーを開くコマンドを実行
-            await vscode.commands.executeCommand('appgenius-ai.openRequirementsVisualizer', this._projectPath);
-            logger_1.Logger.info('要件定義ビジュアライザーを開きました');
+            // シンプルチャット（要件定義エディタ）を開くコマンドを実行
+            await vscode.commands.executeCommand('appgenius-ai.openSimpleChat', this._projectPath);
+            logger_1.Logger.info('要件定義エディタを開きました');
         }
         catch (error) {
-            logger_1.Logger.error('要件定義ビジュアライザーの起動に失敗しました', error);
-            await this._showError(`要件定義ビジュアライザーの起動に失敗しました: ${error.message}`);
+            logger_1.Logger.error('要件定義エディタの起動に失敗しました', error);
+            await this._showError(`要件定義エディタの起動に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * モックアップギャラリーを開く
+     */
+    async _handleOpenMockupGallery() {
+        try {
+            // モックアップギャラリーを開くコマンドを実行
+            await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
+            logger_1.Logger.info('モックアップギャラリーを開きました');
+        }
+        catch (error) {
+            logger_1.Logger.error('モックアップギャラリーの起動に失敗しました', error);
+            await this._showError(`モックアップギャラリーの起動に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * デバッグ探偵を開く
+     */
+    async _handleOpenDebugDetective() {
+        try {
+            // デバッグ探偵を開くコマンドを実行
+            await vscode.commands.executeCommand('appgenius-ai.openDebugDetective', this._projectPath);
+            logger_1.Logger.info('デバッグ探偵を開きました');
+        }
+        catch (error) {
+            logger_1.Logger.error('デバッグ探偵の起動に失敗しました', error);
+            await this._showError(`デバッグ探偵の起動に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * リファレンスマネージャーを開く
+     */
+    async _handleOpenReferenceManager() {
+        try {
+            // リファレンスマネージャーを開くコマンドを実行
+            await vscode.commands.executeCommand('appgenius-ai.openReferenceManager', this._projectPath);
+            logger_1.Logger.info('リファレンスマネージャーを開きました');
+        }
+        catch (error) {
+            logger_1.Logger.error('リファレンスマネージャーの起動に失敗しました', error);
+            await this._showError(`リファレンスマネージャーの起動に失敗しました: ${error.message}`);
         }
     }
     async _handleStartImplementation() {
@@ -1517,6 +1939,23 @@ APIエンドポイントはまだ定義されていません。
         catch (error) {
             logger_1.Logger.error('スコープ編集中にエラーが発生しました', error);
             await this._showError(`スコープの編集に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * 開発準備モードにリセットすべきかユーザーに確認
+     * ファイルが存在するがモードをリセットして開発準備に戻りたい場合に使用
+     *
+     * 注：確認ダイアログは現在無効化されています
+     */
+    async _shouldResetToPreparationMode() {
+        try {
+            // 常にfalseを返して確認ダイアログを表示せず、
+            // 既存のCURRENT_STATUS.mdを上書きしないようにする
+            return false;
+        }
+        catch (error) {
+            logger_1.Logger.error('開発準備モードの確認中にエラーが発生しました', error);
+            return false;
         }
     }
     /**
@@ -1836,20 +2275,27 @@ APIエンドポイントはまだ定義されていません。
             }, 0);
             const totalProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
             // WebViewにデータを送信
-            await this._panel.webview.postMessage({
+            logger_1.Logger.info(`WebViewに状態更新を送信します - スコープ数: ${this._scopes.length}, 実装フェーズ: ${!this._isPreparationMode}`);
+            // メッセージオブジェクトを作成（デバッグ用に変数に格納）
+            const message = {
                 command: 'updateState',
                 scopes: this._scopes,
                 selectedScopeIndex: this._selectedScopeIndex,
                 selectedScope,
                 directoryStructure: this._directoryStructure,
                 projectPath: this._projectPath,
+                isPreparationMode: this._isPreparationMode, // 明示的に追加して確実に送信
                 totalProgress: totalProgress,
                 projectStats: {
                     totalFiles,
                     completedFiles,
                     totalProgress
                 }
-            });
+            };
+            // 実際にメッセージを送信
+            logger_1.Logger.info(`WebView更新メッセージ送信: ${JSON.stringify(message, (key, value) => key === 'scopes' || key === 'selectedScope' || key === 'directoryStructure'
+                ? '[省略]' : value)}`);
+            await this._panel.webview.postMessage(message);
         }
         catch (error) {
             logger_1.Logger.error('WebViewの状態更新中にエラーが発生しました', error);
@@ -1876,7 +2322,7 @@ APIエンドポイントはまだ定義されていません。
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>スコープマネージャー</title>
+  <title>AppGenius ダッシュボード</title>
   <link href="${styleResetUri}" rel="stylesheet">
   <link href="${styleVSCodeUri}" rel="stylesheet">
   <link href="${designSystemCssUri}" rel="stylesheet">
@@ -2319,6 +2765,38 @@ APIエンドポイントはまだ定義されていません。
       color: #bbdefb;
     }
     
+    /* 開発準備モード用のスタイル */
+    .preparation-step-list {
+      margin-top: 20px;
+    }
+    
+    .preparation-step {
+      margin-bottom: 25px;
+      padding: 15px;
+      border-radius: 8px;
+      background-color: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border);
+    }
+    
+    .preparation-step h4 {
+      margin-top: 0;
+      margin-bottom: 10px;
+      font-size: 1.1rem;
+      color: var(--vscode-button-foreground);
+      background-color: var(--vscode-button-background);
+      padding: 8px 12px;
+      border-radius: 4px;
+    }
+    
+    .preparation-step p {
+      margin-bottom: 15px;
+    }
+    
+    .preparation-step button {
+      display: inline-block;
+      margin-top: 10px;
+    }
+    
     /* ダイアログスタイル */
     .dialog-overlay {
       position: fixed;
@@ -2402,23 +2880,89 @@ APIエンドポイントはまだ定義されていません。
       <!-- サイドバー -->
       <div class="sidebar">
         <div class="sidebar-header">
-          <h2>実装スコープ</h2>
+          <h2 id="panel-header-title">プロジェクトスコープ</h2>
           <div class="project-buttons">
             <button id="add-scope-button">
               <span class="material-icons">add</span> 新規作成
             </button>
             <button id="create-scope-button">
-              <span class="material-icons">create_new_folder</span> AI作成
+              <span class="material-icons">auto_awesome</span> <span id="ai-button-text">実装計画を立てる</span>
             </button>
           </div>
         </div>
         
-        <div id="scope-list" class="scope-list">
-          <!-- スコープリストがここに動的に生成されます -->
-          <div class="scope-item">
-            <h3>スコープを読み込んでいます...</h3>
-            <div class="scope-progress">
-              <div class="scope-progress-bar status-in-progress" style="width: 50%;"></div>
+        <!-- 開発準備モード用のビュー -->
+        <div id="preparation-mode-view" style="display: none;">
+          <div class="preparation-step-list">
+            <h3>開発準備フェーズ</h3>
+            <p>AppGeniusプロジェクトを成功させるために、以下のステップに沿って開発準備を進めてください。</p>
+            
+            <div class="preparation-step">
+              <h4>ステップ1: 要件定義を作成する</h4>
+              <p>要件定義ビジュアライザーを使って、プロジェクトの要件定義を行いましょう。</p>
+              <button id="requirements-button" class="card-button">
+                <span class="material-icons">description</span> 要件定義エディタを開く
+              </button>
+            </div>
+            
+            <div class="preparation-step">
+              <h4>ステップ2: モックアップを作成する</h4>
+              <p>要件定義に基づいて、アプリケーションのモックアップを作成しましょう。</p>
+              <button id="mockup-gallery-button" class="card-button">
+                <span class="material-icons">image</span> モックアップギャラリーを開く
+              </button>
+            </div>
+            
+            <div class="preparation-step">
+              <h4>ステップ3: 詳細要件定義を整える</h4>
+              <p>モックアップに基づいて、具体的な要件定義を整えましょう。</p>
+              <button id="requirements-button" class="card-button">
+                <span class="material-icons">article</span> 要件定義エディタを開く
+              </button>
+            </div>
+            
+            <div class="preparation-step">
+              <h4>ステップ4: プロジェクト計画を立てる</h4>
+              <p>実装に向けたプロジェクト計画を立てましょう。</p>
+              <button id="create-scope-button-alt" class="card-button">
+                <span class="material-icons">auto_awesome</span> <span id="ai-button-text-alt">実装計画を立てる</span>
+              </button>
+              <script>
+                // 開発準備フェーズのAIボタンのイベントハンドラー
+                document.getElementById('create-scope-button-alt').addEventListener('click', () => {
+                  const vscode = acquireVsCodeApi();
+                  vscode.postMessage({ command: 'launchScopeCreator' });
+                });
+              </script>
+            </div>
+            
+            <div class="preparation-step">
+              <h4>ステップ5: 環境変数を設定する</h4>
+              <p>実装に必要な環境変数を設定しましょう。</p>
+              <button id="env-vars-button" class="card-button">
+                <span class="material-icons">settings</span> 環境変数アシスタントを開く
+              </button>
+            </div>
+            
+            <div class="preparation-step">
+              <h4>実装フェーズへ移行</h4>
+              <p>準備が整ったら、実装フェーズに移行しましょう。</p>
+              <button id="switch-to-implementation-button" class="card-button">
+                <span class="material-icons">arrow_forward</span> 実装フェーズに移行
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        <!-- 実装モード用のスコープリスト（通常のビュー） -->
+        <div id="scope-list-container">
+          <div id="scope-list" class="scope-list">
+            <!-- スコープリストがここに動的に生成されます -->
+            <div class="scope-item">
+              <h3>スコープを読み込んでいます...</h3>
+              <div class="scope-progress">
+                <div class="scope-progress-bar status-in-progress" style="width: 50%;"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -2430,10 +2974,6 @@ APIエンドポイントはまだ定義されていません。
         <div class="project-info">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <h2><span class="material-icons">folder</span> <span id="project-title">プロジェクト</span></h2>
-            <button id="theme-toggle" class="card-button" style="margin-left: 10px;">
-              <span class="material-icons theme-icon">dark_mode</span>
-              <span class="theme-text">ダークモード</span>
-            </button>
             <div class="overall-progress">
               <div style="font-size: 0.9rem; margin-bottom: 4px; text-align: right;">全体進捗</div>
               <div style="display: flex; align-items: center; gap: 10px;">
@@ -2511,20 +3051,70 @@ APIエンドポイントはまだ定義されていません。
           
           <!-- 右側のスコープ関連情報 -->
           <div class="scope-info-blocks">
-            <!-- 環境変数設定 -->
-            <div class="card env-vars">
+            <!-- 要件定義エディタ -->
+            <div class="card requirements">
               <div class="card-header">
-                <span class="material-icons">key</span>
-                <h3>環境変数</h3>
+                <span class="material-icons">description</span>
+                <h3>要件定義エディタ</h3>
               </div>
               
               <div class="card-content">
-                <p>環境変数の設定をサポートします</p>
+                <p>アプリの目的と機能を明確にします</p>
+                
+                <ul class="item-list">
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> ユーザーストーリー</li>
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> 機能要件</li>
+                  <li><span style="color: var(--vscode-charts-blue);">⏳</span> 非機能要件</li>
+                  <li><span style="color: var(--vscode-charts-yellow);">⭕</span> 優先順位設定</li>
+                </ul>
+              </div>
+              
+              <div class="card-footer">
+                <button id="requirements-button" class="card-button">
+                  <span class="material-icons">edit</span> 要件を編集
+                </button>
+              </div>
+            </div>
+            
+            <!-- モックアップギャラリー -->
+            <div class="card directory">
+              <div class="card-header">
+                <span class="material-icons">image</span>
+                <h3>モックアップギャラリー</h3>
+              </div>
+              
+              <div class="card-content">
+                <p>画面デザインのイメージを作成・編集</p>
+                
+                <ul class="item-list">
+                  <li><span>🖼️</span> ログイン画面</li>
+                  <li><span>🖼️</span> ダッシュボード</li>
+                  <li><span>🖼️</span> ユーザープロフィール</li>
+                </ul>
+              </div>
+              
+              <div class="card-footer">
+                <button id="mockup-gallery-button" class="card-button">
+                  <span class="material-icons">collections</span> モックアップを表示
+                </button>
+              </div>
+            </div>
+            
+            <!-- 環境変数アシスタント -->
+            <div class="card env-vars">
+              <div class="card-header">
+                <span class="material-icons">key</span>
+                <h3>環境変数アシスタント</h3>
+              </div>
+              
+              <div class="card-content">
+                <p>環境変数の設定をサポート</p>
                 
                 <ul class="item-list">
                   <li><span style="color: var(--vscode-charts-green);">✅</span> API認証キー</li>
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> データベース設定</li>
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> データベース接続</li>
                   <li><span style="color: var(--vscode-charts-red);">⚠️</span> サーバー設定</li>
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> OAuth認証</li>
                 </ul>
               </div>
               
@@ -2535,77 +3125,51 @@ APIエンドポイントはまだ定義されていません。
               </div>
             </div>
             
-            <!-- ディレクトリ構造 -->
-            <div class="card directory">
-              <div class="card-header">
-                <span class="material-icons">folder_open</span>
-                <h3>ディレクトリ構造</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>プロジェクトのファイル構成を表示します</p>
-                
-                <div style="font-family: monospace; font-size: 0.9em; margin-top: 10px; max-height: 100px; overflow-y: auto;">
-                  <pre style="margin: 0; white-space: pre-wrap;">project/
-├── src/
-│   ├── components/
-│   ├── utils/
-│   └── index.js
-└── docs/</pre>
-                </div>
-              </div>
-              
-              <div class="card-footer">
-                <button id="directory-structure-button" class="card-button">
-                  <span class="material-icons">folder</span> 詳細を表示
-                </button>
-              </div>
-            </div>
-            
-            <!-- 要件定義 -->
-            <div class="card requirements">
-              <div class="card-header">
-                <span class="material-icons">description</span>
-                <h3>要件定義</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>アプリの目的と機能の明確化</p>
-                
-                <ul class="item-list">
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> ログイン/認証</li>
-                  <li><span style="color: var(--vscode-charts-blue);">⏳</span> データ表示</li>
-                  <li><span style="color: var(--vscode-charts-yellow);">⭕</span> 設定画面</li>
-                </ul>
-              </div>
-              
-              <div class="card-footer">
-                <button id="requirements-button" class="card-button">
-                  <span class="material-icons">edit</span> 要件を確認
-                </button>
-              </div>
-            </div>
-            
-            <!-- 実装ツール -->
+            <!-- デバッグ探偵 -->
             <div class="card tools">
               <div class="card-header">
-                <span class="material-icons">build</span>
-                <h3>実装ツール</h3>
+                <span class="material-icons">bug_report</span>
+                <h3>デバッグ探偵</h3>
               </div>
               
               <div class="card-content">
-                <p>AIによる実装アシスタントを起動</p>
+                <p>エラーを検出し解決します</p>
                 
                 <ul class="item-list">
-                  <li><span class="material-icons" style="font-size: 18px;">construction</span> 実装アシスタント</li>
-                  <li><span class="material-icons" style="font-size: 18px;">psychology</span> スコープマネージャー</li>
-                  <li><span class="material-icons" style="font-size: 18px;">bug_report</span> デバッグ探偵</li>
+                  <li><span style="color: var(--vscode-charts-red);">🐞</span> レンダリングエラー</li>
+                  <li><span style="color: var(--vscode-charts-green);">✅</span> API接続問題</li>
+                  <li><span style="color: var(--vscode-charts-blue);">🔄</span> ステート管理</li>
                 </ul>
               </div>
               
               <div class="card-footer">
-                <button id="launch-implementation-assistant" class="card-button">
-                  <span class="material-icons">play_arrow</span> AIを起動
+                <button id="debug-detective-button" class="card-button">
+                  <span class="material-icons">search</span> デバッグを開始
+                </button>
+              </div>
+            </div>
+            
+            <!-- リファレンスマネージャー -->
+            <div class="card reference">
+              <div class="card-header">
+                <span class="material-icons">menu_book</span>
+                <h3>リファレンスマネージャー</h3>
+              </div>
+              
+              <div class="card-content">
+                <p>参考資料の管理を行います</p>
+                
+                <ul class="item-list">
+                  <li><span style="color: var(--vscode-charts-green);">📑</span> コード例</li>
+                  <li><span style="color: var(--vscode-charts-green);">📑</span> APIドキュメント</li>
+                  <li><span style="color: var(--vscode-charts-green);">📑</span> 設計資料</li>
+                  <li><span style="color: var(--vscode-charts-yellow);">📑</span> ガイドライン</li>
+                </ul>
+              </div>
+              
+              <div class="card-footer">
+                <button id="reference-manager-button" class="card-button">
+                  <span class="material-icons">bookmark</span> リファレンスを管理
                 </button>
               </div>
             </div>
@@ -2624,6 +3188,13 @@ APIエンドポイントはまだ定義されていません。
         <button id="directory-close" class="card-button">閉じる</button>
       </div>
     </div>
+  </div>
+  
+  <!-- モード切替ボタンを追加 -->
+  <div style="position: fixed; bottom: 20px; right: 20px; z-index: 900;">
+    <button id="reset-to-preparation-button" class="card-button" style="display: none;">
+      <span class="material-icons">settings_backup_restore</span> 開発準備モードに戻る
+    </button>
   </div>
   
   <script src="${scopeManagerJsUri}"></script>
