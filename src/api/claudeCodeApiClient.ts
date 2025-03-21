@@ -345,102 +345,171 @@ export class ClaudeCodeApiClient {
    */
   public async recordTokenUsage(tokenCount: number, modelId: string, context?: string): Promise<boolean> {
     try {
+      // 401エラーの場合は、即座にトークンリフレッシュを実行
+      let hasRefreshedToken = false;
       return await this._retryWithExponentialBackoff(async () => {
-        const config = await this._getApiConfig();
-        
-        // API呼び出し前にログ
-        Logger.info(`【API連携】トークン使用履歴の記録を開始: ${tokenCount}トークン, モデル: ${modelId}`);
-        
-        // 主要APIエンドポイント - proxy/usageを使用
-        const primaryEndpoint = `${this._baseUrl}/proxy/usage/record`;
-        
         try {
-          // 主要エンドポイントで記録を試みる
-          const response = await axios.post(
-            primaryEndpoint,
-            {
-              tokenCount,
-              modelId,
-              context: context || 'vscode-extension'
-            },
-            {
-              ...config,
-              timeout: 20000 // 20秒タイムアウト（増加）
-            }
-          );
-          
-          Logger.info(`【API連携】トークン使用履歴の記録に成功しました: ステータス ${response.status}`);
-          return response.status === 201 || response.status === 200;
-        } catch (error) {
-          // 主要エンドポイントが404の場合、フォールバックエンドポイントを試す
-          if (axios.isAxiosError(error) && error.response?.status === 404) {
-            Logger.warn('【API連携】主要エンドポイントが見つかりません。フォールバックエンドポイントを試みます');
-            
-            // フォールバックエンドポイント - 既存のusage/meエンドポイントと同じパスを使用
-            const fallbackEndpoint = `${this._baseUrl}/proxy/usage/me/record`;
-            
+          // トークンリフレッシュが試行済みでない場合、先にリフレッシュを試みる
+          // これにより401エラーを事前に防止
+          if (!hasRefreshedToken) {
             try {
-              const fallbackResponse = await axios.post(
-                fallbackEndpoint,
-                {
-                  tokenCount,
-                  modelId,
-                  context: context || 'vscode-extension'
-                },
-                {
-                  ...config,
-                  timeout: 20000
-                }
-              );
-              
-              Logger.info(`【API連携】フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${fallbackResponse.status}`);
-              return fallbackResponse.status === 201 || fallbackResponse.status === 200;
-            } catch (fallbackError) {
-              // フォールバックも失敗した場合、デバッグのために詳細なエラーログを記録
-              if (axios.isAxiosError(fallbackError)) {
-                Logger.error(`【API連携】フォールバックエンドポイントでの記録に失敗: ${fallbackError.response?.status || 'ネットワークエラー'}`, fallbackError);
-                
-                // 最終フォールバックとして /api/proxy/claude/chat と同じパスベースを試す
-                const lastResortEndpoint = `${this._baseUrl}/proxy/claude/usage`;
-                
-                try {
-                  const lastResortResponse = await axios.post(
-                    lastResortEndpoint,
-                    {
-                      tokenCount,
-                      modelId,
-                      context: context || 'vscode-extension'
-                    },
-                    {
-                      ...config,
-                      timeout: 15000
-                    }
-                  );
-                  
-                  Logger.info(`【API連携】最終フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${lastResortResponse.status}`);
-                  return lastResortResponse.status === 201 || lastResortResponse.status === 200;
-                } catch (lastError) {
-                  // 全てのエンドポイントが失敗した場合
-                  Logger.warn('【API連携】全てのエンドポイントが失敗しました。使用履歴記録はスキップします');
-                  return false;
-                }
+              Logger.info(`【API連携】事前にトークンリフレッシュを試みます (トークン使用履歴記録の前に)`);
+              const refreshed = await this._authService.refreshToken();
+              if (refreshed) {
+                Logger.info('【API連携】トークンのリフレッシュに成功しました');
+                hasRefreshedToken = true;
+              } else {
+                Logger.warn('【API連携】トークンのリフレッシュに失敗しました。既存のトークンを使用します');
               }
-              throw fallbackError;
+            } catch (refreshError) {
+              Logger.warn('【API連携】トークンのリフレッシュ中にエラーが発生しました', refreshError as Error);
             }
           }
           
-          // 認証エラーの特別処理
-          if (axios.isAxiosError(error) && error.response?.status === 401) {
-            Logger.warn('【API連携】認証エラーが発生しました。トークンのリフレッシュを試みます');
-            const refreshed = await this._authService.refreshToken();
-            if (!refreshed) {
-              Logger.error('【API連携】トークンのリフレッシュに失敗しました');
-              return false;
-            }
-            throw error; // リトライさせるためにエラーを再スロー
+          // リフレッシュ後に認証ヘッダーを取得
+          const config = await this._getApiConfig();
+          
+          // API呼び出し前にログ
+          Logger.info(`【API連携】トークン使用履歴の記録を開始: ${tokenCount}トークン, モデル: ${modelId}`);
+          
+          // デバッグ情報として認証ヘッダーの存在を確認（トークン自体は表示しない）
+          const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
+          if (!hasAuthHeader) {
+            Logger.warn('【API連携】認証ヘッダーが不足しています');
+          } else {
+            Logger.debug('【API連携】認証ヘッダーが設定されています');
           }
           
-          // その他のエラーは再スロー
+          // 主要APIエンドポイント - proxy/usageを使用
+          const primaryEndpoint = `${this._baseUrl}/proxy/usage/record`;
+          
+          try {
+            // 主要エンドポイントで記録を試みる
+            const response = await axios.post(
+              primaryEndpoint,
+              {
+                tokenCount,
+                modelId,
+                context: context || 'vscode-extension'
+              },
+              {
+                ...config,
+                timeout: 20000 // 20秒タイムアウト（増加）
+              }
+            );
+            
+            Logger.info(`【API連携】トークン使用履歴の記録に成功しました: ステータス ${response.status}`);
+            return response.status === 201 || response.status === 200;
+          } catch (error) {
+            // 主要エンドポイントが404の場合、フォールバックエンドポイントを試す
+            if (axios.isAxiosError(error) && error.response?.status === 404) {
+              Logger.warn('【API連携】主要エンドポイントが見つかりません。フォールバックエンドポイントを試みます');
+              
+              // フォールバックエンドポイント - 既存のusage/meエンドポイントと同じパスを使用
+              const fallbackEndpoint = `${this._baseUrl}/proxy/usage/me/record`;
+              
+              try {
+                const fallbackResponse = await axios.post(
+                  fallbackEndpoint,
+                  {
+                    tokenCount,
+                    modelId,
+                    context: context || 'vscode-extension'
+                  },
+                  {
+                    ...config,
+                    timeout: 20000
+                  }
+                );
+                
+                Logger.info(`【API連携】フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${fallbackResponse.status}`);
+                return fallbackResponse.status === 201 || fallbackResponse.status === 200;
+              } catch (fallbackError) {
+                // フォールバックも失敗した場合、デバッグのために詳細なエラーログを記録
+                if (axios.isAxiosError(fallbackError)) {
+                  Logger.error(`【API連携】フォールバックエンドポイントでの記録に失敗: ${fallbackError.response?.status || 'ネットワークエラー'}`, fallbackError);
+                  
+                  // 最終フォールバックとして /api/proxy/claude/chat と同じパスベースを試す
+                  const lastResortEndpoint = `${this._baseUrl}/proxy/claude/usage`;
+                  
+                  try {
+                    const lastResortResponse = await axios.post(
+                      lastResortEndpoint,
+                      {
+                        tokenCount,
+                        modelId,
+                        context: context || 'vscode-extension'
+                      },
+                      {
+                        ...config,
+                        timeout: 15000
+                      }
+                    );
+                    
+                    Logger.info(`【API連携】最終フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${lastResortResponse.status}`);
+                    return lastResortResponse.status === 201 || lastResortResponse.status === 200;
+                  } catch (lastError) {
+                    // 全てのエンドポイントが失敗した場合
+                    Logger.warn('【API連携】全てのエンドポイントが失敗しました。使用履歴記録はスキップします');
+                    
+                    if (axios.isAxiosError(lastError) && lastError.response) {
+                      Logger.error('【API連携】最終エンドポイントでのエラー詳細:', lastError.response.data);
+                      Logger.error(`【API連携】HTTP状態コード: ${lastError.response.status}`);
+                    }
+                    
+                    return false;
+                  }
+                }
+                throw fallbackError;
+              }
+            }
+            
+            // 認証エラーの特別処理
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
+              Logger.warn('【API連携】認証エラーが発生しました。トークンのリフレッシュを試みます');
+              
+              if (!hasRefreshedToken) {
+                const refreshed = await this._authService.refreshToken();
+                hasRefreshedToken = true;
+                
+                if (!refreshed) {
+                  Logger.error('【API連携】トークンのリフレッシュに失敗しました');
+                  // リフレッシュが失敗しても最後にもう一度試す
+                  throw error; // リトライさせるためにエラーを再スロー
+                } else {
+                  Logger.info('【API連携】トークンのリフレッシュに成功しました。再試行します');
+                  throw error; // リトライさせるためにエラーを再スロー 
+                }
+              } else {
+                // すでにリフレッシュを試みた場合
+                Logger.error('【API連携】トークンは既にリフレッシュされましたが、認証は依然として失敗しています');
+                
+                // エラーレスポンスの詳細をログに記録
+                if (error.response?.data) {
+                  Logger.error('【API連携】認証エラーの詳細:', error.response.data);
+                }
+                
+                return false; // 再試行を停止
+              }
+            }
+            
+            // その他のエラーは再スロー
+            throw error;
+          }
+        } catch (error) {
+          // 詳細なエラーログを追加
+          if (axios.isAxiosError(error)) {
+            Logger.error(`【API連携】APIエラー: ${error.message}`, error);
+            if (error.response) {
+              Logger.error(`【API連携】ステータスコード: ${error.response.status}`);
+              Logger.error('【API連携】レスポンス:', error.response.data);
+            }
+            if (error.request) {
+              Logger.error('【API連携】リクエスト情報あり、レスポンスなし (タイムアウトの可能性)');
+            }
+          } else {
+            Logger.error(`【API連携】非Axiosエラー: ${(error as Error).message}`);
+          }
           throw error;
         }
       }, 5, [401, 429, 500, 502, 503, 504], 'トークン使用履歴記録'); // リトライ回数を増やし、401もリトライ対象に
@@ -450,6 +519,10 @@ export class ClaudeCodeApiClient {
       
       // 使用履歴記録の失敗はユーザー体験に影響しないため、エラーメッセージは表示せず
       // ただしエラーはログに残す
+      
+      // 必要に応じて認証情報を修復するための処理を提案
+      Logger.info('【API連携】認証情報の再同期を実行することで問題が解決する可能性があります。次回起動時に実行されます。');
+      
       return false;
     }
   }

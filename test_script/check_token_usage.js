@@ -15,15 +15,31 @@ const getAuthFilePaths = () => {
   let claudeStandardAuthPath;
   
   if (process.platform === 'win32') {
-    appGeniusAuthPath = path.join(homeDir, 'AppData', 'Roaming', 'appgenius', 'claude-auth.json');
+    appGeniusAuthPath = path.join(homeDir, 'AppData', 'Roaming', 'appgenius', 'auth.json');
     claudeStandardAuthPath = path.join(homeDir, 'AppData', 'Roaming', 'claude-cli', 'auth.json');
   } else if (process.platform === 'darwin') {
-    appGeniusAuthPath = path.join(homeDir, 'Library', 'Application Support', 'appgenius', 'claude-auth.json');
+    appGeniusAuthPath = path.join(homeDir, '.appgenius', 'auth.json');
+    // 代替パスも確認
+    if (!fs.existsSync(appGeniusAuthPath)) {
+      appGeniusAuthPath = path.join(homeDir, 'Library', 'Application Support', 'appgenius', 'auth.json');
+    }
     claudeStandardAuthPath = path.join(homeDir, 'Library', 'Application Support', 'claude-cli', 'auth.json');
+    // 代替パスも確認
+    if (!fs.existsSync(claudeStandardAuthPath)) {
+      claudeStandardAuthPath = path.join(homeDir, '.claude', 'auth.json');
+    }
   } else {
     // Linux
-    appGeniusAuthPath = path.join(homeDir, '.config', 'appgenius', 'claude-auth.json');
+    appGeniusAuthPath = path.join(homeDir, '.appgenius', 'auth.json');
+    // 代替パスも確認
+    if (!fs.existsSync(appGeniusAuthPath)) {
+      appGeniusAuthPath = path.join(homeDir, '.config', 'appgenius', 'auth.json');
+    }
     claudeStandardAuthPath = path.join(homeDir, '.config', 'claude-cli', 'auth.json');
+    // 代替パスも確認
+    if (!fs.existsSync(claudeStandardAuthPath)) {
+      claudeStandardAuthPath = path.join(homeDir, '.claude', 'auth.json');
+    }
   }
   
   return { appGeniusAuthPath, claudeStandardAuthPath };
