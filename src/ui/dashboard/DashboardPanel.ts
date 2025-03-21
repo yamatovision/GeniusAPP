@@ -187,6 +187,9 @@ export class DashboardPanel extends ProtectedPanel {
           case 'refreshProjects':
             await this._refreshProjects();
             break;
+          case 'logout':
+            await this._handleLogout();
+            break;
           case 'showVSCodeMessage':
             await this._handleShowVSCodeMessage(message.type, message.message);
             break;

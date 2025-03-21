@@ -10,6 +10,8 @@ import { ClaudeCodeIntegrationService } from '../../services/ClaudeCodeIntegrati
 import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
 import { ProtectedPanel } from '../auth/ProtectedPanel';
 import { Feature } from '../../core/auth/roles';
+import { AuthenticationService } from '../../core/auth/AuthenticationService';
+import { ClaudeCodeApiClient } from '../../api/claudeCodeApiClient';
 
 /**
  * スコープマネージャーパネルクラス
@@ -84,9 +86,55 @@ export class ScopeManagerPanel extends ProtectedPanel {
   
   /**
    * 外部向けのパネル作成・表示メソッド
-   * 権限チェック付きで、パネルを表示する
+   * 認証状態と権限チェック付きで、パネルを表示する
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel | undefined {
+  public static async createOrShow(extensionUri: vscode.Uri, projectPath?: string): Promise<ScopeManagerPanel | undefined> {
+    // 認証状態の追加確認
+    try {
+      const authService = AuthenticationService.getInstance();
+      const apiClient = ClaudeCodeApiClient.getInstance();
+      const isAuthenticated = await authService.isAuthenticated();
+
+      if (!isAuthenticated) {
+        Logger.warn('認証されていません。スコープマネージャーは表示できません');
+        vscode.window.showErrorMessage('この機能を使用するには再ログインが必要です', '再ログイン')
+          .then(selection => {
+            if (selection === '再ログイン') {
+              vscode.commands.executeCommand('appgenius.login');
+            }
+          });
+        return undefined;
+      }
+
+      // 実際のAPIリクエストでも確認
+      try {
+        const testResult = await apiClient.testApiConnection();
+        if (!testResult) {
+          Logger.warn('API接続テストに失敗しました。スコープマネージャーは表示できません');
+          vscode.window.showErrorMessage('サーバー接続に問題があります。再ログインしてください', '再ログイン')
+            .then(selection => {
+              if (selection === '再ログイン') {
+                vscode.commands.executeCommand('appgenius.login');
+              }
+            });
+          return undefined;
+        }
+      } catch (error) {
+        // APIエラーの場合も再ログインを促す
+        Logger.error('API接続テスト中にエラーが発生しました', error as Error);
+        vscode.window.showErrorMessage('サーバー接続でエラーが発生しました。再ログインしてください', '再ログイン')
+          .then(selection => {
+            if (selection === '再ログイン') {
+              vscode.commands.executeCommand('appgenius.login');
+            }
+          });
+        return undefined;
+      }
+    } catch (error) {
+      Logger.error('認証状態確認中にエラーが発生しました', error as Error);
+      return undefined;
+    }
+
     // 権限チェック
     if (!this.checkPermissionForFeature(Feature.SCOPE_MANAGER, 'ScopeManagerPanel')) {
       return undefined;

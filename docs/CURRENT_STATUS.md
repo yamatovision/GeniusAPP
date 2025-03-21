@@ -9,7 +9,7 @@
 ## スコープ状況
 
 ### 完了済みスコープ
-- [x] バージョン履歴機能の修正 (100%) - プロンプトのバージョン履歴が表示されない問題の修正 [詳細](/docs/scopes/version-history-fix-scope.md)
+- [x] バージョン履歴機能の修正a (100%) - プロンプトのバージョン履歴が表示されない問題の修正 [詳細](/docs/scopes/version-history-fix-scope.md)
 - [x] ClaudeCodeトークン使用履歴修正 (100%) - トークン使用履歴のAPIエンドポイントとエラーハンドリング修正 [詳細](/docs/scopes/claudecode-token-usage-fix-scope.md)
 - [x] プロンプト使用統計コード削除 (100%) - 不要になったプロンプト使用統計コードを完全に削除 [詳細](/docs/scopes/prompt-usage-stats-removal-scope.md)
 - [x] 分離認証モード実装 (100%) - ClaudeCode CLIとの分離認証機能の正しい実装 [詳細](/docs/scopes/isolated-auth-implementation-scope.md)

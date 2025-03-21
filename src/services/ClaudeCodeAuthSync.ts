@@ -455,108 +455,14 @@ export class ClaudeCodeAuthSync {
   
   /**
    * 分離認証モードが有効かどうかを検出
+   * 単一認証モデルへの移行により、常にtrueを返す
    * 
-   * このメソッドは複数の方法で分離認証モードの有効/無効を判断します：
-   * 1. 環境変数 APPGENIUS_USE_ISOLATED_AUTH の検出（最優先）
-   * 2. AuthenticationServiceから情報取得（推奨、一貫性維持のため）
-   * 3. VSCode API環境の検出
-   * 4. VSCode関連の環境変数からの検出
-   * 5. 設定ファイルからの検出
-   * 6. 既存の認証ファイルの存在確認
-   * 
-   * @returns 分離認証モードが有効かどうか
+   * @deprecated 単一認証モデルに移行中のため非推奨
+   * @returns 常にtrueを返します
    */
   private _isIsolatedAuthEnabled(): boolean {
-    // 1. 環境変数から直接検出（最優先）
-    const envVar = process.env.APPGENIUS_USE_ISOLATED_AUTH;
-    if (envVar !== undefined) {
-      const isEnabled = envVar.toLowerCase() === 'true';
-      Logger.info(`分離認証モード環境変数: ${envVar} (${isEnabled ? '有効' : '無効'})`);
-      return isEnabled;
-    }
-    
-    // 2. AuthenticationServiceから情報取得を試みる（一貫性維持のため）
-    try {
-      // 直接AuthenticationServiceを使うと循環参照になる可能性があるため注意
-      if (this._authService && typeof this._authService.getAuthModeInfo === 'function') {
-        const authModeInfo = this._authService.getAuthModeInfo();
-        Logger.info(`AuthenticationServiceから認証モード情報を取得: ${authModeInfo.isIsolatedAuthEnabled ? '分離モード' : '標準モード'} (検出方法: ${authModeInfo.detectionMethod})`);
-        return authModeInfo.isIsolatedAuthEnabled;
-      }
-    } catch (error) {
-      Logger.debug(`AuthenticationServiceからの情報取得中にエラー発生: ${(error as Error).message}、代替検出方法を使用します`);
-    }
-    
-    // 3. vscode.env.appNameから検出
-    try {
-      // VSCode API環境の検出
-      if (vscode && vscode.env) {
-        const isVSCodeEnv = !!vscode.env.appName;
-        const appName = isVSCodeEnv ? vscode.env.appName : 'unknown';
-        Logger.info(`VSCode環境検出: ${isVSCodeEnv}, アプリ名: ${appName}`);
-        
-        // VSCode環境では分離認証をデフォルトで有効化
-        if (isVSCodeEnv) {
-          Logger.info('VSCode環境で実行中のため、分離認証モードをデフォルトで有効化します');
-          return true;
-        }
-      }
-    } catch (error) {
-      Logger.warn(`VSCode環境の検出中にエラー発生: ${(error as Error).message}`);
-    }
-    
-    // 4. VSCode関連の環境変数から検出
-    try {
-      // VSCode関連の環境変数があればVSCode環境と判断
-      const hasVSCodeEnv = Object.keys(process.env).some(key => 
-        key.toLowerCase().includes('vscode') || 
-        key.toLowerCase().includes('code_')
-      );
-      
-      if (hasVSCodeEnv) {
-        Logger.info('VSCode関連の環境変数が検出されたため、分離認証モードを有効化します');
-        return true;
-      }
-    } catch (error) {
-      Logger.warn(`環境変数検出中にエラー発生: ${(error as Error).message}`);
-    }
-    
-    // 5. 設定ファイルから検出
-    try {
-      const config = vscode.workspace.getConfiguration('appgeniusAI');
-      const configValue = config.get<boolean>('useIsolatedAuth');
-      
-      if (configValue !== undefined) {
-        Logger.info(`設定から分離認証モード設定を検出: ${configValue ? '有効' : '無効'}`);
-        return configValue;
-      }
-    } catch (error) {
-      Logger.warn(`設定検出中にエラー発生: ${(error as Error).message}`);
-    }
-    
-    // 6. ファイルシステムの存在確認（既存の分離認証ファイルがあるか）
-    try {
-      const homeDir = os.homedir();
-      const appGeniusAuthPath = path.join(homeDir, '.appgenius', 'auth.json');
-      const appGeniusAltAuthPath = path.join(
-        homeDir, 
-        process.platform === 'darwin' ? 'Library/Application Support/appgenius' : 
-        process.platform === 'win32' ? 'AppData/Roaming/appgenius' : 
-        '.config/appgenius', 
-        'claude-auth.json'
-      );
-      
-      // どちらかのファイルが存在すれば、分離認証モードを有効と判断
-      if (fs.existsSync(appGeniusAuthPath) || fs.existsSync(appGeniusAltAuthPath)) {
-        Logger.info('分離認証ファイルが存在するため、分離認証モードを有効化します');
-        return true;
-      }
-    } catch (error) {
-      Logger.warn(`ファイルシステム検出中にエラー発生: ${(error as Error).message}`);
-    }
-    
-    // デフォルトは安全策として有効に変更（既存の分離認証ファイルが作成されているため）
-    Logger.info('明示的な設定が見つからないため、デフォルトで分離認証モードを有効化します');
+    // 単一認証モデルへの移行により、常にtrueを返す
+    Logger.info('単一認証モデルに移行中のため、分離認証モードは常に有効です');
     return true;
   }
   

@@ -40,9 +40,10 @@ export interface AuthError {
 
 /**
  * 認証モードの情報
+ * @deprecated 単一認証モデルに移行中のため非推奨
  */
 export interface AuthModeInfo {
-  /** 分離認証モードが有効かどうか */
+  /** 分離認証モードが有効かどうか - 常にtrueを返すように単純化 */
   isIsolatedAuthEnabled: boolean;
   /** 認証モードを決定した方法 */
   detectionMethod: string;
@@ -976,6 +977,19 @@ export class AuthenticationService {
    */
   private async _recoverUserState(): Promise<boolean> {
     try {
+      // APIサーバーへの接続確認を最初に行う
+      try {
+        const isValid = await this._verifyTokenWithServer();
+        if (!isValid) {
+          // サーバー認証に失敗した場合は回復を中止
+          Logger.warn('サーバー認証に失敗しました。認証回復を中止します');
+          return false;
+        }
+      } catch (apiError) {
+        Logger.warn('APIサーバーへの接続に失敗。認証回復を中止します');
+        return false;
+      }
+      
       Logger.info('ローカルデータを使用して認証状態を回復します');
       
       // ローカルに保存されたユーザーデータを取得
@@ -1012,6 +1026,36 @@ export class AuthenticationService {
   }
   
   /**
+   * サーバーに対してトークンの有効性を確認
+   * @returns トークンが有効な場合はtrue、それ以外はfalse
+   */
+  private async _verifyTokenWithServer(): Promise<boolean> {
+    try {
+      const token = await this._tokenManager.getAccessToken();
+      if (!token) {
+        return false;
+      }
+      
+      const apiUrl = this._getAuthApiUrl();
+      const response = await axios.get(`${apiUrl}/auth/users/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        timeout: 5000 // 短いタイムアウト設定で迅速に確認
+      });
+      
+      return response.status === 200 && !!response.data.user;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        Logger.warn('トークンが無効です（401）');
+      } else {
+        Logger.error('サーバー接続確認中にエラーが発生しました', error as Error);
+      }
+      return false;
+    }
+  }
+  
+  /**
    * 最後のエラーを取得
    */
   public getLastError(): AuthError | null {
@@ -1026,120 +1070,20 @@ export class AuthenticationService {
   }
   
   /**
-   * 分離認証モードの情報を取得
+   * 認証モードの情報を取得
    * 認証モードの状態と詳細情報を返す
+   * @deprecated 単一認証モデルに移行中のため非推奨
    */
   public getAuthModeInfo(): AuthModeInfo {
-    // 既に検出済みの場合はそのまま返す
-    if (this._authModeInfo) {
-      return { ...this._authModeInfo };
-    }
-    
-    // 分離認証モードの検出ロジック
+    // 単一認証モデルに移行中のため、常に分離認証モードが有効として単純化
     const info: AuthModeInfo = {
-      isIsolatedAuthEnabled: false,
-      detectionMethod: 'unknown'
+      isIsolatedAuthEnabled: true,
+      detectionMethod: 'simplified_model',
+      authFilePath: this._getIsolatedAuthFilePath()
     };
     
-    try {
-      // 1. 環境変数から直接検出（最優先）
-      const envVar = process.env.APPGENIUS_USE_ISOLATED_AUTH;
-      if (envVar !== undefined) {
-        info.isIsolatedAuthEnabled = envVar.toLowerCase() === 'true';
-        info.detectionMethod = 'environment_variable';
-        Logger.info(`分離認証モード環境変数: ${envVar} (${info.isIsolatedAuthEnabled ? '有効' : '無効'})`);
-        
-        // 認証ファイルパスも設定
-        if (info.isIsolatedAuthEnabled) {
-          info.authFilePath = this._getIsolatedAuthFilePath();
-        }
-        
-        this._authModeInfo = info;
-        return { ...info };
-      }
-      
-      // 2. VSCode API環境の検出
-      try {
-        const isVSCodeEnv = !!vscode.env.appName;
-        const appName = isVSCodeEnv ? vscode.env.appName : 'unknown';
-        Logger.info(`VSCode環境検出: ${isVSCodeEnv}, アプリ名: ${appName}`);
-        
-        // VSCode環境では分離認証をデフォルトで有効化
-        if (isVSCodeEnv) {
-          info.isIsolatedAuthEnabled = true;
-          info.detectionMethod = 'vscode_api';
-          info.authFilePath = this._getIsolatedAuthFilePath();
-          
-          Logger.info('VSCode環境で実行中のため、分離認証モードをデフォルトで有効化します');
-          this._authModeInfo = info;
-          return { ...info };
-        }
-      } catch (error) {
-        Logger.warn(`VSCode環境の検出中にエラー発生: ${(error as Error).message}`);
-      }
-      
-      // 3. VSCode関連の環境変数から検出
-      try {
-        // VSCode関連の環境変数があればVSCode環境と判断
-        const hasVSCodeEnv = Object.keys(process.env).some(key => 
-          key.toLowerCase().includes('vscode') || 
-          key.toLowerCase().includes('code_')
-        );
-        
-        if (hasVSCodeEnv) {
-          info.isIsolatedAuthEnabled = true;
-          info.detectionMethod = 'vscode_environment_vars';
-          info.authFilePath = this._getIsolatedAuthFilePath();
-          
-          Logger.info('VSCode関連の環境変数が検出されたため、分離認証モードを有効化します');
-          this._authModeInfo = info;
-          return { ...info };
-        }
-      } catch (error) {
-        Logger.warn(`環境変数検出中にエラー発生: ${(error as Error).message}`);
-      }
-      
-      // 4. 設定ファイルから検出
-      try {
-        const config = vscode.workspace.getConfiguration('appgeniusAI');
-        const configValue = config.get<boolean>('useIsolatedAuth');
-        
-        if (configValue !== undefined) {
-          info.isIsolatedAuthEnabled = configValue;
-          info.detectionMethod = 'vscode_settings';
-          if (info.isIsolatedAuthEnabled) {
-            info.authFilePath = this._getIsolatedAuthFilePath();
-          }
-          
-          Logger.info(`設定から分離認証モード設定を検出: ${info.isIsolatedAuthEnabled ? '有効' : '無効'}`);
-          this._authModeInfo = info;
-          return { ...info };
-        }
-      } catch (error) {
-        Logger.warn(`設定検出中にエラー発生: ${(error as Error).message}`);
-      }
-      
-      // デフォルトは安全策として有効に設定
-      info.isIsolatedAuthEnabled = true;
-      info.detectionMethod = 'default';
-      info.authFilePath = this._getIsolatedAuthFilePath();
-      
-      Logger.info('明示的な設定が見つからないため、デフォルトで分離認証モードを有効化します');
-      this._authModeInfo = info;
-      return { ...info };
-    } catch (error) {
-      // エラー発生時もデフォルト値を返す
-      Logger.error('認証モード検出中にエラーが発生しました', error as Error);
-      
-      const defaultInfo: AuthModeInfo = {
-        isIsolatedAuthEnabled: true, // 安全策としてデフォルトは有効
-        detectionMethod: 'error_fallback',
-        authFilePath: this._getIsolatedAuthFilePath()
-      };
-      
-      this._authModeInfo = defaultInfo;
-      return { ...defaultInfo };
-    }
+    this._authModeInfo = info;
+    return { ...info };
   }
   
   /**
@@ -1187,9 +1131,11 @@ export class AuthenticationService {
   
   /**
    * 分離認証モードが有効かどうかを返す（シンプルな形式）
+   * @deprecated 単一認証モデルに移行中のため非推奨
+   * @returns 常にtrueを返す
    */
   public isIsolatedAuthEnabled(): boolean {
-    return this.getAuthModeInfo().isIsolatedAuthEnabled;
+    return true; // 常にtrueを返す（単一認証モデルに移行中）
   }
 
   public dispose(): void {

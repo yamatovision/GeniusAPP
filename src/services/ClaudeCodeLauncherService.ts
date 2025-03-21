@@ -166,22 +166,14 @@ export class ClaudeCodeLauncherService {
       const isLoggedIn = authSync.isClaudeCliLoggedIn();
       Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
       
-      // 認証モードを確認 - AuthenticationServiceから最新状態を取得
-      const authModeInfo = authService.getAuthModeInfo();
-      const useIsolatedAuth = authModeInfo.isIsolatedAuthEnabled;
-      
-      Logger.info(`認証モード: ${useIsolatedAuth ? '分離認証モード' : '標準モード'} (検出方法: ${authModeInfo.detectionMethod})`);
-      
-      // 認証ファイルパスが取得できている場合はログに記録
-      if (authModeInfo.authFilePath) {
-        Logger.info(`認証ファイルパス: ${authModeInfo.authFilePath}`);
-      }
+      // 認証モードを単一化 - 常にAppGeniusの認証情報を使用
+      const useIsolatedAuth = true; // 常にtrueに設定し、単一の認証モデルに統一
+
+      Logger.info(`認証モード: 単一の認証モード (シンプル化モデル)`);
       
       // AppGenius専用の認証情報を保存
-      if (useIsolatedAuth) {
-        await authSync.syncTokensToAppGeniusAuth();
-        Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
-      }
+      await authSync.syncTokensToAppGeniusAuth();
+      Logger.info('AppGenius専用の認証情報を同期しました（単一認証モード）');
       
       // AppGenius専用の認証ファイルパス
       const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
@@ -402,22 +394,14 @@ export class ClaudeCodeLauncherService {
       const isLoggedIn = authSync.isClaudeCliLoggedIn();
       Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
       
-      // 認証モードを確認 - AuthenticationServiceから最新状態を取得
-      const authModeInfo = authService.getAuthModeInfo();
-      const useIsolatedAuth = authModeInfo.isIsolatedAuthEnabled;
-      
-      Logger.info(`プロンプト実行用の認証モード: ${useIsolatedAuth ? '分離認証モード' : '標準モード'} (検出方法: ${authModeInfo.detectionMethod})`);
-      
-      // 認証ファイルパスが取得できている場合はログに記録
-      if (authModeInfo.authFilePath) {
-        Logger.info(`認証ファイルパス: ${authModeInfo.authFilePath}`);
-      }
+      // 認証モードを単一化 - 常にAppGeniusの認証情報を使用
+      const useIsolatedAuth = true; // 常にtrueに設定し、単一の認証モデルに統一
+
+      Logger.info(`プロンプト実行用の認証モード: 単一の認証モード (シンプル化モデル)`);
       
       // AppGenius専用の認証情報を保存
-      if (useIsolatedAuth) {
-        await authSync.syncTokensToAppGeniusAuth();
-        Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
-      }
+      await authSync.syncTokensToAppGeniusAuth();
+      Logger.info('AppGenius専用の認証情報を同期しました（単一認証モード）');
       
       // AppGenius専用の認証ファイルパス
       const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();

@@ -96,6 +96,10 @@
         // プロジェクト一覧の更新が完了したことを通知
         updateLoadingState(false);
         break;
+      case 'logoutComplete':
+        // ログアウト完了後、確認メッセージを表示
+        showSuccess('ログアウトしました');
+        break;
     }
   });
   
@@ -107,6 +111,20 @@
     
     // スタート時点でのモーダル要素の状態確認
     console.log("初期化時点でのモーダル状態:", document.getElementById('new-project-modal'));
+    
+    // ログアウトボタンを作成・追加
+    const headerEl = document.querySelector('.header-actions');
+    if (headerEl) {
+      const logoutBtn = document.createElement('button');
+      logoutBtn.id = 'logout-btn';
+      logoutBtn.className = 'button secondary';
+      logoutBtn.innerHTML = '<span>🔒</span> ログアウト';
+      logoutBtn.addEventListener('click', () => {
+        console.log("ログアウトボタンがクリックされました");
+        handleLogout();
+      });
+      headerEl.appendChild(logoutBtn);
+    }
     
     // 新規プロジェクトボタン
     const newProjectBtn = document.getElementById('new-project-btn');
@@ -948,7 +966,7 @@
    */
   function showError(message) {
     // 既存のエラーメッセージがあれば削除
-    const existingErrors = document.querySelectorAll('.error-message');
+    const existingErrors = document.querySelectorAll('.error-message, .success-message');
     existingErrors.forEach(el => el.remove());
     
     // エラーメッセージの作成
@@ -975,6 +993,37 @@
   }
   
   /**
+   * 成功メッセージ表示
+   */
+  function showSuccess(message) {
+    // 既存のメッセージがあれば削除
+    const existingMessages = document.querySelectorAll('.error-message, .success-message');
+    existingMessages.forEach(el => el.remove());
+    
+    // 成功メッセージの作成
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.innerHTML = `<span>✅</span> ${escapeHtml(message)}`;
+    successDiv.style.position = 'fixed';
+    successDiv.style.top = '20px';
+    successDiv.style.left = '50%';
+    successDiv.style.transform = 'translateX(-50%)';
+    successDiv.style.backgroundColor = '#d4edda';
+    successDiv.style.color = '#155724';
+    successDiv.style.padding = '10px 20px';
+    successDiv.style.borderRadius = '4px';
+    successDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    successDiv.style.zIndex = '10000';
+    
+    document.body.appendChild(successDiv);
+    
+    // 5秒後に自動で消去
+    setTimeout(() => {
+      successDiv.remove();
+    }, 5000);
+  }
+  
+  /**
    * HTMLエスケープ関数
    */
   function escapeHtml(text) {
@@ -986,5 +1035,25 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
+  }
+  
+  /**
+   * ログアウト処理
+   */
+  function handleLogout() {
+    // 確認ダイアログ
+    const confirmLogout = confirm('AppGeniusからログアウトしますか？');
+    if (!confirmLogout) {
+      return; // キャンセルされた場合は何もしない
+    }
+    
+    console.log('ログアウトをリクエストします');
+    // バックエンドにログアウトメッセージを送信
+    vscode.postMessage({
+      command: 'logout'
+    });
+    
+    // ローディング表示
+    updateLoadingState(true);
   }
 })();

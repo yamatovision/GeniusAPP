@@ -335,6 +335,54 @@ export class ClaudeCodeApiClient {
       return null;
     }
   }
+  
+  /**
+   * API接続テスト
+   * このメソッドは認証状態を確認し、APIサーバーとの接続性をテストします
+   * @returns テスト成功の場合はtrue、失敗の場合はfalse
+   */
+  public async testApiConnection(): Promise<boolean> {
+    try {
+      // 認証ヘッダーを取得
+      const config = await this._getApiConfig();
+      
+      // 認証ヘッダーの存在を確認
+      const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
+      if (!hasAuthHeader) {
+        Logger.warn('【API連携】認証ヘッダーが不足しています');
+        return false;
+      }
+      
+      // 軽量なエンドポイント（/api/auth/users/me）を使用してAPIテスト
+      const response = await axios.get(`${this._baseUrl}/auth/users/me`, {
+        ...config,
+        timeout: 5000  // 5秒タイムアウト（短く設定して迅速にテスト）
+      });
+      
+      // ステータスコード200かつユーザー情報があればOK
+      if (response.status === 200 && response.data.user) {
+        Logger.info('【API連携】API接続テストに成功しました');
+        return true;
+      }
+      
+      Logger.warn(`【API連携】API接続テスト：予期しないレスポンス形式 (${response.status})`);
+      return false;
+    } catch (error) {
+      // エラーの詳細をログに記録
+      if (axios.isAxiosError(error)) {
+        if (error.response?.status === 401) {
+          Logger.warn('【API連携】API接続テスト：認証エラー (401)');
+        } else if (error.response) {
+          Logger.error(`【API連携】API接続テスト：サーバーエラー (${error.response.status})`, error);
+        } else {
+          Logger.error('【API連携】API接続テスト：ネットワークエラー', error);
+        }
+      } else {
+        Logger.error(`【API連携】API接続テスト：不明なエラー: ${(error as Error).message}`, error as Error);
+      }
+      return false;
+    }
+  }
 
   /**
    * Claude APIのトークン使用を記録
