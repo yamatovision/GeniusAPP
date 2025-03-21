@@ -345,6 +345,13 @@ export class ClaudeCodeApiClient {
    */
   public async recordTokenUsage(tokenCount: number, modelId: string, context?: string): Promise<boolean> {
     try {
+      // 認証状態の事前確認
+      const isAuthenticated = await this._authService.isAuthenticated();
+      if (!isAuthenticated) {
+        Logger.warn('【API連携】認証されていません。トークン使用履歴の記録をスキップします');
+        return false;
+      }
+      
       // 401エラーの場合は、即座にトークンリフレッシュを実行
       let hasRefreshedToken = false;
       return await this._retryWithExponentialBackoff(async () => {
@@ -376,6 +383,8 @@ export class ClaudeCodeApiClient {
           const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
           if (!hasAuthHeader) {
             Logger.warn('【API連携】認証ヘッダーが不足しています');
+            // 認証ヘッダーがない場合は処理を続行しない
+            return false;
           } else {
             Logger.debug('【API連携】認証ヘッダーが設定されています');
           }
@@ -469,13 +478,12 @@ export class ClaudeCodeApiClient {
               Logger.warn('【API連携】認証エラーが発生しました。トークンのリフレッシュを試みます');
               
               if (!hasRefreshedToken) {
-                const refreshed = await this._authService.refreshToken();
+                const refreshed = await this._authService.refreshToken(true); // 静かに失敗する
                 hasRefreshedToken = true;
                 
                 if (!refreshed) {
-                  Logger.error('【API連携】トークンのリフレッシュに失敗しました');
-                  // リフレッシュが失敗しても最後にもう一度試す
-                  throw error; // リトライさせるためにエラーを再スロー
+                  Logger.error('【API連携】トークンのリフレッシュに失敗しました。トークン使用履歴の記録をスキップします');
+                  return false; // リフレッシュに失敗した場合は記録をスキップ
                 } else {
                   Logger.info('【API連携】トークンのリフレッシュに成功しました。再試行します');
                   throw error; // リトライさせるためにエラーを再スロー 

@@ -82,6 +82,16 @@ const testTokenUsageRecord = async (authData, baseUrl = 'https://geniemon-portal
   }
   
   try {
+    // トークンの有効期限を確認
+    const now = Date.now();
+    const isExpired = authData.expiresAt && authData.expiresAt < now;
+    
+    if (isExpired) {
+      console.log(`⚠️ トークンの有効期限が切れています: ${new Date(authData.expiresAt).toLocaleString()}`);
+      console.log('🔄 このテストスクリプトではトークンの更新は行いません。VSCode拡張でログインし直してください。');
+      return false;
+    }
+    
     // 認証ヘッダーを設定
     const config = {
       headers: {
@@ -99,8 +109,15 @@ const testTokenUsageRecord = async (authData, baseUrl = 'https://geniemon-portal
     };
     
     console.log('🔄 トークン使用量記録のテストを開始...');
+    console.log(`👤 ソース: ${authData.source || '不明'}`);
+    console.log(`🔐 分離認証モード: ${authData.isolatedAuth ? 'はい' : 'いいえ'}`);
     
-    // 主要APIエンドポイント（新しいパスに更新）
+    // 認証ヘッダーのマスク表示（最初と最後の数文字のみ表示）
+    const authHeaderValue = config.headers.Authorization;
+    const maskedToken = authHeaderValue.substring(0, 15) + '...' + authHeaderValue.substring(authHeaderValue.length - 10);
+    console.log(`🔑 認証ヘッダー: ${maskedToken}`);
+    
+    // 主要APIエンドポイント
     const primaryEndpoint = `${baseUrl}/proxy/usage/record`;
     
     try {
@@ -115,7 +132,7 @@ const testTokenUsageRecord = async (authData, baseUrl = 'https://geniemon-portal
       if (axios.isAxiosError(error) && error.response?.status === 404) {
         console.log('❌ 主要エンドポイントが見つかりません。フォールバックエンドポイントを試行...');
         
-        // フォールバックエンドポイント（新しいパスに更新）
+        // フォールバックエンドポイント
         const fallbackEndpoint = `${baseUrl}/proxy/usage/me/record`;
         
         try {
@@ -140,6 +157,15 @@ const testTokenUsageRecord = async (authData, baseUrl = 'https://geniemon-portal
             return true;
           } catch (lastError) {
             console.error('❌ 全てのエンドポイントが失敗:', lastError.message);
+            if (axios.isAxiosError(lastError) && lastError.response) {
+              console.error('📊 エラーレスポンス:', lastError.response.data);
+              console.error('🔢 HTTPステータス:', lastError.response.status);
+              
+              // 認証エラーの場合は特別なメッセージを表示
+              if (lastError.response.status === 401) {
+                console.log('⚠️ 認証エラー: トークンが無効か期限切れです。VSCode拡張でログインし直してください。');
+              }
+            }
             return false;
           }
         }
@@ -149,6 +175,11 @@ const testTokenUsageRecord = async (authData, baseUrl = 'https://geniemon-portal
       if (axios.isAxiosError(error) && error.response) {
         console.error('📊 エラーレスポンス:', error.response.data);
         console.error('🔢 HTTPステータス:', error.response.status);
+        
+        // 認証エラーの場合は特別なメッセージを表示
+        if (error.response.status === 401) {
+          console.log('⚠️ 認証エラー: トークンが無効か期限切れです。VSCode拡張でログインし直してください。');
+        }
       }
       return false;
     }
