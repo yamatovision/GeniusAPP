@@ -2,8 +2,8 @@
 
 ## 全体進捗
 - 完成予定ファイル数: 89
-- 作成済みファイル数: 61
-- 進捗率: 69%
+- 作成済みファイル数: 63
+- 進捗率: 71%
 - 最終更新日: 2025/03/21
 
 ## スコープ状況
@@ -12,10 +12,10 @@
 - [x] バージョン履歴機能の修正 (100%) - プロンプトのバージョン履歴が表示されない問題の修正 [詳細](/docs/scopes/version-history-fix-scope.md)
 - [x] ClaudeCodeトークン使用履歴修正 (100%) - トークン使用履歴のAPIエンドポイントとエラーハンドリング修正 [詳細](/docs/scopes/claudecode-token-usage-fix-scope.md)
 - [x] プロンプト使用統計コード削除 (100%) - 不要になったプロンプト使用統計コードを完全に削除 [詳細](/docs/scopes/prompt-usage-stats-removal-scope.md)
+- [x] 分離認証モード実装 (100%) - ClaudeCode CLIとの分離認証機能の正しい実装 [詳細](/docs/scopes/isolated-auth-implementation-scope.md)
 
 ### 進行中スコープ
-- [ ] 認証メカニズムの改善うわお (60%) - 頻繁なログアウト問題を解決するための認証改善 [詳細](/docs/scopes/auth-mechanism-improvement-scope.md)
-- [ ] 分離認証モード実装 (70%) - ClaudeCode CLIとの分離認証機能の正しい実装 [詳細](/docs/scopes/isolated-auth-implementation-scope.md)
+- [ ] 認証メカニズムの改善 (60%) - 頻繁なログアウト問題を解決するための認証改善 [詳細](/docs/scopes/auth-mechanism-improvement-scope.md)
 
 ### 未着手スコープ
 - [ ] スコープ名5 (0%)
@@ -107,10 +107,10 @@ project-root/
 
 ### 認証同期処理
 - [x] src/services/ClaudeCodeAuthSync.ts - 分離認証モード処理の実装
-- [ ] src/services/ClaudeCodeLauncherService.ts - 分離認証モードとの連携強化
+- [x] src/services/ClaudeCodeLauncherService.ts - 分離認証モードとの連携強化
 
 ### 認証サービス連携
-- [ ] src/core/auth/AuthenticationService.ts - 認証モード切り替えのサポート
+- [x] src/core/auth/AuthenticationService.ts - 認証モード切り替えのサポート
 - [x] src/core/auth/TokenManager.ts - トークン管理の改善
 
 ### 認証設定とエラーハンドリング
