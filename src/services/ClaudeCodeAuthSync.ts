@@ -454,14 +454,15 @@ export class ClaudeCodeAuthSync {
   }
   
   /**
-   * 分離認証モードが有効かどうかを環境変数から検出
+   * 分離認証モードが有効かどうかを検出
    * 
    * このメソッドは複数の方法で分離認証モードの有効/無効を判断します：
    * 1. 環境変数 APPGENIUS_USE_ISOLATED_AUTH の検出（最優先）
-   * 2. VSCode API環境の検出
-   * 3. VSCode関連の環境変数からの検出
-   * 4. 設定ファイルからの検出
-   * 5. 既存の認証ファイルの存在確認
+   * 2. AuthenticationServiceから情報取得（推奨、一貫性維持のため）
+   * 3. VSCode API環境の検出
+   * 4. VSCode関連の環境変数からの検出
+   * 5. 設定ファイルからの検出
+   * 6. 既存の認証ファイルの存在確認
    * 
    * @returns 分離認証モードが有効かどうか
    */
@@ -474,7 +475,19 @@ export class ClaudeCodeAuthSync {
       return isEnabled;
     }
     
-    // 2. vscode.env.appNameから検出
+    // 2. AuthenticationServiceから情報取得を試みる（一貫性維持のため）
+    try {
+      // 直接AuthenticationServiceを使うと循環参照になる可能性があるため注意
+      if (this._authService && typeof this._authService.getAuthModeInfo === 'function') {
+        const authModeInfo = this._authService.getAuthModeInfo();
+        Logger.info(`AuthenticationServiceから認証モード情報を取得: ${authModeInfo.isIsolatedAuthEnabled ? '分離モード' : '標準モード'} (検出方法: ${authModeInfo.detectionMethod})`);
+        return authModeInfo.isIsolatedAuthEnabled;
+      }
+    } catch (error) {
+      Logger.debug(`AuthenticationServiceからの情報取得中にエラー発生: ${(error as Error).message}、代替検出方法を使用します`);
+    }
+    
+    // 3. vscode.env.appNameから検出
     try {
       // VSCode API環境の検出
       if (vscode && vscode.env) {
@@ -492,7 +505,7 @@ export class ClaudeCodeAuthSync {
       Logger.warn(`VSCode環境の検出中にエラー発生: ${(error as Error).message}`);
     }
     
-    // 3. VSCode関連の環境変数から検出
+    // 4. VSCode関連の環境変数から検出
     try {
       // VSCode関連の環境変数があればVSCode環境と判断
       const hasVSCodeEnv = Object.keys(process.env).some(key => 
@@ -508,7 +521,7 @@ export class ClaudeCodeAuthSync {
       Logger.warn(`環境変数検出中にエラー発生: ${(error as Error).message}`);
     }
     
-    // 4. 設定ファイルから検出
+    // 5. 設定ファイルから検出
     try {
       const config = vscode.workspace.getConfiguration('appgeniusAI');
       const configValue = config.get<boolean>('useIsolatedAuth');
@@ -521,7 +534,7 @@ export class ClaudeCodeAuthSync {
       Logger.warn(`設定検出中にエラー発生: ${(error as Error).message}`);
     }
     
-    // 5. ファイルシステムの存在確認（既存の分離認証ファイルがあるか）
+    // 6. ファイルシステムの存在確認（既存の分離認証ファイルがあるか）
     try {
       const homeDir = os.homedir();
       const appGeniusAuthPath = path.join(homeDir, '.appgenius', 'auth.json');

@@ -39,6 +39,18 @@ export interface AuthError {
 }
 
 /**
+ * 認証モードの情報
+ */
+export interface AuthModeInfo {
+  /** 分離認証モードが有効かどうか */
+  isIsolatedAuthEnabled: boolean;
+  /** 認証モードを決定した方法 */
+  detectionMethod: string;
+  /** 認証ファイルのパス */
+  authFilePath?: string;
+}
+
+/**
  * AuthenticationService - 認証状態を一元管理するサービス
  * 
  * ユーザーの認証状態を管理し、認証関連のイベントを発行します。
@@ -51,6 +63,7 @@ export class AuthenticationService {
   private _currentState: AuthState;
   private _lastError: AuthError | null = null;
   private _authCheckInterval: NodeJS.Timer | null = null;
+  private _authModeInfo: AuthModeInfo | null = null;
   
   // イベントエミッター
   private _onStateChanged = new vscode.EventEmitter<AuthState>();
@@ -1013,8 +1026,172 @@ export class AuthenticationService {
   }
   
   /**
-   * リソースの解放
+   * 分離認証モードの情報を取得
+   * 認証モードの状態と詳細情報を返す
    */
+  public getAuthModeInfo(): AuthModeInfo {
+    // 既に検出済みの場合はそのまま返す
+    if (this._authModeInfo) {
+      return { ...this._authModeInfo };
+    }
+    
+    // 分離認証モードの検出ロジック
+    const info: AuthModeInfo = {
+      isIsolatedAuthEnabled: false,
+      detectionMethod: 'unknown'
+    };
+    
+    try {
+      // 1. 環境変数から直接検出（最優先）
+      const envVar = process.env.APPGENIUS_USE_ISOLATED_AUTH;
+      if (envVar !== undefined) {
+        info.isIsolatedAuthEnabled = envVar.toLowerCase() === 'true';
+        info.detectionMethod = 'environment_variable';
+        Logger.info(`分離認証モード環境変数: ${envVar} (${info.isIsolatedAuthEnabled ? '有効' : '無効'})`);
+        
+        // 認証ファイルパスも設定
+        if (info.isIsolatedAuthEnabled) {
+          info.authFilePath = this._getIsolatedAuthFilePath();
+        }
+        
+        this._authModeInfo = info;
+        return { ...info };
+      }
+      
+      // 2. VSCode API環境の検出
+      try {
+        const isVSCodeEnv = !!vscode.env.appName;
+        const appName = isVSCodeEnv ? vscode.env.appName : 'unknown';
+        Logger.info(`VSCode環境検出: ${isVSCodeEnv}, アプリ名: ${appName}`);
+        
+        // VSCode環境では分離認証をデフォルトで有効化
+        if (isVSCodeEnv) {
+          info.isIsolatedAuthEnabled = true;
+          info.detectionMethod = 'vscode_api';
+          info.authFilePath = this._getIsolatedAuthFilePath();
+          
+          Logger.info('VSCode環境で実行中のため、分離認証モードをデフォルトで有効化します');
+          this._authModeInfo = info;
+          return { ...info };
+        }
+      } catch (error) {
+        Logger.warn(`VSCode環境の検出中にエラー発生: ${(error as Error).message}`);
+      }
+      
+      // 3. VSCode関連の環境変数から検出
+      try {
+        // VSCode関連の環境変数があればVSCode環境と判断
+        const hasVSCodeEnv = Object.keys(process.env).some(key => 
+          key.toLowerCase().includes('vscode') || 
+          key.toLowerCase().includes('code_')
+        );
+        
+        if (hasVSCodeEnv) {
+          info.isIsolatedAuthEnabled = true;
+          info.detectionMethod = 'vscode_environment_vars';
+          info.authFilePath = this._getIsolatedAuthFilePath();
+          
+          Logger.info('VSCode関連の環境変数が検出されたため、分離認証モードを有効化します');
+          this._authModeInfo = info;
+          return { ...info };
+        }
+      } catch (error) {
+        Logger.warn(`環境変数検出中にエラー発生: ${(error as Error).message}`);
+      }
+      
+      // 4. 設定ファイルから検出
+      try {
+        const config = vscode.workspace.getConfiguration('appgeniusAI');
+        const configValue = config.get<boolean>('useIsolatedAuth');
+        
+        if (configValue !== undefined) {
+          info.isIsolatedAuthEnabled = configValue;
+          info.detectionMethod = 'vscode_settings';
+          if (info.isIsolatedAuthEnabled) {
+            info.authFilePath = this._getIsolatedAuthFilePath();
+          }
+          
+          Logger.info(`設定から分離認証モード設定を検出: ${info.isIsolatedAuthEnabled ? '有効' : '無効'}`);
+          this._authModeInfo = info;
+          return { ...info };
+        }
+      } catch (error) {
+        Logger.warn(`設定検出中にエラー発生: ${(error as Error).message}`);
+      }
+      
+      // デフォルトは安全策として有効に設定
+      info.isIsolatedAuthEnabled = true;
+      info.detectionMethod = 'default';
+      info.authFilePath = this._getIsolatedAuthFilePath();
+      
+      Logger.info('明示的な設定が見つからないため、デフォルトで分離認証モードを有効化します');
+      this._authModeInfo = info;
+      return { ...info };
+    } catch (error) {
+      // エラー発生時もデフォルト値を返す
+      Logger.error('認証モード検出中にエラーが発生しました', error as Error);
+      
+      const defaultInfo: AuthModeInfo = {
+        isIsolatedAuthEnabled: true, // 安全策としてデフォルトは有効
+        detectionMethod: 'error_fallback',
+        authFilePath: this._getIsolatedAuthFilePath()
+      };
+      
+      this._authModeInfo = defaultInfo;
+      return { ...defaultInfo };
+    }
+  }
+  
+  /**
+   * 分離認証モードのファイルパスを取得
+   */
+  private _getIsolatedAuthFilePath(): string {
+    // 環境変数で明示的に指定されている場合はそれを使用
+    if (process.env.CLAUDE_AUTH_FILE) {
+      return process.env.CLAUDE_AUTH_FILE;
+    }
+    
+    // OSに応じた標準的なパスを構築
+    const homeDir = require('os').homedir();
+    const fs = require('fs');
+    const path = require('path');
+    
+    // 標準的な場所（.appgenius）を確認
+    const dotAppGeniusDir = path.join(homeDir, '.appgenius');
+    
+    // ディレクトリが存在するか、作成可能な場合は.appgeniusを使用
+    try {
+      if (fs.existsSync(dotAppGeniusDir)) {
+        return path.join(dotAppGeniusDir, 'auth.json');
+      }
+      
+      // プラットフォーム固有のパス
+      if (process.platform === 'win32') {
+        // Windowsでの代替設定ディレクトリ
+        const appDataDir = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
+        return path.join(appDataDir, 'appgenius', 'auth.json');
+      } else if (process.platform === 'darwin') {
+        // macOSでの代替設定ディレクトリ
+        return path.join(homeDir, 'Library', 'Application Support', 'appgenius', 'auth.json');
+      } else {
+        // Linux/Unixでの代替設定ディレクトリ
+        const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(homeDir, '.config');
+        return path.join(xdgConfigHome, 'appgenius', 'auth.json');
+      }
+    } catch (error) {
+      // エラー発生時はホームディレクトリの.appgenius/auth.jsonをデフォルトとして返す
+      Logger.warn(`認証ファイルパス検出中にエラー発生: ${(error as Error).message}`);
+      return path.join(homeDir, '.appgenius', 'auth.json');
+    }
+  }
+  
+  /**
+   * 分離認証モードが有効かどうかを返す（シンプルな形式）
+   */
+  public isIsolatedAuthEnabled(): boolean {
+    return this.getAuthModeInfo().isIsolatedAuthEnabled;
+  }
+
   public dispose(): void {
     this._stopAuthCheckInterval();
     this._onStateChanged.dispose();
