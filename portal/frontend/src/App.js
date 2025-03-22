@@ -31,6 +31,25 @@ import UserDetail from './components/users/UserDetail';
 import PlanList from './components/plans/PlanList';
 import PlanDetail from './components/plans/PlanDetail';
 
+// 組織・ワークスペース管理
+import OrganizationList from './components/organizations/OrganizationList';
+import OrganizationDetail from './components/organizations/OrganizationDetail';
+import OrganizationForm from './components/organizations/OrganizationForm';
+import MemberManagement from './components/organizations/MemberManagement';
+import WorkspaceList from './components/workspaces/WorkspaceList';
+import WorkspaceDetail from './components/workspaces/WorkspaceDetail';
+import ApiKeyManagement from './components/workspaces/ApiKeyManagement';
+
+// 使用量ダッシュボード
+import UsageDashboard from './components/usage/UsageDashboard';
+import OrganizationUsage from './components/usage/OrganizationUsage';
+import WorkspaceUsage from './components/usage/WorkspaceUsage';
+import UserUsage from './components/usage/UserUsage';
+
+// 管理者ダッシュボード
+import AdminDashboard from './components/admin/AdminDashboard';
+import UsageLimits from './components/admin/UsageLimits';
+
 // サービス
 import authService from './services/auth.service';
 
@@ -56,8 +75,19 @@ const theme = createTheme({
 
 // 認証状態確認用のプライベートルート
 const PrivateRoute = ({ children }) => {
+  // ローカルストレージとトークン有効期限の両方を確認
   const isLoggedIn = authService.isLoggedIn();
-  return isLoggedIn ? children : <Navigate to="/login" />;
+  const token = localStorage.getItem('accessToken');
+  
+  // ログイン状態でない場合はログインページにリダイレクト
+  if (!isLoggedIn || !token) {
+    return <Navigate to="/login" />;
+  }
+  
+  // ここでauthService.refreshTokenを呼び出すとよりセキュアになりますが、
+  // パフォーマンスへの影響を考慮して実装していません
+  
+  return children;
 };
 
 const App = () => {
@@ -69,30 +99,65 @@ const App = () => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        // まずローカルストレージからトークンをチェック
         const loggedIn = authService.isLoggedIn();
         setIsLoggedIn(loggedIn);
         
+        // ユーザー情報を更新
         if (loggedIn) {
-          // まず保存済みのユーザー情報を表示
+          // まず保存済みのユーザー情報を表示 (UX向上)
           const storedUser = authService.getStoredUser();
           if (storedUser) {
             setUser(storedUser);
           }
           
-          // バックグラウンドでユーザー情報を更新 (エラー処理改善)
+          // バックグラウンドでユーザー情報を更新
           try {
             const response = await authService.getCurrentUser();
             if (response && response.user) {
+              // アカウントが無効化されているかチェック
+              if (response.user.role === 'unsubscribed') {
+                // 無効化されたアカウントはログアウトさせる
+                handleLogout();
+                // URLパラメータにエラーメッセージを含めてログインページにリダイレクト
+                window.location.href = '/login?error=account_disabled';
+                return;
+              }
+              
               setUser(response.user);
+              // 再度ログイン状態を確認
+              setIsLoggedIn(true);
+            } else {
+              // レスポンスにユーザー情報がない場合は認証切れの可能性
+              authService.refreshToken().catch(() => {
+                handleLogout();
+                // URLパラメータにエラーメッセージを含めてログインページにリダイレクト
+                window.location.href = '/login?error=session_expired';
+              });
             }
           } catch (error) {
             console.error('ユーザー情報更新エラー:', error);
-            // 認証エラーの場合のみログアウト
-            if (error.response?.status === 401) {
+            // アカウント無効化エラーの場合は特別なメッセージを表示
+            if (error.response?.data?.message?.includes('アカウントが無効化されています')) {
               handleLogout();
-              showNotification('セッションが期限切れです。再度ログインしてください。', 'warning');
+              // URLパラメータにエラーメッセージを含めてログインページにリダイレクト
+              window.location.href = '/login?error=account_disabled';
+              return;
+            }
+            
+            // 認証エラーの場合はログアウト
+            if (error.response?.status === 401) {
+              // トークンの更新を試みる
+              authService.refreshToken().catch(() => {
+                handleLogout();
+                // URLパラメータにエラーメッセージを含めてログインページにリダイレクト
+                window.location.href = '/login?error=session_expired';
+              });
             }
           }
+        } else {
+          // ログインしていない場合は、ユーザー情報をクリア
+          setUser(null);
         }
       } catch (error) {
         console.error('認証状態確認エラー:', error);
@@ -105,11 +170,20 @@ const App = () => {
     // 初回実行
     checkAuthStatus();
     
-    // 定期的に認証状態を確認（5分ごと）
-    const intervalId = setInterval(checkAuthStatus, 5 * 60 * 1000);
+    // 定期的に認証状態を確認（3分ごと）
+    const intervalId = setInterval(checkAuthStatus, 3 * 60 * 1000);
+    
+    // ページがフォーカスを取得したときにも認証状態を確認
+    const handleFocus = () => {
+      checkAuthStatus();
+    };
+    window.addEventListener('focus', handleFocus);
     
     // クリーンアップ
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // ログアウト処理
@@ -137,11 +211,18 @@ const App = () => {
     }));
   };
 
+  // ログインページ以外ではヘッダーを表示する
+  const shouldShowHeader = () => {
+    const currentPath = window.location.pathname;
+    // ログインページではヘッダーを表示しない
+    return currentPath !== '/login';
+  };
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <Router>
-        {isLoggedIn && (
+        {(isLoggedIn || (!isLoggedIn && shouldShowHeader())) && (
           <AppBar position="sticky">
             <Toolbar>
               <IconButton
@@ -149,31 +230,48 @@ const App = () => {
                 color="inherit"
                 aria-label="home"
                 sx={{ mr: 2 }}
-                onClick={() => window.location.href = '/dashboard'}
-                title="ダッシュボードへ"
+                onClick={() => window.location.href = isLoggedIn ? '/dashboard' : '/login'}
+                title={isLoggedIn ? "ダッシュボードへ" : "ログインへ"}
               >
-                <HomeIcon />
+                {isLoggedIn ? <DashboardIcon /> : <HomeIcon />}
               </IconButton>
               
               <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
                 AppGenius
               </Typography>
               
-              {user && (
+              {user ? (
                 <Box mr={2}>
                   <Typography variant="body2">
-                    {user.name}
+                    {user.name || user.email || ''}
                   </Typography>
                 </Box>
+              ) : (
+                shouldShowHeader() && !isLoggedIn && (
+                  <Box mr={2}>
+                    <Typography variant="body2">
+                      ゲスト
+                    </Typography>
+                  </Box>
+                )
               )}
               
-              <Button 
-                color="inherit" 
-                startIcon={<LogoutIcon />}
-                onClick={handleLogout}
-              >
-                ログアウト
-              </Button>
+              {isLoggedIn ? (
+                <Button 
+                  color="inherit" 
+                  startIcon={<LogoutIcon />}
+                  onClick={handleLogout}
+                >
+                  ログアウト
+                </Button>
+              ) : (
+                <Button 
+                  color="inherit" 
+                  onClick={() => window.location.href = '/login'}
+                >
+                  ログイン
+                </Button>
+              )}
             </Toolbar>
           </AppBar>
         )}
@@ -253,7 +351,99 @@ const App = () => {
               </PrivateRoute>
             } />
             
-            <Route path="/" element={<Navigate to={isLoggedIn ? "/dashboard" : "/login"} />} />
+            {/* 組織管理ルート */}
+            <Route path="/organizations" element={
+              <PrivateRoute>
+                <OrganizationList />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/new" element={
+              <PrivateRoute>
+                <OrganizationForm />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:id" element={
+              <PrivateRoute>
+                <OrganizationDetail />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:id/members" element={
+              <PrivateRoute>
+                <MemberManagement />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:id/usage" element={
+              <PrivateRoute>
+                <OrganizationUsage />
+              </PrivateRoute>
+            } />
+            
+            {/* ワークスペース管理ルート */}
+            <Route path="/workspaces" element={
+              <PrivateRoute>
+                <WorkspaceList />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/workspaces/:id" element={
+              <PrivateRoute>
+                <WorkspaceDetail />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/workspaces/:id/apikey" element={
+              <PrivateRoute>
+                <ApiKeyManagement />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/workspaces/:id/members" element={
+              <PrivateRoute>
+                <MemberManagement />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/workspaces/:id/usage" element={
+              <PrivateRoute>
+                <WorkspaceUsage />
+              </PrivateRoute>
+            } />
+            
+            {/* 使用量ダッシュボード */}
+            <Route path="/usage" element={
+              <PrivateRoute>
+                <UsageDashboard />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/users/:userId/usage" element={
+              <PrivateRoute>
+                <UserUsage />
+              </PrivateRoute>
+            } />
+            
+            {/* 管理者ダッシュボード */}
+            <Route path="/admin" element={
+              <PrivateRoute>
+                <AdminDashboard />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/admin/usage-limits" element={
+              <PrivateRoute>
+                <UsageLimits />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/" element={
+              isLoggedIn 
+                ? <Navigate to="/dashboard" replace /> 
+                : <Navigate to="/login" replace />
+            } />
             
             <Route path="*" element={
               <Container>
