@@ -6,12 +6,13 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
+const rateLimitMiddleware = require('../middlewares/rate-limit.middleware');
 
-// 認証エンドポイント
-router.post('/register', authController.register);
-router.post('/login', authController.login);
-router.post('/refresh-token', authMiddleware.verifyRefreshToken, authController.refreshToken);
-router.post('/logout', authController.logout);
+// 認証エンドポイント（レート制限適用）
+router.post('/register', rateLimitMiddleware.authRateLimit, authController.register);
+router.post('/login', rateLimitMiddleware.authRateLimit, authController.login);
+router.post('/refresh-token', rateLimitMiddleware.authRateLimit, authMiddleware.verifyRefreshToken, authController.refreshToken);
+router.post('/logout', rateLimitMiddleware.authRateLimit, authController.logout);
 
 // ユーザー情報エンドポイント
 router.get('/users/me', authMiddleware.verifyToken, authMiddleware.loadUser, authController.getCurrentUser);

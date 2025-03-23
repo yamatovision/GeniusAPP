@@ -1,0 +1,22 @@
+.organization-form-container {
+  margin: 24px;
+}
+
+.ant-card-body {
+  padding: 24px;
+}
+
+.ant-form-item-label > label {
+  font-weight: 500;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .organization-form-container {
+    margin: 12px;
+  }
+  
+  .ant-card-body {
+    padding: 12px;
+  }
+}

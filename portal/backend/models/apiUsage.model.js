@@ -14,6 +14,20 @@ const ApiUsageSchema = new mongoose.Schema({
     index: true
   },
 
+  // 組織ID（オプション）
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
+    index: true
+  },
+
+  // ワークスペースID（オプション）
+  workspaceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Workspace',
+    index: true
+  },
+
   // プロジェクトID（オプション）
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -290,6 +304,217 @@ ApiUsageSchema.statics.getUserTokenUsage = async function(userId, timeRange = {}
     successCount: 0,
     successRate: 1
   };
+};
+
+// 組織のトークン使用量取得用のスタティックメソッド
+ApiUsageSchema.statics.getOrganizationTokenUsage = async function(organizationId, timeRange = {}) {
+  // タイムスタンプフィルタの構築
+  const timeFilter = {};
+  if (timeRange.start) {
+    timeFilter.$gte = new Date(timeRange.start);
+  }
+  if (timeRange.end) {
+    timeFilter.$lte = new Date(timeRange.end);
+  }
+  
+  // クエリの構築
+  const matchQuery = {
+    organizationId: organizationId instanceof mongoose.Types.ObjectId ? 
+      organizationId : new mongoose.Types.ObjectId(organizationId)
+  };
+  
+  // タイムスタンプフィルタがある場合は追加
+  if (Object.keys(timeFilter).length > 0) {
+    matchQuery.timestamp = timeFilter;
+  }
+  
+  // 集計クエリの実行
+  const result = await this.aggregate([
+    {
+      $match: matchQuery
+    },
+    {
+      $group: {
+        _id: null,
+        inputTokens: { $sum: "$inputTokens" },
+        outputTokens: { $sum: "$outputTokens" },
+        totalTokens: { $sum: "$totalTokens" },
+        count: { $sum: 1 },
+        successCount: { $sum: { $cond: ["$success", 1, 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 1,
+        count: 1,
+        successCount: 1,
+        successRate: { 
+          $cond: [
+            { $eq: ["$count", 0] },
+            1,
+            { $divide: ["$successCount", "$count"] }
+          ]
+        }
+      }
+    }
+  ]);
+  
+  // 結果がなければデフォルト値を返す
+  return result[0] || {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    count: 0,
+    successCount: 0,
+    successRate: 1
+  };
+};
+
+// ワークスペースのトークン使用量取得用のスタティックメソッド
+ApiUsageSchema.statics.getWorkspaceTokenUsage = async function(workspaceId, timeRange = {}) {
+  // タイムスタンプフィルタの構築
+  const timeFilter = {};
+  if (timeRange.start) {
+    timeFilter.$gte = new Date(timeRange.start);
+  }
+  if (timeRange.end) {
+    timeFilter.$lte = new Date(timeRange.end);
+  }
+  
+  // クエリの構築
+  const matchQuery = {
+    workspaceId: workspaceId instanceof mongoose.Types.ObjectId ? 
+      workspaceId : new mongoose.Types.ObjectId(workspaceId)
+  };
+  
+  // タイムスタンプフィルタがある場合は追加
+  if (Object.keys(timeFilter).length > 0) {
+    matchQuery.timestamp = timeFilter;
+  }
+  
+  // 集計クエリの実行
+  const result = await this.aggregate([
+    {
+      $match: matchQuery
+    },
+    {
+      $group: {
+        _id: null,
+        inputTokens: { $sum: "$inputTokens" },
+        outputTokens: { $sum: "$outputTokens" },
+        totalTokens: { $sum: "$totalTokens" },
+        count: { $sum: 1 },
+        successCount: { $sum: { $cond: ["$success", 1, 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 1,
+        count: 1,
+        successCount: 1,
+        successRate: { 
+          $cond: [
+            { $eq: ["$count", 0] },
+            1,
+            { $divide: ["$successCount", "$count"] }
+          ]
+        }
+      }
+    }
+  ]);
+  
+  // 結果がなければデフォルト値を返す
+  return result[0] || {
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0,
+    count: 0,
+    successCount: 0,
+    successRate: 1
+  };
+};
+
+// 組織内のワークスペース別使用量取得
+ApiUsageSchema.statics.getOrganizationWorkspaceUsage = async function(organizationId, timeRange = {}) {
+  // タイムスタンプフィルタの構築
+  const timeFilter = {};
+  if (timeRange.start) {
+    timeFilter.$gte = new Date(timeRange.start);
+  }
+  if (timeRange.end) {
+    timeFilter.$lte = new Date(timeRange.end);
+  }
+  
+  // クエリの構築
+  const matchQuery = {
+    organizationId: organizationId instanceof mongoose.Types.ObjectId ? 
+      organizationId : new mongoose.Types.ObjectId(organizationId)
+  };
+  
+  // タイムスタンプフィルタがある場合は追加
+  if (Object.keys(timeFilter).length > 0) {
+    matchQuery.timestamp = timeFilter;
+  }
+  
+  // 集計クエリの実行
+  const result = await this.aggregate([
+    {
+      $match: matchQuery
+    },
+    {
+      $group: {
+        _id: "$workspaceId",
+        inputTokens: { $sum: "$inputTokens" },
+        outputTokens: { $sum: "$outputTokens" },
+        totalTokens: { $sum: "$totalTokens" },
+        count: { $sum: 1 },
+        successCount: { $sum: { $cond: ["$success", 1, 0] } }
+      }
+    },
+    {
+      $lookup: {
+        from: "workspaces",
+        localField: "_id",
+        foreignField: "_id",
+        as: "workspace"
+      }
+    },
+    {
+      $unwind: {
+        path: "$workspace",
+        preserveNullAndEmptyArrays: true
+      }
+    },
+    {
+      $project: {
+        workspaceId: "$_id",
+        workspaceName: "$workspace.name",
+        inputTokens: 1,
+        outputTokens: 1,
+        totalTokens: 1,
+        count: 1,
+        successCount: 1,
+        successRate: { 
+          $cond: [
+            { $eq: ["$count", 0] },
+            1,
+            { $divide: ["$successCount", "$count"] }
+          ]
+        }
+      }
+    },
+    {
+      $sort: { totalTokens: -1 }
+    }
+  ]);
+  
+  return Array.isArray(result) ? result : [];
 };
 
 // API使用量モデルをエクスポート

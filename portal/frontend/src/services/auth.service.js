@@ -16,14 +16,33 @@ class AuthService {
    */
   async login(email, password) {
     try {
+      console.log('認証サービス: ログインリクエスト送信');
       const response = await axios.post(`${API_URL}/login`, { email, password });
+      console.log('認証サービス: ログインレスポンス受信', response.status);
       
-      if (response.data.accessToken) {
+      if (response.data && response.data.accessToken) {
+        console.log('認証サービス: トークン保存');
         // トークンをローカルストレージに保存
         localStorage.setItem('accessToken', response.data.accessToken);
         localStorage.setItem('refreshToken', response.data.refreshToken);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        
+        // ユーザー情報を保存
+        if (response.data.user) {
+          console.log('認証サービス: ユーザー情報保存');
+          localStorage.setItem('user', JSON.stringify(response.data.user));
+        }
+        
+        // 確実に保存されたことを確認
+        const savedToken = localStorage.getItem('accessToken');
+        if (!savedToken) {
+          console.error('認証サービス: トークン保存に失敗');
+        }
+      } else {
+        console.error('認証サービス: レスポンスにトークンがありません', response.data);
       }
+      
+      // 少し待機してストレージの更新を確実にする
+      await new Promise(resolve => setTimeout(resolve, 50));
       
       return response.data;
     } catch (error) {

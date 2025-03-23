@@ -7,7 +7,8 @@ import authHeader from '../utils/auth-header';
 import { refreshTokenService } from '../utils/token-refresh';
 
 // APIのベースURL
-const API_URL = process.env.REACT_APP_API_URL || '/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
+const USERS_API_URL = `${API_BASE_URL}/users`;
 
 /**
  * ユーザー管理サービスクラス
@@ -18,10 +19,21 @@ class UserService {
    */
   async getCurrentUser() {
     try {
-      const response = await axios.get(`${API_URL}/users/profile`, { headers: authHeader() });
+      // 正しいエンドポイント：/api/users/me または /api/auth/users/me
+      const response = await axios.get(`${API_BASE_URL}/auth/users/me`, { headers: authHeader() });
       return response.data;
     } catch (error) {
-      throw this._handleError(error);
+      // エラーをコンソールに出力して詳細を確認
+      console.error('getCurrentUser error details:', error);
+      
+      // プロファイルエンドポイントがない場合は代替エンドポイントを試す
+      try {
+        const response = await axios.get(`${USERS_API_URL}/me`, { headers: authHeader() });
+        return response.data;
+      } catch (fallbackError) {
+        console.error('Fallback getCurrentUser error:', fallbackError);
+        throw this._handleError(error);
+      }
     }
   }
   
@@ -31,7 +43,7 @@ class UserService {
   async updateProfile(profileData) {
     try {
       const response = await axios.put(
-        `${API_URL}/users/profile`, 
+        `${USERS_API_URL}/profile`, 
         profileData,
         { headers: authHeader() }
       );
@@ -49,7 +61,7 @@ class UserService {
       const { page = 1, limit = 10, search = '', role = '' } = params;
       
       const response = await axios.get(
-        `${API_URL}/users`, 
+        `${USERS_API_URL}`, 
         { 
           params: { page, limit, search, role },
           headers: authHeader() 
@@ -67,7 +79,7 @@ class UserService {
   async getUserById(userId) {
     try {
       const response = await axios.get(
-        `${API_URL}/users/${userId}`,
+        `${USERS_API_URL}/${userId}`,
         { headers: authHeader() }
       );
       return response.data;
@@ -82,7 +94,7 @@ class UserService {
   async createUser(userData) {
     try {
       const response = await axios.post(
-        `${API_URL}/users`,
+        `${USERS_API_URL}`,
         userData,
         { headers: authHeader() }
       );
@@ -98,7 +110,7 @@ class UserService {
   async updateUser(userId, userData) {
     try {
       const response = await axios.put(
-        `${API_URL}/users/${userId}`,
+        `${USERS_API_URL}/${userId}`,
         userData,
         { headers: authHeader() }
       );
@@ -117,7 +129,7 @@ class UserService {
   async toggleApiAccess(userId, enabled) {
     try {
       const response = await axios.put(
-        `${API_URL}/users/${userId}/api-access`,
+        `${USERS_API_URL}/${userId}/api-access`,
         { enabled },
         { headers: authHeader() }
       );
@@ -133,7 +145,7 @@ class UserService {
   async deleteUser(userId) {
     try {
       const response = await axios.delete(
-        `${API_URL}/users/${userId}`,
+        `${USERS_API_URL}/${userId}`,
         { headers: authHeader() }
       );
       return response.data;
@@ -148,7 +160,7 @@ class UserService {
   async getUserStats() {
     try {
       const response = await axios.get(
-        `${API_URL}/users/stats`,
+        `${USERS_API_URL}/stats`,
         { headers: authHeader() }
       );
       return response.data;
@@ -174,7 +186,7 @@ class UserService {
       }
       
       const response = await axios.get(
-        `${API_URL}/users/token-usage`,
+        `${USERS_API_URL}/token-usage`,
         { 
           params,
           headers: authHeader() 
@@ -196,7 +208,7 @@ class UserService {
   async getUserTokenUsage(userId, period = 'month', interval = 'day') {
     try {
       const response = await axios.get(
-        `${API_URL}/users/${userId}/token-usage`,
+        `${USERS_API_URL}/${userId}/token-usage`,
         { 
           params: { period, interval },
           headers: authHeader() 

@@ -14,6 +14,9 @@ const mongoose = require('mongoose');
 const app = express();
 const authConfig = require('./config/auth.config');
 
+// レート制限ミドルウェアのインポート
+const rateLimitMiddleware = require('./middlewares/rate-limit.middleware');
+
 // ミドルウェア設定
 // 環境変数のCORS_ORIGINをカンマ区切りで配列に変換
 const corsOrigins = process.env.CORS_ORIGIN ? 
@@ -50,6 +53,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// グローバルなレート制限を適用
+app.use(rateLimitMiddleware.generalRateLimit);
+
 // 簡易ルート
 app.get('/', (req, res) => {
   res.json({
@@ -77,7 +83,10 @@ app.get('/api', (req, res) => {
       { path: "/api/prompts", description: "プロンプト管理API" },
       { path: "/api/proxy", description: "APIプロキシ" },
       { path: "/api/projects", description: "プロジェクト管理API" },
-      { path: "/api/plans", description: "アクセスプラン管理API" }
+      { path: "/api/organizations", description: "組織管理API" },
+      { path: "/api/workspaces", description: "ワークスペース管理API" },
+      { path: "/api/admin", description: "管理者API" },
+      { path: "/api/simple", description: "シンプル版API" }
     ]
   });
 });
@@ -88,7 +97,41 @@ app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/prompts', require('./routes/prompt.routes'));
 app.use('/api/projects', require('./routes/project.routes'));
 app.use('/api/proxy', require('./routes/api-proxy.routes'));
-app.use('/api/plans', require('./routes/accessPlan.routes'));
+
+// 組織・ワークスペース管理APIルート
+app.use('/api/organizations', require('./routes/organization.routes'));
+app.use('/api/workspaces', require('./routes/workspace.routes'));
+app.use('/api/admin', require('./routes/admin.routes'));
+
+// 組織ユーザー管理APIルート
+app.use('/api', require('./routes/invitation.routes'));
+app.use('/api', require('./routes/apiKey.routes'));
+
+// システム設定管理APIルート
+app.use('/api', require('./routes/adminConfig.routes'));
+
+// シンプル版API
+app.use('/api/simple', require('./routes/simple.routes'));
+
+// エラーログ
+app.use((err, req, res, next) => {
+  console.error('サーバーエラー:', err);
+  if (next) {
+    next(err);
+  }
+});
+
+// フロントエンドのファイルサービス（プロダクション環境用）
+if (process.env.NODE_ENV === 'production') {
+  // 静的ファイルを提供
+  const path = require('path');
+  app.use(express.static(path.join(__dirname, '../frontend/build')));
+  
+  // API以外のすべてのリクエストをindex.htmlにリダイレクト
+  app.get(/^(?!\/api\/).+/, (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build', 'index.html'));
+  });
+}
 
 // エラーハンドリング
 app.use((err, req, res, next) => {

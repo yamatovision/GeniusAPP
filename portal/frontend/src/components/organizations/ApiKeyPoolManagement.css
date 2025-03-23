@@ -1,0 +1,85 @@
+.api-key-pool-container {
+  margin-bottom: 24px;
+}
+
+.api-key-pool-container .ant-upload {
+  display: inline-block;
+}
+
+.api-key-pool-container .ant-table-wrapper {
+  margin-top: 16px;
+}
+
+.assignment-radio-group {
+  display: flex;
+  margin-bottom: 16px;
+}
+
+.selected-users-summary {
+  background-color: #f0f2f5;
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 16px;
+}
+
+.key-display {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.key-display .ant-input-affix-wrapper {
+  flex-grow: 1;
+}
+
+.key-display .ant-btn {
+  margin-left: 8px;
+}
+
+/* CSVインポートガイド */
+.csv-import-guide {
+  margin-top: 16px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 4px;
+  padding: 16px;
+  background-color: #fafafa;
+}
+
+.csv-import-guide pre {
+  background-color: #f5f5f5;
+  padding: 8px;
+  border-radius: 4px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  overflow-x: auto;
+}
+
+/* タブ内のアクション領域 */
+.tab-actions {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 使用状況バッジ */
+.usage-badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background-color: #f0f2f5;
+  margin-left: 8px;
+}
+
+/* APIキープールの空の状態表示 */
+.empty-pool-state {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.empty-pool-state .ant-empty-image {
+  height: 80px;
+}
+
+.empty-pool-state .ant-btn {
+  margin-top: 16px;
+}

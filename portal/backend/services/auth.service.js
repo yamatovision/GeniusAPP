@@ -292,32 +292,14 @@ exports.login = async (email, password) => {
       // 最終ログイン日時を更新
       user.lastLogin = new Date();
       
-      // ユーザーモデルとの互換性を保証 - super_adminの場合の特別処理
-      if (user.role === 'super_admin') {
-        // super_adminロールでバリデーションエラーになる場合の回避策
-        // ロールを一時的に変更し、保存後に戻す
-        console.log("認証サービス: super_adminユーザーの特別処理を実行");
-        const originalRole = user.role;
-        user.role = 'admin'; // 一時的にadminに変更
-        
-        try {
-          await user.save();
-          // 保存成功後、メモリ上でロールを元に戻す（DB上はadminのまま）
-          user.role = originalRole;
-          console.log("認証サービス: ユーザー情報更新成功、メモリ上でロールを復元");
-        } catch (saveError) {
-          console.error("認証サービス: ユーザー情報更新エラー:", saveError);
-          throw new Error(`ユーザー保存エラー: ${saveError.message}`);
-        }
-      } else {
-        // 通常のユーザーは普通に保存
-        try {
-          await user.save();
-          console.log("認証サービス: ユーザー情報更新成功");
-        } catch (saveError) {
-          console.error("認証サービス: ユーザー情報更新エラー:", saveError);
-          throw new Error(`ユーザー保存エラー: ${saveError.message}`);
-        }
+      // ユーザー情報を保存（super_adminの場合の特別処理を廃止）
+      try {
+        console.log("認証サービス: ユーザー情報を保存します");
+        await user.save();
+        console.log("認証サービス: ユーザー情報更新成功");
+      } catch (saveError) {
+        console.error("認証サービス: ユーザー情報更新エラー:", saveError);
+        throw new Error(`ユーザー保存エラー: ${saveError.message}`);
       }
 
       console.log("認証サービス: ログイン処理完了");
@@ -522,25 +504,14 @@ exports.refreshToken = async (refreshToken, options = {}) => {
     // 最終トークンリフレッシュ日時を更新
     user.lastTokenRefresh = new Date();
     
-    // ユーザーモデルとの互換性を保証 - super_adminの場合の特別処理
-    if (user.role === 'super_admin') {
-      // super_adminロールでバリデーションエラーになる場合の回避策
-      console.log("認証サービス: super_adminユーザーのトークンリフレッシュ特別処理を実行");
-      const originalRole = user.role;
-      user.role = 'admin'; // 一時的にadminに変更
-      
-      try {
-        await user.save();
-        // 保存成功後、メモリ上でロールを元に戻す（DB上はadminのまま）
-        user.role = originalRole;
-        console.log("認証サービス: ユーザー情報更新成功、メモリ上でロールを復元");
-      } catch (saveError) {
-        console.error("認証サービス: ユーザー情報更新エラー:", saveError);
-        throw new Error(`ユーザー保存エラー: ${saveError.message}`);
-      }
-    } else {
-      // 通常のユーザーは普通に保存
+    // ユーザー情報を保存（super_adminの場合の特別処理を廃止）
+    try {
+      console.log("認証サービス: ユーザー情報を保存します");
       await user.save();
+      console.log("認証サービス: ユーザー情報更新成功");
+    } catch (saveError) {
+      console.error("認証サービス: ユーザー情報更新エラー:", saveError);
+      throw new Error(`ユーザー保存エラー: ${saveError.message}`);
     }
     
     console.log(`認証サービス: トークンリフレッシュ完了 (ユーザー: ${user.name})`);

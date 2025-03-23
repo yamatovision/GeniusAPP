@@ -146,7 +146,7 @@ exports.verifyRefreshToken = async (req, res, next) => {
 exports.isAdmin = async (req, res, next) => {
   try {
     // JWTトークンから取得したロールを使用する
-    if (req.userRole === authConfig.roles.ADMIN) {
+    if (req.userRole === authConfig.roles.ADMIN || req.userRole === authConfig.roles.SUPER_ADMIN) {
       return next();
     }
     
@@ -154,6 +154,34 @@ exports.isAdmin = async (req, res, next) => {
       error: {
         code: 'PERMISSION_DENIED',
         message: '管理者権限が必要です'
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'サーバーエラーが発生しました',
+        details: error.message
+      }
+    });
+  }
+};
+
+/**
+ * スーパー管理者権限を検証するミドルウェア
+ * verifyTokenミドルウェアの後に使用する必要があります
+ */
+exports.isSuperAdmin = async (req, res, next) => {
+  try {
+    // JWTトークンから取得したロールを使用する
+    if (req.userRole === authConfig.roles.SUPER_ADMIN) {
+      return next();
+    }
+    
+    return res.status(403).json({
+      error: {
+        code: 'PERMISSION_DENIED',
+        message: 'スーパー管理者権限が必要です'
       }
     });
   } catch (error) {

@@ -1,0 +1,26 @@
+.member-management-container {
+  margin: 24px;
+}
+
+.ant-card {
+  margin-bottom: 16px;
+}
+
+.ant-card-body {
+  padding: 24px;
+}
+
+.ant-table-column-title {
+  font-weight: 500;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .member-management-container {
+    margin: 12px;
+  }
+  
+  .ant-card-body {
+    padding: 12px;
+  }
+}

@@ -1,0 +1,40 @@
+.api-key-management {
+  padding: 0;
+}
+
+.search-container {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 16px;
+}
+
+.api-key-table {
+  margin-top: 16px;
+}
+
+.key-tag {
+  background-color: #f5f5f5;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-family: monospace;
+}
+
+.status-active {
+  color: #52c41a;
+}
+
+.status-inactive {
+  color: #ff4d4f;
+}
+
+/* モバイル対応 */
+@media (max-width: 576px) {
+  .search-container {
+    flex-direction: column;
+  }
+  
+  .search-container .ant-input-affix-wrapper {
+    width: 100% !important;
+    margin-bottom: 8px;
+  }
+}

@@ -123,18 +123,18 @@ exports.getCurrentUsage = async (userId) => {
     // 使用制限情報
     let limits = {
       daily: user.usageLimits?.tokensPerDay || null,
-      monthly: user.plan?.tokenLimit || 100000
+      monthly: user.usageLimits?.tokensPerMonth || 100000
     };
     
-    // 次回リセット日
-    const resetDate = user.plan?.nextResetDate || new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    // 次回リセット日は毎月始め
+    const resetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     
     return {
       user: {
         id: user._id,
         name: user.name,
         email: user.email,
-        plan: user.plan?.type || 'basic'
+        plan: 'basic'
       },
       usage: {
         daily: {
@@ -237,40 +237,12 @@ exports.updateUserLimits = async (userId, limits) => {
       throw new Error('ユーザーが見つかりません');
     }
     
-    // プラン情報の更新
-    if (limits.plan) {
-      user.plan = {
-        ...user.plan,
-        type: limits.plan
-      };
-      
-      // プラン種別に基づいて制限値を設定
-      switch (limits.plan) {
-        case 'basic':
-          user.plan.tokenLimit = limits.tokenLimit || 100000; // 10万
-          break;
-        case 'standard':
-          user.plan.tokenLimit = limits.tokenLimit || 500000; // 50万
-          break;
-        case 'premium':
-          user.plan.tokenLimit = limits.tokenLimit || 2000000; // 200万
-          break;
-        case 'custom':
-          user.plan.tokenLimit = limits.tokenLimit || user.plan.tokenLimit;
-          break;
+    // トークン使用量制限の設定
+    if (limits.tokenLimit) {
+      if (!user.usageLimits) {
+        user.usageLimits = {};
       }
-    } else if (limits.tokenLimit) {
-      // プラン種別の変更なしで制限値のみ変更
-      if (!user.plan) {
-        user.plan = { type: 'custom', tokenLimit: limits.tokenLimit };
-      } else {
-        user.plan.tokenLimit = limits.tokenLimit;
-      }
-    }
-    
-    // 次回リセット日の設定
-    if (limits.nextResetDate) {
-      user.plan.nextResetDate = new Date(limits.nextResetDate);
+      user.usageLimits.tokensPerMonth = limits.tokenLimit;
     }
     
     // 日次・月次の使用量制限
@@ -308,7 +280,6 @@ exports.updateUserLimits = async (userId, limits) => {
         name: user.name,
         email: user.email
       },
-      plan: user.plan,
       usageLimits: user.usageLimits,
       apiAccess: user.apiAccess
     };
@@ -327,21 +298,11 @@ exports.resetMonthlyUsage = async () => {
   try {
     const now = new Date();
     const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const twoMonthsLater = new Date(now.getFullYear(), now.getMonth() + 2, 1);
     
-    // すべてのユーザーのプランをリセット
-    const updateResult = await User.updateMany(
-      {}, // すべてのユーザー
-      {
-        $set: {
-          'plan.lastResetDate': now,
-          'plan.nextResetDate': nextMonth
-        }
-      }
-    );
+    // 使用量統計をリセットする処理があればここに実装
     
     return {
-      updatedCount: updateResult.nModified,
+      message: "毎月の使用量は自動的にリセットされます",
       resetDate: now,
       nextResetDate: nextMonth
     };

@@ -12,7 +12,7 @@ import {
   Checkbox,
   FormControlLabel
 } from '@mui/material';
-import { useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useNavigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import authService from '../../services/auth.service';
 
 // VSCode環境からのログインかを判定する関数
@@ -29,6 +29,7 @@ const Login = () => {
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(true); // VSCode用のログイン記憶設定
   const navigate = useNavigate();
+  const location = useLocation();
   
   // 保存されたメールアドレスを読み込む
   useEffect(() => {
@@ -36,7 +37,20 @@ const Login = () => {
     if (savedEmail) {
       setEmail(savedEmail);
     }
-  }, []);
+    
+    // URLからエラーメッセージを取得
+    const params = new URLSearchParams(location.search);
+    const errorMsg = params.get('error');
+    if (errorMsg) {
+      if (errorMsg === 'account_disabled') {
+        setError('アカウントが無効化されています。管理者にお問い合わせください。');
+      } else if (errorMsg === 'session_expired') {
+        setError('セッションの有効期限が切れました。再度ログインしてください。');
+      } else {
+        setError(decodeURIComponent(errorMsg));
+      }
+    }
+  }, [location]);
 
   // 入力検証
   const validateInput = () => {
@@ -74,6 +88,8 @@ const Login = () => {
     setLoading(true);
     
     try {
+      console.log('ログイン処理開始');
+      
       // メールアドレス記憶
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', email);
@@ -82,7 +98,8 @@ const Login = () => {
       }
       
       // 認証サービスを使用してログイン
-      await authService.login(email, password);
+      const loginResult = await authService.login(email, password);
+      console.log('ログイン成功:', loginResult);
       
       // VSCodeの場合は閉じる指示を表示
       if (isVSCodeClient()) {
@@ -102,8 +119,15 @@ const Login = () => {
       }
       
       // 通常のウェブアプリの場合はダッシュボードにリダイレクト
-      navigate('/dashboard');
+      console.log('ダッシュボードへリダイレクト');
+      
+      // リダイレクトを遅延させて確実に状態を更新
+      setTimeout(() => {
+        navigate('/dashboard', { replace: true });
+        window.location.reload(); // 状態をリセットするためにページをリロード
+      }, 100);
     } catch (err) {
+      console.error('ログインエラー:', err);
       setError(
         err.response?.data?.error?.message || 
         'ログイン中にエラーが発生しました。後でもう一度お試しください。'

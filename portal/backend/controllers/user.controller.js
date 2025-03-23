@@ -10,14 +10,100 @@ const { ValidationError } = require('mongoose').Error;
 exports.getUsers = async (req, res) => {
   try {
     // クエリパラメータから取得（ページネーション、検索など）
-    const { page = 1, limit = 10, search = '', role } = req.query;
+    const { page = 1, limit = 10, search = '', role, forOrganization, organizationId } = req.query;
     
-    // 管理者権限チェック - JWTから直接取得したroleを使用
-    if (req.userRole !== authConfig.roles.ADMIN) {
+    // 組織管理者向け権限チェック
+    if (forOrganization === 'true' && organizationId) {
+      const Organization = require('../models/organization.model');
+      const organization = await Organization.findById(organizationId);
+      
+      if (!organization) {
+        return res.status(404).json({ error: '組織が見つかりません' });
+      }
+      
+      // 組織管理者かどうかを確認
+      const isOrgAdmin = organization.isAdmin(req.userId);
+      
+      if (isOrgAdmin) {
+        // 組織メンバーIDのリスト取得
+        const memberIds = organization.members.map(m => 
+          m.userId instanceof mongoose.Types.ObjectId ? m.userId : m.userId._id
+        );
+        
+        // メンバーの詳細情報を取得
+        let membersQuery = { _id: { $in: memberIds } };
+        
+        // 検索条件を適用
+        if (search) {
+          membersQuery.$or = [
+            { name: { $regex: search, $options: 'i' } },
+            { email: { $regex: search, $options: 'i' } }
+          ];
+        }
+        
+        // 役割でフィルタリング（組織内での役割ではなくグローバルな役割）
+        if (role) {
+          membersQuery.role = role;
+        }
+        
+        try {
+          // ユーザー総数をカウント
+          const total = await User.countDocuments(membersQuery);
+          
+          // ユーザー一覧を取得
+          const users = await User.find(membersQuery)
+            .select('-password -refreshToken')
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(parseInt(limit))
+            .exec();
+          
+          // 組織内の役割情報を付加
+          const usersWithRoles = users.map(user => {
+            const member = organization.members.find(m => 
+              (m.userId._id || m.userId).toString() === user._id.toString()
+            );
+            
+            const userData = user.toObject();
+            userData.organizationRole = member ? member.role : null;
+            
+            return userData;
+          });
+          
+          // レスポンスの構築
+          return res.status(200).json({
+            users: usersWithRoles,
+            pagination: {
+              total,
+              page: parseInt(page),
+              pages: Math.ceil(total / limit),
+              limit: parseInt(limit)
+            },
+            organization: {
+              id: organization._id,
+              name: organization.name
+            }
+          });
+        } catch (dbError) {
+          console.error("組織メンバー取得エラー:", dbError);
+          return res.status(500).json({ error: '組織メンバー情報の取得に失敗しました' });
+        }
+      } else {
+        return res.status(403).json({
+          error: {
+            code: 'PERMISSION_DENIED',
+            message: 'この組織のユーザー一覧を取得する権限がありません'
+          }
+        });
+      }
+    }
+    
+    // 通常のユーザー一覧取得（スーパー管理者のみ）
+    if (req.userRole !== authConfig.roles.SUPER_ADMIN) {
       return res.status(403).json({
         error: {
           code: 'PERMISSION_DENIED',
-          message: '管理者権限が必要です'
+          message: 'スーパー管理者権限が必要です'
         }
       });
     }
@@ -276,8 +362,8 @@ exports.deleteUser = async (req, res) => {
 // ユーザー統計情報を取得 (管理者向け)
 exports.getUserStats = async (req, res) => {
   try {
-    // 管理者権限チェック - JWTから直接取得したroleを使用
-    if (req.userRole !== authConfig.roles.ADMIN) {
+    // スーパー管理者権限チェック - JWTから直接取得したroleを使用
+    if (req.userRole !== authConfig.roles.SUPER_ADMIN) {
       return res.status(403).json({
         error: {
           code: 'PERMISSION_DENIED',
@@ -481,18 +567,23 @@ exports.getUserTokenUsage = async (req, res) => {
         break;
     }
     
-    const PromptUsage = require('../models/promptUsage.model');
+    // promptUsage.model は削除されたため、apiUsage.model のみを使用
     const ApiUsage = require('../models/apiUsage.model');
     
     // 統計データ取得
-    const [overallStats, timeSeriesData, apiUsageStats] = await Promise.all([
-      // プロンプト使用量全体統計
-      PromptUsage.getUserTokenUsage(userId, timeRange),
-      // 時系列データ
-      PromptUsage.getUserTimeSeriesStats(userId, interval),
-      // API使用量（Claude API経由の利用）
-      ApiUsage.getUserTokenUsage(userId, timeRange)
-    ]);
+    // プロンプト使用量はドット持ちに変更されたため、APIの使用量のみを取得する
+    const apiUsageStats = await ApiUsage.getUserTokenUsage(userId, timeRange);
+    
+    // 後方互換性のためにデータ構造を維持
+    const overallStats = {
+      totalTokens: apiUsageStats.totalTokens || 0,
+      inputTokens: apiUsageStats.inputTokens || 0,
+      outputTokens: apiUsageStats.outputTokens || 0,
+      requestCount: apiUsageStats.requestCount || 0
+    };
+    
+    // 時系列データは空の配列として提供
+    const timeSeriesData = [];
     
     // ユーザー情報も取得
     const user = await User.findById(userId).select('name email role plan apiAccess usageLimits').lean();
@@ -515,8 +606,8 @@ exports.getUserTokenUsage = async (req, res) => {
       timeSeries: timeSeriesData,
       limits: {
         daily: user?.usageLimits?.tokensPerDay || null,
-        monthly: user?.usageLimits?.tokensPerMonth || user?.plan?.tokenLimit || 100000,
-        nextReset: user?.plan?.nextResetDate
+        monthly: user?.usageLimits?.tokensPerMonth || 100000,
+        nextReset: null
       }
     });
   } catch (error) {

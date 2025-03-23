@@ -28,8 +28,6 @@ import PromptDetail from './components/prompts/PromptDetail';
 import PromptForm from './components/prompts/PromptForm';
 import UserList from './components/users/UserList';
 import UserDetail from './components/users/UserDetail';
-import PlanList from './components/plans/PlanList';
-import PlanDetail from './components/plans/PlanDetail';
 
 // 組織・ワークスペース管理
 import OrganizationList from './components/organizations/OrganizationList';
@@ -39,6 +37,8 @@ import MemberManagement from './components/organizations/MemberManagement';
 import WorkspaceList from './components/workspaces/WorkspaceList';
 import WorkspaceDetail from './components/workspaces/WorkspaceDetail';
 import ApiKeyManagement from './components/workspaces/ApiKeyManagement';
+import ApiKeyPoolManagement from './components/organizations/ApiKeyPoolManagement';
+import WorkspaceRedirect from './components/workspaces/WorkspaceRedirect';
 
 // 使用量ダッシュボード
 import UsageDashboard from './components/usage/UsageDashboard';
@@ -49,6 +49,9 @@ import UserUsage from './components/usage/UserUsage';
 // 管理者ダッシュボード
 import AdminDashboard from './components/admin/AdminDashboard';
 import UsageLimits from './components/admin/UsageLimits';
+
+// シンプルモード
+import SimpleApp from './components/simple/SimpleApp';
 
 // サービス
 import authService from './services/auth.service';
@@ -94,6 +97,19 @@ const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState(null);
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
+
+  // シンプルモードへのリダイレクト
+  const isSimplePath = window.location.pathname.startsWith('/simple');
+
+  // シンプルモードの場合はSimpleAppコンポーネントを表示して処理を終了
+  if (isSimplePath) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <SimpleApp />
+      </ThemeProvider>
+    );
+  }
 
   // 認証状態の確認
   useEffect(() => {
@@ -257,13 +273,22 @@ const App = () => {
               )}
               
               {isLoggedIn ? (
-                <Button 
-                  color="inherit" 
-                  startIcon={<LogoutIcon />}
-                  onClick={handleLogout}
-                >
-                  ログアウト
-                </Button>
+                <>
+                  <Button 
+                    color="inherit" 
+                    onClick={() => window.location.href = '/simple/dashboard'}
+                    sx={{ mr: 1 }}
+                  >
+                    シンプルモード
+                  </Button>
+                  <Button 
+                    color="inherit" 
+                    startIcon={<LogoutIcon />}
+                    onClick={handleLogout}
+                  >
+                    ログアウト
+                  </Button>
+                </>
               ) : (
                 <Button 
                   color="inherit" 
@@ -332,24 +357,6 @@ const App = () => {
               </PrivateRoute>
             } />
             
-            {/* プラン管理ルート - 順序が重要です。具体的なパスを先に配置 */}
-            <Route path="/plans/new" element={
-              <PrivateRoute>
-                <PlanDetail />
-              </PrivateRoute>
-            } />
-            
-            <Route path="/plans/:id" element={
-              <PrivateRoute>
-                <PlanDetail />
-              </PrivateRoute>
-            } />
-            
-            <Route path="/plans" element={
-              <PrivateRoute>
-                <PlanList />
-              </PrivateRoute>
-            } />
             
             {/* 組織管理ルート */}
             <Route path="/organizations" element={
@@ -376,6 +383,12 @@ const App = () => {
               </PrivateRoute>
             } />
             
+            <Route path="/organizations/:id/apikeys" element={
+              <PrivateRoute>
+                <ApiKeyPoolManagement />
+              </PrivateRoute>
+            } />
+            
             <Route path="/organizations/:id/usage" element={
               <PrivateRoute>
                 <OrganizationUsage />
@@ -383,6 +396,38 @@ const App = () => {
             } />
             
             {/* ワークスペース管理ルート */}
+            {/* 組織コンテキスト内のワークスペース */}
+            <Route path="/organizations/:organizationId/workspaces" element={
+              <PrivateRoute>
+                <WorkspaceList />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:organizationId/workspaces/:workspaceId" element={
+              <PrivateRoute>
+                <WorkspaceDetail />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:organizationId/workspaces/:workspaceId/apikey" element={
+              <PrivateRoute>
+                <ApiKeyManagement />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:organizationId/workspaces/:workspaceId/members" element={
+              <PrivateRoute>
+                <MemberManagement />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/organizations/:organizationId/workspaces/:workspaceId/usage" element={
+              <PrivateRoute>
+                <WorkspaceUsage />
+              </PrivateRoute>
+            } />
+            
+            {/* 下位互換性のための直接ワークスペースルート */}
             <Route path="/workspaces" element={
               <PrivateRoute>
                 <WorkspaceList />
@@ -391,7 +436,7 @@ const App = () => {
             
             <Route path="/workspaces/:id" element={
               <PrivateRoute>
-                <WorkspaceDetail />
+                <WorkspaceRedirect />
               </PrivateRoute>
             } />
             
@@ -437,6 +482,11 @@ const App = () => {
               <PrivateRoute>
                 <UsageLimits />
               </PrivateRoute>
+            } />
+            
+            {/* シンプルモードへのリダイレクト */}
+            <Route path="/simple/*" element={
+              <Navigate to="/simple/dashboard" replace />
             } />
             
             <Route path="/" element={

@@ -1,0 +1,87 @@
+.apikey-management-container {
+  margin: 20px;
+}
+
+.apikey-management-container .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+.apikey-management-container .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 24px;
+}
+
+.apikey-management-container .ant-card-body {
+  padding: 24px;
+}
+
+.apikey-management-container .ant-alert {
+  margin-bottom: 20px;
+  border-radius: 4px;
+}
+
+.apikey-management-container .ant-table-thead > tr > th {
+  background-color: #f5f7fa;
+  font-weight: 600;
+}
+
+.apikey-management-container .key-display {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+.apikey-management-container .key-display .ant-input-affix-wrapper {
+  flex-grow: 1;
+  margin-right: 8px;
+}
+
+.apikey-management-container .key-display .ant-btn-text {
+  margin-left: 8px;
+}
+
+.apikey-management-container .new-key-alert {
+  margin-bottom: 20px;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+.apikey-management-container .ant-table {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.apikey-management-container .ant-tag {
+  border-radius: 4px;
+}
+
+.apikey-management-container .ant-form-item-label > label {
+  font-weight: 500;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .apikey-management-container {
+    margin: 10px;
+  }
+  
+  .apikey-management-container .ant-card-body {
+    padding: 16px;
+  }
+  
+  .apikey-management-container .key-display {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .apikey-management-container .key-display .ant-input-affix-wrapper {
+    margin-right: 0;
+    margin-bottom: 8px;
+  }
+  
+  .apikey-management-container .key-display .ant-btn-text {
+    margin-left: 0;
+  }
+}

@@ -1,0 +1,78 @@
+.workspace-list-container {
+  margin: 20px;
+}
+
+.workspace-list-container .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.09);
+}
+
+.workspace-list-container .ant-card-head {
+  border-bottom: 1px solid #f0f0f0;
+  padding: 0 24px;
+}
+
+.workspace-list-container .ant-card-body {
+  padding: 24px;
+}
+
+.workspace-list-container .ant-table-thead > tr > th {
+  background-color: #f5f7fa;
+  font-weight: 600;
+}
+
+.workspace-list-container .table-options {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.workspace-list-container .ant-progress {
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.workspace-list-container .ant-tag {
+  border-radius: 4px;
+  margin-right: 0;
+}
+
+.workspace-list-container .ant-btn-text {
+  padding: 4px 8px;
+}
+
+.workspace-list-container .ant-btn {
+  border-radius: 4px;
+}
+
+/* モーダル関連のスタイル */
+.workspace-list-container .ant-modal-content {
+  border-radius: 8px;
+}
+
+.workspace-list-container .ant-modal-header {
+  border-radius: 8px 8px 0 0;
+}
+
+.workspace-list-container .ant-modal-footer {
+  border-radius: 0 0 8px 8px;
+}
+
+.workspace-list-container .ant-form-item-label > label {
+  font-weight: 500;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 768px) {
+  .workspace-list-container {
+    margin: 10px;
+  }
+  
+  .workspace-list-container .ant-card-body {
+    padding: 16px;
+  }
+  
+  .workspace-list-container .ant-table {
+    font-size: 12px;
+  }
+}

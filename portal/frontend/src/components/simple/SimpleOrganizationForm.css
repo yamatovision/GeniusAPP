@@ -1,0 +1,118 @@
+.simple-organization-form-container {
+  max-width: 640px;
+  margin: 2rem auto;
+  padding: 1rem;
+}
+
+.simple-organization-form-card {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.simple-organization-form-header {
+  margin-bottom: 2rem;
+}
+
+.simple-organization-form-header h1 {
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.simple-organization-form-header p {
+  color: #666;
+  margin: 0;
+}
+
+.simple-organization-form {
+  margin-bottom: 1.5rem;
+}
+
+.simple-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.simple-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.simple-form-group input,
+.simple-form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.simple-form-group input:focus,
+.simple-form-group textarea:focus {
+  outline: none;
+  border-color: #0078d7;
+  box-shadow: 0 0 0 2px rgba(0, 120, 215, 0.2);
+}
+
+.simple-form-help {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.simple-form-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.simple-button {
+  display: block;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  flex: 1;
+}
+
+.simple-button.primary {
+  background-color: #0078d7;
+  color: white;
+}
+
+.simple-button.primary:hover {
+  background-color: #0062b1;
+}
+
+.simple-button.primary:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.simple-button.secondary {
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.simple-button.secondary:hover {
+  background-color: #e0e0e0;
+}
+
+.simple-error-message {
+  background-color: #ffebee;
+  border-left: 4px solid #f44336;
+  color: #b71c1c;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}

@@ -1,0 +1,32 @@
+.organization-list-container {
+  margin: 24px;
+}
+
+.table-options {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ant-card-body {
+  padding: 24px;
+}
+
+.ant-progress-text {
+  font-size: 12px;
+}
+
+.ant-table-column-title {
+  font-weight: 500;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .organization-list-container {
+    margin: 12px;
+  }
+  
+  .ant-card-body {
+    padding: 12px;
+  }
+}

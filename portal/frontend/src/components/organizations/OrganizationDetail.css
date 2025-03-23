@@ -1,0 +1,39 @@
+.organization-detail-container {
+  margin: 24px;
+}
+
+.ant-card {
+  margin-bottom: 16px;
+}
+
+.ant-card-body {
+  padding: 24px;
+}
+
+.ant-descriptions-item-label {
+  width: 150px;
+  font-weight: 500;
+}
+
+.ant-tabs-nav {
+  margin-bottom: 16px;
+}
+
+.ant-progress-text {
+  font-size: 12px;
+}
+
+/* モバイル対応 */
+@media (max-width: 768px) {
+  .organization-detail-container {
+    margin: 12px;
+  }
+  
+  .ant-card-body {
+    padding: 12px;
+  }
+  
+  .ant-descriptions-item-label {
+    width: 100px;
+  }
+}

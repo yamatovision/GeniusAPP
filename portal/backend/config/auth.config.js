@@ -28,10 +28,25 @@ module.exports = {
 
   // ユーザーロール定義
   roles: {
-    ADMIN: 'admin',      // 管理者
-    USER: 'user',        // 通常ユーザー
-    UNPAID: 'unpaid',    // 料金未払いユーザー(APIは利用禁止だがUIは見れる)
-    INACTIVE: 'unsubscribed' // 退会済みユーザー
+    ADMIN: 'admin',          // 管理者
+    SUPER_ADMIN: 'super_admin',  // システム管理者（全企業管理可能）
+    USER: 'user',            // 通常ユーザー
+    UNPAID: 'unpaid',        // 料金未払いユーザー(APIは利用禁止だがUIは見れる)
+    INACTIVE: 'unsubscribed' // 退会済みユーザー（非推奨、新モデルではdeactivatedを使用）
+  },
+  
+  // アカウント状態定義
+  accountStatus: {
+    ACTIVE: 'active',        // 有効なアカウント
+    SUSPENDED: 'suspended',  // 一時停止されたアカウント
+    DEACTIVATED: 'deactivated' // 削除/無効化されたアカウント
+  },
+  
+  // 組織内ロール定義
+  organizationRoles: {
+    OWNER: 'owner',          // 組織オーナー
+    ADMIN: 'admin',          // 組織管理者
+    MEMBER: 'member'         // 一般メンバー
   },
 
   // JWT設定
