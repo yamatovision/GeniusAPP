@@ -212,7 +212,9 @@ const SimpleUserManagement = () => {
     setUserToEdit({
       _id: user._id,
       name: user.name,
-      email: user.email
+      email: user.email,
+      password: '',
+      showPasswordField: false
     });
     setEditMode(true);
   };
@@ -225,14 +227,26 @@ const SimpleUserManagement = () => {
       return;
     }
     
+    // パスワードフィールドを表示している場合、パスワードのバリデーション
+    if (userToEdit.showPasswordField && userToEdit.password) {
+      if (userToEdit.password.length < 8) {
+        setError('パスワードは8文字以上である必要があります');
+        return;
+      }
+    }
+    
     try {
       setLoading(true);
       setError(null);
       
+      // パスワードが入力されている場合のみパスワードを更新
+      const passwordToUpdate = userToEdit.showPasswordField && userToEdit.password ? userToEdit.password : null;
+      
       const response = await updateSimpleUser(
         userToEdit._id,
         userToEdit.name,
-        userToEdit.email
+        userToEdit.email,
+        passwordToUpdate
       );
       
       if (!response.success) {
@@ -499,6 +513,38 @@ const SimpleUserManagement = () => {
                     />
                   </div>
                 </div>
+                
+                <div className="simple-form-row password-toggle-container">
+                  <div className="simple-form-checkbox">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={userToEdit.showPasswordField}
+                        onChange={() => setUserToEdit({
+                          ...userToEdit, 
+                          showPasswordField: !userToEdit.showPasswordField,
+                          password: ''
+                        })}
+                      />
+                      パスワードを変更する
+                    </label>
+                  </div>
+                </div>
+                
+                {userToEdit.showPasswordField && (
+                  <div className="simple-form-row">
+                    <div className="simple-form-group">
+                      <label htmlFor="edit-password">新しいパスワード (8文字以上)</label>
+                      <input
+                        type="password"
+                        id="edit-password"
+                        value={userToEdit.password}
+                        onChange={(e) => setUserToEdit({...userToEdit, password: e.target.value})}
+                        minLength="8"
+                      />
+                    </div>
+                  </div>
+                )}
                 
                 <div className="simple-form-actions">
                   <button 

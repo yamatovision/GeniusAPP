@@ -1,10 +1,9 @@
 import axios from 'axios';
-import authHeader from '../../utils/auth-header';
+import simpleAuthHeader from '../../utils/simple-auth-header';
 
 // APIのベースURL
-const API_URL = process.env.REACT_APP_API_URL || '/api';
-
-const API_SIMPLE_URL = `${API_URL}/simple`;
+// API URLガイドラインに従い、/apiプレフィックスは省略
+const API_SIMPLE_URL = '/simple';
 
 /**
  * シンプル版のユーザー関連サービス
@@ -15,7 +14,7 @@ export const getSimpleOrganizationUsers = async (organizationId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users`, 
-      { headers: authHeader() }
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
@@ -32,7 +31,7 @@ export const addSimpleOrganizationUser = async (organizationId, name, email, pas
     const response = await axios.post(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users`, 
       { name, email, password, role }, 
-      { headers: authHeader() }
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
@@ -48,7 +47,7 @@ export const removeSimpleOrganizationUser = async (organizationId, userId) => {
   try {
     const response = await axios.delete(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users/${userId}`, 
-      { headers: authHeader() }
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
@@ -64,7 +63,7 @@ export const getSimpleUser = async (userId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/users/${userId}`, 
-      { headers: authHeader() }
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
@@ -76,12 +75,19 @@ export const getSimpleUser = async (userId) => {
 };
 
 // ユーザー情報を更新
-export const updateSimpleUser = async (userId, name, email) => {
+export const updateSimpleUser = async (userId, name, email, password = null) => {
   try {
+    const data = { name, email };
+    
+    // パスワードが提供された場合のみ含める
+    if (password) {
+      data.password = password;
+    }
+    
     const response = await axios.put(
       `${API_SIMPLE_URL}/users/${userId}`, 
-      { name, email }, 
-      { headers: authHeader() }
+      data, 
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
@@ -98,7 +104,7 @@ export const changeSimpleUserPassword = async (userId, currentPassword, newPassw
     const response = await axios.put(
       `${API_SIMPLE_URL}/users/${userId}/password`, 
       { currentPassword, newPassword }, 
-      { headers: authHeader() }
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
@@ -115,7 +121,7 @@ export const updateSimpleUserRole = async (organizationId, userId, role) => {
     const response = await axios.put(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users/${userId}/role`, 
       { role }, 
-      { headers: authHeader() }
+      { headers: simpleAuthHeader() }
     );
     return response.data;
   } catch (error) {
