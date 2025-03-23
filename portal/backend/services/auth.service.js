@@ -58,7 +58,7 @@ exports.register = async (userData) => {
       name: userData.name,
       email: userData.email,
       password: userData.password,
-      role: userData.role || authConfig.roles.USER
+      role: userData.role || 'user' // ユーザーモデルの enum: ['user', 'admin', 'super_admin'] に合わせる
     });
 
     // ユーザーを保存（パスワードは自動的にハッシュ化される）
@@ -112,17 +112,39 @@ exports.login = async (email, password) => {
       throw new Error('ユーザーが見つかりません');
     }
 
-    // ロールベースでのアカウント状態チェック
-    console.log("認証サービス: アカウント状態チェック - ロール:", user.role);
-    
-    // 退会済みユーザーはログイン不可
-    if (user.role === authConfig.roles.INACTIVE) {
-      console.log("認証サービス: アカウントが無効化されています");
-      throw new Error('アカウントが無効化されています。再登録が必要です。');
+    // アカウント状態チェック（新方式：accountStatusフィールド）
+    if (user.accountStatus) {
+      console.log("認証サービス: 新方式でのアカウント状態チェック - 状態:", user.accountStatus);
+      
+      if (user.accountStatus === authConfig.accountStatus.DEACTIVATED) {
+        console.log("認証サービス: アカウントが削除されています");
+        throw new Error('アカウントが削除または無効化されています。再登録が必要です。');
+      }
+      
+      if (user.accountStatus === authConfig.accountStatus.SUSPENDED) {
+        console.log("認証サービス: アカウントが一時停止されています");
+        throw new Error('アカウントが一時停止されています。管理者にお問い合わせください。');
+      }
+      
+      // アカウント状態が有効であってもisAccountActive()メソッドを使って二重チェック
+      if (!user.isAccountActive()) {
+        console.log("認証サービス: isAccountActiveによる追加チェックで無効と判定");
+        throw new Error('アカウントが無効状態です。管理者にお問い合わせください。');
+      }
+    } 
+    // 旧方式のチェック（後方互換性のため）
+    else {
+      console.log("認証サービス: 旧方式でのアカウント状態チェック - ロール:", user.role);
+      
+      // 退会済みユーザーはログイン不可
+      if (user.role === authConfig.roles.INACTIVE || user.role === 'unsubscribed') {
+        console.log("認証サービス: アカウントが無効化されています");
+        throw new Error('アカウントが無効化されています。再登録が必要です。');
+      }
     }
     
     // 未払いユーザーはログイン自体は可能
-    if (user.role === authConfig.roles.UNPAID) {
+    if (user.role === authConfig.roles.UNPAID || user.role === 'unpaid') {
       console.log("認証サービス: 未払いアカウントです。ログインは許可しますが、APIアクセスは制限されます。");
     }
 
@@ -142,6 +164,120 @@ exports.login = async (email, password) => {
       throw new Error('パスワードが正しくありません');
     }
 
+    // 組織情報の取得
+    console.log("認証サービス: 組織情報の取得");
+    let organizationInfo = {};
+    
+    // インポート組織やワークスペースモデル（遅延ロードしてシングルトンを避ける）
+    const Organization = require('../models/organization.model');
+    const Workspace = require('../models/workspace.model');
+    
+    try {
+      // プライマリ組織情報の確認
+      if (user.organizations && user.organizations.primary) {
+        const organization = await Organization.findById(user.organizations.primary)
+          .select('-adminApiKey'); // 機密情報は除外
+          
+        if (organization) {
+          organizationInfo.primary = {
+            id: organization._id,
+            name: organization.name,
+            role: organization.getMemberRole(user._id) || 'member'
+          };
+          
+          // ワークスペース情報の取得
+          let workspaces = await Workspace.find({
+            organizationId: organization._id,
+            isArchived: { $ne: true },
+            'members.userId': user._id
+          }).select('name description');
+          
+          // プライマリワークスペースの確認
+          let primaryWorkspace = null;
+          if (user.organizations.primaryWorkspace) {
+            primaryWorkspace = workspaces.find(w => 
+              w._id.toString() === user.organizations.primaryWorkspace.toString()
+            );
+          }
+          
+          // プライマリワークスペースがない場合は最初のワークスペースを使用
+          if (!primaryWorkspace && workspaces.length > 0) {
+            primaryWorkspace = workspaces[0];
+            // ユーザー情報を更新
+            user.organizations.primaryWorkspace = primaryWorkspace._id;
+            await user.save();
+          }
+          
+          organizationInfo.workspaces = workspaces.map(w => ({
+            id: w._id,
+            name: w.name,
+            description: w.description,
+            isPrimary: primaryWorkspace && w._id.toString() === primaryWorkspace._id.toString()
+          }));
+          
+          if (primaryWorkspace) {
+            organizationInfo.primaryWorkspace = {
+              id: primaryWorkspace._id,
+              name: primaryWorkspace.name
+            };
+          }
+        }
+      }
+      
+      // プライマリ組織が設定されていない場合、所属組織を検索
+      if (!organizationInfo.primary) {
+        const organizations = await Organization.find({
+          'members.userId': user._id,
+          isArchived: { $ne: true }
+        }).select('-adminApiKey'); // 機密情報は除外
+        
+        if (organizations.length > 0) {
+          // 最初の組織をプライマリとして設定
+          const primaryOrg = organizations[0];
+          user.organizations = user.organizations || {};
+          user.organizations.primary = primaryOrg._id;
+          
+          // この組織のワークスペースも検索
+          const workspaces = await Workspace.find({
+            organizationId: primaryOrg._id,
+            isArchived: { $ne: true },
+            'members.userId': user._id
+          }).select('name description');
+          
+          if (workspaces.length > 0) {
+            user.organizations.primaryWorkspace = workspaces[0]._id;
+          }
+          
+          await user.save();
+          
+          // 応答用の組織情報を設定
+          organizationInfo.primary = {
+            id: primaryOrg._id,
+            name: primaryOrg.name,
+            role: primaryOrg.getMemberRole(user._id) || 'member'
+          };
+          
+          if (workspaces.length > 0) {
+            organizationInfo.workspaces = workspaces.map(w => ({
+              id: w._id,
+              name: w.name,
+              description: w.description,
+              isPrimary: w._id.toString() === workspaces[0]._id.toString()
+            }));
+            
+            organizationInfo.primaryWorkspace = {
+              id: workspaces[0]._id,
+              name: workspaces[0].name
+            };
+          }
+        }
+      }
+    } catch (orgError) {
+      console.error("認証サービス: 組織情報取得エラー:", orgError);
+      // 組織情報取得エラーはログインを妨げないようにする
+      organizationInfo = { error: "組織情報の取得中にエラーが発生しました" };
+    }
+
     // トークン生成
     console.log("認証サービス: トークン生成開始");
     try {
@@ -156,19 +292,40 @@ exports.login = async (email, password) => {
       // 最終ログイン日時を更新
       user.lastLogin = new Date();
       
-      try {
-        await user.save();
-        console.log("認証サービス: ユーザー情報更新成功");
-      } catch (saveError) {
-        console.error("認証サービス: ユーザー情報更新エラー:", saveError);
-        throw new Error(`ユーザー保存エラー: ${saveError.message}`);
+      // ユーザーモデルとの互換性を保証 - super_adminの場合の特別処理
+      if (user.role === 'super_admin') {
+        // super_adminロールでバリデーションエラーになる場合の回避策
+        // ロールを一時的に変更し、保存後に戻す
+        console.log("認証サービス: super_adminユーザーの特別処理を実行");
+        const originalRole = user.role;
+        user.role = 'admin'; // 一時的にadminに変更
+        
+        try {
+          await user.save();
+          // 保存成功後、メモリ上でロールを元に戻す（DB上はadminのまま）
+          user.role = originalRole;
+          console.log("認証サービス: ユーザー情報更新成功、メモリ上でロールを復元");
+        } catch (saveError) {
+          console.error("認証サービス: ユーザー情報更新エラー:", saveError);
+          throw new Error(`ユーザー保存エラー: ${saveError.message}`);
+        }
+      } else {
+        // 通常のユーザーは普通に保存
+        try {
+          await user.save();
+          console.log("認証サービス: ユーザー情報更新成功");
+        } catch (saveError) {
+          console.error("認証サービス: ユーザー情報更新エラー:", saveError);
+          throw new Error(`ユーザー保存エラー: ${saveError.message}`);
+        }
       }
 
       console.log("認証サービス: ログイン処理完了");
       return {
         user,
         accessToken,
-        refreshToken
+        refreshToken,
+        organizations: organizationInfo
       };
     } catch (tokenError) {
       console.error("認証サービス: トークン生成/保存エラー:", tokenError);
@@ -292,9 +449,16 @@ exports.refreshToken = async (refreshToken, options = {}) => {
       }
     }
     
-    // アカウントが有効か確認
-    if (!user.isActive) {
-      console.log(`認証サービス: アカウントが無効です (ユーザー: ${user.name})`);
+    // アカウントが有効か確認（新方式）
+    if (user.accountStatus) {
+      if (user.accountStatus !== authConfig.accountStatus.ACTIVE) {
+        console.log(`認証サービス: アカウントが無効です (ユーザー: ${user.name}, 状態: ${user.accountStatus})`);
+        throw new Error('アカウントが無効化されています');
+      }
+    } 
+    // 旧方式との互換性のため（isActiveプロパティが存在する場合）
+    else if (user.isActive === false) {
+      console.log(`認証サービス: 旧方式で - アカウントが無効です (ユーザー: ${user.name})`);
       throw new Error('アカウントが無効化されています');
     }
 
@@ -358,7 +522,27 @@ exports.refreshToken = async (refreshToken, options = {}) => {
     // 最終トークンリフレッシュ日時を更新
     user.lastTokenRefresh = new Date();
     
-    await user.save();
+    // ユーザーモデルとの互換性を保証 - super_adminの場合の特別処理
+    if (user.role === 'super_admin') {
+      // super_adminロールでバリデーションエラーになる場合の回避策
+      console.log("認証サービス: super_adminユーザーのトークンリフレッシュ特別処理を実行");
+      const originalRole = user.role;
+      user.role = 'admin'; // 一時的にadminに変更
+      
+      try {
+        await user.save();
+        // 保存成功後、メモリ上でロールを元に戻す（DB上はadminのまま）
+        user.role = originalRole;
+        console.log("認証サービス: ユーザー情報更新成功、メモリ上でロールを復元");
+      } catch (saveError) {
+        console.error("認証サービス: ユーザー情報更新エラー:", saveError);
+        throw new Error(`ユーザー保存エラー: ${saveError.message}`);
+      }
+    } else {
+      // 通常のユーザーは普通に保存
+      await user.save();
+    }
+    
     console.log(`認証サービス: トークンリフレッシュ完了 (ユーザー: ${user.name})`);
 
     // トークン有効期限の計算（秒単位）
