@@ -162,9 +162,28 @@ export class ClaudeCodeLauncherService {
       const authSync = await import('../services/ClaudeCodeAuthSync').then(module => module.ClaudeCodeAuthSync.getInstance());
       const authService = await import('../core/auth/AuthenticationService').then(module => module.AuthenticationService.getInstance());
       
+      // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
+      let simpleAuthService;
+      try {
+        simpleAuthService = await import('../core/auth/SimpleAuthService').then(module => module.SimpleAuthService.getInstance());
+        Logger.info('SimpleAuthServiceのインスタンスを取得しました');
+      } catch (error) {
+        Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error as Error);
+      }
+      
       // CLIログイン状態を確認
       const isLoggedIn = authSync.isClaudeCliLoggedIn();
       Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
+      
+      // 認証情報の表示
+      if (simpleAuthService) {
+        const apiKey = simpleAuthService.getApiKey();
+        if (apiKey) {
+          Logger.info('APIキーが利用可能です。これを使用してClaudeCodeを起動します');
+        } else {
+          Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+        }
+      }
       
       // 常にAppGeniusの認証情報を使用
       Logger.info(`認証モード: AppGenius認証モード`);
@@ -383,9 +402,28 @@ export class ClaudeCodeLauncherService {
       const authSync = await import('../services/ClaudeCodeAuthSync').then(module => module.ClaudeCodeAuthSync.getInstance());
       const authService = await import('../core/auth/AuthenticationService').then(module => module.AuthenticationService.getInstance());
       
+      // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
+      let simpleAuthService;
+      try {
+        simpleAuthService = await import('../core/auth/SimpleAuthService').then(module => module.SimpleAuthService.getInstance());
+        Logger.info('SimpleAuthServiceのインスタンスを取得しました（プロンプト実行用）');
+      } catch (error) {
+        Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error as Error);
+      }
+      
       // CLIログイン状態を確認
       const isLoggedIn = authSync.isClaudeCliLoggedIn();
       Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
+      
+      // 認証情報の表示
+      if (simpleAuthService) {
+        const apiKey = simpleAuthService.getApiKey();
+        if (apiKey) {
+          Logger.info('APIキーが利用可能です。これを使用してプロンプト実行します');
+        } else {
+          Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+        }
+      }
       
       // 常にAppGeniusの認証情報を使用
       Logger.info(`プロンプト実行用の認証モード: AppGenius認証モード`);
@@ -626,17 +664,32 @@ export class ClaudeCodeLauncherService {
       const authSync = await import('../services/ClaudeCodeAuthSync').then(module => module.ClaudeCodeAuthSync.getInstance());
       const authService = await import('../core/auth/AuthenticationService').then(module => module.AuthenticationService.getInstance());
       
-      // 認証モードを確認 - AuthenticationServiceから最新状態を取得
-      const authModeInfo = authService.getAuthModeInfo();
-      const useIsolatedAuth = authModeInfo.isIsolatedAuthEnabled;
+      // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
+      let simpleAuthService;
+      try {
+        simpleAuthService = await import('../core/auth/SimpleAuthService').then(module => module.SimpleAuthService.getInstance());
+        Logger.info('SimpleAuthServiceのインスタンスを取得しました（モックアップ解析用）');
+      } catch (error) {
+        Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error as Error);
+      }
       
-      Logger.info(`モックアップ解析用の認証モード: ${useIsolatedAuth ? '分離認証モード' : '標準モード'} (検出方法: ${authModeInfo.detectionMethod})`);
+      // 認証情報の表示
+      if (simpleAuthService) {
+        const apiKey = simpleAuthService.getApiKey();
+        if (apiKey) {
+          Logger.info('APIキーが利用可能です。これを使用してモックアップ解析を実行します');
+        } else {
+          Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+        }
+      }
+      
+      // 認証モードを確認 - 常に分離認証モードを使用（シンプル化）
+      const useIsolatedAuth = true;
+      Logger.info('モックアップ解析用の認証モード: 分離認証モード（標準設定）');
       
       // AppGenius専用の認証情報を保存
-      if (useIsolatedAuth) {
-        await authSync.syncTokensToAppGeniusAuth();
-        Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
-      }
+      await authSync.syncTokensToAppGeniusAuth();
+      Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
       
       // コマンド設定
       let baseCommand = 'claude';

@@ -13,8 +13,8 @@ const API_BASE_URL = 'https://geniemon-portal-backend-production.up.railway.app/
 // 設定 (auth.config.jsから)
 const JWT_SECRET = 'appgenius-jwt-secret-key';
 const JWT_EXPIRY = '1h';
-const issuer = 'appgenius-prompt-portal';
-const audience = 'appgenius-users';
+const issuer = 'appgenius-simple-auth';
+const audience = 'appgenius-simple-users';
 
 // テスト用ユーザー情報 (テストデータから)
 const TEST_USER_ID = '67d52780936e48c9fc8597b7';

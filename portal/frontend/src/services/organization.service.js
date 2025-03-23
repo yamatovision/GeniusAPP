@@ -1,6 +1,6 @@
 import axios from 'axios';
 import authHeader from '../utils/auth-header';
-import { refreshTokenService } from '../utils/token-refresh';
+import { tokenRefreshService } from '../utils/token-refresh';
 import { withRetry } from '../utils/api-retry';
 import WebSocketManager, { EventTypes } from '../utils/websocket-manager';
 
@@ -847,7 +847,7 @@ class OrganizationService {
    */
   async refreshToken() {
     try {
-      return await refreshTokenService.refreshToken();
+      return await tokenRefreshService.refreshToken();
     } catch (error) {
       console.error('Token refresh error:', error);
       throw error;

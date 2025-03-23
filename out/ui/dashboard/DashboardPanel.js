@@ -184,6 +184,10 @@ class DashboardPanel extends ProtectedPanel_1.ProtectedPanel {
                 case 'refreshProjects':
                     await this._refreshProjects();
                     break;
+                case 'logout':
+                    // ログアウト処理
+                    await vscode.commands.executeCommand('appgenius.simpleAuth.logout');
+                    break;
                 case 'showVSCodeMessage':
                     await this._handleShowVSCodeMessage(message.type, message.message);
                     break;

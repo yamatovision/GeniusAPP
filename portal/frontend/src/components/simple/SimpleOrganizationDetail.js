@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { 
   getSimpleOrganization, 
-  deleteSimpleOrganization 
+  deleteSimpleOrganization,
+  createSimpleWorkspace 
 } from '../../services/simple/simpleOrganization.service';
 import { 
   getSimpleOrganizationApiKeys, 
@@ -21,6 +22,9 @@ const SimpleOrganizationDetail = () => {
   const [newApiKey, setNewApiKey] = useState('');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userRole, setUserRole] = useState(null);
+  const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [workspaceCreated, setWorkspaceCreated] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState(null);
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -132,6 +136,36 @@ const SimpleOrganizationDetail = () => {
       setLoading(false);
     }
   };
+  
+  // ワークスペース自動作成
+  const handleCreateWorkspace = async () => {
+    try {
+      setCreatingWorkspace(true);
+      setError(null);
+      
+      // APIを使用してワークスペースを作成
+      const response = await createSimpleWorkspace(id);
+      
+      if (!response.success) {
+        throw new Error(response.message || 'ワークスペースの作成に失敗しました');
+      }
+      
+      // 成功したらワークスペース情報を設定
+      setWorkspaceCreated(true);
+      if (response.data && response.data.workspaceId) {
+        setWorkspaceId(response.data.workspaceId);
+      }
+      
+      // 組織データを再取得
+      fetchOrganizationData();
+      
+    } catch (err) {
+      console.error('ワークスペース作成エラー:', err);
+      setError('ワークスペースの作成に失敗しました: ' + (err.message || '不明なエラー'));
+    } finally {
+      setCreatingWorkspace(false);
+    }
+  };
 
   // 権限チェック (SuperAdminとAdminのみ編集可能)
   const canEdit = userRole === 'SuperAdmin' || userRole === 'Admin';
@@ -171,12 +205,20 @@ const SimpleOrganizationDetail = () => {
             
             <div className="simple-organization-detail-actions">
               {canEdit && (
-                <Link 
-                  to={`/simple/organizations/${id}/edit`} 
-                  className="simple-button secondary"
-                >
-                  編集
-                </Link>
+                <>
+                  <Link 
+                    to={`/simple/organizations/${id}/users`} 
+                    className="simple-button primary"
+                  >
+                    ユーザー管理
+                  </Link>
+                  <Link 
+                    to={`/simple/organizations/${id}/edit`} 
+                    className="simple-button secondary"
+                  >
+                    編集
+                  </Link>
+                </>
               )}
               
               {canDelete && (
@@ -196,6 +238,67 @@ const SimpleOrganizationDetail = () => {
               <p>{organization.description}</p>
             </div>
           )}
+          
+          <div className="simple-organization-workspace">
+            <div className="simple-section-header">
+              <h2>ワークスペース</h2>
+            </div>
+            <div className="simple-workspace-info">
+              <p><b>ワークスペース名:</b> {organization.workspaceName}</p>
+              
+              {error && <div className="simple-error-message">{error}</div>}
+              
+              {workspaceCreated ? (
+                <div className="simple-workspace-success">
+                  <p>✅ ワークスペースが正常に作成されました！</p>
+                  {workspaceId && (
+                    <p><b>ワークスペースID:</b> {workspaceId}</p>
+                  )}
+                  <a 
+                    href="https://console.anthropic.com/workspaces" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="simple-button secondary"
+                  >
+                    Claude管理画面でワークスペースを確認
+                  </a>
+                </div>
+              ) : (
+                <div className="simple-workspace-actions">
+                  {apiKeys.length > 0 ? (
+                    <button 
+                      onClick={handleCreateWorkspace} 
+                      className="simple-button primary"
+                      disabled={creatingWorkspace}
+                    >
+                      {creatingWorkspace ? 'ワークスペース作成中...' : 'APIを使って自動作成'}
+                    </button>
+                  ) : (
+                    <div className="simple-workspace-warning">
+                      <p>⚠️ ワークスペースの自動作成にはAPIキーが必要です。先にAPIキーを追加してください。</p>
+                    </div>
+                  )}
+                  
+                  <p className="simple-workspace-separator">または</p>
+                  
+                  <a 
+                    href={`https://console.anthropic.com/workspaces/new?name=${encodeURIComponent(organization.workspaceName)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="simple-button secondary"
+                  >
+                    Claude管理画面で手動作成
+                  </a>
+                </div>
+              )}
+              
+              <div className="simple-workspace-help">
+                <p>※ 自動作成では、登録済みのAPIキーを使用してAnthropicにワークスペースを作成します。</p>
+                <p>※ 手動作成では、Claude管理画面が開き、「{organization.workspaceName}」という名前がすでに入力された状態でワークスペースを作成できます。</p>
+                <p>※ 手動作成には、Claude管理画面でのログイン・認証が必要です。</p>
+              </div>
+            </div>
+          </div>
           
           <div className="simple-organization-api-keys">
             <div className="simple-section-header">

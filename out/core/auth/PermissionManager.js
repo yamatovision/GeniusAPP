@@ -40,8 +40,9 @@ const logger_1 = require("../../utils/logger");
 /**
  * PermissionManager - 機能へのアクセス権限をチェックするクラス
  *
- * AuthenticationServiceの状態に基づいて、
+ * 認証サービスの状態に基づいて、
  * ユーザーが特定の機能にアクセスできるかどうかをチェックします。
+ * SimpleAuthServiceとAuthenticationServiceの両方に対応しています。
  */
 class PermissionManager {
     /**
@@ -52,9 +53,11 @@ class PermissionManager {
         // 公開イベント
         this.onPermissionsChanged = this._onPermissionsChanged.event;
         this._authService = authService;
+        // SimpleAuthServiceかどうかを判定
+        this._isSimpleAuth = 'getAccessToken' in authService;
         // 認証状態変更イベントをリッスン
         this._authService.onStateChanged(this._handleAuthStateChanged.bind(this));
-        logger_1.Logger.info('PermissionManager: 初期化完了');
+        logger_1.Logger.info(`PermissionManager: 初期化完了 (SimpleAuth: ${this._isSimpleAuth})`);
     }
     /**
      * シングルトンインスタンスの取得
@@ -62,7 +65,7 @@ class PermissionManager {
     static getInstance(authService) {
         if (!PermissionManager.instance) {
             if (!authService) {
-                throw new Error('PermissionManagerの初期化時にはAuthenticationServiceが必要です');
+                throw new Error('PermissionManagerの初期化時には認証サービスが必要です');
             }
             PermissionManager.instance = new PermissionManager(authService);
         }

@@ -1,0 +1,86 @@
+
+Starting security scans...
+Running security test: Auth Bypass - Protected Endpoint Without Token
+❌ FAILED: Auth Bypass - Protected Endpoint Without Token
+   Error: connect ECONNREFUSED ::1:3000
+Running security test: Auth Bypass - Invalid Token
+❌ FAILED: Auth Bypass - Invalid Token
+   Error: connect ECONNREFUSED ::1:3000
+Running security test: SQL Injection - Login Endpoint with payload: '; DROP TA...
+❌ FAILED: SQL Injection - Login Endpoint with payload: '; DROP TA...
+   Error: connect ECONNREFUSED ::1:3000
+Running security test: SQL Injection - Login Endpoint with payload: ' OR '1'='...
+❌ FAILED: SQL Injection - Login Endpoint with payload: ' OR '1'='...
+   Error: connect ECONNREFUSED ::1:3000
+Running security test: SQL Injection - Login Endpoint with payload: admin' --...
+❌ FAILED: SQL Injection - Login Endpoint with payload: admin' --...
+   Error: connect ECONNREFUSED ::1:3000
+Running security test: SQL Injection - Login Endpoint with payload: 1; SELECT ...
+❌ FAILED: SQL Injection - Login Endpoint with payload: 1; SELECT ...
+   Error: connect ECONNREFUSED ::1:3000
+Running security test: XSS - Organization Name Field
+Failed to get auth token: connect ECONNREFUSED ::1:3000
+❌ FAILED: XSS - Organization Name Field
+   Error: Authentication failed
+Running security test: JSON Injection - Request Body Tampering
+Failed to get auth token: connect ECONNREFUSED ::1:3000
+❌ FAILED: JSON Injection - Request Body Tampering
+   Error: Authentication failed
+Running security test: CSRF Protection - Token Required
+Failed to get auth token: connect ECONNREFUSED ::1:3000
+❌ FAILED: CSRF Protection - Token Required
+   Error: Authentication failed
+Running security test: Rate Limiting - Rapid Requests
+❌ FAILED: Rate Limiting - Rapid Requests
+   Error: connect ECONNREFUSED ::1:3000
+
+==== Security Tests Summary ====
+Total: 10
+Passed: 0
+Failed: 10
+Skipped: 0
+Pass Rate: 0.00%
+Security Issues Found: 10
+
+Security Issues:
+
+1. Auth Bypass - Protected Endpoint Without Token (Severity: medium)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Ensure all protected endpoints require valid authentication tokens
+
+2. Auth Bypass - Invalid Token (Severity: medium)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Verify token signature and expiration on every request
+
+3. SQL Injection - Login Endpoint with payload: '; DROP TA... (Severity: high)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Use parameterized queries or ORM to prevent SQL injection
+
+4. SQL Injection - Login Endpoint with payload: ' OR '1'='... (Severity: high)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Use parameterized queries or ORM to prevent SQL injection
+
+5. SQL Injection - Login Endpoint with payload: admin' --... (Severity: high)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Use parameterized queries or ORM to prevent SQL injection
+
+6. SQL Injection - Login Endpoint with payload: 1; SELECT ... (Severity: high)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Use parameterized queries or ORM to prevent SQL injection
+
+7. XSS - Organization Name Field (Severity: high)
+   Description: Authentication failed
+   Remediation: Sanitize user input and encode HTML special characters
+
+8. JSON Injection - Request Body Tampering (Severity: medium)
+   Description: Authentication failed
+   Remediation: Use Object.create(null) for empty objects and validate JSON input structure
+
+9. CSRF Protection - Token Required (Severity: medium)
+   Description: Authentication failed
+   Remediation: Implement CSRF tokens for session-based authentication
+
+10. Rate Limiting - Rapid Requests (Severity: medium)
+   Description: connect ECONNREFUSED ::1:3000
+   Remediation: Implement rate limiting for sensitive operations like authentication
+

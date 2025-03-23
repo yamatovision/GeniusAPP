@@ -1,0 +1,11 @@
+
+Starting performance tests...
+Failed to get auth token: connect ECONNREFUSED ::1:3000
+Error running performance tests: Error: Authentication failed. Cannot proceed with performance tests.
+    at getAuthToken (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/test/verification/performance_tests.js:44:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runPerformanceTests (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/test/verification/performance_tests.js:126:19)
+Error: Authentication failed. Cannot proceed with performance tests.
+    at getAuthToken (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/test/verification/performance_tests.js:44:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async runPerformanceTests (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/test/verification/performance_tests.js:126:19)

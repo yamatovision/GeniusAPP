@@ -1,12 +1,12 @@
 import axios from 'axios';
-import authHeader from '../utils/auth-header';
-import { refreshTokenService } from '../utils/token-refresh';
+import { tokenRefreshService } from '../utils/token-refresh';
 import { withRetry, withLoading } from '../utils/api-retry';
 // 使用統計フォーマッター関連のimportは削除されました
 import WebSocketManager, { EventTypes } from '../utils/websocket-manager';
 
-// APIのベースURL
-const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/prompts`;
+// APIのベースURL - 標準のプロンプトAPIを使用
+// axios.defaults.baseURLで既に基本URLが設定されているため、/apiプレフィックスは必要
+const API_URL = '/api/prompts';
 
 /**
  * プロンプトサービス
@@ -81,9 +81,7 @@ class PromptService {
         }
       });
       
-      const response = await axios.get(`${API_URL}?${queryParams.toString()}`, {
-        headers: authHeader()
-      });
+      const response = await axios.get(`${API_URL}?${queryParams.toString()}`);
       
       return response.data;
     } catch (error) {
@@ -116,9 +114,7 @@ class PromptService {
     }
     
     try {
-      const response = await axios.get(`${API_URL}/${id}`, {
-        headers: authHeader()
-      });
+      const response = await axios.get(`${API_URL}/${id}`);
       
       return response.data;
     } catch (error) {
@@ -153,9 +149,7 @@ class PromptService {
    */
   async createPrompt(promptData) {
     try {
-      const response = await axios.post(API_URL, promptData, {
-        headers: authHeader()
-      });
+      const response = await axios.post(API_URL, promptData);
       
       return response.data;
     } catch (error) {
@@ -184,9 +178,7 @@ class PromptService {
    */
   async updatePrompt(id, promptData) {
     try {
-      const response = await axios.put(`${API_URL}/${id}`, promptData, {
-        headers: authHeader()
-      });
+      const response = await axios.put(`${API_URL}/${id}`, promptData);
       
       return response.data;
     } catch (error) {
@@ -220,9 +212,7 @@ class PromptService {
         throw new Error('プロンプトIDが指定されていません');
       }
       
-      const response = await axios.delete(`${API_URL}/${id}`, {
-        headers: authHeader()
-      });
+      const response = await axios.delete(`${API_URL}/${id}`);
       
       console.log('プロンプト削除API応答:', response.data);
       return response.data;
@@ -259,9 +249,7 @@ class PromptService {
    */
   async createPromptVersion(id, versionData) {
     try {
-      const response = await axios.post(`${API_URL}/${id}/versions`, versionData, {
-        headers: authHeader()
-      });
+      const response = await axios.post(`${API_URL}/${id}/versions`, versionData);
       
       return response.data;
     } catch (error) {
@@ -289,9 +277,7 @@ class PromptService {
    */
   async getPromptVersions(id) {
     try {
-      const response = await axios.get(`${API_URL}/${id}/versions`, {
-        headers: authHeader()
-      });
+      const response = await axios.get(`${API_URL}/${id}/versions`);
       
       return response.data;
     } catch (error) {
@@ -320,9 +306,7 @@ class PromptService {
    */
   async getPromptVersionById(id, versionId) {
     try {
-      const response = await axios.get(`${API_URL}/${id}/versions/${versionId}`, {
-        headers: authHeader()
-      });
+      const response = await axios.get(`${API_URL}/${id}/versions/${versionId}`);
       
       return response.data;
     } catch (error) {
@@ -355,9 +339,7 @@ class PromptService {
       console.warn('recordPromptUsageは非推奨になりました - 統計機能は削除されました');
       
       // 後方互換性のために、APIを呼び出す
-      const response = await axios.post(`${API_URL}/${id}/usage`, {}, {
-        headers: authHeader()
-      });
+      const response = await axios.post(`${API_URL}/${id}/usage`, {});
       
       return response.data;
     } catch (error) {
@@ -373,9 +355,7 @@ class PromptService {
    */
   async getCategoriesAndTags() {
     try {
-      const response = await axios.get(`${API_URL}/metadata/categories-tags`, {
-        headers: authHeader()
-      });
+      const response = await axios.get(`${API_URL}/metadata/categories-tags`);
       
       return response.data;
     } catch (error) {
@@ -406,9 +386,7 @@ class PromptService {
     try {
       console.log(`プロンプト複製API呼び出し: ${API_URL}/${id}/clone`, options);
       
-      const response = await axios.post(`${API_URL}/${id}/clone`, options, {
-        headers: authHeader()
-      });
+      const response = await axios.post(`${API_URL}/${id}/clone`, options);
       
       console.log('プロンプト複製API応答:', response.data);
       return response.data;
@@ -442,7 +420,7 @@ class PromptService {
    */
   async refreshToken() {
     try {
-      return await refreshTokenService.refreshToken();
+      return await tokenRefreshService.refreshToken();
     } catch (error) {
       console.error('Token refresh error:', error);
       throw error;
@@ -462,9 +440,7 @@ class PromptService {
         throw new Error('プロンプトIDが指定されていません');
       }
       
-      const response = await axios.post(`${API_URL}/${id}/share`, {}, {
-        headers: authHeader()
-      });
+      const response = await axios.post(`${API_URL}/${id}/share`, {});
       
       console.log('共有リンク生成API応答:', response.data);
       return response.data;

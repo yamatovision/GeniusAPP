@@ -3,24 +3,25 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { login } from '../../services/simple/simpleAuth.service';
 import './SimpleLogin.css';
 
-// VSCode環境からのログインかを判定する関数
-const isVSCodeClient = () => {
-  return window.location.href.includes('vscode-webview') || 
-         navigator.userAgent.includes('VSCode') ||
-         window.name.includes('vscode');
-};
-
+/**
+ * シンプルログインコンポーネント
+ * 独立した認証システムのログイン処理を担当
+ */
 const SimpleLogin = () => {
+  // 状態管理
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  
+  // React Router
   const navigate = useNavigate();
   const location = useLocation();
   
-  // 保存されたメールアドレスを読み込む
+  // 初期化時の処理
   useEffect(() => {
+    // 保存されたメールアドレスを読み込む
     const savedEmail = localStorage.getItem('simpleRememberedEmail');
     if (savedEmail) {
       setEmail(savedEmail);
@@ -29,29 +30,36 @@ const SimpleLogin = () => {
     // URLからエラーメッセージを取得
     const params = new URLSearchParams(location.search);
     const errorMsg = params.get('error');
+    
     if (errorMsg) {
-      if (errorMsg === 'account_disabled') {
-        setError('アカウントが無効化されています。管理者にお問い合わせください。');
-      } else if (errorMsg === 'session_expired') {
-        setError('セッションの有効期限が切れました。再度ログインしてください。');
-      } else {
-        setError(decodeURIComponent(errorMsg));
+      switch (errorMsg) {
+        case 'account_disabled':
+          setError('アカウントが無効化されています。管理者にお問い合わせください。');
+          break;
+        case 'session_expired':
+          setError('セッションの有効期限が切れました。再度ログインしてください。');
+          break;
+        default:
+          setError(decodeURIComponent(errorMsg));
       }
     }
   }, [location]);
-
+  
   // 入力検証
   const validateInput = () => {
-    if (!email) {
+    // メールアドレス必須
+    if (!email.trim()) {
       setError('メールアドレスを入力してください');
       return false;
     }
     
-    if (!password) {
+    // パスワード必須
+    if (!password.trim()) {
       setError('パスワードを入力してください');
       return false;
     }
     
+    // メールアドレス形式チェック
     const emailRegex = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/;
     if (!emailRegex.test(email)) {
       setError('有効なメールアドレスを入力してください');
@@ -60,7 +68,7 @@ const SimpleLogin = () => {
     
     return true;
   };
-
+  
   // ログイン処理
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -73,10 +81,15 @@ const SimpleLogin = () => {
       return;
     }
     
+    // ローディング状態に設定
     setLoading(true);
     
     try {
-      console.log('シンプルログイン処理開始');
+      console.log('SimpleLogin: ログイン処理開始');
+      
+      // 既存のトークンで問題が発生する可能性があるため、ストレージをクリア
+      localStorage.removeItem('simpleUser');
+      sessionStorage.removeItem('simpleUser');
       
       // メールアドレス記憶
       if (rememberMe) {
@@ -92,34 +105,36 @@ const SimpleLogin = () => {
         throw new Error(response.message || 'ログインに失敗しました');
       }
       
-      console.log('ログイン成功:', response);
+      console.log('SimpleLogin: ログイン成功');
       
-      // VSCodeの場合は閉じる指示を表示
-      if (isVSCodeClient()) {
-        // VSCode拡張にメッセージを送信
-        try {
-          if (window.acquireVsCodeApi) {
-            const vscode = window.acquireVsCodeApi();
-            vscode.postMessage({ type: 'simple-login-success' });
+      // トークンの内容をデバッグ表示
+      try {
+        const simpleUser = JSON.parse(localStorage.getItem('simpleUser') || '{}');
+        const token = simpleUser.accessToken;
+        if (token) {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            console.log('SimpleLogin: トークン内容確認', {
+              issuer: payload.iss,
+              audience: payload.aud,
+              userId: payload.id,
+              role: payload.role
+            });
           }
-        } catch (e) {
-          console.error('VSCode API呼び出しエラー:', e);
         }
-        
-        // メッセージを表示（VSCode拡張が処理を続行）
-        setError('');
-        return;
+      } catch (tokenErr) {
+        console.error('SimpleLogin: トークン解析エラー', tokenErr);
       }
       
-      // 通常のウェブアプリの場合はシンプルダッシュボードにリダイレクト
-      console.log('シンプルダッシュボードへリダイレクト');
-      
-      // リダイレクトを遅延させて確実に状態を更新
+      // ダッシュボードへリダイレクト
       setTimeout(() => {
         navigate('/simple/dashboard', { replace: true });
       }, 100);
     } catch (err) {
-      console.error('ログインエラー:', err);
+      console.error('SimpleLogin: ログインエラー', err);
+      
+      // エラーメッセージを設定
       setError(
         err.message || 
         'ログイン中にエラーが発生しました。後でもう一度お試しください。'
@@ -128,23 +143,23 @@ const SimpleLogin = () => {
       setLoading(false);
     }
   };
-
+  
   return (
     <div className="simple-login-container">
       <div className="simple-login-card">
         <div className="simple-login-header">
           <h1>AppGenius</h1>
           <p>シンプル版ログイン</p>
-          {isVSCodeClient() && (
-            <p className="simple-vscode-notice">VSCode拡張用ログイン画面</p>
-          )}
         </div>
         
+        {/* エラーメッセージ表示 */}
         {error && (
           <div className="simple-error-message">{error}</div>
         )}
         
+        {/* ログインフォーム */}
         <form onSubmit={handleLogin} className="simple-login-form">
+          {/* メールアドレス入力 */}
           <div className="simple-form-group">
             <label htmlFor="email">メールアドレス</label>
             <input
@@ -156,9 +171,11 @@ const SimpleLogin = () => {
               disabled={loading}
               placeholder="example@example.com"
               required
+              minLength="5"
             />
           </div>
           
+          {/* パスワード入力 */}
           <div className="simple-form-group">
             <label htmlFor="password">パスワード</label>
             <input
@@ -169,9 +186,11 @@ const SimpleLogin = () => {
               onChange={(e) => setPassword(e.target.value)}
               disabled={loading}
               required
+              minLength="4"
             />
           </div>
           
+          {/* メールアドレス記憶チェックボックス */}
           <div className="simple-form-check">
             <input
               type="checkbox"
@@ -182,6 +201,7 @@ const SimpleLogin = () => {
             <label htmlFor="rememberMe">メールアドレスを記憶する</label>
           </div>
           
+          {/* ログインボタン */}
           <button 
             type="submit" 
             className="simple-button primary" 
@@ -191,6 +211,7 @@ const SimpleLogin = () => {
           </button>
         </form>
         
+        {/* フッター */}
         <div className="simple-login-footer">
           <p>
             アカウントをお持ちでない場合は
@@ -200,6 +221,7 @@ const SimpleLogin = () => {
         </div>
       </div>
       
+      {/* コピーライト */}
       <div className="simple-login-copyright">
         AppGenius © {new Date().getFullYear()}
       </div>

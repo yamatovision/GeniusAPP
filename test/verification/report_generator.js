@@ -1,375 +1,382 @@
 // test/verification/report_generator.js
-// 検証結果レポート生成ツール
+// 検証結果レポート生成スクリプト
 
 const fs = require('fs');
 const path = require('path');
 
-// 結果データをマークダウン形式のレポートに変換
-async function generateReport(results) {
-  const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const reportPath = path.join(__dirname, '..', '..', 'docs', 'verification');
+// レポート生成用設定
+const config = {
+  outputDir: path.join(__dirname, '..', '..', 'docs', 'verification'),
+  tempDir: path.join(__dirname, '..', 'temp_results'),
+  reportTemplate: {
+    title: 'AppGenius 品質保証・動作検証レポート',
+    date: new Date().toISOString().split('T')[0],
+    version: '1.0.0',
+    summary: {
+      overallScore: 'Poor', // Good, Fair, Poor
+      apiTestsPassed: 0,
+      securityIssuesFound: 0,
+      avgResponseTime: 0,
+      unitTestsPassed: 0,
+    },
+    sections: [],
+  },
+};
+
+// レポート生成関数
+async function generateReport(results = {}) {
+  console.log('\n検証レポートを生成しています...');
   
-  if (!fs.existsSync(reportPath)) {
-    fs.mkdirSync(reportPath, { recursive: true });
+  // 出力ディレクトリの確認と作成
+  if (!fs.existsSync(config.outputDir)) {
+    fs.mkdirSync(config.outputDir, { recursive: true });
   }
   
-  // サマリーレポート
-  await generateSummaryReport(results, reportPath, timestamp);
+  if (!fs.existsSync(config.tempDir)) {
+    fs.mkdirSync(config.tempDir, { recursive: true });
+  }
   
-  // 詳細メトリクスレポート
-  await generateMetricsReport(results, reportPath, timestamp);
+  // レポートデータの構築
+  const reportData = { ...config.reportTemplate };
   
-  // テスト証拠レポート
-  await generateEvidenceReport(results, reportPath, timestamp);
-  
-  // 承認フォーム
-  await generateApprovalForm(results, reportPath, timestamp);
-  
-  console.log(`Reports generated successfully in ${reportPath}`);
-  return true;
-}
-
-// サマリーレポート生成
-async function generateSummaryReport(results, reportPath, timestamp) {
-  const { unitResults, apiResults, integrationResults, perfResults, securityResults } = results;
-  
-  // 全体の合格率を計算
-  const totalTests = 
-    unitResults.total + 
-    apiResults.total + 
-    integrationResults.total + 
-    (securityResults.total || 0);
+  // 各テスト結果の取り込みと処理
+  try {
+    // 1. ユニットテスト結果
+    let unitTestResults;
+    try {
+      // 保存済み結果からの読み込みを試みる
+      const unitTestPath = path.join(config.tempDir, 'unit_tests_results.txt');
+      if (fs.existsSync(unitTestPath)) {
+        const unitTestContent = fs.readFileSync(unitTestPath, 'utf8');
+        // パス率の抓出
+        const passRateMatch = unitTestContent.match(/Pass Rate: (\d+)%/);
+        if (passRateMatch) {
+          unitTestResults = {
+            passRate: parseInt(passRateMatch[1], 10),
+          };
+        }
+      }
+    } catch (err) {
+      console.error('ユニットテスト結果の読み込みに失敗しました:', err.message);
+    }
     
-  const totalPassed = 
-    unitResults.passed + 
-    apiResults.passed + 
-    integrationResults.passed + 
-    (securityResults.passed || 0);
+    // 結果データからの取り込み
+    if (results.unitResults) {
+      unitTestResults = results.unitResults;
+    }
     
-  const overallPassRate = ((totalPassed / totalTests) * 100).toFixed(2);
-  
-  const report = `# AppGenius 検証結果サマリー - ${timestamp}
+    if (unitTestResults) {
+      reportData.summary.unitTestsPassed = unitTestResults.passRate || 0;
+      reportData.sections.push({
+        title: 'ユニットテスト結果',
+        content: `### ユニットテスト結果
 
-## 検証結果概要
+- パス率: ${unitTestResults.passRate}%
+${unitTestResults.passRate === 100 ? '- すべてのテストが成功しました。' : '- いくつかのテストが失敗しました。'}
+${unitTestResults.details ? `- 詳細: ${unitTestResults.details}` : ''}`,
+      });
+    } else {
+      reportData.sections.push({
+        title: 'ユニットテスト結果',
+        content: `### ユニットテスト結果
 
-検証の結果、合計 **${totalTests}** テストのうち **${totalPassed}** テストが合格し、合格率は **${overallPassRate}%** でした。
-
-### テストカテゴリ別結果
-
-| カテゴリ | 合計 | 合格 | 不合格 | 合格率 |
-|---------|-----|------|-------|-------|
-| ユニットテスト | ${unitResults.total} | ${unitResults.passed} | ${unitResults.failed} | ${unitResults.passRate}% |
-| APIテスト | ${apiResults.total} | ${apiResults.passed} | ${apiResults.failed} | ${apiResults.passRate}% |
-| 統合テスト | ${integrationResults.total} | ${integrationResults.passed} | ${integrationResults.failed} | ${integrationResults.passRate}% |
-| パフォーマンステスト | ${perfResults ? '測定完了' : '未実行'} | - | - | - |
-| セキュリティテスト | ${securityResults.total || 0} | ${securityResults.passed || 0} | ${securityResults.failed || 0} | ${securityResults.passRate || 0}% |
-
-### パフォーマンス測定結果
-
-- **平均応答時間**: ${perfResults.avgResponseTime}ms
-- **最小応答時間**: ${perfResults.minResponseTime}ms
-- **最大応答時間**: ${perfResults.maxResponseTime}ms
-- **95パーセンタイル**: ${perfResults.p95ResponseTime}ms
-- **リクエスト成功率**: ${perfResults.successRate}%
-
-### セキュリティスキャン結果
-
-- **検出された問題**: ${securityResults.issuesCount || 0}件
-${securityResults.issues ? securityResults.issues.map(issue => `- ${issue.name}: ${issue.severity}（${issue.description}）`).join('\n') : '- 重大な問題は検出されませんでした'}
-
-## 結論と推奨事項
-
-${overallPassRate >= 90 
-  ? '検証の結果、アプリケーションは高い品質基準を満たしています。リリースに向けた準備が整っています。' 
-  : '検証の結果、いくつかの問題が検出されました。これらの問題を解決した後に再検証が必要です。'}
-
-${unitResults.failedTests.length > 0 ? '### 修正が必要なユニットテスト\n\n' + unitResults.failedTests.map(t => `- ${t.name}: ${t.error}`).join('\n') : ''}
-${apiResults.failedTests.length > 0 ? '### 修正が必要なAPIテスト\n\n' + apiResults.failedTests.map(t => `- ${t.name}: ${t.error}`).join('\n') : ''}
-${integrationResults.failedTests.length > 0 ? '### 修正が必要な統合テスト\n\n' + integrationResults.failedTests.map(t => `- ${t.name}: ${t.error}`).join('\n') : ''}
-
-詳細な検証結果と証拠は添付の報告書を参照してください。
-`;
-
-  fs.writeFileSync(
-    path.join(reportPath, 'verification_report.md'),
-    report
-  );
-}
-
-// メトリクスレポート生成
-async function generateMetricsReport(results, reportPath, timestamp) {
-  const { perfResults, securityResults } = results;
-  
-  // 性能測定の詳細
-  let perfDetails = '';
-  if (perfResults && perfResults.endpoints) {
-    perfDetails = '## エンドポイント別パフォーマンス\n\n';
-    perfDetails += '| エンドポイント | 平均応答時間 | 最小/最大 | 95パーセンタイル | 成功率 |\n';
-    perfDetails += '|-------------|------------|---------|--------------|--------|\n';
+ユニットテスト結果が利用できません。テストを実行するか、結果ファイルの取得に失敗しました。`,
+      });
+    }
     
-    perfResults.endpoints.forEach(endpoint => {
-      perfDetails += `| ${endpoint.name} | ${endpoint.avgResponseTime}ms | ${endpoint.minResponseTime}ms / ${endpoint.maxResponseTime}ms | ${endpoint.p95ResponseTime}ms | ${endpoint.successRate}% |\n`;
+    // 2. APIテスト結果
+    let apiTestResults;
+    try {
+      // 保存済み結果からの読み込みを試みる
+      const apiTestPath = path.join(config.tempDir, 'api_tests_results.txt');
+      if (fs.existsSync(apiTestPath)) {
+        const apiTestContent = fs.readFileSync(apiTestPath, 'utf8');
+        // APIテストが実行されたがエラーが発生した場合
+        if (apiTestContent.includes('ECONNREFUSED')) {
+          apiTestResults = {
+            passRate: 0,
+            error: 'APIサーバーに接続できません。起動しているか確認してください。',
+          };
+        }
+      }
+    } catch (err) {
+      console.error('APIテスト結果の読み込みに失敗しました:', err.message);
+    }
+    
+    // 結果データからの取り込み
+    if (results.apiResults) {
+      apiTestResults = results.apiResults;
+    }
+    
+    if (apiTestResults) {
+      reportData.summary.apiTestsPassed = apiTestResults.passRate || 0;
+      reportData.sections.push({
+        title: 'APIテスト結果',
+        content: `### APIテスト結果
+
+${apiTestResults.error ? `- エラー: ${apiTestResults.error}` : ''}
+- パス率: ${apiTestResults.passRate || 0}%
+${apiTestResults.failedTests ? `- 失敗したテスト: ${apiTestResults.failedTests.length}` : ''}
+${apiTestResults.details ? `- 詳細: ${apiTestResults.details}` : ''}`,
+      });
+    } else {
+      reportData.sections.push({
+        title: 'APIテスト結果',
+        content: `### APIテスト結果
+
+APIテスト結果が利用できません。テストを実行するか、結果ファイルの取得に失敗しました。`,
+      });
+    }
+    
+    // 3. パフォーマンステスト結果
+    let performanceResults;
+    try {
+      // 保存済み結果からの読み込みを試みる
+      const perfTestPath = path.join(config.tempDir, 'performance_tests_results.txt');
+      if (fs.existsSync(perfTestPath)) {
+        const perfTestContent = fs.readFileSync(perfTestPath, 'utf8');
+        // 平均レスポンスタイムと成功率の抽出
+        const avgRespTimeMatch = perfTestContent.match(/Overall average response time: ([\d.]+)ms/);
+        const successRateMatch = perfTestContent.match(/Overall success rate: ([\d.]+)%/);
+        
+        if (avgRespTimeMatch || successRateMatch) {
+          performanceResults = {
+            avgResponseTime: avgRespTimeMatch ? parseFloat(avgRespTimeMatch[1]) : 0,
+            successRate: successRateMatch ? parseFloat(successRateMatch[1]) : 0,
+          };
+        } else if (perfTestContent.includes('Authentication failed')) {
+          performanceResults = {
+            error: '認証エラーのためテストを実行できませんでした。',
+            avgResponseTime: 0,
+            successRate: 0,
+          };
+        }
+      }
+    } catch (err) {
+      console.error('パフォーマンステスト結果の読み込みに失敗しました:', err.message);
+    }
+    
+    // 結果データからの取り込み
+    if (results.perfResults) {
+      performanceResults = results.perfResults;
+    }
+    
+    if (performanceResults) {
+      reportData.summary.avgResponseTime = performanceResults.avgResponseTime || 0;
+      
+      // 詳細なエンドポイント別結果を生成
+      let detailedResults = '';
+      if (performanceResults.detailedResults && performanceResults.detailedResults.avgResponseTimes) {
+        detailedResults = '\n\n#### エンドポイント別詳細\n\n';
+        for (const [endpoint, avgTime] of Object.entries(performanceResults.detailedResults.avgResponseTimes)) {
+          const successRate = performanceResults.detailedResults.successRates[endpoint]?.rate || 0;
+          const minTime = performanceResults.detailedResults.minResponseTimes[endpoint] || 0;
+          const maxTime = performanceResults.detailedResults.maxResponseTimes[endpoint] || 0;
+          
+          detailedResults += `**${endpoint}**:\n`;
+          detailedResults += `- 平均レスポンスタイム: ${avgTime.toFixed(2)}ms\n`;
+          detailedResults += `- 最小/最大: ${minTime}ms / ${maxTime}ms\n`;
+          detailedResults += `- 成功率: ${successRate.toFixed(2)}%\n\n`;
+        }
+      }
+      
+      reportData.sections.push({
+        title: 'パフォーマンステスト結果',
+        content: `### パフォーマンステスト結果
+
+${performanceResults.error ? `- エラー: ${performanceResults.error}` : ''}
+- 平均レスポンスタイム: ${performanceResults.avgResponseTime || 0}ms
+- 成功率: ${performanceResults.successRate ? `${performanceResults.successRate.toFixed(2)}%` : 'N/A'}
+${performanceResults.details ? `- 詳細: ${performanceResults.details}` : ''}${detailedResults}`,
+      });
+    } else {
+      reportData.sections.push({
+        title: 'パフォーマンステスト結果',
+        content: `### パフォーマンステスト結果
+
+パフォーマンステスト結果が利用できません。テストを実行するか、結果ファイルの取得に失敗しました。`,
+      });
+    }
+    
+    // 4. セキュリティテスト結果
+    let securityResults;
+    try {
+      // 保存済み結果からの読み込みを試みる
+      const secTestPath = path.join(config.tempDir, 'security_tests_results.txt');
+      if (fs.existsSync(secTestPath)) {
+        const secTestContent = fs.readFileSync(secTestPath, 'utf8');
+        // セキュリティ問題数の抓出
+        const issuesMatch = secTestContent.match(/Security Issues Found: (\d+)/);
+        if (issuesMatch) {
+          securityResults = {
+            issuesCount: parseInt(issuesMatch[1], 10),
+          };
+        } else if (secTestContent.includes('ECONNREFUSED')) {
+          securityResults = {
+            error: 'APIサーバーに接続できません。起動しているか確認してください。',
+            issuesCount: 0,
+          };
+        }
+      }
+    } catch (err) {
+      console.error('セキュリティテスト結果の読み込みに失敗しました:', err.message);
+    }
+    
+    // 結果データからの取り込み
+    if (results.securityResults) {
+      securityResults = results.securityResults;
+    }
+    
+    if (securityResults) {
+      reportData.summary.securityIssuesFound = securityResults.issuesCount || 0;
+      const issuesSection = securityResults.issues && securityResults.issues.length > 0 ? 
+        `\n#### セキュリティ問題詳細\n\n${securityResults.issues.map((issue, idx) => 
+          `${idx + 1}. **${issue.name}** (重大度: ${issue.severity})\n   - 説明: ${issue.description}\n   - 対策: ${issue.remediation}`
+        ).join('\n\n')}` : '';
+      
+      reportData.sections.push({
+        title: 'セキュリティテスト結果',
+        content: `### セキュリティテスト結果
+
+${securityResults.error ? `- エラー: ${securityResults.error}` : ''}
+- 検出されたセキュリティ問題: ${securityResults.issuesCount || 0}
+${securityResults.details ? `- 詳細: ${securityResults.details}` : ''}${issuesSection}`,
+      });
+    } else {
+      reportData.sections.push({
+        title: 'セキュリティテスト結果',
+        content: `### セキュリティテスト結果
+
+セキュリティテスト結果が利用できません。テストを実行するか、結果ファイルの取得に失敗しました。`,
+      });
+    }
+    
+    // 5. 統合テスト結果
+    if (results.integrationResults) {
+      reportData.sections.push({
+        title: '統合テスト結果',
+        content: `### 統合テスト結果
+
+- パス率: ${results.integrationResults.passRate || 0}%
+${results.integrationResults.details ? `- 詳細: ${results.integrationResults.details}` : ''}`,
+      });
+    }
+    
+    // 総合評価の計算
+    const overallScore = calculateOverallScore(reportData.summary);
+    reportData.summary.overallScore = overallScore;
+    
+    // 総合評価セクションの追加
+    reportData.sections.unshift({
+      title: '紹介',
+      content: `## 紹介
+
+このレポートはAppGeniusの自動検証システムによって生成されました。このレポートは以下のテスト結果を含みます：
+
+- ユニットテスト
+- APIテスト
+- パフォーマンステスト
+- セキュリティテスト
+- 統合テスト
+
+## 概要
+
+- 総合評価: **${overallScore}**
+- ユニットテストパス率: ${reportData.summary.unitTestsPassed}%
+- APIテストパス率: ${reportData.summary.apiTestsPassed}%
+- 平均レスポンスタイム: ${reportData.summary.avgResponseTime}ms
+- 検出されたセキュリティ問題: ${reportData.summary.securityIssuesFound}
+
+${overallScore === 'Good' ? 'すべてのテストが正常に完了し、重大な問題は検出されませんでした。' : overallScore === 'Fair' ? 'いくつかのテストに問題がありますが、重大な問題は検出されませんでした。' : '複数の検証項目に問題が検出されました。詳細は各セクションを確認してください。'}`,
     });
-  }
-  
-  // セキュリティ詳細
-  let securityDetails = '';
-  if (securityResults && securityResults.issues && securityResults.issues.length > 0) {
-    securityDetails = '## セキュリティ問題の詳細\n\n';
-    securityDetails += '| 問題 | 重要度 | 説明 | 対策 |\n';
-    securityDetails += '|-----|-------|------|------|\n';
     
-    securityResults.issues.forEach(issue => {
-      securityDetails += `| ${issue.name} | ${issue.severity} | ${issue.description} | ${issue.remediation || '推奨対策なし'} |\n`;
-    });
+    // レポートの生成
+    const reportContent = generateMarkdownReport(reportData);
+    const reportPath = path.join(config.outputDir, 'verification_report.md');
+    fs.writeFileSync(reportPath, reportContent, 'utf8');
+    
+    console.log(`検証レポートが生成されました: ${reportPath}`);
+    return reportPath;
+  } catch (error) {
+    console.error('レポート生成中にエラーが発生しました:', error);
+    throw error;
+  }
+}
+
+// 総合評価の計算
+function calculateOverallScore(summary) {
+  const { unitTestsPassed, apiTestsPassed, avgResponseTime, securityIssuesFound } = summary;
+  
+  // 単純な重み付け計算
+  let score = 0;
+  let maxScore = 0;
+  
+  // ユニットテスト評価 (30%)
+  if (unitTestsPassed >= 0) {
+    score += (unitTestsPassed / 100) * 30;
+    maxScore += 30;
   }
   
-  const report = `# AppGenius 品質メトリクス - ${timestamp}
-
-## パフォーマンスメトリクス
-
-### 全体サマリー
-
-| 指標 | 測定値 | 目標値 | 状態 |
-|-----|-------|-------|------|
-| 平均応答時間 | ${perfResults.avgResponseTime}ms | <200ms | ${perfResults.avgResponseTime < 200 ? '✅' : '❌'} |
-| 95パーセンタイル応答時間 | ${perfResults.p95ResponseTime}ms | <500ms | ${perfResults.p95ResponseTime < 500 ? '✅' : '❌'} |
-| 成功率 | ${perfResults.successRate}% | >99% | ${perfResults.successRate > 99 ? '✅' : '❌'} |
-
-${perfDetails}
-
-## セキュリティメトリクス
-
-### 全体サマリー
-
-| 指標 | 値 | 目標値 | 状態 |
-|-----|---|-------|------|
-| 発見された問題数 | ${securityResults.issuesCount || 0} | 0 | ${(securityResults.issuesCount || 0) === 0 ? '✅' : '❌'} |
-| 高重要度の問題 | ${securityResults.issues ? securityResults.issues.filter(i => i.severity === 'high').length : 0} | 0 | ${(securityResults.issues ? securityResults.issues.filter(i => i.severity === 'high').length : 0) === 0 ? '✅' : '❌'} |
-| 中重要度の問題 | ${securityResults.issues ? securityResults.issues.filter(i => i.severity === 'medium').length : 0} | 0 | ${(securityResults.issues ? securityResults.issues.filter(i => i.severity === 'medium').length : 0) === 0 ? '✅' : '❌'} |
-| 低重要度の問題 | ${securityResults.issues ? securityResults.issues.filter(i => i.severity === 'low').length : 0} | <3 | ${(securityResults.issues ? securityResults.issues.filter(i => i.severity === 'low').length : 0) < 3 ? '✅' : '❌'} |
-
-${securityDetails}
-
-## コードカバレッジメトリクス
-
-コードカバレッジレポートは別途 \`coverage/\` ディレクトリに生成されています。
-
-## 結論
-
-${((perfResults.avgResponseTime < 200 && perfResults.successRate > 99) && 
-  (securityResults.issuesCount || 0) === 0) 
-  ? '測定されたメトリクスは目標値を満たしており、アプリケーションは品質基準を達成しています。' 
-  : '一部のメトリクスが目標値を満たしていません。改善が必要な領域があります。'}
-`;
-
-  fs.writeFileSync(
-    path.join(reportPath, 'quality_metrics.md'),
-    report
-  );
+  // APIテスト評価 (30%)
+  if (apiTestsPassed >= 0) {
+    score += (apiTestsPassed / 100) * 30;
+    maxScore += 30;
+  }
+  
+  // セキュリティ問題評価 (40%)
+  if (securityIssuesFound >= 0) {
+    // 問題がないほど高スコア
+    const securityScore = securityIssuesFound === 0 ? 40 : 
+                         securityIssuesFound <= 2 ? 20 : 
+                         securityIssuesFound <= 5 ? 10 : 0;
+    score += securityScore;
+    maxScore += 40;
+  }
+  
+  // 最終スコア計算 (0-100%)
+  const finalScore = maxScore > 0 ? (score / maxScore) * 100 : 0;
+  
+  // スコアから評価を決定
+  if (finalScore >= 80) {
+    return 'Good';
+  } else if (finalScore >= 50) {
+    return 'Fair';
+  } else {
+    return 'Poor';
+  }
 }
 
-// テスト証拠レポート生成
-async function generateEvidenceReport(results, reportPath, timestamp) {
-  const report = `# AppGenius テスト証拠 - ${timestamp}
-
-## テスト実行エビデンス
-
-### ユニットテスト
-
-\`\`\`
-${JSON.stringify(results.unitResults, null, 2)}
-\`\`\`
-
-### APIテスト
-
-\`\`\`
-${JSON.stringify(results.apiResults, null, 2)}
-\`\`\`
-
-### 統合テスト
-
-\`\`\`
-${JSON.stringify(results.integrationResults, null, 2)}
-\`\`\`
-
-### パフォーマンステスト
-
-\`\`\`
-${JSON.stringify(results.perfResults, null, 2)}
-\`\`\`
-
-### セキュリティテスト
-
-\`\`\`
-${JSON.stringify(results.securityResults, null, 2)}
-\`\`\`
-
-## スクリーンショット
-
-テスト実行中のスクリーンショットは \`test/verification/screenshots/\` ディレクトリに保存されています。
-
-## ログファイル
-
-詳細なテスト実行ログは \`test/verification/logs/\` ディレクトリに保存されています。
-`;
-
-  fs.writeFileSync(
-    path.join(reportPath, 'test_evidence.md'),
-    report
-  );
-}
-
-// 承認フォーム生成
-async function generateApprovalForm(results, reportPath, timestamp) {
-  // 合格基準の評価
-  const passRateThreshold = 90; // 90%以上で合格
-  const unitPassed = results.unitResults.passRate >= passRateThreshold;
-  const apiPassed = results.apiResults.passRate >= passRateThreshold;
-  const integrationPassed = results.integrationResults.passRate >= passRateThreshold;
-  const securityPassed = results.securityResults.issuesCount === 0 || 
-                        (results.securityResults.issues && 
-                         results.securityResults.issues.filter(i => i.severity === 'high').length === 0);
+// Markdownレポートの生成
+function generateMarkdownReport(reportData) {
+  const { title, date, version, sections } = reportData;
   
-  const allPassed = unitPassed && apiPassed && integrationPassed && securityPassed;
+  let markdown = `# ${title}\n\n`;
+  markdown += `生成日: ${date}\n`;
+  markdown += `バージョン: ${version}\n\n`;
   
-  const report = `# AppGenius 受け入れ承認文書 - ${timestamp}
-
-## 検証結果概要
-
-この受け入れ承認文書は、AppGenius アプリケーションの検証結果と品質基準の達成状況を記録するものです。
-
-## 品質基準と達成状況
-
-| 品質基準 | 目標値 | 実際の値 | 達成状況 |
-|---------|-------|---------|---------|
-| ユニットテスト合格率 | ${passRateThreshold}%以上 | ${results.unitResults.passRate}% | ${unitPassed ? '✅ 達成' : '❌ 未達成'} |
-| APIテスト合格率 | ${passRateThreshold}%以上 | ${results.apiResults.passRate}% | ${apiPassed ? '✅ 達成' : '❌ 未達成'} |
-| 統合テスト合格率 | ${passRateThreshold}%以上 | ${results.integrationResults.passRate}% | ${integrationPassed ? '✅ 達成' : '❌ 未達成'} |
-| 高重要度セキュリティ問題 | なし | ${results.securityResults.issues ? results.securityResults.issues.filter(i => i.severity === 'high').length : 0}件 | ${securityPassed ? '✅ 達成' : '❌ 未達成'} |
-| パフォーマンス基準 | 応答時間<200ms | ${results.perfResults.avgResponseTime}ms | ${results.perfResults.avgResponseTime < 200 ? '✅ 達成' : '❌ 未達成'} |
-
-## 総合評価
-
-${allPassed 
-  ? '**合格**: AppGeniusアプリケーションは設定された品質基準をすべて達成しており、リリースに向けた準備が整っています。' 
-  : '**条件付き合格**: 一部の基準が未達成ですが、特に深刻な問題はなく、リリースに進むことが可能です。残存する問題については次のリリースで対応する計画があります。'}
-
-## 残存リスクの評価
-
-${results.securityResults.issues && results.securityResults.issues.length > 0 
-  ? `以下のセキュリティリスクが残存していますが、いずれも実運用上の重大な影響はないと評価されています：\n\n${results.securityResults.issues.map(i => `- ${i.name} (${i.severity}): ${i.description}`).join('\n')}`
-  : '検証の結果、重大な残存リスクは検出されませんでした。'}
-
-## 承認署名
-
-この文書に署名することで、AppGeniusアプリケーションが品質基準を満たし、リリースに適していることを承認します。
-
-| 役割 | 名前 | 署名 | 日付 |
-|-----|-----|-----|-----|
-| 品質保証責任者 | ________________ | ________________ | ________________ |
-| 技術責任者 | ________________ | ________________ | ________________ |
-| プロダクトオーナー | ________________ | ________________ | ________________ |
-`;
-
-  fs.writeFileSync(
-    path.join(reportPath, 'acceptance_approval.md'),
-    report
-  );
+  // 各セクションの追加
+  sections.forEach(section => {
+    markdown += `${section.content}\n\n`;
+  });
+  
+  // 証言と付属情報
+  markdown += `## 付属情報\n\n`;
+  markdown += `このレポートは自動生成されたものです。\n`;
+  markdown += `生成日時: ${new Date().toISOString()}\n`;
+  
+  return markdown;
 }
 
 module.exports = { generateReport };
 
 // スクリプトが直接実行された場合
 if (require.main === module) {
-  // サンプルデータでレポート生成テスト
-  const sampleResults = {
-    unitResults: {
-      total: 42,
-      passed: 40,
-      failed: 2,
-      skipped: 0,
-      passRate: 95.24,
-      failedTests: [
-        { name: 'TokenManager - Edge Case', error: 'Expected true but got false' },
-        { name: 'DateFormatter - Timezone', error: 'Incorrect format for timezone' }
-      ]
-    },
-    apiResults: {
-      total: 28,
-      passed: 26,
-      failed: 2,
-      skipped: 0,
-      passRate: 92.86,
-      failedTests: [
-        { name: 'API - Organization Delete', error: 'Timeout exceeded' },
-        { name: 'API - Large Data Export', error: 'Response size exceeded limit' }
-      ]
-    },
-    integrationResults: {
-      total: 18,
-      passed: 17,
-      failed: 1,
-      skipped: 0,
-      passRate: 94.44,
-      failedTests: [
-        { name: 'Integration - Auth workflow', error: 'Token refresh failed' }
-      ]
-    },
-    perfResults: {
-      total: 500,
-      passed: 495,
-      failed: 5,
-      successRate: 99.00,
-      avgResponseTime: 165.42,
-      minResponseTime: 45.62,
-      maxResponseTime: 487.91,
-      p95ResponseTime: 312.45,
-      endpoints: [
-        {
-          name: 'User Profile',
-          endpoint: 'GET /api/users/me',
-          avgResponseTime: 125.32,
-          minResponseTime: 45.62,
-          maxResponseTime: 310.45,
-          p95ResponseTime: 280.12,
-          successRate: 100.00
-        },
-        {
-          name: 'Organizations',
-          endpoint: 'GET /api/organizations',
-          avgResponseTime: 180.76,
-          minResponseTime: 95.23,
-          maxResponseTime: 487.91,
-          p95ResponseTime: 312.45,
-          successRate: 98.00
-        }
-      ]
-    },
-    securityResults: {
-      total: 24,
-      passed: 22,
-      failed: 2,
-      passRate: 91.67,
-      issuesCount: 2,
-      issues: [
-        {
-          name: 'XSS in Organization Name',
-          severity: 'medium',
-          description: 'Potential XSS vulnerability in organization name display',
-          remediation: 'Implement proper output encoding'
-        },
-        {
-          name: 'CSRF in Settings Form',
-          severity: 'low',
-          description: 'CSRF token missing in settings form',
-          remediation: 'Add CSRF token to all forms'
-        }
-      ]
-    }
-  };
-  
-  generateReport(sampleResults)
-    .then(() => console.log('Sample reports generated successfully'))
-    .catch(console.error);
+  generateReport()
+    .then(() => {
+      process.exit(0);
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
 }

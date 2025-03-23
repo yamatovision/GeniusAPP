@@ -42,16 +42,25 @@ const SimpleDashboard = () => {
 
   // ユーザーがSuperAdminまたはAdminの場合のみ新規組織作成ボタンを表示
   const canCreateOrganization = user && (user.role === 'SuperAdmin' || user.role === 'Admin');
+  // SuperAdmin は全ての組織にアクセス可能
+  const isSuperAdmin = user && user.role === 'SuperAdmin';
 
   return (
     <div className="simple-dashboard">
       <div className="simple-dashboard-header">
         <h1>シンプル版ダッシュボード</h1>
-        {canCreateOrganization && (
-          <Link to="/simple/organizations/new" className="simple-button primary">
-            新規組織作成
-          </Link>
-        )}
+        <div className="simple-dashboard-actions">
+          {canCreateOrganization && (
+            <Link to="/simple/organizations/new" className="simple-button primary">
+              新規組織作成
+            </Link>
+          )}
+          {(canCreateOrganization && organizations.length > 0) && (
+            <Link to={`/simple/organizations/${organizations[0]._id}/users`} className="simple-button secondary">
+              ユーザー管理
+            </Link>
+          )}
+        </div>
       </div>
 
       {loading ? (
@@ -81,6 +90,22 @@ const SimpleDashboard = () => {
                     <Link to={`/simple/organizations/${org._id}`} className="simple-button secondary">
                       詳細を見る
                     </Link>
+                    <div className="simple-card-actions">
+                      {canCreateOrganization && (
+                        <Link to={`/simple/organizations/${org._id}/users`} className="simple-button secondary">
+                          <span role="img" aria-label="ユーザー管理">👥</span> ユーザー
+                        </Link>
+                      )}
+                      <a 
+                        href={`https://console.anthropic.com/workspaces/new?name=${encodeURIComponent(org.workspaceName)}`}
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="simple-button primary"
+                        title="Claude管理画面でこの名前のワークスペースを作成"
+                      >
+                        <span role="img" aria-label="作成">➕</span> {org.workspaceName}
+                      </a>
+                    </div>
                   </div>
                 </div>
               ))}

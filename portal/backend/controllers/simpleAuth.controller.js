@@ -4,7 +4,10 @@
  */
 const SimpleUser = require('../models/simpleUser.model');
 const jwt = require('jsonwebtoken');
-const authConfig = require('../config/auth.config');
+// 通常の認証設定ではなく、専用の設定ファイルを使用
+const simpleAuthConfig = require('../config/simple-auth.config');
+// 認証ヘルパーを追加
+const authHelper = require('../utils/simpleAuth.helper');
 
 /**
  * ユーザーログイン
@@ -13,10 +16,19 @@ const authConfig = require('../config/auth.config');
 exports.login = async (req, res) => {
   try {
     console.log("シンプル認証コントローラー: ログインリクエスト受信");
+    console.log("リクエストボディ:", req.body);
+    console.log("リクエストヘッダー:", {
+      contentType: req.headers['content-type'],
+      accept: req.headers['accept'],
+      origin: req.headers['origin'],
+      referer: req.headers['referer']
+    });
+    
     const { email, password } = req.body;
     
     // 必須パラメータの検証
     if (!email || !password) {
+      console.log("シンプル認証コントローラー: 必須パラメータ欠如");
       return res.status(400).json({
         success: false,
         message: 'メールアドレスとパスワードは必須です'
@@ -24,17 +36,22 @@ exports.login = async (req, res) => {
     }
     
     // ユーザーを検索
+    console.log("シンプル認証コントローラー: ユーザー検索", email);
     const user = await SimpleUser.findByEmail(email);
     
     if (!user) {
+      console.log("シンプル認証コントローラー: ユーザーが見つかりません");
       return res.status(401).json({
         success: false,
         message: 'メールアドレスまたはパスワードが正しくありません'
       });
     }
     
+    console.log("シンプル認証コントローラー: ユーザー見つかりました", user.name);
+    
     // アカウントが無効化されていないか確認
     if (user.status !== 'active') {
+      console.log("シンプル認証コントローラー: アカウント無効", user.status);
       return res.status(401).json({
         success: false,
         message: 'アカウントが無効化されています'
@@ -42,9 +59,11 @@ exports.login = async (req, res) => {
     }
     
     // パスワードを検証
+    console.log("シンプル認証コントローラー: パスワード検証開始");
     const isPasswordValid = await user.validatePassword(password);
     
     if (!isPasswordValid) {
+      console.log("シンプル認証コントローラー: パスワード不一致");
       return res.status(401).json({
         success: false,
         message: 'メールアドレスまたはパスワードが正しくありません'
@@ -53,25 +72,31 @@ exports.login = async (req, res) => {
     
     console.log("シンプル認証コントローラー: パスワード検証に成功");
     
-    // アクセストークンを生成
-    const accessToken = jwt.sign(
-      { id: user._id, role: user.role },
-      authConfig.jwtSecret,
-      { expiresIn: authConfig.jwtExpiration || '24h' }
-    );
+    // Simple認証専用のアクセストークンを生成
+    console.log("シンプル認証コントローラー: トークン生成開始");
+    console.log("シンプル認証コントローラー: シークレットキー", {
+      secret: simpleAuthConfig.jwtSecret.substring(0, 5) + '...',
+      issuer: simpleAuthConfig.jwtOptions.issuer,
+      audience: simpleAuthConfig.jwtOptions.audience
+    });
     
-    // リフレッシュトークンを生成
-    const refreshToken = jwt.sign(
-      { id: user._id },
-      authConfig.refreshTokenSecret,
-      { expiresIn: authConfig.refreshTokenExpiration || '7d' }
-    );
+    // ヘルパー関数を使用してトークンを生成
+    const accessToken = authHelper.generateAccessToken(user._id, user.role);
+    
+    // ヘルパー関数を使用してリフレッシュトークンを生成
+    const refreshToken = authHelper.generateRefreshToken(user._id);
     
     // リフレッシュトークンをユーザーに保存
     user.refreshToken = refreshToken;
     await user.save();
     
     console.log("シンプル認証コントローラー: ログイン成功");
+    
+    // CORS対応ヘッダー設定
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
     
     // レスポンス
     return res.status(200).json({
@@ -106,9 +131,11 @@ exports.login = async (req, res) => {
  */
 exports.refreshToken = async (req, res) => {
   try {
+    console.log('refreshToken: リフレッシュトークン処理開始');
     const { refreshToken } = req.body;
     
     if (!refreshToken) {
+      console.log('refreshToken: リフレッシュトークンがリクエストに含まれていません');
       return res.status(400).json({
         success: false,
         message: 'リフレッシュトークンは必須です'
@@ -116,10 +143,13 @@ exports.refreshToken = async (req, res) => {
     }
     
     try {
-      // リフレッシュトークンを検証
-      const decoded = jwt.verify(refreshToken, authConfig.refreshTokenSecret);
+      // ヘルパー関数を使用してリフレッシュトークンを検証
+      console.log('refreshToken: トークン検証開始');
+      const decoded = authHelper.verifyRefreshToken(refreshToken);
+      console.log('refreshToken: トークン検証成功', { id: decoded.id });
       
       // ユーザーを検索
+      console.log('refreshToken: ユーザー検索開始');
       const user = await SimpleUser.findOne({ 
         _id: decoded.id,
         refreshToken: refreshToken,
@@ -127,31 +157,42 @@ exports.refreshToken = async (req, res) => {
       });
       
       if (!user) {
+        console.log('refreshToken: ユーザーが見つかりません');
         return res.status(401).json({
           success: false,
           message: '無効なリフレッシュトークンです'
         });
       }
       
-      // 新しいアクセストークンを生成
-      const newAccessToken = jwt.sign(
-        { id: user._id, role: user.role },
-        authConfig.jwtSecret,
-        { expiresIn: authConfig.jwtExpiration || '24h' }
-      );
+      console.log('refreshToken: ユーザー見つかりました', { id: user._id, role: user.role });
       
-      // 新しいリフレッシュトークンを生成
-      const newRefreshToken = jwt.sign(
-        { id: user._id },
-        authConfig.refreshTokenSecret,
-        { expiresIn: authConfig.refreshTokenExpiration || '7d' }
-      );
+      // ヘルパーを使用して新しいアクセストークンを生成
+      console.log('refreshToken: 新しいアクセストークン生成');
+      const newAccessToken = authHelper.generateAccessToken(user._id, user.role);
+      
+      // ヘルパーを使用して新しいリフレッシュトークンを生成
+      console.log('refreshToken: 新しいリフレッシュトークン生成');
+      const newRefreshToken = authHelper.generateRefreshToken(user._id);
       
       // 新しいリフレッシュトークンをユーザーに保存
+      console.log('refreshToken: ユーザーにトークン保存');
       user.refreshToken = newRefreshToken;
       await user.save();
       
+      // トークンの一部を出力
+      console.log('refreshToken: 生成トークン', {
+        accessToken: newAccessToken.substring(0, 15) + '...',
+        refreshToken: newRefreshToken.substring(0, 15) + '...'
+      });
+      
+      // CORS対応ヘッダー設定
+      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+      
       // レスポンス
+      console.log('refreshToken: 成功レスポンス送信');
       return res.status(200).json({
         success: true,
         data: {
@@ -161,6 +202,7 @@ exports.refreshToken = async (req, res) => {
       });
     } catch (jwtError) {
       // JWTエラー処理
+      console.error('refreshToken: JWT検証エラー', jwtError);
       if (jwtError.name === 'TokenExpiredError') {
         return res.status(401).json({
           success: false,
@@ -205,6 +247,12 @@ exports.logout = async (req, res) => {
       user.refreshToken = null;
       await user.save();
     }
+    
+    // CORS対応ヘッダー設定
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
     
     return res.status(200).json({
       success: true,
@@ -269,19 +317,11 @@ exports.register = async (req, res) => {
     // 保存
     await newUser.save();
     
-    // アクセストークンを生成
-    const accessToken = jwt.sign(
-      { id: newUser._id, role: newUser.role },
-      authConfig.jwtSecret,
-      { expiresIn: authConfig.jwtExpiration || '24h' }
-    );
+    // ヘルパーを使用してアクセストークンを生成
+    const accessToken = authHelper.generateAccessToken(newUser._id, newUser.role);
     
-    // リフレッシュトークンを生成
-    const refreshToken = jwt.sign(
-      { id: newUser._id },
-      authConfig.refreshTokenSecret,
-      { expiresIn: authConfig.refreshTokenExpiration || '7d' }
-    );
+    // ヘルパーを使用してリフレッシュトークンを生成
+    const refreshToken = authHelper.generateRefreshToken(newUser._id);
     
     // リフレッシュトークンをユーザーに保存
     newUser.refreshToken = refreshToken;
@@ -320,9 +360,10 @@ exports.checkAuth = async (req, res) => {
   try {
     const userId = req.userId;
     
-    // ユーザー情報を取得
+    // ユーザー情報を取得（シンプル実装）
     const user = await SimpleUser.findById(userId, '-password -refreshToken');
     
+    // ユーザーが見つからない場合
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -330,6 +371,7 @@ exports.checkAuth = async (req, res) => {
       });
     }
     
+    // 無効なアカウント
     if (user.status !== 'active') {
       return res.status(401).json({
         success: false,
@@ -337,6 +379,13 @@ exports.checkAuth = async (req, res) => {
       });
     }
     
+    // CORS対応ヘッダー設定
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+    
+    // 成功レスポンス
     return res.status(200).json({
       success: true,
       data: {
@@ -351,11 +400,9 @@ exports.checkAuth = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('認証チェックエラー:', error);
     return res.status(500).json({
       success: false,
-      message: '認証チェック中にエラーが発生しました',
-      error: error.message
+      message: '認証チェック中にエラーが発生しました'
     });
   }
 };

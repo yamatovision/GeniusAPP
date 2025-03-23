@@ -79,7 +79,7 @@ class TokenManager {
             await this.storageManager.setAccessToken(token, expiryInSeconds);
             // トークン保存時刻を記録（トラブルシューティング用）
             const currentTime = new Date().toISOString();
-            await vscode.workspace.getConfiguration('appgenius').update('auth.lastTokenUpdate', currentTime, vscode.ConfigurationTarget.Global);
+            await vscode.workspace.getConfiguration().update('appgenius.auth.lastTokenUpdate', currentTime, vscode.ConfigurationTarget.Global);
             logger_1.Logger.info(`TokenManager: アクセストークン保存完了 (長さ: ${token.length}文字, 有効期限: ${expiryInSeconds}秒)`);
         }
         catch (error) {
@@ -96,7 +96,7 @@ class TokenManager {
             await this.storageManager.setRefreshToken(token);
             // リフレッシュトークン保存時刻を記録（トラブルシューティング用）
             const currentTime = new Date().toISOString();
-            await vscode.workspace.getConfiguration('appgenius').update('auth.lastRefreshTokenUpdate', currentTime, vscode.ConfigurationTarget.Global);
+            await vscode.workspace.getConfiguration().update('appgenius.auth.lastRefreshTokenUpdate', currentTime, vscode.ConfigurationTarget.Global);
             logger_1.Logger.info(`TokenManager: リフレッシュトークン保存完了 (長さ: ${token.length}文字)`);
         }
         catch (error) {

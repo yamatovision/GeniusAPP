@@ -1,6 +1,7 @@
 import axios from 'axios';
 import * as vscode from 'vscode';
 import { AuthenticationService } from '../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../core/auth/SimpleAuthService';
 import { Logger } from '../utils/logger';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../utils/ErrorHandler';
 
@@ -11,15 +12,28 @@ import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../utils/ErrorHandle
  */
 export class ClaudeCodeApiClient {
   private static instance: ClaudeCodeApiClient;
-  private _authService: AuthenticationService;
+  private _simpleAuthService?: SimpleAuthService;
+  private _legacyAuthService?: AuthenticationService;
   private _baseUrl: string;
   private _errorHandler: ErrorHandler;
+  private _useSimpleAuth: boolean = true;
 
   /**
    * コンストラクタ
    */
   private constructor() {
-    this._authService = AuthenticationService.getInstance();
+    // SimpleAuthServiceを優先使用
+    try {
+      this._simpleAuthService = SimpleAuthService.getInstance();
+      this._useSimpleAuth = true;
+      Logger.info('ClaudeCodeApiClient: SimpleAuthServiceを使用します');
+    } catch (error) {
+      // SimpleAuthServiceが初期化されていない場合はレガシー認証を使用
+      Logger.warn('ClaudeCodeApiClient: SimpleAuthServiceの取得に失敗、レガシー認証に切り替えます', error as Error);
+      this._legacyAuthService = AuthenticationService.getInstance();
+      this._useSimpleAuth = false;
+    }
+    
     this._errorHandler = ErrorHandler.getInstance();
     // API URLを環境変数から取得、またはデフォルト値を使用
     this._baseUrl = process.env.PORTAL_API_URL || 'https://geniemon-portal-backend-production.up.railway.app/api';
@@ -40,9 +54,34 @@ export class ClaudeCodeApiClient {
    * API呼び出し用の設定を取得
    */
   private async _getApiConfig() {
-    const authHeader = await this._authService.getAuthHeader();
+    let authHeader = {};
+    
+    // SimpleAuthを使用している場合は直接ヘッダーを取得
+    if (this._useSimpleAuth && this._simpleAuthService) {
+      // APIキーの有無を確認
+      const apiKey = this._simpleAuthService.getApiKey();
+      
+      if (apiKey) {
+        // APIキーがある場合はAPIキーヘッダーを設定
+        authHeader = {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json'
+        };
+        Logger.debug('ClaudeCodeApiClient: APIキーを使用します');
+      } else {
+        // 通常の認証ヘッダーを取得
+        authHeader = this._simpleAuthService.getAuthHeader();
+        Logger.debug('ClaudeCodeApiClient: SimpleAuthServiceからヘッダーを取得しました');
+      }
+    } 
+    // レガシー認証の場合は非同期で取得
+    else if (this._legacyAuthService) {
+      authHeader = await this._legacyAuthService.getAuthHeader() || {};
+      Logger.debug('ClaudeCodeApiClient: レガシー認証からヘッダーを取得しました');
+    }
+    
     return {
-      headers: authHeader || {}
+      headers: authHeader
     };
   }
 
@@ -215,13 +254,33 @@ export class ClaudeCodeApiClient {
           // 認証エラーの場合、トークンをリフレッシュしてリトライ
           if (statusCode === 401) {
             Logger.info('【API連携】トークンの有効期限切れ。リフレッシュを試みます');
-            const refreshSucceeded = await this._authService.refreshToken();
+            let refreshSucceeded = false;
+            
+            // SimpleAuthを使用している場合
+            if (this._useSimpleAuth && this._simpleAuthService) {
+              const verified = await this._simpleAuthService.verifyAuthState();
+              refreshSucceeded = verified;
+              Logger.info(`【API連携】SimpleAuthService検証結果: ${verified}`);
+            } 
+            // レガシー認証の場合
+            else if (this._legacyAuthService) {
+              refreshSucceeded = await this._legacyAuthService.refreshToken();
+              Logger.info(`【API連携】レガシー認証リフレッシュ結果: ${refreshSucceeded}`);
+            }
+            
             shouldRetry = refreshSucceeded && retries <= maxRetries;
             
             if (!refreshSucceeded && retries >= maxRetries) {
               // 最大リトライ回数に達し、かつリフレッシュに失敗した場合はログアウト
               Logger.warn('【API連携】トークンリフレッシュに失敗し、最大リトライ回数に達しました。ログアウトします');
-              await this._authService.logout();
+              
+              // 適切な認証サービスでログアウト
+              if (this._useSimpleAuth && this._simpleAuthService) {
+                await this._simpleAuthService.logout();
+              } else if (this._legacyAuthService) {
+                await this._legacyAuthService.logout();
+              }
+              
               vscode.window.showErrorMessage('認証の有効期限が切れました。再度ログインしてください。');
             }
           }
@@ -265,11 +324,31 @@ export class ClaudeCodeApiClient {
       if (statusCode === 401) {
         // 認証エラーの場合、トークンリフレッシュを試みる
         Logger.info('【API連携】認証エラー(401)。トークンリフレッシュを試みます');
-        const refreshSucceeded = await this._authService.refreshToken();
+        let refreshSucceeded = false;
+        
+        // SimpleAuthを使用している場合
+        if (this._useSimpleAuth && this._simpleAuthService) {
+          const verified = await this._simpleAuthService.verifyAuthState();
+          refreshSucceeded = verified;
+          Logger.info(`【API連携】SimpleAuthService検証結果: ${verified}`);
+        } 
+        // レガシー認証の場合
+        else if (this._legacyAuthService) {
+          refreshSucceeded = await this._legacyAuthService.refreshToken();
+          Logger.info(`【API連携】レガシー認証リフレッシュ結果: ${refreshSucceeded}`);
+        }
+        
         if (!refreshSucceeded) {
           // リフレッシュに失敗した場合はログアウト
           Logger.warn('【API連携】トークンリフレッシュに失敗しました。ログアウトします');
-          await this._authService.logout();
+          
+          // 適切な認証サービスでログアウト
+          if (this._useSimpleAuth && this._simpleAuthService) {
+            await this._simpleAuthService.logout();
+          } else if (this._legacyAuthService) {
+            await this._legacyAuthService.logout();
+          }
+          
           vscode.window.showErrorMessage('認証の有効期限が切れました。再度ログインしてください。');
         }
       } else if (statusCode === 403) {
@@ -347,7 +426,8 @@ export class ClaudeCodeApiClient {
       const config = await this._getApiConfig();
       
       // 認証ヘッダーの存在を確認
-      const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
+      const headers = config?.headers as Record<string, string>;
+      const hasAuthHeader = headers && (headers['Authorization'] || headers['authorization'] || headers['x-api-key']);
       if (!hasAuthHeader) {
         Logger.warn('【API連携】認証ヘッダーが不足しています');
         return false;
@@ -394,7 +474,19 @@ export class ClaudeCodeApiClient {
   public async recordTokenUsage(tokenCount: number, modelId: string, context?: string): Promise<boolean> {
     try {
       // 認証状態の事前確認
-      const isAuthenticated = await this._authService.isAuthenticated();
+      let isAuthenticated = false;
+      
+      // SimpleAuthを使用している場合
+      if (this._useSimpleAuth && this._simpleAuthService) {
+        isAuthenticated = this._simpleAuthService.isAuthenticated();
+        Logger.debug('【API連携】SimpleAuthService認証状態: ' + isAuthenticated);
+      } 
+      // レガシー認証の場合
+      else if (this._legacyAuthService) {
+        isAuthenticated = await this._legacyAuthService.isAuthenticated();
+        Logger.debug('【API連携】レガシー認証状態: ' + isAuthenticated);
+      }
+      
       if (!isAuthenticated) {
         Logger.warn('【API連携】認証されていません。トークン使用履歴の記録をスキップします');
         return false;
@@ -409,7 +501,20 @@ export class ClaudeCodeApiClient {
           if (!hasRefreshedToken) {
             try {
               Logger.info(`【API連携】事前にトークンリフレッシュを試みます (トークン使用履歴記録の前に)`);
-              const refreshed = await this._authService.refreshToken();
+              let refreshed = false;
+              
+              // SimpleAuthを使用している場合
+              if (this._useSimpleAuth && this._simpleAuthService) {
+                const verified = await this._simpleAuthService.verifyAuthState();
+                refreshed = verified;
+                Logger.info(`【API連携】SimpleAuthService検証結果: ${verified}`);
+              } 
+              // レガシー認証の場合
+              else if (this._legacyAuthService) {
+                refreshed = await this._legacyAuthService.refreshToken();
+                Logger.info(`【API連携】レガシー認証リフレッシュ結果: ${refreshed}`);
+              }
+              
               if (refreshed) {
                 Logger.info('【API連携】トークンのリフレッシュに成功しました');
                 hasRefreshedToken = true;
@@ -428,7 +533,8 @@ export class ClaudeCodeApiClient {
           Logger.info(`【API連携】トークン使用履歴の記録を開始: ${tokenCount}トークン, モデル: ${modelId}`);
           
           // デバッグ情報として認証ヘッダーの存在を確認（トークン自体は表示しない）
-          const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
+          const headers = config?.headers as Record<string, string>;
+          const hasAuthHeader = headers && (headers['Authorization'] || headers['authorization'] || headers['x-api-key']);
           if (!hasAuthHeader) {
             Logger.warn('【API連携】認証ヘッダーが不足しています');
             // 認証ヘッダーがない場合は処理を続行しない
@@ -526,7 +632,20 @@ export class ClaudeCodeApiClient {
               Logger.warn('【API連携】認証エラーが発生しました。トークンのリフレッシュを試みます');
               
               if (!hasRefreshedToken) {
-                const refreshed = await this._authService.refreshToken(true); // 静かに失敗する
+                let refreshed = false;
+                
+                // SimpleAuthを使用している場合
+                if (this._useSimpleAuth && this._simpleAuthService) {
+                  const verified = await this._simpleAuthService.verifyAuthState();
+                  refreshed = verified;
+                  Logger.info(`【API連携】SimpleAuthService検証結果: ${verified}`);
+                } 
+                // レガシー認証の場合
+                else if (this._legacyAuthService) {
+                  refreshed = await this._legacyAuthService.refreshToken(true); // 静かに失敗する
+                  Logger.info(`【API連携】レガシー認証リフレッシュ結果: ${refreshed}`);
+                }
+                
                 hasRefreshedToken = true;
                 
                 if (!refreshed) {

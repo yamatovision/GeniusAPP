@@ -1,3 +1,19 @@
+/**
+ * AppGenius VSCode Extension メインエントリーポイント
+ * 
+ * 【認証システムリファクタリング 2025/03/23】
+ * - 現在、2つの認証システムが並行して存在しています：
+ *   1. 従来の認証システム: AuthenticationService + TokenManager
+ *   2. 新しい認証システム: SimpleAuthManager + SimpleAuthService
+ * 
+ * - 認証システムリファクタリングにより、SimpleAuthManagerとSimpleAuthServiceを優先使用します
+ * - 後方互換性のため、古い認証サービスも維持していますが、将来的には完全に削除します
+ * - PermissionManagerは両方の認証サービスに対応するよう更新されています
+ * - パネル/コンポーネントは、AuthGuardを通じてPermissionManagerを使用します
+ * 
+ * 詳細は auth-system-refactoring-scope.md を参照
+ */
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { StatusBar } from './ui/statusBar';
@@ -22,6 +38,8 @@ import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
 import { EnvironmentVariablesAssistantPanel } from './ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel';
 import { TokenManager } from './core/auth/TokenManager';
 import { AuthenticationService } from './core/auth/AuthenticationService';
+import { SimpleAuthManager } from './core/auth/SimpleAuthManager'; // 新しい認証マネージャー
+import { SimpleAuthService } from './core/auth/SimpleAuthService'; // 新しい認証サービス
 import { PermissionManager } from './core/auth/PermissionManager';
 import { registerAuthCommands } from './core/auth/authCommands';
 import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
@@ -61,17 +79,24 @@ export function activate(context: vscode.ExtensionContext) {
 		const authStorageManager = AuthStorageManager.getInstance(context);
 		Logger.info('AuthStorageManager initialized successfully');
 		
-		// TokenManagerの初期化
+		// 新しいシンプル認証マネージャーの初期化（優先使用）
+		const simpleAuthManager = SimpleAuthManager.getInstance(context);
+		Logger.info('SimpleAuthManager initialized successfully');
+		
+		// シンプル認証サービスの取得
+		const simpleAuthService = simpleAuthManager.getAuthService();
+		Logger.info('SimpleAuthService accessed successfully');
+		
+		// 従来の認証サービス初期化（後方互換性のために維持）
 		const tokenManager = TokenManager.getInstance(context);
-		Logger.info('TokenManager initialized successfully');
+		Logger.info('Legacy TokenManager initialized successfully');
 		
-		// AuthenticationServiceの初期化
 		const authService = AuthenticationService.getInstance(context);
-		Logger.info('AuthenticationService initialized successfully');
+		Logger.info('Legacy AuthenticationService initialized successfully');
 		
-		// PermissionManagerの初期化（認証サービスに依存）
-		const permissionManager = PermissionManager.getInstance(authService);
-		Logger.info('PermissionManager initialized successfully');
+		// PermissionManagerの初期化（シンプル認証サービスを優先使用）
+		const permissionManager = PermissionManager.getInstance(simpleAuthService);
+		Logger.info('PermissionManager initialized with SimpleAuthService');
 		
 		// 認証コマンドの登録
 		registerAuthCommands(context);
@@ -181,6 +206,49 @@ export function activate(context: vscode.ExtensionContext) {
 	const commandHandler = new CommandHandler(aiService);
 	context.subscriptions.push(commandHandler);
 
+	// 認証テスト関連コマンド（開発環境のみ）
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius.getSimpleAuthService', () => {
+			try {
+				return SimpleAuthService.getInstance();
+			} catch (error) {
+				Logger.error('SimpleAuthService取得エラー:', error as Error);
+				return null;
+			}
+		}),
+		
+		vscode.commands.registerCommand('appgenius.testFeatureAccess', (featureName) => {
+			try {
+				return AuthGuard.checkAccess(featureName as Feature);
+			} catch (error) {
+				Logger.error('機能アクセステストエラー:', error as Error);
+				return false;
+			}
+		}),
+		
+		vscode.commands.registerCommand('appgenius.runAuthVerificationTests', () => {
+			try {
+				const fs = require('fs');
+				const testRunnerPath = path.join(context.extensionPath, 'test_run_auth_tests.js');
+				
+				if (fs.existsSync(testRunnerPath)) {
+					const testRunner = require(testRunnerPath);
+					if (typeof testRunner.activateAuthTests === 'function') {
+						testRunner.activateAuthTests(context);
+						vscode.window.showInformationMessage('認証テストツールが起動しました。コマンドパレットから「Auth Verification Tests」を実行してください。');
+					} else {
+						vscode.window.showErrorMessage('テストツール内にactivateAuthTests関数が見つかりません');
+					}
+				} else {
+					vscode.window.showErrorMessage(`テストスクリプトが見つかりません: ${testRunnerPath}`);
+				}
+			} catch (error) {
+				Logger.error('認証テスト実行エラー:', error as Error);
+				vscode.window.showErrorMessage(`認証テストの実行に失敗しました: ${(error as Error).message}`);
+			}
+		})
+	);
+	
 	// メインメニュー表示コマンド
 	context.subscriptions.push(
 		vscode.commands.registerCommand('appgenius-ai.showMainMenu', async () => {

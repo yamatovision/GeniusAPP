@@ -1,7 +1,9 @@
 import axios from 'axios';
+import { tokenRefreshService } from '../utils/token-refresh';
 
-// APIのベースURL
-const API_URL = `${process.env.REACT_APP_API_URL || '/api'}/auth`;
+// APIのベースURL - シンプルモードのAPIと統合
+// axios.defaults.baseURLで既に基本URLが設定されているため、/apiプレフィックスを削除
+const API_URL = '/simple/auth';
 
 /**
  * 認証サービス
@@ -20,25 +22,34 @@ class AuthService {
       const response = await axios.post(`${API_URL}/login`, { email, password });
       console.log('認証サービス: ログインレスポンス受信', response.status);
       
-      if (response.data && response.data.accessToken) {
+      // Simple認証形式のレスポンスを処理
+      if (response.data && response.data.success && response.data.data) {
         console.log('認証サービス: トークン保存');
+        
+        // データは response.data.data にある
+        const authData = response.data.data;
+        
         // トークンをローカルストレージに保存
-        localStorage.setItem('accessToken', response.data.accessToken);
-        localStorage.setItem('refreshToken', response.data.refreshToken);
-        
-        // ユーザー情報を保存
-        if (response.data.user) {
-          console.log('認証サービス: ユーザー情報保存');
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-        }
-        
-        // 確実に保存されたことを確認
-        const savedToken = localStorage.getItem('accessToken');
-        if (!savedToken) {
-          console.error('認証サービス: トークン保存に失敗');
+        if (authData.accessToken) {
+          localStorage.setItem('accessToken', authData.accessToken);
+          localStorage.setItem('refreshToken', authData.refreshToken);
+          
+          // ユーザー情報を保存
+          if (authData.user) {
+            console.log('認証サービス: ユーザー情報保存');
+            localStorage.setItem('user', JSON.stringify(authData.user));
+          }
+          
+          // 確実に保存されたことを確認
+          const savedToken = localStorage.getItem('accessToken');
+          if (!savedToken) {
+            console.error('認証サービス: トークン保存に失敗');
+          }
+        } else {
+          console.error('認証サービス: レスポンスにトークンがありません', authData);
         }
       } else {
-        console.error('認証サービス: レスポンスにトークンがありません', response.data);
+        console.error('認証サービス: 不正なレスポンス形式', response.data);
       }
       
       // 少し待機してストレージの更新を確実にする
@@ -84,11 +95,19 @@ class AuthService {
         password
       });
       
-      if (response.data.accessToken) {
+      // Simple認証形式のレスポンスを処理
+      if (response.data && response.data.success && response.data.data) {
+        const authData = response.data.data;
+        
         // 登録成功時はログインと同様に情報を保存
-        localStorage.setItem('accessToken', response.data.accessToken);
-        localStorage.setItem('refreshToken', response.data.refreshToken);
-        localStorage.setItem('user', JSON.stringify(response.data.user));
+        if (authData.accessToken) {
+          localStorage.setItem('accessToken', authData.accessToken);
+          localStorage.setItem('refreshToken', authData.refreshToken);
+          
+          if (authData.user) {
+            localStorage.setItem('user', JSON.stringify(authData.user));
+          }
+        }
       }
       
       return response.data;
@@ -127,12 +146,17 @@ class AuthService {
         timeout: 20000
       });
       
-      if (response.data.accessToken) {
-        localStorage.setItem('accessToken', response.data.accessToken);
+      // Simple認証形式のレスポンスを処理
+      if (response.data && response.data.success && response.data.data) {
+        const authData = response.data.data;
         
-        // 新しいリフレッシュトークンが含まれる場合は保存
-        if (response.data.refreshToken) {
-          localStorage.setItem('refreshToken', response.data.refreshToken);
+        if (authData.accessToken) {
+          localStorage.setItem('accessToken', authData.accessToken);
+          
+          // 新しいリフレッシュトークンが含まれる場合は保存
+          if (authData.refreshToken) {
+            localStorage.setItem('refreshToken', authData.refreshToken);
+          }
         }
       }
       

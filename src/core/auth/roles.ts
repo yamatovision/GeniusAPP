@@ -6,9 +6,10 @@
  * ユーザーの役割（権限レベル）
  */
 export enum Role {
-  GUEST = 'guest',     // 未認証状態
-  USER = 'user',       // 一般ユーザー
-  ADMIN = 'admin'      // 管理者
+  GUEST = 'guest',           // 未認証状態
+  USER = 'user',             // 一般ユーザー
+  ADMIN = 'admin',           // 管理者
+  SUPER_ADMIN = 'super_admin' // スーパー管理者
 }
 
 /**
@@ -69,6 +70,22 @@ export const RoleFeatureMap: Record<Role, Feature[]> = {
     Feature.ENV_VARIABLES,
     Feature.USER_MANAGEMENT,
     Feature.SYSTEM_SETTINGS
+  ],
+  
+  // スーパー管理者は管理者と同じ機能にアクセス可能（組織管理などのバックエンド権限が異なる）
+  [Role.SUPER_ADMIN]: [
+    Feature.DASHBOARD,
+    Feature.DEBUG_DETECTIVE,
+    Feature.SCOPE_MANAGER,
+    Feature.ENV_ASSISTANT,
+    Feature.REFERENCE_MANAGER,
+    Feature.PROMPT_LIBRARY,
+    Feature.MOCKUP_GALLERY,
+    Feature.SIMPLE_CHAT,
+    Feature.CLAUDE_CODE,
+    Feature.ENV_VARIABLES,
+    Feature.USER_MANAGEMENT,
+    Feature.SYSTEM_SETTINGS
   ]
 };
 
@@ -96,5 +113,6 @@ export const FeatureDisplayNames: Record<Feature, string> = {
 export const RoleDisplayNames: Record<Role, string> = {
   [Role.GUEST]: 'ゲスト',
   [Role.USER]: '一般ユーザー',
-  [Role.ADMIN]: '管理者'
+  [Role.ADMIN]: '管理者',
+  [Role.SUPER_ADMIN]: 'スーパー管理者'
 };

@@ -1,103 +1,223 @@
-# 分離認証モード実装 - 引き継ぎ資料
+Administration
+Admin API
+The Admin API is unavailable for individual accounts. To collaborate with teammates and add members, set up your organization in Console → Settings → Organization.
 
-## 現在の状態
+The Admin API allows you to programmatically manage your organization’s resources, including organization members, workspaces, and API keys. This provides programmatic control over administrative tasks that would otherwise require manual configuration in the Anthropic Console.
 
-分離認証モード（APPGENIUS_USE_ISOLATED_AUTH=true）のスコープを作成し、初期セットアップが完了しました。このスコープは、AppGenius拡張機能とClaudeCode CLI間の認証情報の共有を改善するものです。
+The Admin API requires special access
 
-### 実装状況
+The Admin API requires a special Admin API key (starting with sk-ant-admin...) that differs from standard API keys. Only organization members with the admin role can provision Admin API keys through the Anthropic Console.
 
-- 新しいスコープ `分離認証モード実装` がCURRENT_STATUS.mdに追加されました
-- 詳細な実装計画を含むスコープ文書 `docs/scopes/isolated-auth-implementation-scope.md` が作成されました
-- トラブルシューティング用スクリプト `test_script/fix_isolated_auth.js` が更新されました
+​
+How the Admin API works
+When you use the Admin API:
 
-### 確認済みの事項
+You make requests using your Admin API key in the x-api-key header
+The API allows you to manage:
+Organization members and their roles
+Organization member invites
+Workspaces and their members
+API keys
+This is useful for:
 
-- 環境変数 `APPGENIUS_USE_ISOLATED_AUTH=true` が正しく設定されていることを確認しました
-- 分離認証用ディレクトリとファイルの構造を確認しました:
-  - AppGenius認証ディレクトリ: `/Users/tatsuya/.appgenius`
-  - AppGenius認証ファイル: `/Users/tatsuya/.appgenius/auth.json`
-  - 代替認証ファイル: `/Users/tatsuya/Library/Application Support/appgenius/claude-auth.json`
-  - ClaudeCode CLI認証ファイル: `/Users/tatsuya/Library/Application Support/claude-cli/auth.json`
+Automating user onboarding/offboarding
+Programmatically managing workspace access
+Monitoring and managing API key usage
+​
+Organization roles and permissions
+There are four organization-level roles.
 
-### 発見した問題点
+Role	Permissions
+user	Can use Workbench
+developer	Can use Workbench and manage API keys
+billing	Can use Workbench and manage billing details
+admin	Can do all of the above, plus manage users
+​
+Key concepts
+​
+Organization Members
+You can list organization members, update member roles, and remove members.
 
-テストスクリプトを実行したところ、以下の問題が確認されました：
 
-1. トークンの有効期限が切れている状態のため、API呼び出しが失敗しています
-2. VSCodeでAppGenius拡張機能に再ログインしようとした際に、以下のエラーが発生しています:
-   ```
-   appgenius.global.tokenExpiry は登録済みの構成ではないため、ユーザー設定 に書き込むことができません
-   ```
-3. この問題により、AuthStorageManagerがトークン情報を保存できていません
+Shell
 
-## 引き継ぎタスク
+# List organization members
+curl "https://api.anthropic.com/v1/organizations/users?limit=10" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
 
-以下のタスクを引き継いで実装を進めてください:
+# Update member role
+curl "https://api.anthropic.com/v1/organizations/users/{user_id}" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+  --data '{"role": "developer"}'
 
-1. 設定登録の問題を解決:
-   - `appgenius.global.tokenExpiry` 設定が正しく登録されるよう`package.json`の`contributes.configuration`セクションを修正
+# Remove member
+curl --request DELETE "https://api.anthropic.com/v1/organizations/users/{user_id}" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+​
+Organization Invites
+You can invite users to organizations and manage those invites.
 
-2. AuthStorageManagerの改善:
-   - `src/utils/AuthStorageManager.ts`で設定が見つからない場合のフォールバック機能を実装
-   - セキュア・ストレージに優先的に保存する機能を強化
 
-3. 分離認証機能の実装:
-   - `src/services/ClaudeCodeAuthSync.ts` - 分離認証モード処理の実装
-   - `src/services/ClaudeCodeLauncherService.ts` - 分離認証モードとの連携強化
-   - `src/core/auth/AuthenticationService.ts` - 認証モード切り替えのサポート
-   - `src/core/auth/TokenManager.ts` - トークン管理の改善
-   - `src/utils/logger.ts` - 認証関連の詳細なログ出力
+Shell
 
-4. 実装後のテスト:
-   - VSCodeでAppGenius拡張機能に再ログイン
-   - `test_script/fix_isolated_auth.js`を実行して認証ファイルの同期確認
-   - `test_script/check_token_usage.js`を実行して、トークン使用量の記録が正常に行われることを確認
+# Create invite
+curl --request POST "https://api.anthropic.com/v1/organizations/invites" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+  --data '{
+    "email": "newuser@domain.com",
+    "role": "developer"
+  }'
 
-## 重要な参照ドキュメント
+# List invites
+curl "https://api.anthropic.com/v1/organizations/invites?limit=10" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
 
-以下のドキュメントを参照してください:
+# Delete invite
+curl --request DELETE "https://api.anthropic.com/v1/organizations/invites/{invite_id}" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+​
+Workspaces
+Create and manage workspaces to organize your resources:
 
-1. **スコープ詳細文書**: 
-   `/docs/scopes/isolated-auth-implementation-scope.md` - 実装計画と技術的アプローチの詳細
 
-2. **CURRENT_STATUS**:
-   `/docs/CURRENT_STATUS.md` - 現在の実装状況とファイルリスト
+Shell
 
-3. **テストスクリプト**:
-   - `/test_script/fix_isolated_auth.js` - 分離認証モードのトラブルシューティング
-   - `/test_script/check_token_usage.js` - トークン使用量の記録テスト
+# Create workspace
+curl --request POST "https://api.anthropic.com/v1/organizations/workspaces" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+  --data '{"name": "Production"}'
 
-## 実装のポイント
+# List workspaces
+curl "https://api.anthropic.com/v1/organizations/workspaces?limit=10&include_archived=false" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
 
-1. **設定登録問題の修正**:
-   - `package.json`の`contributes.configuration`セクションで`appgenius.global.tokenExpiry`が正しく登録されているか確認
-   - 設定キーの名前や型が正しいことを確認
+# Archive workspace
+curl --request POST "https://api.anthropic.com/v1/organizations/workspaces/{workspace_id}/archive" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+​
+Workspace Members
+Manage user access to specific workspaces:
 
-2. **AuthStorageManagerの強化**:
-   - VSCodeの`SecretStorage`を優先的に使用し、グローバル設定はフォールバックとして使用
-   - エラーハンドリングの改善とログ出力の強化
 
-3. **ファイルシステム操作の改善**:
-   - `fs-extra`パッケージを活用して、ディレクトリの自動作成などをサポート
-   - ファイル操作のエラーハンドリングを強化
+Shell
 
-4. **環境変数の検出強化**:
-   - VSCode環境での環境変数検出を改善
-   - 複数の検出方法を実装してより確実に設定を反映
+# Add member to workspace
+curl --request POST "https://api.anthropic.com/v1/organizations/workspaces/{workspace_id}/members" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+  --data '{
+    "user_id": "user_xxx",
+    "workspace_role": "workspace_developer"
+  }'
 
-5. **ユーザーフィードバックの強化**:
-   - 認証状態や問題の発生時に、ユーザーに明確なフィードバックを提供
-   - トラブルシューティングのためのガイダンスを提供
+# List workspace members
+curl "https://api.anthropic.com/v1/organizations/workspaces/{workspace_id}/members?limit=10" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
 
-## 関連するコードの場所
+# Update member role
+curl --request POST "https://api.anthropic.com/v1/organizations/workspaces/{workspace_id}/members/{user_id}" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+  --data '{
+    "workspace_role": "workspace_admin"
+  }'
 
-主な修正が必要なファイルとその役割：
+# Remove member from workspace
+curl --request DELETE "https://api.anthropic.com/v1/organizations/workspaces/{workspace_id}/members/{user_id}" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+​
+API Keys
+Monitor and manage API keys:
 
-```
-src/utils/AuthStorageManager.ts      - 認証情報の保存を担当
-src/core/auth/TokenManager.ts        - トークン管理の中心的クラス
-src/services/ClaudeCodeAuthSync.ts   - CLIとの認証同期を担当
-package.json                         - VSCode拡張の設定を定義
-```
 
-このタスクでは、VSCodeの設定システムとファイルシステムの連携を強化することが重要です。適切なエラーハンドリングと、ユーザーへの明確なフィードバックを提供してください。
+Shell
+
+# List API keys
+curl "https://api.anthropic.com/v1/organizations/api_keys?limit=10&status=active&workspace_id=wrkspc_xxx" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY"
+
+# Update API key
+curl --request POST "https://api.anthropic.com/v1/organizations/api_keys/{api_key_id}" \
+  --header "anthropic-version: 2023-06-01" \
+  --header "x-api-key: $ANTHROPIC_ADMIN_KEY" \
+  --data '{
+    "status": "inactive",
+    "name": "New Key Name"
+  }'
+​
+Best practices
+To effectively use the Admin API:
+
+Use meaningful names and descriptions for workspaces and API keys
+Implement proper error handling for failed operations
+Regularly audit member roles and permissions
+Clean up unused workspaces and expired invites
+Monitor API key usage and rotate keys periodically
+​
+FAQ
+
+What permissions are needed to use the Admin API?
+
+Only organization members with the admin role can use the Admin API. They must also have a special Admin API key (starting with sk-ant-admin).
+
+
+Can I create new API keys through the Admin API?
+
+No, new API keys can only be created through the Anthropic Console for security reasons. The Admin API can only manage existing API keys.
+
+
+What happens to API keys when removing a user?
+
+API keys persist in their current state as they are scoped to the Organization, not to individual users.
+
+
+Can organization admins be removed via the API?
+
+No, organization members with the admin role cannot be removed via the API for security reasons.
+
+
+How long do organization invites last?
+
+Organization invites expire after 21 days. There is currently no way to modify this expiration period.
+
+
+Are there limits on workspaces?
+
+Yes, you can have a maximum of 100 workspaces per Organization. Archived workspaces do not count towards this limit.
+
+
+What's the Default Workspace?
+
+Every Organization has a “Default Workspace” that cannot be edited or removed, and has no ID. This Workspace does not appear in workspace list endpoints.
+
+
+How do organization roles affect Workspace access?
+
+Organization admins automatically get the workspace_admin role to all workspaces. Organization billing members automatically get the workspace_billing role. Organization users and developers must be manually added to each workspace.
+
+
+Which roles can be assigned in workspaces?
+
+Organization users and developers can be assigned workspace_admin, workspace_developer, or workspace_user roles. The workspace_billing role can’t be manually assigned - it’s inherited from having the organization billing role.
+
+
+Can organization admin or billing members' workspace roles be changed?
+
+Only organization billing members can have their workspace role upgraded to an admin role. Otherwise, organization admins and billing members can’t have their workspace roles changed or be removed from workspaces while they hold those organization roles. Their workspace access must be modified by changing their organization role first.
+
+
+What happens to workspace access when organization roles change?
+
+If an organization admin or billing member is demoted to user or developer, they lose access to all workspaces except ones where they were manually assigned roles. When users are promoted to admin or billing roles, they gain automatic access to all workspaces.

@@ -142,23 +142,66 @@ class ClaudeCodeLauncherService {
                 terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
                 terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
             }
+            // Raw mode問題を回避するための環境変数設定
+            terminal.sendText('export NODE_NO_READLINE=1');
+            terminal.sendText('export TERM=xterm-256color');
             // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
             const escapedProjectPath = this.projectPath.replace(/"/g, '\\"');
             terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
             // ファイルパスをエスケープ（スペースを含む場合）
             const escapedClaudeMdPath = claudeMdPath.replace(/ /g, '\\ ');
+            // インポートとインスタンス取得
+            const authSync = await Promise.resolve().then(() => __importStar(require('../services/ClaudeCodeAuthSync'))).then(module => module.ClaudeCodeAuthSync.getInstance());
+            const authService = await Promise.resolve().then(() => __importStar(require('../core/auth/AuthenticationService'))).then(module => module.AuthenticationService.getInstance());
+            // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
+            let simpleAuthService;
+            try {
+                simpleAuthService = await Promise.resolve().then(() => __importStar(require('../core/auth/SimpleAuthService'))).then(module => module.SimpleAuthService.getInstance());
+                logger_1.Logger.info('SimpleAuthServiceのインスタンスを取得しました');
+            }
+            catch (error) {
+                logger_1.Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error);
+            }
+            // CLIログイン状態を確認
+            const isLoggedIn = authSync.isClaudeCliLoggedIn();
+            logger_1.Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
+            // 認証情報の表示
+            if (simpleAuthService) {
+                const apiKey = simpleAuthService.getApiKey();
+                if (apiKey) {
+                    logger_1.Logger.info('APIキーが利用可能です。これを使用してClaudeCodeを起動します');
+                }
+                else {
+                    logger_1.Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+                }
+            }
+            // 常にAppGeniusの認証情報を使用
+            logger_1.Logger.info(`認証モード: AppGenius認証モード`);
+            // AppGenius専用の認証情報を保存
+            await authSync.syncTokensToAppGeniusAuth();
+            logger_1.Logger.info('AppGenius専用の認証情報を同期しました');
+            // AppGenius専用の認証ファイルパス
+            const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
+            // コマンド設定
+            let baseCommand = 'claude';
+            // AppGeniusの認証情報を使用するよう環境変数を設定
+            // ユーザーが個人的にClaudeCode CLIに別のAPIキーでログインしていても、常にAppGeniusの認証情報を優先使用
+            terminal.sendText(`export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+            logger_1.Logger.info(`AppGenius認証情報を使用するよう環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+            // 標準の起動コマンドを使用
+            logger_1.Logger.info('AppGenius認証情報を使用して起動します');
             // スコープIDが存在する場合はスコープを指定して起動
             if (scope.id) {
                 // スコープIDをエスケープする必要はないが、念のため
                 const escapedScopeId = scope.id.replace(/ /g, '\\ ');
                 // Claude Codeをスコープ指定で起動（echoとパイプを使用して自動応答）
-                terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
-                logger_1.Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+                terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+                logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "y" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
             }
             else {
                 // スコープ指定なしで起動（echoとパイプを使用して自動応答）
-                terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedClaudeMdPath}`);
-                logger_1.Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedClaudeMdPath}`);
+                terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedClaudeMdPath}`);
+                logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedClaudeMdPath}`);
             }
             // 状態更新
             this.status = ClaudeCodeExecutionStatus.RUNNING;
@@ -286,6 +329,9 @@ class ClaudeCodeLauncherService {
                 terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "No profile found" > /dev/null 2>&1');
                 terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
             }
+            // Raw mode問題を回避するための環境変数設定
+            terminal.sendText('export NODE_NO_READLINE=1');
+            terminal.sendText('export TERM=xterm-256color');
             // 明示的にプロジェクトルートディレクトリに移動（出力を非表示）
             const escapedProjectPath = projectPath.replace(/"/g, '\\"');
             terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
@@ -296,9 +342,49 @@ class ClaudeCodeLauncherService {
             let additionalParams = options?.additionalParams ? ` ${options.additionalParams}` : '';
             // オプションフラグは追加しない（Claude CLIでサポートされていないため）
             // additionalParams += ' -y --lang=ja';
+            // インポートとインスタンス取得
+            const authSync = await Promise.resolve().then(() => __importStar(require('../services/ClaudeCodeAuthSync'))).then(module => module.ClaudeCodeAuthSync.getInstance());
+            const authService = await Promise.resolve().then(() => __importStar(require('../core/auth/AuthenticationService'))).then(module => module.AuthenticationService.getInstance());
+            // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
+            let simpleAuthService;
+            try {
+                simpleAuthService = await Promise.resolve().then(() => __importStar(require('../core/auth/SimpleAuthService'))).then(module => module.SimpleAuthService.getInstance());
+                logger_1.Logger.info('SimpleAuthServiceのインスタンスを取得しました（プロンプト実行用）');
+            }
+            catch (error) {
+                logger_1.Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error);
+            }
+            // CLIログイン状態を確認
+            const isLoggedIn = authSync.isClaudeCliLoggedIn();
+            logger_1.Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
+            // 認証情報の表示
+            if (simpleAuthService) {
+                const apiKey = simpleAuthService.getApiKey();
+                if (apiKey) {
+                    logger_1.Logger.info('APIキーが利用可能です。これを使用してプロンプト実行します');
+                }
+                else {
+                    logger_1.Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+                }
+            }
+            // 常にAppGeniusの認証情報を使用
+            logger_1.Logger.info(`プロンプト実行用の認証モード: AppGenius認証モード`);
+            // AppGenius専用の認証情報を保存
+            await authSync.syncTokensToAppGeniusAuth();
+            logger_1.Logger.info('AppGenius専用の認証情報を同期しました');
+            // AppGenius専用の認証ファイルパス
+            const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
+            // コマンド設定
+            let baseCommand = 'claude';
+            // AppGeniusの認証情報を使用するよう環境変数を設定 
+            // ユーザーが個人的にClaudeCode CLIに別のAPIキーでログインしていても、常にAppGeniusの認証情報を優先使用
+            terminal.sendText(`export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+            logger_1.Logger.info(`AppGenius認証情報を使用するよう環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+            // 標準の起動コマンドを使用
+            logger_1.Logger.info('AppGenius認証情報を使用してプロンプトを実行します');
             // プロンプトファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
-            terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedPromptFilePath}${additionalParams}`);
-            logger_1.Logger.info(`ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedPromptFilePath}${additionalParams}`);
+            terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
+            logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
             // プロンプトファイルを即時削除（セキュリティ対策）
             if (options?.deletePromptFile) {
                 try {
@@ -478,9 +564,47 @@ class ClaudeCodeLauncherService {
             terminal.sendText(`cd "${escapedProjectPath}" > /dev/null 2>&1 && pwd > /dev/null 2>&1`);
             // ファイルパスをエスケープ（スペースを含む場合）
             const escapedAnalysisFilePath = processInfo.analysisFilePath.replace(/ /g, '\\ ');
+            // インポートとインスタンス取得
+            const authSync = await Promise.resolve().then(() => __importStar(require('../services/ClaudeCodeAuthSync'))).then(module => module.ClaudeCodeAuthSync.getInstance());
+            const authService = await Promise.resolve().then(() => __importStar(require('../core/auth/AuthenticationService'))).then(module => module.AuthenticationService.getInstance());
+            // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
+            let simpleAuthService;
+            try {
+                simpleAuthService = await Promise.resolve().then(() => __importStar(require('../core/auth/SimpleAuthService'))).then(module => module.SimpleAuthService.getInstance());
+                logger_1.Logger.info('SimpleAuthServiceのインスタンスを取得しました（モックアップ解析用）');
+            }
+            catch (error) {
+                logger_1.Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error);
+            }
+            // 認証情報の表示
+            if (simpleAuthService) {
+                const apiKey = simpleAuthService.getApiKey();
+                if (apiKey) {
+                    logger_1.Logger.info('APIキーが利用可能です。これを使用してモックアップ解析を実行します');
+                }
+                else {
+                    logger_1.Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+                }
+            }
+            // 認証モードを確認 - 常に分離認証モードを使用（シンプル化）
+            const useIsolatedAuth = true;
+            logger_1.Logger.info('モックアップ解析用の認証モード: 分離認証モード（標準設定）');
+            // AppGenius専用の認証情報を保存
+            await authSync.syncTokensToAppGeniusAuth();
+            logger_1.Logger.info('AppGenius専用の認証情報を同期しました（分離認証モード）');
+            // コマンド設定
+            let baseCommand = 'claude';
+            // 分離認証モードの場合、環境変数を設定してコマンドを構築
+            if (useIsolatedAuth) {
+                const appGeniusAuthFilePath = authSync.getAppGeniusAuthFilePath();
+                // 環境変数を設定する前に別々のコマンドとして実行（2行に分ける）
+                terminal.sendText(`export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+                logger_1.Logger.info(`分離認証モードで環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
+            }
             // 解析用ファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
-            terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | claude ${escapedAnalysisFilePath}`);
-            logger_1.Logger.info(`モックアップ解析用ClaudeCode起動コマンド（自動応答と日本語指示付き）: echo "y" | claude ${escapedAnalysisFilePath}`);
+            terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedAnalysisFilePath}`);
+            const authMode = useIsolatedAuth ? '（分離認証モード）' : '';
+            logger_1.Logger.info(`モックアップ解析用ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedAnalysisFilePath}`);
             // 状態は個別に管理するが、後方互換性のために全体のステータスも更新
             this.status = ClaudeCodeExecutionStatus.RUNNING;
             // 現在のプロセス状態をログ出力

@@ -4,7 +4,7 @@
  */
 import axios from 'axios';
 import authHeader from '../utils/auth-header';
-import { refreshTokenService } from '../utils/token-refresh';
+import { tokenRefreshService } from '../utils/token-refresh';
 
 // APIのベースURL
 const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
@@ -232,7 +232,7 @@ class UserService {
       if (status === 401) {
         try {
           // 共通リフレッシュトークンサービスを使用
-          await refreshTokenService.refreshToken();
+          await tokenRefreshService.refreshToken();
           // トークンリフレッシュに成功した場合はtrue（再試行可能）を返す
           return { retryable: true };
         } catch (refreshError) {

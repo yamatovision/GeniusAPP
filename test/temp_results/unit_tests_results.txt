@@ -1,0 +1,30 @@
+Starting unit tests...
+Running test: TokenManager - Save Token
+✅ PASSED: TokenManager - Save Token
+Running test: TokenManager - Get Token
+✅ PASSED: TokenManager - Get Token
+Running test: TokenManager - Delete Token
+✅ PASSED: TokenManager - Delete Token
+Running test: Auth Logic - Valid Token
+✅ PASSED: Auth Logic - Valid Token
+Running test: Auth Logic - Expired Token
+✅ PASSED: Auth Logic - Expired Token
+Running test: Auth Logic - Invalid Token
+✅ PASSED: Auth Logic - Invalid Token
+Running test: Usage Calculation - Total Tokens
+✅ PASSED: Usage Calculation - Total Tokens
+Running test: Usage Calculation - Cost
+✅ PASSED: Usage Calculation - Cost
+Running test: Usage Calculation - Empty Records
+✅ PASSED: Usage Calculation - Empty Records
+Running test: Utilities - Format Date
+✅ PASSED: Utilities - Format Date
+Running test: Utilities - Truncate String
+✅ PASSED: Utilities - Truncate String
+
+==== Unit Tests Summary ====
+Total: 11
+Passed: 11
+Failed: 0
+Skipped: 0
+Pass Rate: 100%

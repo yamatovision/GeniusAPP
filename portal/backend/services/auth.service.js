@@ -36,7 +36,11 @@ exports.generateRefreshToken = (user) => {
   return jwt.sign(
     { id: user._id }, 
     authConfig.refreshTokenSecret, 
-    { expiresIn: authConfig.refreshTokenExpiry }
+    { 
+      expiresIn: authConfig.refreshTokenExpiry,
+      issuer: authConfig.jwtOptions.issuer,
+      audience: authConfig.jwtOptions.audience
+    }
   );
 };
 
@@ -76,10 +80,20 @@ exports.register = async (userData) => {
     user.lastLogin = new Date();
     await user.save();
 
+    // Simple認証形式に合わせたレスポンスフォーマット
     return {
-      user,
-      accessToken,
-      refreshToken
+      success: true,
+      message: 'ユーザー登録に成功しました',
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role
+        },
+        accessToken,
+        refreshToken
+      }
     };
   } catch (error) {
     throw error;
@@ -303,11 +317,22 @@ exports.login = async (email, password) => {
       }
 
       console.log("認証サービス: ログイン処理完了");
+      
+      // Simple認証形式に合わせたレスポンスフォーマット
       return {
-        user,
-        accessToken,
-        refreshToken,
-        organizations: organizationInfo
+        success: true,
+        message: 'ログインに成功しました',
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role
+          },
+          accessToken,
+          refreshToken,
+          organizations: organizationInfo
+        }
       };
     } catch (tokenError) {
       console.error("認証サービス: トークン生成/保存エラー:", tokenError);
@@ -350,7 +375,9 @@ exports.refreshToken = async (refreshToken, options = {}) => {
     
     // トークン検証オプション
     const verifyOptions = {
-      clockTolerance: authConfig.tokenSettings?.validation?.jwtClockTolerance || 30 // 時刻ズレの許容値（秒）
+      clockTolerance: authConfig.tokenSettings?.validation?.jwtClockTolerance || 30, // 時刻ズレの許容値（秒）
+      issuer: authConfig.jwtOptions.issuer,
+      audience: authConfig.jwtOptions.audience
     };
     
     let decoded;
@@ -520,12 +547,15 @@ exports.refreshToken = async (refreshToken, options = {}) => {
     const expiryMatch = accessTokenExpiry.match(/(\d+)h/);
     const expiresIn = expiryMatch ? parseInt(expiryMatch[1], 10) * 3600 : 86400; // デフォルト24時間
     
-    // アクセストークンと新しいリフレッシュトークンを返す
+    // Simple認証形式に合わせたレスポンスフォーマット
     return {
-      accessToken,
-      refreshToken: newRefreshToken,
-      expiresIn: expiresIn,
-      sessionExtended
+      success: true,
+      data: {
+        accessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: expiresIn,
+        sessionExtended
+      }
     };
   } catch (error) {
     console.error('認証サービス: トークンリフレッシュエラー', error);
@@ -536,21 +566,28 @@ exports.refreshToken = async (refreshToken, options = {}) => {
 /**
  * ユーザーログアウト
  * @param {String} refreshToken - リフレッシュトークン
- * @returns {Boolean} ログアウト成功フラグ
+ * @returns {Object} ログアウト結果
  */
 exports.logout = async (refreshToken) => {
   try {
     // リフレッシュトークンでユーザーを検索
     const user = await User.findByRefreshToken(refreshToken);
     if (!user) {
-      return false;
+      return {
+        success: false,
+        message: 'ユーザーが見つかりません'
+      };
     }
 
     // リフレッシュトークンをクリア
     user.refreshToken = null;
     await user.save();
 
-    return true;
+    // Simple認証形式に合わせたレスポンスフォーマット
+    return {
+      success: true,
+      message: 'ログアウトしました'
+    };
   } catch (error) {
     throw error;
   }

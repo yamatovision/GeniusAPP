@@ -1,4 +1,19 @@
 "use strict";
+/**
+ * AppGenius VSCode Extension メインエントリーポイント
+ *
+ * 【認証システムリファクタリング 2025/03/23】
+ * - 現在、2つの認証システムが並行して存在しています：
+ *   1. 従来の認証システム: AuthenticationService + TokenManager
+ *   2. 新しい認証システム: SimpleAuthManager + SimpleAuthService
+ *
+ * - 認証システムリファクタリングにより、SimpleAuthManagerとSimpleAuthServiceを優先使用します
+ * - 後方互換性のため、古い認証サービスも維持していますが、将来的には完全に削除します
+ * - PermissionManagerは両方の認証サービスに対応するよう更新されています
+ * - パネル/コンポーネントは、AuthGuardを通じてPermissionManagerを使用します
+ *
+ * 詳細は auth-system-refactoring-scope.md を参照
+ */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -57,6 +72,8 @@ const DebugDetectivePanel_1 = require("./ui/debugDetective/DebugDetectivePanel")
 const EnvironmentVariablesAssistantPanel_1 = require("./ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel");
 const TokenManager_1 = require("./core/auth/TokenManager");
 const AuthenticationService_1 = require("./core/auth/AuthenticationService");
+const SimpleAuthManager_1 = require("./core/auth/SimpleAuthManager"); // 新しい認証マネージャー
+const SimpleAuthService_1 = require("./core/auth/SimpleAuthService"); // 新しい認証サービス
 const PermissionManager_1 = require("./core/auth/PermissionManager");
 const authCommands_1 = require("./core/auth/authCommands");
 const promptLibraryCommands_1 = require("./commands/promptLibraryCommands");
@@ -83,15 +100,20 @@ function activate(context) {
         // AuthStorageManagerの初期化
         const authStorageManager = AuthStorageManager_1.AuthStorageManager.getInstance(context);
         logger_1.Logger.info('AuthStorageManager initialized successfully');
-        // TokenManagerの初期化
+        // 新しいシンプル認証マネージャーの初期化（優先使用）
+        const simpleAuthManager = SimpleAuthManager_1.SimpleAuthManager.getInstance(context);
+        logger_1.Logger.info('SimpleAuthManager initialized successfully');
+        // シンプル認証サービスの取得
+        const simpleAuthService = simpleAuthManager.getAuthService();
+        logger_1.Logger.info('SimpleAuthService accessed successfully');
+        // 従来の認証サービス初期化（後方互換性のために維持）
         const tokenManager = TokenManager_1.TokenManager.getInstance(context);
-        logger_1.Logger.info('TokenManager initialized successfully');
-        // AuthenticationServiceの初期化
+        logger_1.Logger.info('Legacy TokenManager initialized successfully');
         const authService = AuthenticationService_1.AuthenticationService.getInstance(context);
-        logger_1.Logger.info('AuthenticationService initialized successfully');
-        // PermissionManagerの初期化（認証サービスに依存）
-        const permissionManager = PermissionManager_1.PermissionManager.getInstance(authService);
-        logger_1.Logger.info('PermissionManager initialized successfully');
+        logger_1.Logger.info('Legacy AuthenticationService initialized successfully');
+        // PermissionManagerの初期化（シンプル認証サービスを優先使用）
+        const permissionManager = PermissionManager_1.PermissionManager.getInstance(simpleAuthService);
+        logger_1.Logger.info('PermissionManager initialized with SimpleAuthService');
         // 認証コマンドの登録
         (0, authCommands_1.registerAuthCommands)(context);
         logger_1.Logger.info('Auth commands registered successfully');
@@ -183,6 +205,46 @@ function activate(context) {
     // コマンドハンドラーを初期化
     const commandHandler = new CommandHandler_1.CommandHandler(aiService);
     context.subscriptions.push(commandHandler);
+    // 認証テスト関連コマンド（開発環境のみ）
+    context.subscriptions.push(vscode.commands.registerCommand('appgenius.getSimpleAuthService', () => {
+        try {
+            return SimpleAuthService_1.SimpleAuthService.getInstance();
+        }
+        catch (error) {
+            logger_1.Logger.error('SimpleAuthService取得エラー:', error);
+            return null;
+        }
+    }), vscode.commands.registerCommand('appgenius.testFeatureAccess', (featureName) => {
+        try {
+            return AuthGuard_1.AuthGuard.checkAccess(featureName);
+        }
+        catch (error) {
+            logger_1.Logger.error('機能アクセステストエラー:', error);
+            return false;
+        }
+    }), vscode.commands.registerCommand('appgenius.runAuthVerificationTests', () => {
+        try {
+            const fs = require('fs');
+            const testRunnerPath = path.join(context.extensionPath, 'test_run_auth_tests.js');
+            if (fs.existsSync(testRunnerPath)) {
+                const testRunner = require(testRunnerPath);
+                if (typeof testRunner.activateAuthTests === 'function') {
+                    testRunner.activateAuthTests(context);
+                    vscode.window.showInformationMessage('認証テストツールが起動しました。コマンドパレットから「Auth Verification Tests」を実行してください。');
+                }
+                else {
+                    vscode.window.showErrorMessage('テストツール内にactivateAuthTests関数が見つかりません');
+                }
+            }
+            else {
+                vscode.window.showErrorMessage(`テストスクリプトが見つかりません: ${testRunnerPath}`);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('認証テスト実行エラー:', error);
+            vscode.window.showErrorMessage(`認証テストの実行に失敗しました: ${error.message}`);
+        }
+    }));
     // メインメニュー表示コマンド
     context.subscriptions.push(vscode.commands.registerCommand('appgenius-ai.showMainMenu', async () => {
         try {

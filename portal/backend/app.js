@@ -12,7 +12,9 @@ const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const app = express();
-const authConfig = require('./config/auth.config');
+// 古い認証設定をシンプル認証設定に置き換え (2025/3/23)
+// const authConfig = require('./config/auth.config');
+const authConfig = require('./config/simple-auth.config');
 
 // レート制限ミドルウェアのインポート
 const rateLimitMiddleware = require('./middlewares/rate-limit.middleware');
@@ -29,6 +31,13 @@ const allowedOrigins = [
   'https://geniemon-yamatovisions-projects.vercel.app', 
   'http://localhost:3000', 
   'http://localhost:3001',
+  'http://localhost:3002',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:3002',
+  'http://localhost:5000',  // APIサーバー自身（開発時の直接アクセス用）
+  'http://127.0.0.1:5000',
+  'vscode-webview://*',     // VSCode Webview用
   ...corsOrigins
 ].filter(origin => origin !== '*'); // 重複を許容し、'*'は明示的リストがある場合は除外
 
@@ -40,15 +49,27 @@ app.use(cors({
     // origin が undefined の場合はサーバー間リクエスト
     if (!origin) return callback(null, true);
     
+    // VSCode Webviewの場合は特別に許可
+    if (origin.startsWith('vscode-webview:')) {
+      return callback(null, true);
+    }
+    
+    // 開発環境では全て許可（process.env.NODE_ENV === 'development'）
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    
     // 明示的な許可リストに含まれているか、corsOriginsに'*'が含まれている場合は許可
     if (allowedOrigins.includes(origin) || corsOrigins.includes('*')) {
       callback(null, true);
     } else {
+      console.warn(`CORS policy violation for origin: ${origin}`);
       callback(new Error('CORS policy violation'));
     }
   },
   methods: process.env.CORS_METHODS || 'GET,POST,PUT,DELETE,OPTIONS',
-  credentials: true
+  credentials: true,
+  exposedHeaders: ['Content-Length', 'X-Requested-With']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -92,7 +113,8 @@ app.get('/api', (req, res) => {
 });
 
 // ルートの設定
-app.use('/api/auth', require('./routes/auth.routes'));
+// 古い認証ルートを削除 (2025/3/23)
+// app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/user.routes'));
 app.use('/api/prompts', require('./routes/prompt.routes'));
 app.use('/api/projects', require('./routes/project.routes'));

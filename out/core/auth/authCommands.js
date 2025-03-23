@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.registerAuthCommands = registerAuthCommands;
 const vscode = __importStar(require("vscode"));
 const AuthenticationService_1 = require("./AuthenticationService");
+const SimpleAuthManager_1 = require("./SimpleAuthManager"); // 新しい認証マネージャーを追加
 const LoginWebviewPanel_1 = require("../../ui/auth/LoginWebviewPanel");
 const AuthStatusBar_1 = require("../../ui/auth/AuthStatusBar");
 const UsageIndicator_1 = require("../../ui/auth/UsageIndicator");
@@ -50,11 +51,11 @@ const LogoutNotification_1 = require("../../ui/auth/LogoutNotification");
  */
 function registerAuthCommands(context) {
     const authService = AuthenticationService_1.AuthenticationService.getInstance();
-    // ログインコマンド
+    // 従来のログインコマンド
     context.subscriptions.push(vscode.commands.registerCommand('appgenius.login', () => {
         LoginWebviewPanel_1.LoginWebviewPanel.createOrShow(context.extensionUri);
     }));
-    // ログアウトコマンド
+    // 従来のログアウトコマンド
     context.subscriptions.push(vscode.commands.registerCommand('appgenius.logout', async () => {
         const answer = await vscode.window.showWarningMessage('AppGeniusからログアウトしますか？', 'ログアウト', 'キャンセル');
         if (answer === 'ログアウト') {
@@ -68,6 +69,8 @@ function registerAuthCommands(context) {
         // 今後実装予定
         vscode.window.showInformationMessage('使用量詳細機能は現在実装中です');
     }));
+    // 新しいシンプル認証コマンド
+    registerSimpleAuthCommands(context);
     // 認証状態表示を初期化
     initAuthStatusBar(context);
     // 使用量表示を初期化
@@ -95,5 +98,48 @@ function initUsageIndicator(context) {
 function initLogoutNotification(context) {
     const logoutNotification = LogoutNotification_1.LogoutNotification.getInstance();
     context.subscriptions.push(logoutNotification);
+}
+/**
+ * シンプル認証コマンドを登録
+ *
+ * 新しく実装したシンプル認証システム用のコマンドを登録します。
+ * これらのコマンドは従来の認証システムとは独立して動作します。
+ */
+function registerSimpleAuthCommands(context) {
+    // コマンド登録
+    context.subscriptions.push(
+    // シンプル認証メニュー表示
+    vscode.commands.registerCommand('appgenius.simpleAuth.showMenu', () => {
+        SimpleAuthManager_1.SimpleAuthManager.getInstance().getAuthService().verifyAuthState();
+    }), 
+    // シンプル認証ログイン
+    vscode.commands.registerCommand('appgenius.simpleAuth.login', async () => {
+        // SimpleAuthManagerの内部ロジックでログインUIを表示
+        await vscode.commands.executeCommand('appgenius.simpleAuth.showMenu');
+    }), 
+    // シンプル認証ログアウト
+    vscode.commands.registerCommand('appgenius.simpleAuth.logout', async () => {
+        const simpleAuthManager = SimpleAuthManager_1.SimpleAuthManager.getInstance();
+        await simpleAuthManager.getAuthService().logout();
+    }), 
+    // 簡易テスト - 認証サービスの動作確認
+    vscode.commands.registerCommand('appgenius.simpleAuth.test', async () => {
+        try {
+            const simpleAuthManager = SimpleAuthManager_1.SimpleAuthManager.getInstance();
+            const authService = simpleAuthManager.getAuthService();
+            const isAuthenticated = authService.isAuthenticated();
+            vscode.window.showInformationMessage(`シンプル認証テスト: 認証状態=${isAuthenticated ? '認証済み' : '未認証'}`);
+            if (isAuthenticated) {
+                const state = authService.getCurrentState();
+                vscode.window.showInformationMessage(`ユーザー: ${state.username}, ロール: ${state.role}`);
+            }
+            // 認証状態検証
+            const isValid = await authService.verifyAuthState();
+            vscode.window.showInformationMessage(`サーバー検証結果: ${isValid ? '有効' : '無効'}`);
+        }
+        catch (error) {
+            vscode.window.showErrorMessage(`テストエラー: ${error.message}`);
+        }
+    }));
 }
 //# sourceMappingURL=authCommands.js.map

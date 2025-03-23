@@ -68,6 +68,7 @@ class AuthenticationService {
     constructor(context) {
         this._lastError = null;
         this._authCheckInterval = null;
+        this._authModeInfo = null;
         // イベントエミッター
         this._onStateChanged = new vscode.EventEmitter();
         this._onLoginSuccess = new vscode.EventEmitter();
@@ -116,18 +117,10 @@ class AuthenticationService {
                 logger_1.Logger.info('トークンの有効期限が切れています。リフレッシュを試みます');
                 const refreshed = await this.refreshToken(true); // 静かに失敗するオプションを設定
                 if (!refreshed) {
-                    logger_1.Logger.warn('トークンのリフレッシュに失敗しました');
-                    // ログアウトせずにローカルデータで認証状態の回復を試みる
-                    const recoverySuccess = await this._recoverUserState();
-                    if (recoverySuccess) {
-                        logger_1.Logger.info('ローカルデータによる認証状態の回復に成功しました');
-                        this._startAuthCheckInterval();
-                        return;
-                    }
-                    else {
-                        logger_1.Logger.warn('認証状態の回復に失敗しました。未認証状態で初期化します');
-                        return;
-                    }
+                    logger_1.Logger.warn('トークンのリフレッシュに失敗しました。認証が必要です');
+                    // トークンをクリアし、未認証状態で初期化
+                    await this._tokenManager.clearTokens();
+                    return;
                 }
             }
             try {
@@ -140,19 +133,27 @@ class AuthenticationService {
             }
             catch (fetchError) {
                 logger_1.Logger.error('ユーザー情報の取得中にエラーが発生しました', fetchError);
-                // サーバーエラーやネットワークエラーの場合、ローカルデータでフォールバック
-                if (axios_1.default.isAxiosError(fetchError) &&
-                    (fetchError.response?.status === 500 || !fetchError.response)) {
-                    logger_1.Logger.info('サーバーエラーまたはネットワークエラーが発生しました。ローカルデータを使用して認証を試みます');
-                    const recoverySuccess = await this._recoverUserState();
-                    if (recoverySuccess) {
-                        logger_1.Logger.info('ローカルデータによる認証状態の回復に成功しました');
+                // サーバーエラーやネットワークエラーの場合、明確なエラーメッセージを表示
+                if (axios_1.default.isAxiosError(fetchError)) {
+                    if (fetchError.response?.status === 401) {
+                        logger_1.Logger.warn('認証エラーが発生しました。再ログインが必要です');
+                        // トークンをクリアし、未認証状態にする
+                        await this._tokenManager.clearTokens();
+                        const newState = AuthState_1.AuthStateBuilder.guest().build();
+                        this._updateState(newState);
+                        // ユーザーへの通知は初期化中は控えめに
+                        return;
                     }
-                    else {
-                        logger_1.Logger.warn('ローカルデータによる認証状態の回復に失敗しました。機能が制限される場合があります');
+                    else if (fetchError.response?.status === 500) {
+                        logger_1.Logger.warn('サーバーエラーが発生しました。しばらく経ってから再試行してください');
+                        // ユーザーへの通知は初期化中は控えめに
+                    }
+                    else if (!fetchError.response) {
+                        logger_1.Logger.warn('ネットワークエラーが発生しました。インターネット接続を確認してください');
+                        // ユーザーへの通知は初期化中は控えめに
                     }
                 }
-                // エラーが発生しても、権限チェックは開始する（次回の自動チェックでリカバリー可能にする）
+                // 認証エラー以外の場合は、権限チェックは開始する（次回の自動チェックでリカバリー可能にする）
                 this._startAuthCheckInterval();
                 logger_1.Logger.info('認証サービスの初期化が完了しました（一部エラーあり）');
             }
@@ -384,27 +385,20 @@ class AuthenticationService {
                 await new Promise(resolve => setTimeout(resolve, retryDelayMs));
                 return this.refreshToken(silentOnError, retryCount + 1);
             }
-            // トークンが無効な場合はローカルデータによる回復を試みる
+            // トークンが無効な場合は明示的にログアウトを要求する
             if (axios_1.default.isAxiosError(error) && error.response?.status === 401) {
-                logger_1.Logger.warn('リフレッシュトークンが無効です。ローカルデータによる認証状態の回復を試みます');
-                // ローカルに保存されたユーザー情報でのフォールバックを試みる
-                const recoverySuccess = await this._recoverUserState();
-                // 回復できなかった場合のみログアウト処理
-                if (!recoverySuccess) {
-                    logger_1.Logger.warn('ローカルデータによる認証状態の回復に失敗しました');
-                    // silentOnErrorがtrueの場合、サイレントに処理
+                // エラーレスポンスの詳細を分析
+                const errorData = error.response.data;
+                // アカウント無効化エラーの検出
+                if (errorData?.error?.code === 'ACCOUNT_DISABLED' ||
+                    (errorData?.error?.message && errorData?.error?.message.includes('無効化')) ||
+                    errorData?.error?.requireRelogin === true) {
+                    logger_1.Logger.warn('アカウントが無効化されているか、永続的な認証エラーが発生しました');
+                    logger_1.Logger.error('API Error Details:', errorData);
+                    // ユーザーに明確な通知
                     if (!silentOnError) {
-                        // ユーザーに通知してからログアウト
-                        vscode.window.showWarningMessage('ログインセッションの有効期限が切れました。再ログインしてください。', '再ログイン').then(async (selection) => {
-                            if (selection === '再ログイン') {
-                                // ログアウト後、ログイン画面を表示（このコードは実装環境に合わせて調整）
-                                await this.logout();
-                                // ログイン画面表示のイベントを発行（実装によっては別の方法で）
-                                vscode.commands.executeCommand('appgenius.showLogin');
-                            }
-                            else {
-                                await this.logout();
-                            }
+                        vscode.window.showErrorMessage('アカウントが無効化されています。詳細については管理者にお問い合わせください。', 'ログアウト').then(async (selection) => {
+                            await this.logout(); // 選択に関わらずログアウト処理
                         });
                     }
                     else {
@@ -412,20 +406,47 @@ class AuthenticationService {
                         await this._tokenManager.clearTokens();
                         const newState = AuthState_1.AuthStateBuilder.guest().build();
                         this._updateState(newState);
+                        logger_1.Logger.info('アカウント無効化により認証状態をクリアしました');
                     }
+                    return false;
+                }
+                // 通常の認証エラー
+                logger_1.Logger.warn('リフレッシュトークンが無効です。ログアウトが必要です');
+                // silentOnErrorがtrueの場合、サイレントに処理
+                if (!silentOnError) {
+                    // ユーザーに通知してからログアウト
+                    vscode.window.showWarningMessage('ログインセッションの有効期限が切れました。再ログインしてください。', '再ログイン').then(async (selection) => {
+                        if (selection === '再ログイン') {
+                            // ログアウト後、ログイン画面を表示
+                            await this.logout();
+                            // ログイン画面表示のイベントを発行
+                            vscode.commands.executeCommand('appgenius.showLogin');
+                        }
+                        else {
+                            await this.logout();
+                        }
+                    });
                 }
                 else {
-                    logger_1.Logger.info('ローカルデータによる認証状態の回復に成功しました。オフラインモードで継続します');
-                    // 成功したら定期的にリフレッシュを再試行するタイマーを設定
-                    this._scheduleRefreshRetry(5 * 60 * 1000); // 5分後に再試行
+                    // 静かにトークンをクリアするだけ
+                    await this._tokenManager.clearTokens();
+                    const newState = AuthState_1.AuthStateBuilder.guest().build();
+                    this._updateState(newState);
+                    logger_1.Logger.info('認証トークンが無効です。ログアウトしました');
                 }
             }
             // サーバーエラー（500）が発生した場合は、現在のトークンの有効性をチェック
             else if (axios_1.default.isAxiosError(error) && error.response?.status === 500) {
                 logger_1.Logger.warn('トークンリフレッシュ中にサーバーエラーが発生しました。現在のトークンの有効性をチェックします');
+                // エラーレスポンスの詳細を分析
+                const errorData = error.response.data;
                 // サーバーエラーの原因がアカウント無効化の場合
-                if (error.response?.data?.error?.details === 'アカウントが無効化されています') {
+                if (errorData?.error?.code === 'ACCOUNT_DISABLED' ||
+                    (errorData?.error?.message && errorData?.error?.message.includes('無効化')) ||
+                    errorData?.error?.requireRelogin === true ||
+                    errorData?.error?.details === 'アカウントが無効化されています') {
                     logger_1.Logger.warn('アカウントが無効化されています。ログアウトします');
+                    logger_1.Logger.error('API Error Details:', errorData);
                     if (!silentOnError) {
                         await this.logout();
                         vscode.window.showErrorMessage('アカウントが無効化されています。管理者にお問い合わせください。');
@@ -435,6 +456,7 @@ class AuthenticationService {
                         await this._tokenManager.clearTokens();
                         const newState = AuthState_1.AuthStateBuilder.guest().build();
                         this._updateState(newState);
+                        logger_1.Logger.info('アカウント無効化により認証状態をクリアしました');
                     }
                     return false;
                 }
@@ -754,6 +776,7 @@ class AuthenticationService {
     }
     /**
      * ユーザーロールのマッピング
+     * すべての可能なロール値に対応
      */
     _mapUserRole(roleStr) {
         if (!roleStr) {
@@ -764,6 +787,12 @@ class AuthenticationService {
                 return roles_1.Role.ADMIN;
             case 'user':
                 return roles_1.Role.USER;
+            case 'super_admin':
+                return roles_1.Role.SUPER_ADMIN; // super_adminを正しく扱う
+            // 他のロール値も適切に処理
+            case 'unpaid':
+            case 'unsubscribed':
+                return roles_1.Role.USER; // 制限付きユーザーとして扱う
             default:
                 return roles_1.Role.GUEST;
         }
@@ -892,6 +921,19 @@ class AuthenticationService {
      */
     async _recoverUserState() {
         try {
+            // APIサーバーへの接続確認を最初に行う
+            try {
+                const isValid = await this._verifyTokenWithServer();
+                if (!isValid) {
+                    // サーバー認証に失敗した場合は回復を中止
+                    logger_1.Logger.warn('サーバー認証に失敗しました。認証回復を中止します');
+                    return false;
+                }
+            }
+            catch (apiError) {
+                logger_1.Logger.warn('APIサーバーへの接続に失敗。認証回復を中止します');
+                return false;
+            }
             logger_1.Logger.info('ローカルデータを使用して認証状態を回復します');
             // ローカルに保存されたユーザーデータを取得
             const userData = await this._storageManager.getUserData();
@@ -923,6 +965,47 @@ class AuthenticationService {
         }
     }
     /**
+     * サーバーに対してトークンの有効性を確認
+     * @returns トークンが有効な場合はtrue、それ以外はfalse
+     */
+    async _verifyTokenWithServer() {
+        try {
+            const token = await this._tokenManager.getAccessToken();
+            if (!token) {
+                logger_1.Logger.warn('_verifyTokenWithServer: アクセストークンが見つかりません');
+                return false;
+            }
+            const apiUrl = this._getAuthApiUrl();
+            logger_1.Logger.info(`トークン検証リクエスト実行: ${apiUrl}/auth/users/me`);
+            const response = await axios_1.default.get(`${apiUrl}/auth/users/me`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                },
+                timeout: 10000 // タイムアウト設定を10秒に延長
+            });
+            const isValid = response.status === 200 && !!response.data.user;
+            logger_1.Logger.info(`トークン検証結果: ${isValid ? '有効' : '無効'}, ステータス: ${response.status}, ユーザー情報: ${!!response.data.user}`);
+            return isValid;
+        }
+        catch (error) {
+            if (axios_1.default.isAxiosError(error)) {
+                if (error.response?.status === 401) {
+                    logger_1.Logger.warn('トークンが無効です（401）');
+                }
+                else if (error.response) {
+                    logger_1.Logger.error(`サーバー接続確認中にエラーが発生しました: HTTP ${error.response.status} - ${error.response.statusText}`, error);
+                }
+                else {
+                    logger_1.Logger.error(`ネットワークエラーが発生しました: ${error.message}`, error);
+                }
+            }
+            else {
+                logger_1.Logger.error(`サーバー接続確認中に予期しないエラーが発生しました: ${error.message}`, error);
+            }
+            return false;
+        }
+    }
+    /**
      * 最後のエラーを取得
      */
     getLastError() {
@@ -935,8 +1018,69 @@ class AuthenticationService {
         return this._currentState.isAuthenticated;
     }
     /**
-     * リソースの解放
+     * 認証モードの情報を取得
+     * 認証モードの状態と詳細情報を返す
+     * @deprecated 単一認証モデルに移行中のため非推奨
      */
+    getAuthModeInfo() {
+        // 単一認証モデルに移行中のため、常に分離認証モードが有効として単純化
+        const info = {
+            isIsolatedAuthEnabled: true,
+            detectionMethod: 'simplified_model',
+            authFilePath: this._getIsolatedAuthFilePath()
+        };
+        this._authModeInfo = info;
+        return { ...info };
+    }
+    /**
+     * 分離認証モードのファイルパスを取得
+     */
+    _getIsolatedAuthFilePath() {
+        // 環境変数で明示的に指定されている場合はそれを使用
+        if (process.env.CLAUDE_AUTH_FILE) {
+            return process.env.CLAUDE_AUTH_FILE;
+        }
+        // OSに応じた標準的なパスを構築
+        const homeDir = require('os').homedir();
+        const fs = require('fs');
+        const path = require('path');
+        // 標準的な場所（.appgenius）を確認
+        const dotAppGeniusDir = path.join(homeDir, '.appgenius');
+        // ディレクトリが存在するか、作成可能な場合は.appgeniusを使用
+        try {
+            if (fs.existsSync(dotAppGeniusDir)) {
+                return path.join(dotAppGeniusDir, 'auth.json');
+            }
+            // プラットフォーム固有のパス
+            if (process.platform === 'win32') {
+                // Windowsでの代替設定ディレクトリ
+                const appDataDir = process.env.APPDATA || path.join(homeDir, 'AppData', 'Roaming');
+                return path.join(appDataDir, 'appgenius', 'auth.json');
+            }
+            else if (process.platform === 'darwin') {
+                // macOSでの代替設定ディレクトリ
+                return path.join(homeDir, 'Library', 'Application Support', 'appgenius', 'auth.json');
+            }
+            else {
+                // Linux/Unixでの代替設定ディレクトリ
+                const xdgConfigHome = process.env.XDG_CONFIG_HOME || path.join(homeDir, '.config');
+                return path.join(xdgConfigHome, 'appgenius', 'auth.json');
+            }
+        }
+        catch (error) {
+            // エラー発生時はホームディレクトリの.appgenius/auth.jsonをデフォルトとして返す
+            logger_1.Logger.warn(`認証ファイルパス検出中にエラー発生: ${error.message}`);
+            return path.join(homeDir, '.appgenius', 'auth.json');
+        }
+    }
+    /**
+     * 分離認証モードが有効かどうかを返す（シンプルな形式）
+     * @deprecated 単一認証モデルに移行中のため非推奨
+     * @returns 常にtrueを返す
+     */
+    isIsolatedAuthEnabled() {
+        return true; // 常にtrueを返す（単一認証モデルに移行中）
+    }
     dispose() {
         this._stopAuthCheckInterval();
         this._onStateChanged.dispose();

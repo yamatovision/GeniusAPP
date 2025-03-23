@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { AuthenticationService } from './AuthenticationService';
+import { SimpleAuthService } from './SimpleAuthService';
 import { Role, Feature, RoleFeatureMap, FeatureDisplayNames } from './roles';
 import { Logger } from '../../utils/logger';
 
@@ -15,12 +16,14 @@ export interface AccessDeniedAction {
 /**
  * PermissionManager - 機能へのアクセス権限をチェックするクラス
  * 
- * AuthenticationServiceの状態に基づいて、
+ * 認証サービスの状態に基づいて、
  * ユーザーが特定の機能にアクセスできるかどうかをチェックします。
+ * SimpleAuthServiceとAuthenticationServiceの両方に対応しています。
  */
 export class PermissionManager {
   private static instance: PermissionManager;
-  private _authService: AuthenticationService;
+  private _authService: AuthenticationService | SimpleAuthService;
+  private _isSimpleAuth: boolean;
   private _onPermissionsChanged = new vscode.EventEmitter<void>();
   
   // 公開イベント
@@ -29,22 +32,25 @@ export class PermissionManager {
   /**
    * コンストラクタ
    */
-  private constructor(authService: AuthenticationService) {
+  private constructor(authService: AuthenticationService | SimpleAuthService) {
     this._authService = authService;
+    
+    // SimpleAuthServiceかどうかを判定
+    this._isSimpleAuth = 'getAccessToken' in authService;
     
     // 認証状態変更イベントをリッスン
     this._authService.onStateChanged(this._handleAuthStateChanged.bind(this));
     
-    Logger.info('PermissionManager: 初期化完了');
+    Logger.info(`PermissionManager: 初期化完了 (SimpleAuth: ${this._isSimpleAuth})`);
   }
   
   /**
    * シングルトンインスタンスの取得
    */
-  public static getInstance(authService?: AuthenticationService): PermissionManager {
+  public static getInstance(authService?: AuthenticationService | SimpleAuthService): PermissionManager {
     if (!PermissionManager.instance) {
       if (!authService) {
-        throw new Error('PermissionManagerの初期化時にはAuthenticationServiceが必要です');
+        throw new Error('PermissionManagerの初期化時には認証サービスが必要です');
       }
       PermissionManager.instance = new PermissionManager(authService);
     }

@@ -45,12 +45,74 @@
   line-height: 1.5;
 }
 
+.simple-organization-workspace,
 .simple-organization-api-keys {
   background-color: #fff;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   padding: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.simple-workspace-info {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.simple-workspace-actions {
+  margin: 10px 0;
+}
+
+.simple-workspace-help {
+  font-size: 0.9em;
+  color: #666;
+  background-color: #f0f0f0;
+  padding: 10px;
+  border-radius: 4px;
+  border-left: 3px solid #2196f3;
+}
+
+.simple-workspace-success {
+  background-color: #e8f5e9;
+  padding: 15px;
+  border-radius: 5px;
+  margin: 15px 0;
+  border-left: 4px solid #4CAF50;
+}
+
+.simple-workspace-warning {
+  background-color: #fff8e6;
+  padding: 10px;
+  border-radius: 5px;
+  margin: 10px 0;
+  border-left: 4px solid #FFC107;
+}
+
+.simple-workspace-separator {
+  text-align: center;
+  margin: 15px 0;
+  color: #666;
+  position: relative;
+}
+
+.simple-workspace-separator::before,
+.simple-workspace-separator::after {
+  content: '';
+  display: inline-block;
+  width: 40%;
+  height: 1px;
+  background: #ddd;
+  position: absolute;
+  top: 50%;
+}
+
+.simple-workspace-separator::before {
+  left: 0;
+}
+
+.simple-workspace-separator::after {
+  right: 0;
 }
 
 .simple-section-header {

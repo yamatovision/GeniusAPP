@@ -46,6 +46,8 @@ const ClaudeCodeIntegrationService_1 = require("../../services/ClaudeCodeIntegra
 const AppGeniusEventBus_1 = require("../../services/AppGeniusEventBus");
 const ProtectedPanel_1 = require("../auth/ProtectedPanel");
 const roles_1 = require("../../core/auth/roles");
+const AuthenticationService_1 = require("../../core/auth/AuthenticationService");
+const claudeCodeApiClient_1 = require("../../api/claudeCodeApiClient");
 /**
  * スコープマネージャーパネルクラス
  * CURRENT_STATUS.mdファイルと連携して実装スコープの管理を行う
@@ -86,9 +88,54 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
     }
     /**
      * 外部向けのパネル作成・表示メソッド
-     * 権限チェック付きで、パネルを表示する
+     * 認証状態と権限チェック付きで、パネルを表示する
      */
-    static createOrShow(extensionUri, projectPath) {
+    static async createOrShow(extensionUri, projectPath) {
+        // 認証状態の追加確認
+        try {
+            const authService = AuthenticationService_1.AuthenticationService.getInstance();
+            const apiClient = claudeCodeApiClient_1.ClaudeCodeApiClient.getInstance();
+            const isAuthenticated = await authService.isAuthenticated();
+            if (!isAuthenticated) {
+                logger_1.Logger.warn('認証されていません。スコープマネージャーは表示できません');
+                vscode.window.showErrorMessage('この機能を使用するには再ログインが必要です', '再ログイン')
+                    .then(selection => {
+                    if (selection === '再ログイン') {
+                        vscode.commands.executeCommand('appgenius.login');
+                    }
+                });
+                return undefined;
+            }
+            // 実際のAPIリクエストでも確認
+            try {
+                const testResult = await apiClient.testApiConnection();
+                if (!testResult) {
+                    logger_1.Logger.warn('API接続テストに失敗しました。スコープマネージャーは表示できません');
+                    vscode.window.showErrorMessage('サーバー接続に問題があります。再ログインしてください', '再ログイン')
+                        .then(selection => {
+                        if (selection === '再ログイン') {
+                            vscode.commands.executeCommand('appgenius.login');
+                        }
+                    });
+                    return undefined;
+                }
+            }
+            catch (error) {
+                // APIエラーの場合も再ログインを促す
+                logger_1.Logger.error('API接続テスト中にエラーが発生しました', error);
+                vscode.window.showErrorMessage('サーバー接続でエラーが発生しました。再ログインしてください', '再ログイン')
+                    .then(selection => {
+                    if (selection === '再ログイン') {
+                        vscode.commands.executeCommand('appgenius.login');
+                    }
+                });
+                return undefined;
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('認証状態確認中にエラーが発生しました', error);
+            return undefined;
+        }
         // 権限チェック
         if (!this.checkPermissionForFeature(roles_1.Feature.SCOPE_MANAGER, 'ScopeManagerPanel')) {
             return undefined;
@@ -109,6 +156,7 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
         this._currentScope = null;
         this._directoryStructure = '';
         this._fileWatcher = null;
+        this._docsDirWatcher = null; // Node.jsのファイルシステムウォッチャー
         // 開発モード管理
         this._isPreparationMode = false; // 準備モードまたは実装モード
         this._panel = panel;
@@ -212,6 +260,11 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             this._fileWatcher.dispose();
             this._fileWatcher = null;
         }
+        // Node.jsのファイルシステムウォッチャーも破棄
+        if (this._docsDirWatcher) {
+            this._docsDirWatcher.close();
+            this._docsDirWatcher = null;
+        }
         // ファイルウォッチャーを設定
         this._setupFileWatcher();
         // パスが設定されたらステータスファイルを読み込む
@@ -234,26 +287,52 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             if (!fs.existsSync(docsDir)) {
                 fs.mkdirSync(docsDir, { recursive: true });
             }
-            // CURRENT_STATUS.md の変更を監視
+            // Node.jsのネイティブfs.watchを使用してdocsディレクトリを監視
+            // これにより、OSレベルのファイルシステムイベントを直接検知できる
+            this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
+                if (filename === 'CURRENT_STATUS.md') {
+                    logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)');
+                    logger_1.Logger.info(`ファイルパス: ${this._statusFilePath}, 存在確認: ${fs.existsSync(this._statusFilePath) ? '存在します' : '存在しません'}`);
+                    // イベントバスに通知を送信 - グローバルイベントとして通知
+                    const eventBus = AppGeniusEventBus_1.AppGeniusEventBus.getInstance();
+                    // プロジェクトIDは現在のプロジェクトパスから抽出する
+                    const projectId = this._projectPath ? path.basename(this._projectPath) : undefined;
+                    eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.CURRENT_STATUS_UPDATED, { filePath: this._statusFilePath, timestamp: Date.now() }, 'ScopeManagerPanel', projectId);
+                    // 直接ファイルを読み込み、WebViewを強制更新する
+                    // 実装モードの場合はリアルタイムで更新する
+                    setTimeout(() => {
+                        logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出 - 遅延読み込みによる強制更新を実行');
+                        if (fs.existsSync(this._statusFilePath)) {
+                            try {
+                                const content = fs.readFileSync(this._statusFilePath, 'utf8');
+                                this._parseStatusFile(content);
+                                this._updateWebview();
+                                // 二重の更新を防ぐための追加ログ
+                                logger_1.Logger.info('CURRENT_STATUS.mdファイルの強制更新が完了しました');
+                            }
+                            catch (err) {
+                                logger_1.Logger.error('強制更新中にエラーが発生しました', err);
+                            }
+                        }
+                    }, 200); // 少し遅延させて確実にファイル書き込みが完了した後に読み込む
+                    // 通常の更新処理も維持
+                    if (!this._isPreparationMode) {
+                        logger_1.Logger.info('実装モードでCURRENT_STATUSが更新されました - リアルタイム更新を行います');
+                        this._loadStatusFile();
+                    }
+                    else {
+                        logger_1.Logger.info('準備モードでの変更は標準の処理を実行します');
+                        this._loadStatusFile();
+                    }
+                }
+            });
+            // VS Codeのファイルシステムウォッチャーもバックアップとして維持
+            // このウォッチャーはVS Code内部での操作を監視するために使用
             this._fileWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/CURRENT_STATUS.md'));
             // ファイル変更時の処理
             this._fileWatcher.onDidChange(() => {
-                logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました');
-                logger_1.Logger.info(`ファイルパス: ${this._statusFilePath}, 存在確認: ${fs.existsSync(this._statusFilePath) ? '存在します' : '存在しません'}`);
-                // イベントバスに通知を送信 - グローバルイベントとして通知
-                const eventBus = AppGeniusEventBus_1.AppGeniusEventBus.getInstance();
-                // プロジェクトIDは現在のプロジェクトパスから抽出する
-                const projectId = this._projectPath ? path.basename(this._projectPath) : undefined;
-                eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.CURRENT_STATUS_UPDATED, { filePath: this._statusFilePath, timestamp: Date.now() }, 'ScopeManagerPanel', projectId);
-                // 実装モードの場合はリアルタイムで更新する
-                if (!this._isPreparationMode) {
-                    logger_1.Logger.info('実装モードでCURRENT_STATUSが更新されました - リアルタイム更新を行います');
-                    this._loadStatusFile();
-                }
-                else {
-                    logger_1.Logger.info('準備モードでの変更は標準の処理を実行します');
-                    this._loadStatusFile();
-                }
+                logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (VSCode watcher)');
+                this._loadStatusFile();
             });
             // 新規ファイル作成時の処理
             this._fileWatcher.onDidCreate(() => {
@@ -995,6 +1074,10 @@ APIエンドポイントはまだ定義されていません。
                 new RegExp(`### 次のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
                 // スコープ専用セクション: ## スコープ名\n直後にファイルリストが続くパターン
                 new RegExp(`## ([^#\\n]+)\\s*\\n(?:\\s*\\n)*((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
+                // 新しいパターン: ## スコープ名 の下に ### カテゴリ名 があり、その下に直接タスクリストがある場合
+                new RegExp(`## ([^#\\n]+)[\\s\\S]*?### [^#\\n]+\\s*\\n((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
+                // より一般的なパターン: ## スコープ -> 任意のコンテンツ -> タスクリスト
+                new RegExp(`## ([^#\\n]+)[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g')
             ];
             for (const pattern of fileListPatterns) {
                 const matches = [...content.matchAll(pattern)];
@@ -3207,6 +3290,11 @@ project-root/
     dispose() {
         ScopeManagerPanel.currentPanel = undefined;
         this._panel.dispose();
+        // Node.jsのファイルシステムウォッチャーを解放
+        if (this._docsDirWatcher) {
+            this._docsDirWatcher.close();
+            this._docsDirWatcher = null;
+        }
         while (this._disposables.length) {
             const disposable = this._disposables.pop();
             if (disposable) {

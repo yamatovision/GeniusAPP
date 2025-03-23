@@ -36,12 +36,14 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthStatusBar = void 0;
 const vscode = __importStar(require("vscode"));
 const AuthenticationService_1 = require("../../core/auth/AuthenticationService");
+const SimpleAuthService_1 = require("../../core/auth/SimpleAuthService");
 const logger_1 = require("../../utils/logger");
 /**
  * AuthStatusBar - VSCodeのステータスバーに認証状態を表示するクラス
  *
  * 現在のログイン状態やユーザー情報をステータスバーに表示し、
  * クリックするとログイン/ログアウト機能を提供します。
+ * レガシー認証とSimple認証の両方をサポートします。
  */
 class AuthStatusBar {
     /**
@@ -50,18 +52,31 @@ class AuthStatusBar {
     constructor() {
         this._disposables = [];
         this._isUpdating = false;
+        this._useSimpleAuth = false;
         // アイコン設定
         this.ICON_LOGGED_IN = '$(person-filled)';
         this.ICON_LOGGED_OUT = '$(person)';
         this.ICON_ERROR = '$(warning)';
         this.ICON_UPDATING = '$(sync~spin)';
+        this.ICON_API_KEY = '$(key)';
         this._authService = AuthenticationService_1.AuthenticationService.getInstance();
+        // Simple認証サービスの初期化
+        try {
+            const context = global.appgeniusContext;
+            if (context) {
+                this._simpleAuthService = SimpleAuthService_1.SimpleAuthService.getInstance(context);
+                logger_1.Logger.debug('SimpleAuthServiceをStatusBarに初期化しました');
+            }
+        }
+        catch (error) {
+            logger_1.Logger.debug('SimpleAuthServiceの初期化に失敗しました', error);
+        }
         // ステータスバーアイテムの作成
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
         // 認証イベント監視
         this._registerAuthEventListeners();
         // 初期状態の表示
-        this._updateStatusBar(this._authService.isAuthenticated());
+        this._updateAuthStatus();
         this._statusBarItem.show();
         logger_1.Logger.debug('認証ステータスバーを初期化しました');
     }
@@ -78,58 +93,124 @@ class AuthStatusBar {
      * 認証イベントリスナーを登録
      */
     _registerAuthEventListeners() {
-        // 認証サービスのイベントを監視
+        // レガシー認証サービスのイベントを監視
         this._disposables.push(this._authService.onStateChanged(state => {
-            this._updateStatusBar(state.isAuthenticated);
+            if (!this._useSimpleAuth) {
+                this._updateAuthStatus();
+            }
         }), this._authService.onLoginSuccess(() => {
-            this._updateStatusBar(true);
+            if (!this._useSimpleAuth) {
+                this._useSimpleAuth = false;
+                this._updateAuthStatus();
+            }
         }), this._authService.onLogout(() => {
-            this._updateStatusBar(false);
+            if (!this._useSimpleAuth) {
+                this._updateAuthStatus();
+            }
         }), this._authService.onTokenRefreshed(() => {
-            this._showUpdatingStatus(true);
-            setTimeout(() => {
-                this._showUpdatingStatus(false);
-                this._updateStatusBar(this._authService.isAuthenticated());
-            }, 1000);
+            if (!this._useSimpleAuth) {
+                this._showUpdatingStatus(true);
+                setTimeout(() => {
+                    this._showUpdatingStatus(false);
+                    this._updateAuthStatus();
+                }, 1000);
+            }
         }), this._authService.onLoginFailed((error) => {
-            // 一時的にエラーアイコンを表示
-            this._showErrorStatus(error.message);
-            setTimeout(() => {
-                this._updateStatusBar(this._authService.isAuthenticated());
-            }, 3000);
+            if (!this._useSimpleAuth) {
+                // 一時的にエラーアイコンを表示
+                this._showErrorStatus(error.message);
+                setTimeout(() => {
+                    this._updateAuthStatus();
+                }, 3000);
+            }
         }));
+        // Simple認証サービスのイベントを監視
+        if (this._simpleAuthService) {
+            this._disposables.push(this._simpleAuthService.onStateChanged(state => {
+                this._useSimpleAuth = state.isAuthenticated;
+                this._updateAuthStatus();
+            }), this._simpleAuthService.onLoginSuccess(() => {
+                this._useSimpleAuth = true;
+                this._updateAuthStatus();
+            }), this._simpleAuthService.onLogout(() => {
+                this._useSimpleAuth = false;
+                this._updateAuthStatus();
+            }), this._simpleAuthService.onLoginFailed((error) => {
+                // 一時的にエラーアイコンを表示
+                this._showErrorStatus(error.message);
+                setTimeout(() => {
+                    this._updateAuthStatus();
+                }, 3000);
+            }));
+        }
     }
     /**
-     * ステータスバーの表示を更新
+     * 認証状態を確認して表示を更新
      */
-    async _updateStatusBar(isAuthenticated) {
-        if (this._isUpdating) {
-            return;
+    _updateAuthStatus() {
+        // Simple認証が利用可能でログイン済みの場合はSimple認証を優先
+        if (this._simpleAuthService && this._simpleAuthService.isAuthenticated()) {
+            this._useSimpleAuth = true;
+            this._updateStatusBarForSimpleAuth();
         }
-        if (isAuthenticated) {
-            const user = this._authService.getCurrentUser();
-            if (user) {
-                // ユーザー名を表示
-                this._statusBarItem.text = `${this.ICON_LOGGED_IN} ${user.name || user.email}`;
-                this._statusBarItem.tooltip = `AppGenius: ${user.name || user.email} としてログイン中\nクリックしてログアウト`;
-                this._statusBarItem.command = 'appgenius.logout';
-                this._statusBarItem.backgroundColor = undefined;
-            }
-            else {
-                // ユーザー情報がまだ読み込まれていない場合
-                this._statusBarItem.text = `${this.ICON_LOGGED_IN} AppGenius`;
-                this._statusBarItem.tooltip = `AppGenius: ログイン中\nクリックしてログアウト`;
-                this._statusBarItem.command = 'appgenius.logout';
-                this._statusBarItem.backgroundColor = undefined;
-            }
+        else if (this._authService.isAuthenticated()) {
+            // レガシー認証でログイン済みの場合
+            this._useSimpleAuth = false;
+            this._updateStatusBarForLegacyAuth();
         }
         else {
             // 未ログイン状態
-            this._statusBarItem.text = `${this.ICON_LOGGED_OUT} 未ログイン`;
-            this._statusBarItem.tooltip = 'AppGenius: クリックしてログイン';
-            this._statusBarItem.command = 'appgenius.login';
-            this._statusBarItem.backgroundColor = undefined;
+            this._updateStatusBarForLoggedOut();
         }
+    }
+    /**
+     * Simple認証用のステータスバー表示更新
+     */
+    _updateStatusBarForSimpleAuth() {
+        if (this._isUpdating || !this._simpleAuthService) {
+            return;
+        }
+        const state = this._simpleAuthService.getCurrentState();
+        const hasApiKey = !!this._simpleAuthService.getApiKey();
+        // APIキーを持っている場合は特別なアイコン表示
+        const icon = hasApiKey ? this.ICON_API_KEY : this.ICON_LOGGED_IN;
+        const displayName = state.username || 'ユーザー';
+        this._statusBarItem.text = `${icon} ${displayName}`;
+        // ツールチップにAPIキー情報を追加
+        const apiKeyInfo = hasApiKey ? 'APIキー認証' : 'トークン認証';
+        this._statusBarItem.tooltip = `AppGenius: ${displayName} としてログイン中 (Simple認証: ${apiKeyInfo})\nクリックしてログアウト`;
+        this._statusBarItem.command = 'appgenius.logout';
+        this._statusBarItem.backgroundColor = undefined;
+    }
+    /**
+     * レガシー認証用のステータスバー表示更新
+     */
+    _updateStatusBarForLegacyAuth() {
+        if (this._isUpdating) {
+            return;
+        }
+        const user = this._authService.getCurrentUser();
+        if (user) {
+            // ユーザー名を表示
+            this._statusBarItem.text = `${this.ICON_LOGGED_IN} ${user.name || user.email}`;
+            this._statusBarItem.tooltip = `AppGenius: ${user.name || user.email} としてログイン中\nクリックしてログアウト`;
+        }
+        else {
+            // ユーザー情報がまだ読み込まれていない場合
+            this._statusBarItem.text = `${this.ICON_LOGGED_IN} AppGenius`;
+            this._statusBarItem.tooltip = `AppGenius: ログイン中\nクリックしてログアウト`;
+        }
+        this._statusBarItem.command = 'appgenius.logout';
+        this._statusBarItem.backgroundColor = undefined;
+    }
+    /**
+     * 未ログイン状態の表示更新
+     */
+    _updateStatusBarForLoggedOut() {
+        this._statusBarItem.text = `${this.ICON_LOGGED_OUT} 未ログイン`;
+        this._statusBarItem.tooltip = 'AppGenius: クリックしてログイン';
+        this._statusBarItem.command = 'appgenius.login';
+        this._statusBarItem.backgroundColor = undefined;
     }
     /**
      * エラー状態を表示
@@ -149,7 +230,7 @@ class AuthStatusBar {
             this._statusBarItem.tooltip = 'AppGenius: 認証情報を更新中...';
         }
         else {
-            this._updateStatusBar(this._authService.isAuthenticated());
+            this._updateAuthStatus();
         }
     }
     /**

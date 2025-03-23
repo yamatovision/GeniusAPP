@@ -4,6 +4,7 @@ const sinon = require('sinon');
 const vscode = require('vscode');
 const { ClaudeCodeApiClient } = require('../out/api/claudeCodeApiClient');
 const { AuthenticationService } = require('../out/core/auth/AuthenticationService');
+const { SimpleAuthService } = require('../out/core/auth/SimpleAuthService');
 const { ErrorHandler } = require('../out/utils/ErrorHandler');
 const { Logger } = require('../out/utils/logger');
 
@@ -11,27 +12,40 @@ const { Logger } = require('../out/utils/logger');
 jest.mock('axios');
 jest.mock('vscode');
 jest.mock('../out/core/auth/AuthenticationService');
+jest.mock('../out/core/auth/SimpleAuthService');
 jest.mock('../out/utils/ErrorHandler');
 jest.mock('../out/utils/logger');
 
 describe('ClaudeCodeApiClient', () => {
   let client;
-  let authServiceMock;
+  let legacyAuthServiceMock;
+  let simpleAuthServiceMock;
   let errorHandlerMock;
   
   beforeEach(() => {
     // モックをリセット
     jest.clearAllMocks();
     
-    // AuthenticationServiceモック
-    authServiceMock = {
-      getAuthHeader: jest.fn().mockResolvedValue({ 'Authorization': 'Bearer test-token' }),
+    // SimpleAuthServiceモック
+    simpleAuthServiceMock = {
+      getAuthHeader: jest.fn().mockReturnValue({ 'Authorization': 'Bearer simple-test-token' }),
+      refreshToken: jest.fn().mockReturnValue(true),
+      verifyAuthState: jest.fn().mockResolvedValue(true),
+      logout: jest.fn().mockResolvedValue(),
+      onStateChanged: jest.fn().mockReturnValue({ dispose: jest.fn() }),
+      isAuthenticated: jest.fn().mockReturnValue(true)
+    };
+    SimpleAuthService.getInstance.mockReturnValue(simpleAuthServiceMock);
+    
+    // レガシーAuthenticationServiceモック
+    legacyAuthServiceMock = {
+      getAuthHeader: jest.fn().mockResolvedValue({ 'Authorization': 'Bearer legacy-test-token' }),
       refreshToken: jest.fn().mockResolvedValue(true),
       logout: jest.fn().mockResolvedValue(),
       onStateChanged: jest.fn().mockReturnValue({ dispose: jest.fn() }),
       isAuthenticated: jest.fn().mockResolvedValue(true)
     };
-    AuthenticationService.getInstance.mockReturnValue(authServiceMock);
+    AuthenticationService.getInstance.mockReturnValue(legacyAuthServiceMock);
     
     // ErrorHandlerモック
     errorHandlerMock = {
@@ -57,30 +71,96 @@ describe('ClaudeCodeApiClient', () => {
     client = ClaudeCodeApiClient.getInstance();
   });
   
+  // SimpleAuthServiceとレガシー認証の切り替えをテスト
+  describe('authentication service selection', () => {
+    it('SimpleAuthServiceを優先的に使用する', async () => {
+      // SimpleAuthServiceの初期化成功をシミュレート
+      SimpleAuthService.getInstance.mockReturnValue(simpleAuthServiceMock);
+      
+      // クライアントを再初期化
+      const testClient = ClaudeCodeApiClient.getInstance();
+      
+      // APIコンフィグをテスト
+      axios.get.mockResolvedValueOnce({ status: 200, data: { user: { id: 1 } } });
+      await testClient.testApiConnection();
+      
+      // SimpleAuthServiceのgetAuthHeaderが呼ばれたことを確認
+      expect(simpleAuthServiceMock.getAuthHeader).toHaveBeenCalled();
+      // レガシー認証のgetAuthHeaderは呼ばれていないことを確認
+      expect(legacyAuthServiceMock.getAuthHeader).not.toHaveBeenCalled();
+    });
+    
+    it('SimpleAuthServiceの初期化に失敗した場合、レガシー認証を使用する', async () => {
+      // SimpleAuthServiceの初期化エラーをシミュレート
+      SimpleAuthService.getInstance.mockImplementationOnce(() => {
+        throw new Error('初期化エラー');
+      });
+      
+      // クライアントを再初期化
+      const testClient = ClaudeCodeApiClient.getInstance();
+      
+      // APIコンフィグをテスト
+      axios.get.mockResolvedValueOnce({ status: 200, data: { user: { id: 1 } } });
+      await testClient.testApiConnection();
+      
+      // レガシー認証のgetAuthHeaderが呼ばれたことを確認
+      expect(legacyAuthServiceMock.getAuthHeader).toHaveBeenCalled();
+    });
+  });
+
   describe('recordTokenUsage', () => {
-    it('主要エンドポイントでトークン使用量を正常に記録できる', async () => {
+    it('SimpleAuthService使用時にトークン使用量を正常に記録できる', async () => {
+      // SimpleAuthServiceの初期化成功をシミュレート
+      SimpleAuthService.getInstance.mockReturnValue(simpleAuthServiceMock);
+      
+      // クライアントを再初期化
+      const testClient = ClaudeCodeApiClient.getInstance();
+      
       // モックレスポンスを設定
       axios.post.mockResolvedValueOnce({ status: 201 });
       
       // テスト実行
-      const result = await client.recordTokenUsage(1000, 'claude-3-opus-20240229', 'test-context');
+      const result = await testClient.recordTokenUsage(1000, 'claude-3-opus-20240229', 'test-context');
       
       // 検証
       expect(result).toBe(true);
       expect(axios.post).toHaveBeenCalledWith(
-        expect.stringContaining('/usage/claude-tokens'),
+        expect.stringContaining('/proxy/usage/record'),
         {
           tokenCount: 1000,
           modelId: 'claude-3-opus-20240229',
           context: 'test-context'
         },
         expect.objectContaining({
-          headers: { 'Authorization': 'Bearer test-token' },
-          timeout: 15000
+          headers: { 'Authorization': 'Bearer simple-test-token' },
+          timeout: expect.any(Number)
         })
       );
+      // SimpleAuthServiceのisAuthenticatedが使われたことを確認
+      expect(simpleAuthServiceMock.isAuthenticated).toHaveBeenCalled();
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('【API連携】トークン使用履歴の記録を開始'));
-      expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('【API連携】トークン使用履歴の記録に成功しました'));
+    });
+    
+    it('レガシー認証使用時にトークン使用量を正常に記録できる', async () => {
+      // SimpleAuthServiceの初期化エラーをシミュレート
+      SimpleAuthService.getInstance.mockImplementationOnce(() => {
+        throw new Error('初期化エラー');
+      });
+      
+      // クライアントを再初期化
+      const testClient = ClaudeCodeApiClient.getInstance();
+      
+      // モックレスポンスを設定
+      axios.post.mockResolvedValueOnce({ status: 201 });
+      
+      // テスト実行
+      const result = await testClient.recordTokenUsage(1000, 'claude-3-opus-20240229', 'test-context');
+      
+      // 検証
+      expect(result).toBe(true);
+      // レガシー認証のisAuthenticatedが使われたことを確認
+      expect(legacyAuthServiceMock.isAuthenticated).toHaveBeenCalled();
+      expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('【API連携】トークン使用履歴の記録を開始'));
     });
     
     it('主要エンドポイントが404を返した場合、フォールバックエンドポイントを使用する', async () => {
@@ -120,7 +200,13 @@ describe('ClaudeCodeApiClient', () => {
       expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('【API連携】トークン使用履歴の記録に失敗しました'), expect.any(Error));
     });
     
-    it('認証エラーの場合、トークンをリフレッシュしてリトライする', async () => {
+    it('認証エラー発生時にSimpleAuthServiceでトークンを検証してリトライする', async () => {
+      // SimpleAuthServiceの初期化成功をシミュレート
+      SimpleAuthService.getInstance.mockReturnValue(simpleAuthServiceMock);
+      
+      // クライアントを再初期化
+      const testClient = ClaudeCodeApiClient.getInstance();
+      
       // 最初のリクエストは401エラーを返すように設定
       const authError = new Error('Unauthorized');
       authError.isAxiosError = true;
@@ -131,11 +217,39 @@ describe('ClaudeCodeApiClient', () => {
       axios.post.mockResolvedValueOnce({ status: 201 });
       
       // テスト実行
-      const result = await client.recordTokenUsage(1000, 'claude-3-opus-20240229');
+      const result = await testClient.recordTokenUsage(1000, 'claude-3-opus-20240229');
       
       // 検証
       expect(result).toBe(true);
-      expect(authServiceMock.refreshToken).toHaveBeenCalled();
+      expect(simpleAuthServiceMock.verifyAuthState).toHaveBeenCalled();
+      expect(axios.post).toHaveBeenCalledTimes(2);
+      expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('【API連携】トークンの有効期限切れ'));
+    });
+    
+    it('認証エラー発生時にレガシー認証でトークンをリフレッシュしてリトライする', async () => {
+      // SimpleAuthServiceの初期化エラーをシミュレート
+      SimpleAuthService.getInstance.mockImplementationOnce(() => {
+        throw new Error('初期化エラー');
+      });
+      
+      // クライアントを再初期化
+      const testClient = ClaudeCodeApiClient.getInstance();
+      
+      // 最初のリクエストは401エラーを返すように設定
+      const authError = new Error('Unauthorized');
+      authError.isAxiosError = true;
+      authError.response = { status: 401 };
+      axios.post.mockRejectedValueOnce(authError);
+      
+      // 2回目のリクエストは成功
+      axios.post.mockResolvedValueOnce({ status: 201 });
+      
+      // テスト実行
+      const result = await testClient.recordTokenUsage(1000, 'claude-3-opus-20240229');
+      
+      // 検証
+      expect(result).toBe(true);
+      expect(legacyAuthServiceMock.refreshToken).toHaveBeenCalled();
       expect(axios.post).toHaveBeenCalledTimes(2);
       expect(Logger.info).toHaveBeenCalledWith(expect.stringContaining('【API連携】トークンの有効期限切れ'));
     });
