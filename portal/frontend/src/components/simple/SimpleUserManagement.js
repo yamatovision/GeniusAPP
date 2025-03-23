@@ -4,7 +4,9 @@ import {
   getSimpleOrganizationUsers, 
   addSimpleOrganizationUser, 
   removeSimpleOrganizationUser, 
-  updateSimpleUserRole 
+  updateSimpleUserRole,
+  updateSimpleUser,
+  getSimpleUser
 } from '../../services/simple/simpleUser.service';
 import { 
   getSimpleOrganization 
@@ -27,6 +29,8 @@ const SimpleUserManagement = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [userToEdit, setUserToEdit] = useState(null);
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -202,6 +206,48 @@ const SimpleUserManagement = () => {
   const openDeleteModal = (user) => {
     setUserToDelete(user);
     setShowDeleteModal(true);
+  };
+  
+  const openEditMode = (user) => {
+    setUserToEdit({
+      _id: user._id,
+      name: user.name,
+      email: user.email
+    });
+    setEditMode(true);
+  };
+  
+  const handleEditUser = async (e) => {
+    e.preventDefault();
+    
+    if (!userToEdit || !userToEdit.name || !userToEdit.email) {
+      setError('名前とメールアドレスは必須です');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await updateSimpleUser(
+        userToEdit._id,
+        userToEdit.name,
+        userToEdit.email
+      );
+      
+      if (!response.success) {
+        throw new Error(response.message || 'ユーザー情報の更新に失敗しました');
+      }
+      
+      // 成功したら編集モードを閉じて一覧を更新
+      setEditMode(false);
+      setUserToEdit(null);
+      fetchData();
+    } catch (err) {
+      console.error('ユーザー更新エラー:', err);
+      setError('ユーザー情報の更新に失敗しました: ' + (err.message || '不明なエラー'));
+      setLoading(false);
+    }
   };
 
   // 現在のユーザーがSuperAdminかどうか
@@ -400,15 +446,23 @@ const SimpleUserManagement = () => {
                             <span className="simple-api-key-missing">未設定</span>
                           )}
                         </td>
-                        <td>
-                          {user._id !== currentUser?.id && (
+                        <td className="user-actions">
+                          <div className="button-group">
                             <button 
-                              className="simple-button small danger"
-                              onClick={() => openDeleteModal(user)}
+                              className="simple-button small secondary"
+                              onClick={() => openEditMode(user)}
                             >
-                              削除
+                              編集
                             </button>
-                          )}
+                            {user._id !== currentUser?.id && (
+                              <button 
+                                className="simple-button small danger"
+                                onClick={() => openDeleteModal(user)}
+                              >
+                                削除
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -417,6 +471,57 @@ const SimpleUserManagement = () => {
               </div>
             )}
           </div>
+          
+          {editMode && userToEdit && (
+            <div className="edit-user-form">
+              <h3>ユーザー情報編集</h3>
+              <form onSubmit={handleEditUser}>
+                <div className="simple-form-row">
+                  <div className="simple-form-group">
+                    <label htmlFor="edit-name">名前</label>
+                    <input
+                      type="text"
+                      id="edit-name"
+                      value={userToEdit.name}
+                      onChange={(e) => setUserToEdit({...userToEdit, name: e.target.value})}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="simple-form-group">
+                    <label htmlFor="edit-email">メールアドレス</label>
+                    <input
+                      type="email"
+                      id="edit-email"
+                      value={userToEdit.email}
+                      onChange={(e) => setUserToEdit({...userToEdit, email: e.target.value})}
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="simple-form-actions">
+                  <button 
+                    type="button" 
+                    className="simple-button secondary"
+                    onClick={() => {
+                      setEditMode(false);
+                      setUserToEdit(null);
+                    }}
+                  >
+                    キャンセル
+                  </button>
+                  <button 
+                    type="submit" 
+                    className="simple-button primary"
+                    disabled={loading}
+                  >
+                    {loading ? '保存中...' : '保存する'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
           
           {showDeleteModal && userToDelete && (
             <div className="simple-modal-overlay">

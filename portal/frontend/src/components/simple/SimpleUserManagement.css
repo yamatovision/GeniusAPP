@@ -310,3 +310,21 @@
   justify-content: flex-end;
   gap: 0.75rem;
 }
+
+.user-actions {
+  white-space: nowrap;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-user-form {
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
