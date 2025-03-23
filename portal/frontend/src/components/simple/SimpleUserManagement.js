@@ -359,6 +359,7 @@ const SimpleUserManagement = () => {
                       <th>名前</th>
                       <th>メールアドレス</th>
                       <th>役割</th>
+                      <th>APIキー</th>
                       <th>操作</th>
                     </tr>
                   </thead>
@@ -385,6 +386,18 @@ const SimpleUserManagement = () => {
                                 <option value="SuperAdmin">スーパー管理者</option>
                               )}
                             </select>
+                          )}
+                        </td>
+                        <td>
+                          {user.apiKeyId ? (
+                            <span className="simple-api-key">
+                              {user.apiKeyId.substring(0, 6)}...
+                              <span className="simple-tooltip">
+                                APIキーID: {user.apiKeyId}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="simple-api-key-missing">未設定</span>
                           )}
                         </td>
                         <td>

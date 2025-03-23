@@ -134,6 +134,57 @@
   font-size: 0.875rem;
 }
 
+.simple-api-key {
+  display: inline-block;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 0.9em;
+  position: relative;
+  cursor: pointer;
+}
+
+.simple-api-key:hover .simple-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.simple-tooltip {
+  visibility: hidden;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: #fff;
+  text-align: center;
+  border-radius: 4px;
+  padding: 5px 10px;
+  width: max-content;
+  opacity: 0;
+  transition: opacity 0.3s;
+  font-size: 0.85em;
+}
+
+.simple-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.simple-api-key-missing {
+  color: #999;
+  font-style: italic;
+  font-size: 0.9em;
+}
+
 .simple-empty-state {
   text-align: center;
   padding: 2rem;
