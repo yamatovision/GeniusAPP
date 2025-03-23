@@ -101,18 +101,12 @@ const App = () => {
   // シンプルモードへのリダイレクト
   const isSimplePath = window.location.pathname.startsWith('/simple');
 
-  // シンプルモードの場合はSimpleAppコンポーネントを表示して処理を終了
-  if (isSimplePath) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <SimpleApp />
-      </ThemeProvider>
-    );
-  }
-
   // 認証状態の確認
   useEffect(() => {
+    // シンプルモードの場合は処理をスキップ
+    if (isSimplePath) {
+      return;
+    }
     const checkAuthStatus = async () => {
       try {
         // まずローカルストレージからトークンをチェック
@@ -233,6 +227,18 @@ const App = () => {
     // ログインページではヘッダーを表示しない
     return currentPath !== '/login';
   };
+
+  // シンプルモードの場合は別のコンポーネントをレンダリング
+  if (isSimplePath) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Router>
+          <SimpleApp />
+        </Router>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -484,10 +490,8 @@ const App = () => {
               </PrivateRoute>
             } />
             
-            {/* シンプルモードへのリダイレクト */}
-            <Route path="/simple/*" element={
-              <Navigate to="/simple/dashboard" replace />
-            } />
+            {/* シンプルモードへのリダイレクト - SimpleAppコンポーネントで処理 */}
+            <Route path="/simple/*" element={null} />
             
             <Route path="/" element={
               isLoggedIn 
