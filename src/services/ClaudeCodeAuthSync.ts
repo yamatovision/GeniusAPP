@@ -381,29 +381,19 @@ export class ClaudeCodeAuthSync {
       const state = this._authService.getCurrentState();
       const expiresAt = state.expiresAt || (Date.now() + 3600000); // デフォルトは1時間後
       
-      // APIキーを取得
-      const apiKeyValue2 = this._authService.getApiKey();
-      const authToken2 = apiKeyValue2 || accessToken;
-      
-      // 詳細なデバッグログ（認証トークンの型を確認）
-      Logger.debug(`【認証情報】認証トークン型確認: ${typeof authToken2}`);
-      
-      // Promiseでない場合のみ長さを表示
-      if (authToken2 && typeof authToken2 === 'string') {
-        Logger.debug(`【認証情報】値の長さ: ${authToken2.length}`);
-      }
+      // APIキーの取得を確実に行う
+      // authTokenは既に取得済みなので、それを使用（二重取得を避ける）
       
       // トークン情報をJSONに変換（必ず文字列として保存）
       const authInfo = {
-        accessToken: typeof authToken2 === 'string' ? authToken2 : String(authToken2 || ''), // 強制的に文字列に変換
-        // SimpleAuthServiceではリフレッシュトークンを直接取得できないため、固定値を設定
+        accessToken: authToken, // すでに文字列として確実に取得済み
         refreshToken: 'appgenius-refresh-token', // ダミーリフレッシュトークン
         expiresAt: expiresAt,
         source: 'appgenius-extension',
         syncedAt: Date.now(),
         updatedAt: Date.now(),
         isolatedAuth: true,
-        isApiKey: !!apiKeyValue2 // APIキーを使用しているかどうかのフラグ
+        isApiKey: !!apiKeyValue // APIキーを使用しているかどうかのフラグ
       };
       
       // デバッグ用に変換後の型を確認

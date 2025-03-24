@@ -195,13 +195,13 @@ class ClaudeCodeLauncherService {
                 // スコープIDをエスケープする必要はないが、念のため
                 const escapedScopeId = scope.id.replace(/ /g, '\\ ');
                 // Claude Codeをスコープ指定で起動（echoとパイプを使用して自動応答）
-                terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
-                logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "y" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+                terminal.sendText(`echo "日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
+                logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "日本語で対応してください。" | ${baseCommand} --scope=${escapedScopeId} ${escapedClaudeMdPath}`);
             }
             else {
                 // スコープ指定なしで起動（echoとパイプを使用して自動応答）
-                terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedClaudeMdPath}`);
-                logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedClaudeMdPath}`);
+                terminal.sendText(`echo "日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedClaudeMdPath}`);
+                logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "日本語で対応してください。" | ${baseCommand} ${escapedClaudeMdPath}`);
             }
             // 状態更新
             this.status = ClaudeCodeExecutionStatus.RUNNING;
@@ -383,8 +383,8 @@ class ClaudeCodeLauncherService {
             // 標準の起動コマンドを使用
             logger_1.Logger.info('AppGenius認証情報を使用してプロンプトを実行します');
             // プロンプトファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
-            terminal.sendText(`echo "y\\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
-            logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
+            terminal.sendText(`echo "日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
+            logger_1.Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: echo "日本語で対応してください。" | ${baseCommand} ${escapedPromptFilePath}${additionalParams}`);
             // プロンプトファイルを即時削除（セキュリティ対策）
             if (options?.deletePromptFile) {
                 try {
@@ -602,9 +602,9 @@ class ClaudeCodeLauncherService {
                 logger_1.Logger.info(`分離認証モードで環境変数を設定: export CLAUDE_AUTH_FILE="${appGeniusAuthFilePath}"`);
             }
             // 解析用ファイルを指定してClaude CLIを起動（echoとパイプを使用して自動応答）
-            terminal.sendText(`echo "y\n日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedAnalysisFilePath}`);
+            terminal.sendText(`echo "日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${escapedAnalysisFilePath}`);
             const authMode = useIsolatedAuth ? '（分離認証モード）' : '';
-            logger_1.Logger.info(`モックアップ解析用ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "y" | ${baseCommand} ${escapedAnalysisFilePath}`);
+            logger_1.Logger.info(`モックアップ解析用ClaudeCode起動コマンド${authMode}（自動応答と日本語指示付き）: echo "日本語で対応してください。" | ${baseCommand} ${escapedAnalysisFilePath}`);
             // 状態は個別に管理するが、後方互換性のために全体のステータスも更新
             this.status = ClaudeCodeExecutionStatus.RUNNING;
             // 現在のプロセス状態をログ出力
