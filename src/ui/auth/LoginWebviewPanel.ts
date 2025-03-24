@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { AuthenticationService } from '../../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
+import { Logger } from '../../utils/logger';
 
 /**
  * LoginWebviewPanel - VSCode内でのログインUI
@@ -516,6 +518,11 @@ export class LoginWebviewPanel {
         // 成功通知
         vscode.window.showInformationMessage('AppGeniusにログインしました');
         
+        // APIキー表示 (遅延を入れて確実にAPIキーを取得するため)
+        setTimeout(async () => {
+          await this._showApiKeyAfterLogin();
+        }, 1000);
+        
         // 少し待ってからパネルを閉じる
         setTimeout(() => {
           this._panel.dispose();
@@ -589,6 +596,54 @@ export class LoginWebviewPanel {
       success: false,
       error: 'パスワードリセット機能は現在実装中です'
     });
+  }
+
+  /**
+   * ログイン後にAPIキーを表示
+   */
+  private async _showApiKeyAfterLogin(): Promise<void> {
+    try {
+      // SimpleAuthServiceからAPIキーを取得
+      const authService = SimpleAuthService.getInstance();
+      const apiKey = await authService.getApiKey();
+      
+      if (!apiKey) {
+        Logger.warn('ログイン後のAPIキー表示: APIキーが見つかりません');
+        // APIキーが見つからない場合でもエラーメッセージを表示
+        vscode.window.showWarningMessage(
+          'APIキーが見つかりませんでした。ClaudeCode連携には別途APIキーの設定が必要になる場合があります。',
+          { modal: true }
+        );
+        return;
+      }
+      
+      // APIキーが文字列であることを確認
+      if (typeof apiKey !== 'string') {
+        Logger.error(`APIキーの型が正しくありません: ${typeof apiKey}`);
+        return;
+      }
+      
+      // APIキーをマスク処理（先頭5文字と末尾4文字のみ表示）
+      const maskedApiKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+      
+      // ユーザー情報を取得
+      const userData = authService.getCurrentUser();
+      const userName = userData?.name || 'ユーザー';
+      
+      // APIキー情報をメッセージボックスで表示
+      vscode.window.showInformationMessage(
+        `${userName}さんのClaudeAPIキー: ${maskedApiKey}`,
+        { modal: true, detail: 'このAPIキーはClaudeCode連携に使用されます。' }
+      );
+      
+      Logger.info('APIキー情報をログイン成功後に表示しました');
+    } catch (error) {
+      Logger.error('APIキー表示中にエラーが発生しました', error as Error);
+      // エラーが発生した場合でもユーザーに通知
+      vscode.window.showErrorMessage(
+        'APIキー情報の表示中にエラーが発生しました。ClaudeCode連携には別途APIキーの設定が必要になる場合があります。'
+      );
+    }
   }
 
   /**

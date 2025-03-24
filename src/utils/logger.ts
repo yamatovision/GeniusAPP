@@ -56,6 +56,14 @@ export class Logger {
   }
 
   public static info(message: string, data?: any): void {
+    // ダッシュボードWebView関連のログはフィルタリング
+    if (message.includes('ダッシュボードWebView更新: プロジェクト数=') ||
+        message.includes('ダッシュボードWebViewを更新開始') ||
+        message.includes('ダッシュボードWebView更新完了') ||
+        message.includes('ダッシュボードWebViewからメッセージを受信') ||
+        message.includes('拡張されたCURRENT_STATUS.mdファイルの監視を設定')) {
+      return;
+    }
     if (this.logLevel <= LogLevel.INFO) {
       this.log('INFO', message, data);
     }

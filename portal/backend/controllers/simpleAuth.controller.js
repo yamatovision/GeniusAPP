@@ -98,6 +98,38 @@ exports.login = async (req, res) => {
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
     
+    // APIキー情報を取得
+    let apiKeyInfo = null;
+    
+    // 新方式：ユーザーに直接保存されているAPIキー値を優先
+    if (user.apiKeyValue) {
+      apiKeyInfo = {
+        id: user.apiKeyId || 'direct_key',
+        keyValue: user.apiKeyValue,  // ユーザーモデルに保存されているAPIキー値
+        status: 'active'
+      };
+    } 
+    // 旧方式：APIキーテーブルから取得
+    else if (user.apiKeyId) {
+      const SimpleApiKey = require('../models/simpleApiKey.model');
+      const apiKey = await SimpleApiKey.findOne({ id: user.apiKeyId });
+      
+      if (apiKey) {
+        apiKeyInfo = {
+          id: apiKey.id,
+          keyValue: apiKey.keyValue,
+          status: apiKey.status
+        };
+        
+        // 移行処理：APIキー値をユーザーモデルにも保存
+        if (apiKey.keyValue) {
+          user.apiKeyValue = apiKey.keyValue;
+          await user.save();
+          console.log(`ログイン時にユーザー ${user.name} (${user._id}) のAPIキー値をユーザーモデルに保存しました`);
+        }
+      }
+    }
+    
     // レスポンス
     return res.status(200).json({
       success: true,
@@ -111,8 +143,10 @@ exports.login = async (req, res) => {
           email: user.email,
           role: user.role,
           organizationId: user.organizationId,
-          apiKeyId: user.apiKeyId
-        }
+          apiKeyId: user.apiKeyId,
+          apiKeyValue: user.apiKeyValue  // APIキー値をユーザー情報に含める
+        },
+        apiKey: apiKeyInfo
       }
     });
   } catch (error) {
@@ -385,6 +419,38 @@ exports.checkAuth = async (req, res) => {
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
     
+    // APIキー情報を取得
+    let apiKeyInfo = null;
+    
+    // 新方式：ユーザーに直接保存されているAPIキー値を優先
+    if (user.apiKeyValue) {
+      apiKeyInfo = {
+        id: user.apiKeyId || 'direct_key',
+        keyValue: user.apiKeyValue,  // ユーザーモデルに保存されているAPIキー値
+        status: 'active'
+      };
+    } 
+    // 旧方式：APIキーテーブルから取得
+    else if (user.apiKeyId) {
+      const SimpleApiKey = require('../models/simpleApiKey.model');
+      const apiKey = await SimpleApiKey.findOne({ id: user.apiKeyId });
+      
+      if (apiKey) {
+        apiKeyInfo = {
+          id: apiKey.id,
+          keyValue: apiKey.keyValue,
+          status: apiKey.status
+        };
+        
+        // 移行処理：APIキー値をユーザーモデルにも保存
+        if (apiKey.keyValue) {
+          user.apiKeyValue = apiKey.keyValue;
+          await user.save();
+          console.log(`認証チェック時にユーザー ${user.name} (${user._id}) のAPIキー値をユーザーモデルに保存しました`);
+        }
+      }
+    }
+    
     // 成功レスポンス
     return res.status(200).json({
       success: true,
@@ -395,8 +461,10 @@ exports.checkAuth = async (req, res) => {
           email: user.email,
           role: user.role,
           organizationId: user.organizationId,
-          apiKeyId: user.apiKeyId
-        }
+          apiKeyId: user.apiKeyId,
+          apiKeyValue: user.apiKeyValue  // APIキー値をユーザー情報に含める
+        },
+        apiKey: apiKeyInfo
       }
     });
   } catch (error) {

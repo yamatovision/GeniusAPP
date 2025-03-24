@@ -112,8 +112,22 @@ export class SimpleAuthManager {
    * 認証状態変更を通知
    */
   private _notifyStateChange(state: AuthState): void {
-    // イベント発火
-    vscode.commands.executeCommand('appgenius.onAuthStateChanged', state);
+    try {
+      // イベント発火 - 認証状態のbooleanのみを渡す
+      const isAuthenticated = state.isAuthenticated;
+      
+      // コマンドが登録されているかチェックせずに直接実行
+      try {
+        Logger.info(`【デバッグ】SimpleAuthManager: 認証状態通知を直接実行 - isAuthenticated=${isAuthenticated}`);
+        vscode.commands.executeCommand('appgenius.onAuthStateChanged', isAuthenticated);
+        Logger.info(`SimpleAuthManager: 認証状態通知完了`);
+      } catch (cmdError) {
+        Logger.error('SimpleAuthManager: 認証状態通知コマンド実行中にエラーが発生しました', cmdError as Error);
+      }
+      
+    } catch (error) {
+      Logger.error('認証状態通知中にエラーが発生しました', error as Error);
+    }
   }
   
   /**

@@ -70,20 +70,44 @@ export class PermissionManager {
    * 特定機能へのアクセス権限を確認
    */
   public canAccess(feature: Feature): boolean {
-    // 現在の認証状態を取得
-    const state = this._authService.getCurrentState();
-    
-    // 認証されていない場合はゲストロールとして扱う
-    const role = state.isAuthenticated ? state.role : Role.GUEST;
-    
-    // 管理者は常にアクセス可能
-    if (role === Role.ADMIN) {
-      return true;
+    try {
+      // 現在の認証状態を取得
+      const state = this._authService.getCurrentState();
+      
+      // 詳細なログ出力
+      Logger.info(`PermissionManager: 権限チェック - 機能=${feature}, 認証状態=${state.isAuthenticated}, ユーザー=${state.username || 'なし'}, ロール=${state.role}, ユーザーID=${state.userId || 'なし'}`);
+      
+      // すべての権限情報を出力
+      if (state.permissions) {
+        Logger.info(`PermissionManager: ユーザー権限一覧=${JSON.stringify(state.permissions)}`);
+      }
+      
+      // 認証されていない場合はゲストロールとして扱う
+      const role = state.isAuthenticated ? state.role : Role.GUEST;
+      
+      // 管理者は常にアクセス可能
+      if (role === Role.ADMIN || role === Role.SUPER_ADMIN) {
+        Logger.info(`PermissionManager: 管理者権限があるため${feature}へのアクセスを許可します`);
+        return true;
+      }
+      
+      // 現在のロールでアクセス可能な機能リストをチェック
+      const allowedFeatures = RoleFeatureMap[role] || [];
+      Logger.info(`PermissionManager: ロール=${role}のアクセス可能な機能=${JSON.stringify(allowedFeatures)}`);
+      
+      const hasAccess = allowedFeatures.includes(feature);
+      
+      if (!hasAccess) {
+        Logger.warn(`PermissionManager: ロール=${role}は機能=${feature}へのアクセス権限がありません`);
+      } else {
+        Logger.info(`PermissionManager: ロール=${role}は機能=${feature}へのアクセス権限があります`);
+      }
+      
+      return hasAccess;
+    } catch (error) {
+      Logger.error(`PermissionManager: 権限チェック中にエラーが発生しました`, error as Error);
+      return false;
     }
-    
-    // 現在のロールでアクセス可能な機能リストをチェック
-    const allowedFeatures = RoleFeatureMap[role] || [];
-    return allowedFeatures.includes(feature);
   }
   
   /**

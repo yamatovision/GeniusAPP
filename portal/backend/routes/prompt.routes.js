@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const promptController = require('../controllers/prompt.controller');
-const authMiddleware = require('../middlewares/auth.middleware');
+// 標準認証ミドルウェアを削除し、シンプル認証ミドルウェアを使用
+// const authMiddleware = require('../middlewares/auth.middleware');
+const simpleAuthMiddleware = require('../middlewares/simple-auth.middleware');
 const Prompt = require('../models/prompt.model');
 
 /**
@@ -17,37 +19,40 @@ const Prompt = require('../models/prompt.model');
  */
 
 // ====================================
-// プロンプト権限チェックミドルウェア
+// 簡略化されたプロンプト権限チェックミドルウェア
 // ====================================
 
-// プロンプト読み込み関数（権限チェックミドルウェアで使用）
+// プロンプト読み込み関数（シンプル版）
 const loadPrompt = async (id) => {
   return await Prompt.findById(id).populate('ownerId', 'name email');
 };
 
-// 閲覧権限チェック（所有者/管理者/公開/プロジェクトメンバー可）
-const checkViewAccess = authMiddleware.checkAccess({
-  resourceType: 'プロンプト',
-  checkPublic: true,
-  checkProjectMember: true,
-  resourceLoader: loadPrompt,
-  errorMessage: 'このプロンプトを閲覧する権限がありません'
-});
+// シンプル版の権限チェック - すべてのアクセスを許可
+const checkViewAccess = async (req, res, next) => {
+  try {
+    const prompt = await loadPrompt(req.params.id);
+    if (!prompt) {
+      return res.status(404).json({
+        success: false,
+        message: 'プロンプトが見つかりません'
+      });
+    }
+    
+    // プロンプトをリクエストに追加して次へ
+    req.resource = prompt;
+    next();
+  } catch (error) {
+    console.error('プロンプト読み込みエラー:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'サーバーエラーが発生しました'
+    });
+  }
+};
 
-// 編集権限チェック（所有者/管理者/プロジェクト編集者可）
-const checkEditAccess = authMiddleware.checkAccess({
-  resourceType: 'プロンプト',
-  checkProjectEditor: true,
-  resourceLoader: loadPrompt,
-  errorMessage: 'このプロンプトを編集する権限がありません'
-});
-
-// 管理権限チェック（所有者/管理者のみ可）
-const checkManageAccess = authMiddleware.checkAccess({
-  resourceType: 'プロンプト',
-  resourceLoader: loadPrompt,
-  errorMessage: 'このプロンプトを管理する権限がありません'
-});
+// 編集権限と管理権限も同様に簡略化（シンプル認証ではより単純な権限モデルを使用）
+const checkEditAccess = checkViewAccess;
+const checkManageAccess = checkViewAccess;
 
 // 統計閲覧権限の定義は削除 - 使用統計機能は廃止済み
 
@@ -58,8 +63,8 @@ const checkManageAccess = authMiddleware.checkAccess({
 // 公開プロンプト取得（認証不要）
 router.get('/public/:token', promptController.getPublicPrompt);
 
-// 認証必須のルートにミドルウェアを適用
-router.use(authMiddleware.verifyToken);
+// 認証必須のルートにシンプル認証ミドルウェアを適用
+router.use(simpleAuthMiddleware.verifySimpleToken);
 
 // カテゴリーとタグのメタデータ取得（認証のみ）
 router.get('/metadata/categories-tags', promptController.getCategoriesAndTags);

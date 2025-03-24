@@ -50,3 +50,13 @@ export interface IImplementationScope {
   created?: number;           // ScopeExporter用
   updated?: number;           // ScopeExporter用
 }
+
+/**
+ * グローバル変数の型拡張
+ * 認証情報やサービスインスタンスの共有に使用
+ */
+declare global {
+  // アプリケーション用グローバル変数
+  var _appgenius_auth_token: string | undefined;
+  var _appgenius_simple_auth_service: any;
+}

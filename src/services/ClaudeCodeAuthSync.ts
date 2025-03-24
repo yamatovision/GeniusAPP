@@ -26,6 +26,7 @@ export class ClaudeCodeAuthSync {
   private _execPromise = promisify(exec);
   private _lastTokenRefresh: number = 0; // 最後にトークンをリフレッシュした時刻
   private _claudeCliLoginStatus: boolean = false; // Claude CLIのログイン状態
+  private API_KEY_DATA_KEY: string = 'appgenius.simple.apiKey'; // APIキーを保存するStorageのキー
 
   /**
    * コンストラクタ
@@ -35,6 +36,15 @@ export class ClaudeCodeAuthSync {
     this._authService = SimpleAuthService.getInstance(context);
     this._authManager = SimpleAuthManager.getInstance(context);
     this._apiClient = ClaudeCodeApiClient.getInstance();
+    
+    // トークン情報をグローバル変数に保存（インスタンス間での共有）
+    const accessToken = this._authService.getAccessToken();
+    if (accessToken) {
+      // @ts-ignore - グローバル変数への代入
+      global._appgenius_auth_token = accessToken;
+      Logger.info('ClaudeCodeAuthSync: アクセストークンをグローバル変数に保存しました');
+    }
+    
     this._initialize();
     Logger.info('ClaudeCodeAuthSync initialized with SimpleAuthService');
   }
@@ -56,16 +66,56 @@ export class ClaudeCodeAuthSync {
    * 初期化
    */
   private _initialize(): void {
-    // 認証状態変更のリスナー
-    this._disposables.push(
-      this._authService.onStateChanged(state => {
-        this._handleAuthStateChange(state.isAuthenticated);
-      })
-    );
-    
-    // 定期的なトークン状態確認（10分ごと）
-    // これにより、アプリが長時間開かれたままでも認証状態を維持できる
-    setInterval(() => this._checkAndRefreshTokenIfNeeded(), 10 * 60 * 1000);
+    try {
+      // 認証状態変更のリスナー
+      this._disposables.push(
+        this._authService.onStateChanged(state => {
+          this._handleAuthStateChange(state.isAuthenticated);
+        })
+      );
+      
+      // 認証状態が既に有効であれば、すぐに同期を試行
+      if (this._authService.isAuthenticated()) {
+        // 少し遅延させて認証プロセスが完全に終わった後に実行
+        setTimeout(() => {
+          try {
+            Logger.info('ClaudeCodeAuthSync: 初期化時に既存の認証状態を検出しました。APIキー同期を試行します');
+            // 非同期処理をPromiseチェーンとして実行
+            this._syncTokensToClaudeCode()
+              .then(() => Logger.info('ClaudeCodeAuthSync: 初期同期が完了しました'))
+              .catch(syncError => {
+                Logger.error('ClaudeCodeAuthSync: 初期同期中にエラーが発生しました', syncError as Error);
+              });
+          } catch (syncError) {
+            Logger.error('ClaudeCodeAuthSync: 初期同期準備中にエラーが発生しました', syncError as Error);
+          }
+        }, 3000); // 3秒後に実行
+      } else {
+        Logger.info('ClaudeCodeAuthSync: 初期化時に認証されていません。認証イベント待機中');
+      }
+      
+      // 定期的なトークン状態確認（10分ごと）
+      // これにより、アプリが長時間開かれたままでも認証状態を維持できる
+      setInterval(() => {
+        this._checkAndRefreshTokenIfNeeded().catch(error => {
+          Logger.error('ClaudeCodeAuthSync: 定期トークン確認中にエラーが発生しました', error as Error);
+        });
+      }, 10 * 60 * 1000);
+      
+      // 追加の安全策：起動から1分後に一度だけ同期を試行
+      setTimeout(() => {
+        if (this._authService.isAuthenticated()) {
+          Logger.info('ClaudeCodeAuthSync: 1分後のセーフティチェックでトークン同期を試行します');
+          this._syncTokensToClaudeCode().catch(error => {
+            Logger.error('ClaudeCodeAuthSync: セーフティ同期中にエラーが発生しました', error as Error);
+          });
+        }
+      }, 60000);
+      
+      Logger.info('ClaudeCodeAuthSync: 初期化完了');
+    } catch (initError) {
+      Logger.error('ClaudeCodeAuthSync: 初期化エラー', initError as Error);
+    }
   }
   
   /**
@@ -124,24 +174,103 @@ export class ClaudeCodeAuthSync {
         return;
       }
       
-      // アクセストークンとAPIキーを取得（SimpleAuthServiceから）
-      const accessToken = this._authService.getAccessToken();
-      const apiKeyValue = this._authService.getApiKey();
+      // 認証情報取得の詳細ログ
+      Logger.info('ClaudeCode CLI同期: 認証情報の取得を開始します');
       
-      // アクセストークンが必須
-      if (!accessToken) {
-        Logger.warn('アクセストークンが取得できないため、ClaudeCode CLIとの同期をスキップします');
+      // APIキーを優先的に取得（非同期で）
+      let apiKeyValue: string | undefined;
+      try {
+        apiKeyValue = await this._authService.getApiKey();
+        if (apiKeyValue) {
+          Logger.info(`ClaudeCode CLI同期: APIキーを取得しました (${apiKeyValue.substring(0, 5)}...)`);
+        } else {
+          Logger.warn('ClaudeCode CLI同期: APIキーが取得できませんでした');
+        }
+      } catch (apiKeyError) {
+        Logger.error('ClaudeCode CLI同期: APIキー取得中にエラーが発生しました', apiKeyError as Error);
+      }
+      
+      // アクセストークンを取得（APIキーが取得できなかった場合のフォールバック）
+      const accessToken = this._authService.getAccessToken();
+      if (accessToken) {
+        Logger.info(`ClaudeCode CLI同期: アクセストークンを取得しました (${accessToken.substring(0, 5)}...)`);
+      } else {
+        Logger.warn('ClaudeCode CLI同期: アクセストークンが取得できませんでした');
+      }
+      
+      // 認証情報が必要
+      if (!apiKeyValue && !accessToken) {
+        Logger.error('APIキーもアクセストークンも取得できないため、ClaudeCode CLIとの同期をスキップします');
         return;
       }
       
       // APIキーがあれば使用する（優先）
       const authToken = apiKeyValue || accessToken;
       
-      // APIキーの有無をログに記録
+      // APIキーの詳細情報をログに記録
       if (apiKeyValue) {
-        Logger.info('APIキーが見つかりました。APIキーを使用して認証します');
+        const userInfo = this._authService.getCurrentUser();
+        const userId = userInfo?.id || 'unknown';
+        const userName = userInfo?.name || 'unknown';
+        const userRole = userInfo?.role || 'unknown';
+        const apiKeyMasked = apiKeyValue.substring(0, 5) + '...' + apiKeyValue.substring(apiKeyValue.length - 4);
+        
+        Logger.info(`【認証情報】詳細ユーザー情報:
+        ユーザーID: ${userId}
+        名前: ${userName}
+        ロール: ${userRole}
+        APIキー: ${apiKeyMasked}
+        認証方法: APIキー認証
+        保存場所: ${'appgenius.simple.apiKey'}`);
+        
+        // APIキーの保存元を調査（デバッグ用）
+        Logger.debug('【認証情報】詳細分析:');
+        try {
+          // SimpleAuthServiceがgetCurrentUserをサポートしているか確認
+          const hasGetCurrentUserMethod = typeof this._authService.getCurrentUser === 'function';
+          Logger.debug(`getCurrentUserメソッド存在: ${hasGetCurrentUserMethod}`);
+          
+          // APIキーがどのように取得されたかの履歴
+          const getApiKeyMethod = typeof this._authService.getApiKey === 'function';
+          Logger.debug(`getApiKeyメソッド存在: ${getApiKeyMethod}`);
+          
+          // ユーザーデータがシリアライズ可能か確認
+          let userDataJson = '不明';
+          try {
+            userDataJson = JSON.stringify(userInfo);
+          } catch (e) {
+            userDataJson = '取得失敗 - シリアライズエラー';
+          }
+          Logger.debug(`ユーザーデータ: ${userDataJson}`);
+        } catch (analyzeError) {
+          Logger.warn('APIキー詳細分析中にエラーが発生しました', analyzeError as Error);
+        }
       } else {
-        Logger.info('APIキーが見つかりません。アクセストークンを使用して認証します');
+        Logger.warn('【認証情報】APIキーが見つかりません。アクセストークンを使用して認証します');
+        Logger.debug('【認証情報】APIキー調査');
+        
+        try {
+          // SimpleAuthServiceのデバッグ情報
+          const authServiceName = this._authService.constructor.name;
+          Logger.debug(`使用中の認証サービス: ${authServiceName}`);
+          
+          // 内部状態の詳細確認
+          const isAuthMethod = typeof this._authService.isAuthenticated === 'function';
+          Logger.debug(`isAuthenticatedメソッド存在: ${isAuthMethod}`);
+          
+          if (isAuthMethod) {
+            const isAuth = this._authService.isAuthenticated();
+            Logger.debug(`認証状態: ${isAuth ? '認証済み' : '未認証'}`);
+          }
+          
+          // APIキーがない理由を探る
+          Logger.debug('可能性のある問題:');
+          Logger.debug('1. ログイン/セッション復元時にAPIキーが取得されていない');
+          Logger.debug('2. バックエンドがAPIキーを提供していない');
+          Logger.debug('3. APIキーがストレージに正しく保存されていない');
+        } catch (debugError) {
+          Logger.warn('APIキー欠如原因分析中にエラーが発生しました', debugError as Error);
+        }
       }
       
       // トークンの有効性を確認（SimpleAuthServiceを使用）

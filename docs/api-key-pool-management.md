@@ -13,7 +13,7 @@ APIキープール管理システムは、企業向けサービスとしてAppGe
 
 ## システム構成
 
-### データモデル
+### データモデル/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/prompts/project_analyzer.md
 
 #### 1. 組織（Organization）モデル拡張
 

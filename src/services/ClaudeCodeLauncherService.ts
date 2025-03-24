@@ -415,13 +415,92 @@ export class ClaudeCodeLauncherService {
       const isLoggedIn = authSync.isClaudeCliLoggedIn();
       Logger.info(`Claude CLI ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}`);
       
-      // 認証情報の表示
+      // 認証情報の詳細表示
       if (simpleAuthService) {
-        const apiKey = simpleAuthService.getApiKey();
+        const apiKey = await simpleAuthService.getApiKey();
         if (apiKey) {
-          Logger.info('APIキーが利用可能です。これを使用してプロンプト実行します');
+          // ユーザー情報の取得
+          const userInfo = simpleAuthService.getCurrentUser();
+          const userId = userInfo?.id || 'unknown';
+          const userName = userInfo?.name || 'unknown';
+          const userRole = userInfo?.role || 'unknown';
+          const orgName = userInfo?.organization?.name || 'none';
+          
+          // APIキーをマスク処理して表示（セキュリティ対策）
+          const apiKeyMasked = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+          
+          Logger.info(`【ClaudeCode起動】詳細情報:
+          ユーザー: ${userName}(${userId})
+          組織: ${orgName}
+          ロール: ${userRole}
+          APIキー: ${apiKeyMasked}
+          ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}
+          認証モード: APIキー使用`);
         } else {
-          Logger.info('APIキーが見つかりません。通常の認証トークンを使用します');
+          // APIキーが見つからない場合、下記のいずれかの機能を実行
+          const userInfo = simpleAuthService.getCurrentUser();
+          
+          if (!isLoggedIn) {
+            // ログインしていない場合、再ログインを要求
+            Logger.warn('【認証問題】Claude CLIがログイン状態ではないため、不完全な認証データになる可能性があります');
+            
+            // 再ログインをユーザーに要求
+            const askRelogin = await vscode.window.showWarningMessage(
+              'ClaudeCodeに必要なAPIキーが見つからないか、認証状態がクリアされています。再ログインしますか？',
+              { modal: true },
+              '再ログイン', 'そのまま続行'
+            );
+            
+            if (askRelogin === '再ログイン') {
+              Logger.info('ユーザーが再ログインを選択しました');
+              await simpleAuthService.logout();
+              
+              // ログインパネルを表示するコマンドを実行
+              await vscode.commands.executeCommand('appgenius-ai.login');
+              
+              // 現在の実行を中断
+              throw new Error('再ログインが必要です。ログイン後に再度実行してください。');
+            } else {
+              Logger.warn('ユーザーが再ログインをスキップしました。通常の認証トークンで続行します');
+            }
+          }
+          
+          Logger.warn('【ClaudeCode起動】APIキーが見つかりません。通常の認証トークンを使用します');
+          Logger.debug('【詳細分析】SimpleAuthServiceの内部状態確認:');
+          Logger.debug(`isAuthenticated = ${simpleAuthService.isAuthenticated()}`);
+          Logger.debug(`アクセストークン存在 = ${!!simpleAuthService.getAccessToken()}`);
+          
+          // トークンのみの場合もユーザー情報は表示
+          if (userInfo) {
+            const userName = userInfo.name || 'unknown';
+            const userRole = userInfo.role || 'unknown';
+            Logger.info(`【ClaudeCode起動】詳細情報:
+            ユーザー: ${userName}
+            ロール: ${userRole}
+            APIキー: なし
+            ログイン状態: ${isLoggedIn ? 'ログイン済み' : '未ログイン'}
+            認証モード: アクセストークン使用 (無効になる可能性あり)`);
+          } else {
+            Logger.warn('【ClaudeCode起動】ユーザー情報が取得できません。認証状態が不完全です');
+          }
+          
+          // トークンリフレッシュを行う
+          try {
+            Logger.info('【ClaudeCode起動】トークンリフレッシュを試みます');
+            const refreshResult = await simpleAuthService.verifyAuthState();
+            Logger.info(`【ClaudeCode起動】トークンリフレッシュ結果: ${refreshResult ? '成功' : '失敗'}`);
+            
+            // リフレッシュ後に再度APIキーを確認
+            const newApiKey = simpleAuthService.getApiKey();
+            if (newApiKey) {
+              const apiKeyMasked = newApiKey.substring(0, 5) + '...' + newApiKey.substring(newApiKey.length - 4);
+              Logger.info(`【ClaudeCode起動】トークンリフレッシュ後にAPIキーが見つかりました: ${apiKeyMasked}`);
+            } else {
+              Logger.warn('【ClaudeCode起動】トークンリフレッシュ後もAPIキーが見つかりません');
+            }
+          } catch (refreshError) {
+            Logger.error('【ClaudeCode起動】トークンリフレッシュ中にエラーが発生しました', refreshError as Error);
+          }
         }
       }
       

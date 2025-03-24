@@ -63,6 +63,12 @@ const SimpleUserSchema = new mongoose.Schema({
     default: null
   },
   
+  // APIキー値（実際のAnthropicキー）
+  apiKeyValue: {
+    type: String,
+    default: null
+  },
+  
   // ===== 認証情報 =====
   
   // リフレッシュトークン

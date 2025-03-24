@@ -532,15 +532,39 @@ exports.getUserProfile = async (req, res) => {
       apiKey = await SimpleApiKey.findOne({ id: user.apiKeyId });
     }
     
+    // APIキー情報を準備
+    let apiKeyInfo = null;
+    
+    // 新方式：ユーザーに直接保存されているAPIキー値を優先
+    if (user.apiKeyValue) {
+      apiKeyInfo = {
+        id: user.apiKeyId || 'direct_key',
+        key: user.apiKeyValue,  // 直接保存されているAPIキー値も含める
+        status: 'active'
+      };
+    } 
+    // 旧方式：APIキーテーブルからの情報
+    else if (apiKey) {
+      apiKeyInfo = {
+        id: apiKey.id,
+        key: apiKey.keyValue,  // APIキー値も含める
+        status: apiKey.status
+      };
+      
+      // 見つかったAPIキー値をユーザーモデルにも保存（移行処理）
+      if (apiKey.keyValue) {
+        user.apiKeyValue = apiKey.keyValue;
+        await user.save();
+        console.log(`ユーザープロフィール取得中にユーザー ${user.name} (${user.id}) のAPIキー値をユーザーモデルに保存しました`);
+      }
+    }
+    
     return res.status(200).json({
       success: true,
       data: {
         user,
         organization,
-        apiKey: apiKey ? {
-          id: apiKey.id,
-          status: apiKey.status
-        } : null
+        apiKey: apiKeyInfo
       }
     });
   } catch (error) {
@@ -548,6 +572,91 @@ exports.getUserProfile = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'プロフィールの取得中にエラーが発生しました',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * ユーザーのAPIキーを取得
+ * @route GET /api/simple/user/apikey
+ */
+exports.getUserApiKey = async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    // ユーザー情報を取得
+    const user = await SimpleUser.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'ユーザーが見つかりません'
+      });
+    }
+    
+    // 直接ユーザーからAPIキー値を返す（新方式）
+    if (user.apiKeyValue) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          id: user.apiKeyId || 'direct_key',
+          key: user.apiKeyValue,  // ユーザーに直接保存されているAPIキー値
+          status: 'active',
+          organizationId: user.organizationId
+        }
+      });
+    }
+    
+    // 以下は後方互換性のために残す（旧方式）
+    
+    // APIキーIDが存在するか確認
+    if (!user.apiKeyId) {
+      return res.status(404).json({
+        success: false,
+        message: 'ユーザーにAPIキーが設定されていません'
+      });
+    }
+    
+    // APIキーを取得
+    const apiKey = await SimpleApiKey.findOne({ id: user.apiKeyId });
+    
+    if (!apiKey) {
+      return res.status(404).json({
+        success: false,
+        message: '指定されたAPIキーが見つかりません'
+      });
+    }
+    
+    if (apiKey.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: '指定されたAPIキーは無効です'
+      });
+    }
+    
+    // 見つかったAPIキー値をユーザーモデルにも保存（移行処理）
+    if (apiKey.keyValue && !user.apiKeyValue) {
+      user.apiKeyValue = apiKey.keyValue;
+      await user.save();
+      console.log(`ユーザー ${user.name} (${user.id}) のAPIキー値をユーザーモデルに保存しました`);
+    }
+    
+    // APIキーの情報を返す（実際のkeyValueを含める）
+    return res.status(200).json({
+      success: true,
+      data: {
+        id: apiKey.id,
+        key: apiKey.keyValue,  // 実際のAPIキー値を返す
+        status: apiKey.status,
+        organizationId: apiKey.organizationId
+      }
+    });
+  } catch (error) {
+    console.error('APIキー取得エラー:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'APIキーの取得中にエラーが発生しました',
       error: error.message
     });
   }

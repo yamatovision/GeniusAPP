@@ -42,14 +42,26 @@ export class ClaudeCodeIntegrationService {
    * コンストラクタ
    */
   private constructor() {
-    this._authSync = ClaudeCodeAuthSync.getInstance();
-    this._launcher = ClaudeCodeLauncherService.getInstance();
-    this._proxyManager = ProxyManager.getInstance();
-    this._apiClient = ClaudeCodeApiClient.getInstance();
-    this._authService = AuthenticationService.getInstance();
-    this._eventBus = AppGeniusEventBus.getInstance();
-    
-    this._initialize();
+    try {
+      // extentionContextの参照を確保
+      const context = (global as any).extensionContext;
+      if (context) {
+        this._authSync = ClaudeCodeAuthSync.getInstance(context);
+      } else {
+        // コンテキストがない場合はログと警告
+        Logger.warn('ExtensionContextが見つかりません。ClaudeCodeAuthSyncは後で初期化されます。');
+        this._authSync = null as any; // 後で適切に初期化
+      }
+      this._launcher = ClaudeCodeLauncherService.getInstance();
+      this._proxyManager = ProxyManager.getInstance();
+      this._apiClient = ClaudeCodeApiClient.getInstance();
+      this._authService = AuthenticationService.getInstance();
+      this._eventBus = AppGeniusEventBus.getInstance();
+      
+      this._initialize();
+    } catch (error) {
+      Logger.error('ClaudeCodeIntegrationServiceの初期化中にエラーが発生しました', error as Error);
+    }
   }
 
   /**
@@ -57,6 +69,20 @@ export class ClaudeCodeIntegrationService {
    */
   public static getInstance(): ClaudeCodeIntegrationService {
     if (!ClaudeCodeIntegrationService.instance) {
+      // インスタンス生成前にClaudeCodeAuthSyncの初期化を試行
+      try {
+        const context = (global as any).extensionContext || (global as any).__extensionContext;
+        if (context) {
+          // ClaudeCodeAuthSyncを先に初期化
+          const { ClaudeCodeAuthSync } = require('./ClaudeCodeAuthSync');
+          ClaudeCodeAuthSync.getInstance(context);
+          Logger.info('ClaudeCodeIntegrationService: ClaudeCodeAuthSyncを初期化しました');
+        }
+      } catch (error) {
+        Logger.warn('ClaudeCodeAuthSyncの事前初期化に失敗しました', error as Error);
+        // エラーでも続行（コンストラクタでも初期化を試みる）
+      }
+      
       ClaudeCodeIntegrationService.instance = new ClaudeCodeIntegrationService();
     }
     return ClaudeCodeIntegrationService.instance;

@@ -58,8 +58,8 @@ export class ClaudeCodeApiClient {
     
     // SimpleAuthを使用している場合は直接ヘッダーを取得
     if (this._useSimpleAuth && this._simpleAuthService) {
-      // APIキーの有無を確認
-      const apiKey = this._simpleAuthService.getApiKey();
+      // APIキーの有無を確認 (非同期で取得)
+      const apiKey = await this._simpleAuthService.getApiKey();
       
       if (apiKey) {
         // APIキーがある場合はAPIキーヘッダーを設定
@@ -418,10 +418,53 @@ export class ClaudeCodeApiClient {
   /**
    * API接続テスト
    * このメソッドは認証状態を確認し、APIサーバーとの接続性をテストします
+   * シンプル認証方式に対応
    * @returns テスト成功の場合はtrue、失敗の場合はfalse
    */
   public async testApiConnection(): Promise<boolean> {
     try {
+      Logger.info('【API連携】API接続テストを開始');
+      
+      // SimpleAuthを使用している場合は、認証状態とアクセストークンを両方チェック
+      if (this._useSimpleAuth && this._simpleAuthService) {
+        Logger.info('【API連携】シンプル認証を使用してAPI接続テスト');
+        
+        // SimpleAuthServiceの認証状態を直接確認
+        const isAuthenticated = this._simpleAuthService.isAuthenticated();
+        // アクセストークンの有効性も確認
+        const accessToken = this._simpleAuthService.getAccessToken();
+        
+        // 詳細なデバッグ情報を出力
+        Logger.debug(`【API連携】SimpleAuthService認証状態: ${isAuthenticated}, トークン存在: ${!!accessToken}`);
+        if (accessToken) {
+          Logger.debug(`【API連携】トークンプレビュー: ${accessToken.substring(0, 10)}...${accessToken.substring(accessToken.length - 5)}`);
+        }
+        
+        // 詳細な認証状態を出力（デバッグ用）
+        try {
+          // 現在の認証状態の詳細を出力
+          const currentState = this._simpleAuthService.getCurrentState();
+          Logger.debug(`【API連携】現在の認証状態詳細: isAuthenticated=${currentState.isAuthenticated}, userName=${currentState.username || 'なし'}, userId=${currentState.userId || 'なし'}, role=${currentState.role}`);
+          
+          // API BASE URLを出力
+          Logger.debug(`【API連携】APIベースURL検証: ${this._baseUrl}`);
+        } catch (debugError) {
+          Logger.error('【API連携】デバッグ情報取得エラー:', debugError as Error);
+        }
+        
+        // 認証状態とアクセストークンの両方が有効な場合に成功とみなす
+        if (isAuthenticated && accessToken) {
+          Logger.info('【API連携】シンプル認証状態とトークンは有効です。API接続テストに成功したとみなします');
+          return true;
+        } else {
+          Logger.warn('【API連携】シンプル認証状態またはトークンが無効です');
+          return false;
+        }
+      }
+      
+      // レガシー認証の場合は従来のエンドポイントを使用
+      Logger.info('【API連携】レガシー認証を使用してAPI接続テスト');
+      
       // 認証ヘッダーを取得
       const config = await this._getApiConfig();
       

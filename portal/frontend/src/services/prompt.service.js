@@ -5,8 +5,8 @@ import { withRetry, withLoading } from '../utils/api-retry';
 import WebSocketManager, { EventTypes } from '../utils/websocket-manager';
 
 // APIのベースURL - 標準のプロンプトAPIを使用
-// axios.defaults.baseURLで既に基本URLが設定されているため、/apiプレフィックスは必要
-const API_URL = '/api/prompts';
+// axios.defaults.baseURLで既に基本URLが設定されているため、/apiプレフィックスは省略
+const API_URL = '/prompts';
 
 /**
  * プロンプトサービス

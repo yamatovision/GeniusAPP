@@ -24,6 +24,20 @@ export class ScopeManagerPanel extends ProtectedPanel {
   // 必要な権限を指定
   protected static readonly _feature: Feature = Feature.SCOPE_MANAGER;
 
+  /**
+   * API接続をテストして認証状態と接続性を確認
+   */
+  private async _testAPIConnection(): Promise<boolean> {
+    try {
+      // 外部モジュールを使用してAPI接続テストを実行
+      const { testAPIConnection } = await import('../../api/scopeManagerTestAPI');
+      return testAPIConnection();
+    } catch (error) {
+      Logger.error('API接続テスト中にエラーが発生しました', error as Error);
+      return false;
+    }
+  }
+
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
@@ -89,59 +103,39 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 認証状態と権限チェック付きで、パネルを表示する
    */
   public static async createOrShow(extensionUri: vscode.Uri, projectPath?: string): Promise<ScopeManagerPanel | undefined> {
-    // 認証状態の追加確認
-    try {
-      const authService = AuthenticationService.getInstance();
-      const apiClient = ClaudeCodeApiClient.getInstance();
-      const isAuthenticated = await authService.isAuthenticated();
-
-      if (!isAuthenticated) {
-        Logger.warn('認証されていません。スコープマネージャーは表示できません');
-        vscode.window.showErrorMessage('この機能を使用するには再ログインが必要です', '再ログイン')
-          .then(selection => {
-            if (selection === '再ログイン') {
-              vscode.commands.executeCommand('appgenius.login');
-            }
-          });
-        return undefined;
-      }
-
-      // 実際のAPIリクエストでも確認
-      try {
-        const testResult = await apiClient.testApiConnection();
-        if (!testResult) {
-          Logger.warn('API接続テストに失敗しました。スコープマネージャーは表示できません');
-          vscode.window.showErrorMessage('サーバー接続に問題があります。再ログインしてください', '再ログイン')
-            .then(selection => {
-              if (selection === '再ログイン') {
-                vscode.commands.executeCommand('appgenius.login');
-              }
-            });
-          return undefined;
-        }
-      } catch (error) {
-        // APIエラーの場合も再ログインを促す
-        Logger.error('API接続テスト中にエラーが発生しました', error as Error);
-        vscode.window.showErrorMessage('サーバー接続でエラーが発生しました。再ログインしてください', '再ログイン')
-          .then(selection => {
-            if (selection === '再ログイン') {
-              vscode.commands.executeCommand('appgenius.login');
-            }
-          });
-        return undefined;
-      }
-    } catch (error) {
-      Logger.error('認証状態確認中にエラーが発生しました', error as Error);
-      return undefined;
-    }
-
     // 権限チェック
     if (!this.checkPermissionForFeature(Feature.SCOPE_MANAGER, 'ScopeManagerPanel')) {
       return undefined;
     }
     
     // 権限があれば表示
-    return this._createOrShowPanel(extensionUri, projectPath);
+    const panel = this._createOrShowPanel(extensionUri, projectPath);
+    
+    // API接続テスト（認証状態確認）
+    const isAPIConnected = await panel._testAPIConnection();
+    if (!isAPIConnected) {
+      Logger.warn('API接続テストに失敗しました。スコープマネージャーは表示できません');
+      vscode.window.showErrorMessage('サーバー接続に問題があります。再ログインしてください。');
+      
+      // 再ログイン用コマンドを提案
+      const action = await vscode.window.showInformationMessage(
+        'API接続に失敗しました。再ログインしますか？',
+        '再ログイン'
+      );
+      
+      if (action === '再ログイン') {
+        // ログアウトしてから再ログイン画面を表示
+        vscode.commands.executeCommand('appgenius-ai.logout').then(() => {
+          setTimeout(() => {
+            vscode.commands.executeCommand('appgenius-ai.login');
+          }, 500);
+        });
+      }
+      
+      return panel; // APIチェックに失敗してもパネルは表示する（後から再認証できるようにするため）
+    }
+    
+    return panel;
   }
 
   /**
@@ -1825,10 +1819,36 @@ project-root/
         Logger.warn('CURRENT_STATUS.mdファイルが見つかりません: ' + statusFilePath);
       }
       
+      // extensionContextの参照を確保
+      const context = (global as any).extensionContext || (global as any).__extensionContext;
+      
+      // ClaudeCodeAuthSyncの取得（安全に）
+      let authSync;
+      try {
+        const { ClaudeCodeAuthSync } = await import('../../services/ClaudeCodeAuthSync');
+        
+        // グローバルコンテキストを使用して初期化
+        if (global.__extensionContext) {
+          authSync = ClaudeCodeAuthSync.getInstance(global.__extensionContext);
+        } else {
+          // フォールバック
+          const extension = vscode.extensions.getExtension('appgenius.appgenius-ai');
+          if (extension) {
+            authSync = ClaudeCodeAuthSync.getInstance(extension.exports.context);
+          } else {
+            throw new Error('拡張機能コンテキストが取得できません');
+          }
+        }
+        Logger.info('ClaudeCodeAuthSyncが正常に初期化されました');
+      } catch (error) {
+        Logger.error('ClaudeCodeAuthSyncの初期化エラー', error as Error);
+        vscode.window.showErrorMessage('認証サービスの初期化に失敗しました。VSCodeを再起動してください。');
+        return;
+      }
+      
       // インテグレーションサービスを動的importで安全に取得
-      const integrationService = await import('../../services/ClaudeCodeIntegrationService').then(
-        module => module.ClaudeCodeIntegrationService.getInstance()
-      );
+      const module = await import('../../services/ClaudeCodeIntegrationService');
+      const integrationService = module.ClaudeCodeIntegrationService.getInstance();
       
       try {
         // 一時ファイルにも保存（デバッグ用・参照用）

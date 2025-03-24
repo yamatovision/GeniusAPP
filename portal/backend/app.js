@@ -113,24 +113,26 @@ app.get('/api', (req, res) => {
 });
 
 // ルートの設定
-// 古い認証ルートを削除 (2025/3/23)
-// app.use('/api/auth', require('./routes/auth.routes'));
-app.use('/api/users', require('./routes/user.routes'));
-app.use('/api/prompts', require('./routes/prompt.routes'));
-app.use('/api/projects', require('./routes/project.routes'));
-app.use('/api/proxy', require('./routes/api-proxy.routes'));
+// 標準認証システムを無効化し、シンプル認証システムのみを使用する (2025/3/24)
+// 以下のコメントアウトされた行はすべて標準認証システムに依存していたため無効化
 
-// 組織・ワークスペース管理APIルート
-app.use('/api/organizations', require('./routes/organization.routes'));
-app.use('/api/workspaces', require('./routes/workspace.routes'));
-app.use('/api/admin', require('./routes/admin.routes'));
+// app.use('/api/auth', require('./routes/auth.routes')); // 標準認証ルート - 無効化
+// app.use('/api/users', require('./routes/user.routes')); // 標準ユーザー管理 - 無効化
+app.use('/api/prompts', require('./routes/prompt.routes')); // プロンプト管理は残す
+// app.use('/api/projects', require('./routes/project.routes')); // 標準プロジェクト管理 - 無効化
+app.use('/api/proxy', require('./routes/api-proxy.routes')); // APIプロキシは残す
 
-// 組織ユーザー管理APIルート
-app.use('/api', require('./routes/invitation.routes'));
-app.use('/api', require('./routes/apiKey.routes'));
+// 組織・ワークスペース管理APIルート - 無効化
+// app.use('/api/organizations', require('./routes/organization.routes'));
+// app.use('/api/workspaces', require('./routes/workspace.routes'));
+// app.use('/api/admin', require('./routes/admin.routes'));
 
-// システム設定管理APIルート
-app.use('/api', require('./routes/adminConfig.routes'));
+// 組織ユーザー管理APIルート - 無効化
+// app.use('/api', require('./routes/invitation.routes'));
+// app.use('/api', require('./routes/apiKey.routes'));
+
+// システム設定管理APIルート - 無効化
+// app.use('/api', require('./routes/adminConfig.routes'));
 
 // シンプル版API
 app.use('/api/simple', require('./routes/simple.routes'));
