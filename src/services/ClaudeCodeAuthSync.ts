@@ -385,9 +385,17 @@ export class ClaudeCodeAuthSync {
       const apiKeyValue2 = this._authService.getApiKey();
       const authToken2 = apiKeyValue2 || accessToken;
       
-      // トークン情報をJSONに変換
+      // 詳細なデバッグログ（認証トークンの型を確認）
+      Logger.debug(`【認証情報】認証トークン型確認: ${typeof authToken2}`);
+      
+      // Promiseでない場合のみ長さを表示
+      if (authToken2 && typeof authToken2 === 'string') {
+        Logger.debug(`【認証情報】値の長さ: ${authToken2.length}`);
+      }
+      
+      // トークン情報をJSONに変換（必ず文字列として保存）
       const authInfo = {
-        accessToken: authToken2, // APIキーが存在する場合は優先的に使用
+        accessToken: typeof authToken2 === 'string' ? authToken2 : String(authToken2 || ''), // 強制的に文字列に変換
         // SimpleAuthServiceではリフレッシュトークンを直接取得できないため、固定値を設定
         refreshToken: 'appgenius-refresh-token', // ダミーリフレッシュトークン
         expiresAt: expiresAt,
@@ -397,6 +405,14 @@ export class ClaudeCodeAuthSync {
         isolatedAuth: true,
         isApiKey: !!apiKeyValue2 // APIキーを使用しているかどうかのフラグ
       };
+      
+      // デバッグ用に変換後の型を確認
+      Logger.debug(`【認証情報】JSON変換後の認証トークン型: ${typeof authInfo.accessToken}`);
+      if (authInfo.accessToken && authInfo.accessToken.length > 0) {
+        Logger.debug(`【認証情報】認証トークンのプレビュー: ${authInfo.accessToken.substring(0, 8)}...`);
+      } else {
+        Logger.warn('【認証情報】警告: 保存されるaccessTokenが空または無効です');
+      }
       
       // 認証情報をファイルに保存
       const authFilePath = path.join(authDir, authFileName);
@@ -510,26 +526,8 @@ export class ClaudeCodeAuthSync {
       
       Logger.info(`【API連携】AppGenius専用認証情報を同期しました: ${authFilePath}`);
       
-      // 認証同期成功をトークン使用量としても記録
-      try {
-        // ログメッセージ追加
-        Logger.info('認証同期情報をトークン使用履歴に記録します...');
-        
-        // エラー発生時も詳細にログを記録できるように改善
-        try {
-          const result = await this._apiClient.recordTokenUsage(0, 'auth-sync', 'isolated-auth');
-          if (result) {
-            Logger.info('認証同期情報をトークン使用履歴に記録しました (成功)');
-          } else {
-            Logger.warn('認証同期情報をトークン使用履歴の記録に失敗しました (falseが返されました)');
-          }
-        } catch (recordError) {
-          Logger.error('認証同期情報をトークン使用履歴に記録できませんでした:', recordError as Error);
-        }
-      } catch (tokenRecordError) {
-        // トークン使用記録の失敗は致命的ではないのでログのみ
-        Logger.warn('認証同期情報をトークン使用履歴に記録できませんでした:', tokenRecordError as Error);
-      }
+      // 認証同期成功のログ記録（使用量記録機能は削除済み）
+      Logger.info('認証同期が完了しました - 認証情報ファイル: ' + authFilePath);
     } catch (error) {
       Logger.error('認証情報の同期中にエラーが発生しました', error as Error);
       throw error; // エラーを上位に伝播させる
@@ -701,14 +699,8 @@ export class ClaudeCodeAuthSync {
         }
       }
       
-      // 認証削除をトークン使用量としても記録
-      try {
-        await this._apiClient.recordTokenUsage(0, 'auth-logout', 'token-sync');
-        Logger.debug('認証削除情報をトークン使用履歴に記録しました');
-      } catch (tokenRecordError) {
-        // トークン使用記録の失敗は致命的ではないのでログのみ
-        Logger.warn('認証削除情報をトークン使用履歴に記録できませんでした:', tokenRecordError as Error);
-      }
+      // 認証削除完了のログ記録（使用量記録機能は削除済み）
+      Logger.debug('認証ファイル削除完了');
     } catch (error) {
       Logger.error('認証情報の削除中にエラーが発生しました', error as Error);
     }

@@ -1,0 +1,9 @@
+{
+  "id": "m8mp13mp-d38v",
+  "errorLog": "{\n    \"success\": true,\n    \"data\": {\n        \"user\": {\n            \"_id\": \"67e00e8bc86971845c98a814\",\n            \"name\": \"白石達也\",\n            \"email\": \"metavicer2@gmail.com\",\n            \"role\": \"Admin\",\n            \"organizationId\": \"67e0038f4b47eea54012f96f\",\n            \"apiKeyId\": \"key_1742734434280\",\n            \"status\": \"active\",\n            \"createdAt\": \"2025-03-23T13:37:15.699Z\",\n            \"updatedAt\": \"2025-03-24T03:07:26.784Z\",\n            \"__v\": 0,\n            \"apiKeyValue\": \"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\"\n        },リクエスト URL:\nhttp://localhost:3000/api/prompts/67d52839c9efa29641812db6\nリクエスト メソッド:\nPUT\nステータス コード:\n403 Forbidden\nリモート アドレス:\n127.0.0.1:3000\n参照ポリシー:\nstrict-origin-when-cross-origin\naccess-control-allow-credentials:\ntrue\naccess-control-allow-headers:\n*\naccess-control-allow-methods:\n*\naccess-control-allow-origin:\nhttp://localhost:5000\"このプロンプトを更新する権限がありません\"",
+  "status": "investigating",
+  "createdAt": "2025-03-24T06:36:06.433Z",
+  "errorType": "HTTPエラー",
+  "relatedFiles": [],
+  "investigationStartTime": "2025-03-24T06:36:06.436Z"
+}

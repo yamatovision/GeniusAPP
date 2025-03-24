@@ -15,10 +15,9 @@ import {
   Skeleton,
   Alert,
   CircularProgress,
-  LinearProgress,
-  Tooltip,
-  IconButton,
-  Button
+  Button,
+  Tab,
+  Tabs
 } from '@mui/material';
 import { Link } from 'react-router-dom';
 import { 
@@ -27,11 +26,14 @@ import {
   Description as PromptIcon,
   BarChart as UsageIcon,
   DashboardCustomize as DashboardIcon,
-  Refresh as RefreshIcon,
-  AdminPanelSettings as AdminIcon
+  AdminPanelSettings as AdminIcon,
+  Business as BusinessIcon,
+  WorkspacePremium as WorkspaceIcon
 } from '@mui/icons-material';
 import authService from '../../services/auth.service';
-import userService from '../../services/user.service';
+import OrganizationCards from './OrganizationCards';
+import ApiKeyManager from './ApiKeyManager';
+import WorkspaceManager from './WorkspaceManager';
 
 const Dashboard = () => {
   console.log('Dashboardコンポーネントがレンダリングされました');
@@ -39,8 +41,8 @@ const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [tokenUsage, setTokenUsage] = useState(null);
-  const [loadingUsage, setLoadingUsage] = useState(false);
+  const [currentTab, setCurrentTab] = useState(0);
+  const [selectedOrgId, setSelectedOrgId] = useState(null);
   const [debugInfo, setDebugInfo] = useState({ 
     renderCount: 0, 
     errors: [], 
@@ -156,55 +158,6 @@ const Dashboard = () => {
     fetchUserData();
   }, []);
 
-  // トークン使用量を取得
-  useEffect(() => {
-    const fetchTokenUsage = async () => {
-      if (!user) return;
-      try {
-        setLoadingUsage(true);
-        console.log('ダッシュボード: トークン使用量取得開始');
-        
-        try {
-          const response = await userService.getTokenUsage('month');
-          console.log('ダッシュボード: トークン使用量取得成功:', response);
-          setTokenUsage(response);
-        } catch (err) {
-          console.error('ダッシュボード: トークン使用量取得エラー:', err);
-          
-          // エラーが発生した場合はダミーデータを設定 (UI表示用)
-          setTokenUsage({
-            overall: {
-              totalInputTokens: 12500,
-              totalOutputTokens: 8750,
-              successRate: 98.5,
-              avgResponseTime: 2350
-            }
-          });
-        }
-      } catch (err) {
-        console.error('ダッシュボード: トークン使用量取得中の予期しないエラー:', err);
-      } finally {
-        setLoadingUsage(false);
-      }
-    };
-
-    if (user) {
-      fetchTokenUsage();
-    }
-  }, [user]);
-
-  // 手動更新用の関数
-  const refreshTokenUsage = async () => {
-    try {
-      setLoadingUsage(true);
-      const response = await userService.getTokenUsage('month');
-      setTokenUsage(response);
-    } catch (err) {
-      console.error('トークン使用量取得エラー:', err);
-    } finally {
-      setLoadingUsage(false);
-    }
-  };
 
   // 現在の日時を取得
   const currentDate = new Date().toLocaleDateString('ja-JP', {
@@ -222,11 +175,10 @@ const Dashboard = () => {
     if (!loading) {
       logDebugEvent('RENDER_PREPARING', { 
         user: user ? 'present' : 'null',
-        error: error ? error : 'none',
-        tokenUsage: tokenUsage ? 'present' : 'null'
+        error: error ? error : 'none'
       });
     }
-  }, [loading, user, error, tokenUsage]);
+  }, [loading, user, error]);
 
   // ローディング表示
   if (loading) {
@@ -315,7 +267,6 @@ const Dashboard = () => {
                   user: user ? `${user.name} (${user.email})` : 'null',
                   error: error || 'none',
                   loading,
-                  loadingUsage,
                   url: window.location.href,
                   localStorage: {
                     accessToken: localStorage.getItem('accessToken') ? 'present' : 'missing',
@@ -408,13 +359,6 @@ const Dashboard = () => {
                   <ListItemText primary="組織管理" />
                 </ListItem>
                 <Divider />
-                <ListItem button component={Link} to="/usage">
-                  <ListItemIcon>
-                    <UsageIcon />
-                  </ListItemIcon>
-                  <ListItemText primary="使用量ダッシュボード" />
-                </ListItem>
-                <Divider />
                 {user?.role === 'admin' && (
                   <ListItem button component={Link} to="/admin">
                     <ListItemIcon>
@@ -496,83 +440,83 @@ const Dashboard = () => {
                 </Paper>
               </Grid>
               
-              {/* トークン使用量表示セクション */}
+              {/* 統合ダッシュボードセクション */}
               <Grid item xs={12}>
                 <Paper elevation={1} sx={{ p: 3 }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography variant="h6">
-                      トークン使用状況
-                    </Typography>
-                    <Tooltip title="更新">
-                      <IconButton onClick={refreshTokenUsage} disabled={loadingUsage}>
-                        <RefreshIcon />
-                      </IconButton>
-                    </Tooltip>
+                  <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+                    <Tabs 
+                      value={currentTab} 
+                      onChange={(e, newValue) => setCurrentTab(newValue)}
+                      aria-label="dashboard tabs"
+                    >
+                      <Tab 
+                        icon={<BusinessIcon sx={{ mr: 1 }} />} 
+                        label="組織管理" 
+                        id="tab-0" 
+                        aria-controls="tabpanel-0" 
+                      />
+                      <Tab 
+                        icon={<ApiKeyIcon sx={{ mr: 1 }} />} 
+                        label="APIキー管理" 
+                        id="tab-1" 
+                        aria-controls="tabpanel-1"
+                        disabled={!selectedOrgId} 
+                      />
+                      <Tab 
+                        icon={<WorkspaceIcon sx={{ mr: 1 }} />} 
+                        label="ワークスペース" 
+                        id="tab-2" 
+                        aria-controls="tabpanel-2"
+                        disabled={!selectedOrgId} 
+                      />
+                    </Tabs>
                   </Box>
-                  <Divider sx={{ mb: 2 }} />
                   
-                  {loadingUsage ? (
-                    <Box display="flex" justifyContent="center" py={3}>
-                      <CircularProgress />
-                    </Box>
-                  ) : tokenUsage ? (
-                    <Grid container spacing={2}>
-                      <Grid item xs={12} sm={6}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography color="textSecondary" gutterBottom>
-                              合計入力トークン
-                            </Typography>
-                            <Typography variant="h5" component="div">
-                              {(tokenUsage.overall?.totalInputTokens || 0).toLocaleString()} トークン
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      
-                      <Grid item xs={12} sm={6}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography color="textSecondary" gutterBottom>
-                              合計出力トークン
-                            </Typography>
-                            <Typography variant="h5" component="div">
-                              {(tokenUsage.overall?.totalOutputTokens || 0).toLocaleString()} トークン
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      
-                      <Grid item xs={12} sm={6}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography color="textSecondary" gutterBottom>
-                              リクエスト成功率
-                            </Typography>
-                            <Typography variant="h5" component="div">
-                              {(tokenUsage.overall?.successRate || 0).toFixed(1)}%
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      
-                      <Grid item xs={12} sm={6}>
-                        <Card variant="outlined">
-                          <CardContent>
-                            <Typography color="textSecondary" gutterBottom>
-                              平均応答時間
-                            </Typography>
-                            <Typography variant="h5" component="div">
-                              {(tokenUsage.overall?.avgResponseTime || 0).toFixed(0)} ms
-                            </Typography>
-                          </CardContent>
-                        </Card>
-                      </Grid>
-                      
-                    </Grid>
-                  ) : (
-                    <Alert severity="info">トークン使用データがありません</Alert>
-                  )}
+                  {/* 組織カード一覧パネル */}
+                  <Box
+                    role="tabpanel"
+                    hidden={currentTab !== 0}
+                    id="tabpanel-0"
+                    aria-labelledby="tab-0"
+                  >
+                    {currentTab === 0 && (
+                      <OrganizationCards 
+                        onSelectOrganization={(orgId) => {
+                          setSelectedOrgId(orgId);
+                          setCurrentTab(1); // 組織選択時に自動的にAPIキータブに切り替え
+                        }}
+                      />
+                    )}
+                  </Box>
+                  
+                  {/* APIキー管理パネル */}
+                  <Box
+                    role="tabpanel"
+                    hidden={currentTab !== 1}
+                    id="tabpanel-1"
+                    aria-labelledby="tab-1"
+                  >
+                    {currentTab === 1 && selectedOrgId && (
+                      <ApiKeyManager organizationId={selectedOrgId} />
+                    )}
+                  </Box>
+                  
+                  {/* ワークスペース管理パネル */}
+                  <Box
+                    role="tabpanel"
+                    hidden={currentTab !== 2}
+                    id="tabpanel-2"
+                    aria-labelledby="tab-2"
+                  >
+                    {currentTab === 2 && selectedOrgId && (
+                      <WorkspaceManager 
+                        organizationId={selectedOrgId}
+                        onWorkspaceUpdate={() => {
+                          // ワークスペース更新時のイベント処理
+                        }}
+                      />
+                    )}
+                  </Box>
                 </Paper>
               </Grid>
             </Grid>

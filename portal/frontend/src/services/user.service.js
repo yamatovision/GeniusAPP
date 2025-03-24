@@ -169,56 +169,6 @@ class UserService {
     }
   }
   
-  /**
-   * 現在のユーザーのトークン使用量を取得
-   * @param {string} period - 期間（today, yesterday, week, month, year, all, custom）
-   * @param {string} interval - 間隔（hour, day, week, month）
-   * @param {string} startDate - 開始日（periodがcustomの場合）
-   * @param {string} endDate - 終了日（periodがcustomの場合）
-   * @returns {Promise} - 使用量データ
-   */
-  async getTokenUsage(period = 'month', interval = 'day', startDate = null, endDate = null) {
-    try {
-      const params = { period, interval };
-      if (period === 'custom') {
-        if (startDate) params.start = startDate;
-        if (endDate) params.end = endDate;
-      }
-      
-      const response = await axios.get(
-        `${USERS_API_URL}/token-usage`,
-        { 
-          params,
-          headers: authHeader() 
-        }
-      );
-      return response.data;
-    } catch (error) {
-      throw this._handleError(error);
-    }
-  }
-  
-  /**
-   * 特定ユーザーのトークン使用量を取得（管理者用）
-   * @param {string} userId - ユーザーID
-   * @param {string} period - 期間（today, yesterday, week, month, year, all, custom）
-   * @param {string} interval - 間隔（hour, day, week, month）
-   * @returns {Promise} - 使用量データ
-   */
-  async getUserTokenUsage(userId, period = 'month', interval = 'day') {
-    try {
-      const response = await axios.get(
-        `${USERS_API_URL}/${userId}/token-usage`,
-        { 
-          params: { period, interval },
-          headers: authHeader() 
-        }
-      );
-      return response.data;
-    } catch (error) {
-      throw this._handleError(error);
-    }
-  }
   
   /**
    * エラーハンドリング

@@ -140,6 +140,37 @@ export function activate(context: vscode.ExtensionContext) {
 		);
 		Logger.info('ScopeManager command registered successfully');
 		
+		// デバッグ探偵を開くコマンドの登録
+		context.subscriptions.push(
+			vscode.commands.registerCommand('appgenius-ai.openDebugDetective', (providedProjectPath?: string) => {
+				try {
+					// 引数から提供されたパスを優先
+					let projectPath = providedProjectPath;
+					
+					// パスが提供されていない場合はアクティブプロジェクトから取得
+					if (!projectPath) {
+						const { AppGeniusStateManager } = require('./services/AppGeniusStateManager');
+						const stateManager = AppGeniusStateManager.getInstance();
+						projectPath = stateManager.getCurrentProjectPath();
+						
+						// アクティブプロジェクトパスがない場合は警告
+						if (!projectPath) {
+							Logger.warn('アクティブプロジェクトがありません。プロジェクトを選択してください。');
+							vscode.window.showWarningMessage('プロジェクトが選択されていません。ダッシュボードからプロジェクトを選択してください。');
+							return;
+						}
+					}
+					
+					Logger.info(`デバッグ探偵を開くコマンドが実行されました: ${projectPath}`);
+					DebugDetectivePanel.createOrShow(context.extensionUri, projectPath);
+				} catch (error) {
+					Logger.error('デバッグ探偵を開く際にエラーが発生しました', error as Error);
+					vscode.window.showErrorMessage(`デバッグ探偵を開けませんでした: ${(error as Error).message}`);
+				}
+			})
+		);
+		Logger.info('DebugDetective command registered successfully');
+		
 		// 新しいシンプル認証マネージャーの初期化（優先使用）
 		const simpleAuthManager = SimpleAuthManager.getInstance(context);
 		Logger.info('SimpleAuthManager initialized successfully');

@@ -1208,7 +1208,7 @@ APIエンドポイントはまだ定義されていません。
           const normalizedScopeName = scopeName.replace(/^\s+|\s+$/g, '');
         
           // 部分一致を許容してスコープを探す
-          const targetScope = [...completedScopes, ...inProgressScopes, ...pendingScopes]
+          const targetScope = [...inProgressScopes, ...pendingScopes, ...completedScopes]
             .find(s => {
               const normalizedSName = s.name.replace(/^\s+|\s+$/g, '');
               return normalizedSName === normalizedScopeName || 
@@ -1253,13 +1253,13 @@ APIエンドポイントはまだ定義されていません。
               Logger.info(`スコープ "${scopeName}" に ${files.length} 個のファイルを追加しました (マッチ: ${targetScope.name})`);
             }
           } else {
-            Logger.info(`スコープが見つかりませんでした: "${scopeName}" - 対象の候補: ${[...completedScopes, ...inProgressScopes, ...pendingScopes].map(s => `"${s.name}"`).join(', ')}`);
+            Logger.info(`スコープが見つかりませんでした: "${scopeName}" - 対象の候補: ${[...inProgressScopes, ...pendingScopes, ...completedScopes].map(s => `"${s.name}"`).join(', ')}`);
           }
         }
       }
       
-      // すべてのスコープをまとめる
-      this._scopes = [...completedScopes, ...inProgressScopes, ...pendingScopes];
+      // すべてのスコープをまとめる（進行中、未着手、完了済みの順）
+      this._scopes = [...inProgressScopes, ...pendingScopes, ...completedScopes];
       
       // スコープにインデックス情報を追加
       this._scopes.forEach((scope, index) => {
@@ -2501,18 +2501,6 @@ project-root/
       // スコープ状況
       content += '## スコープ状況\n\n';
       
-      // 完了済みスコープ
-      const completedScopes = this._scopes.filter(s => s.status === 'completed');
-      content += '### 完了済みスコープ\n';
-      if (completedScopes.length === 0) {
-        content += '（完了したスコープはまだありません）\n\n';
-      } else {
-        completedScopes.forEach(scope => {
-          content += `- [x] ${scope.name} (100%)\n`;
-        });
-        content += '\n';
-      }
-      
       // 進行中スコープ
       const inProgressScopes = this._scopes.filter(s => s.status === 'in-progress');
       content += '### 進行中スコープ\n';
@@ -2533,6 +2521,18 @@ project-root/
       } else {
         pendingScopes.forEach(scope => {
           content += `- [ ] ${scope.name} (0%)\n`;
+        });
+        content += '\n';
+      }
+      
+      // 完了済みスコープ
+      const completedScopes = this._scopes.filter(s => s.status === 'completed');
+      content += '### 完了済みスコープ\n';
+      if (completedScopes.length === 0) {
+        content += '（完了したスコープはまだありません）\n\n';
+      } else {
+        completedScopes.forEach(scope => {
+          content += `- [x] ${scope.name} (100%)\n`;
         });
         content += '\n';
       }

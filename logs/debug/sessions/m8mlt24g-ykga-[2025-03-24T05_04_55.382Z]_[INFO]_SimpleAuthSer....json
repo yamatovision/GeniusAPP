@@ -1,0 +1,9 @@
+{
+  "id": "m8mlt24g-ykga",
+  "errorLog": "[2025-03-24T05:04:55.382Z] [INFO] SimpleAuthService: リクエストURL=https://geniemon-portal-backend-production.up.railway.app/api/simple/auth/check\n[2025-03-24T05:04:55.382Z] [INFO] SimpleAuthService: トークン接頭辞=eyJhbGciOi...\n[2025-03-24T05:04:56.190Z] [DEBUG] SimpleAuthService: ユーザー情報レスポンス全体={\"success\":true,\"data\":{\"user\":{\"id\":\"67e00e8bc86971845c98a814\",\"name\":\"白石達也\",\"email\":\"metavicer2@gmail.com\",\"role\":\"Admin\",\"organizationId\":\"67e0038f4b47eea54012f96f\",\"apiKeyId\":\"key_1742734434280\",\"apiKeyValue\":\"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\"},\"apiKey\":{\"id\":\"key_1742734434280\",\"keyValue\":\"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\",\"status\":\"active\"}}}\n[2025-03-24T05:04:56.190Z] [INFO] SimpleAuthService: APIレスポンスからuser情報を抽出: {\"id\":\"67e00e8bc86971845c98a814\",\"name\":\"白石達也\",\"email\":\"metavicer2@gmail.com\",\"role\":\"Admin\",\"organizationId\":\"67e0038f4b47eea54012f96f\",\"apiKeyId\":\"key_1742734434280\",\"apiKeyValue\":\"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\"}\n[2025-03-24T05:04:56.190Z] [INFO] SimpleAuthService: ユーザー情報取得成功\n[2025-03-24T05:04:56.190Z] [INFO] SimpleAuthService: ユーザー名=白石達也\n[2025-03-24T05:04:56.190Z] [INFO] SimpleAuthService: ユーザーID=67e00e8bc86971845c98a814\n[2025-03-24T05:04:56.190Z] [INFO] SimpleAuthService: ユーザーロール=Admin\n[2025-03-24T05:04:56.190Z] [INFO] SimpleAuthService: 権限一覧=[]\n[2025-03-24T05:04:56.191Z] [INFO] SimpleAuthService: セッション復元中のユーザー情報構造:　このような形で、キーは取得できているったみたいなんですけどClaudeCodeを立ち上げるときにこのANthoropicキーで立ち上げることができていないように思うんです",
+  "status": "investigating",
+  "createdAt": "2025-03-24T05:05:52.384Z",
+  "errorType": "HTTPエラー",
+  "relatedFiles": [],
+  "investigationStartTime": "2025-03-24T05:05:52.388Z"
+}

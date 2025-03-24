@@ -248,7 +248,7 @@ const promptController = {
       
       // 権限チェック（所有者、管理者、またはプロジェクト編集者のみ更新可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
-      const isAdmin = req.userRole === 'admin';
+      const isAdmin = req.userRole === 'admin' || req.userRole === 'Admin' || req.userRole === 'SuperAdmin';
       
       let isProjectEditor = false;
       if (prompt.projectId) {
@@ -326,7 +326,7 @@ const promptController = {
       
       // 権限チェック（所有者または管理者が削除可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
-      const isAdmin = req.userRole === 'admin';
+      const isAdmin = req.userRole === 'admin' || req.userRole === 'Admin' || req.userRole === 'SuperAdmin';
       
       if (!isOwner && !isAdmin) {
         return res.status(403).json({ message: 'このプロンプトを削除する権限がありません' });
@@ -361,7 +361,7 @@ const promptController = {
       
       // 権限チェック（所有者、管理者、またはプロジェクト編集者のみバージョン作成可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
-      const isAdmin = req.userRole === 'admin';
+      const isAdmin = req.userRole === 'admin' || req.userRole === 'Admin' || req.userRole === 'SuperAdmin';
       
       let isProjectEditor = false;
       if (prompt.projectId) {
@@ -415,7 +415,7 @@ const promptController = {
       // アクセス権限チェック（所有者、管理者、公開プロンプト、またはプロジェクトメンバー）
       const isOwner = prompt.ownerId.toString() === req.userId;
       const isPublic = prompt.isPublic;
-      const isAdmin = req.userRole === 'admin';
+      const isAdmin = req.userRole === 'admin' || req.userRole === 'Admin' || req.userRole === 'SuperAdmin';
       
       let isProjectMember = false;
       if (prompt.projectId) {
@@ -459,7 +459,7 @@ const promptController = {
       // アクセス権限チェック（所有者、管理者、公開プロンプト、またはプロジェクトメンバー）
       const isOwner = prompt.ownerId.toString() === req.userId;
       const isPublic = prompt.isPublic;
-      const isAdmin = req.userRole === 'admin';
+      const isAdmin = req.userRole === 'admin' || req.userRole === 'Admin' || req.userRole === 'SuperAdmin';
       
       let isProjectMember = false;
       if (prompt.projectId) {
@@ -615,7 +615,7 @@ const promptController = {
       
       // 権限チェック（所有者または管理者が共有リンク生成可能）
       const isOwner = prompt.ownerId.toString() === req.userId;
-      const isAdmin = req.userRole === 'admin';
+      const isAdmin = req.userRole === 'admin' || req.userRole === 'Admin' || req.userRole === 'SuperAdmin';
       
       if (!isOwner && !isAdmin) {
         return res.status(403).json({ message: '共有リンクを生成する権限がありません' });

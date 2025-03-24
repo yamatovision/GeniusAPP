@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import './SimpleDashboard.css';
 import { getSimpleOrganizations } from '../../services/simple/simpleOrganization.service';
 import { getCurrentUser } from '../../services/simple/simpleAuth.service';
+import { Alert, Button } from '@mui/material';
 
 const SimpleDashboard = () => {
   const [organizations, setOrganizations] = useState([]);
@@ -47,6 +48,23 @@ const SimpleDashboard = () => {
 
   return (
     <div className="simple-dashboard">
+      <Alert 
+        severity="info" 
+        style={{ marginBottom: '20px' }}
+        action={
+          <Button 
+            color="inherit" 
+            size="small" 
+            variant="outlined"
+            onClick={() => window.location.href = '/dashboard'}
+          >
+            新しいダッシュボードへ移動
+          </Button>
+        }
+      >
+        シンプルダッシュボードは統合されました。よりよい体験のためには新しいダッシュボードをお使いください。
+      </Alert>
+      
       <div className="simple-dashboard-header">
         <h1>シンプル版ダッシュボード</h1>
         <div className="simple-dashboard-actions">
