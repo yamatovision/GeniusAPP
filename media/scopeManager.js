@@ -122,6 +122,10 @@ const vscode = acquireVsCodeApi();
     const projectTitle = document.getElementById('project-title');
     const projectPath = document.getElementById('project-path');
     
+    // デバッグログ
+    console.log('プロジェクトパス更新イベント受信:', data);
+    
+    // プロジェクト情報の更新
     if (projectTitle && data.projectPath) {
       // パスから最後のディレクトリ名を取得
       const pathParts = data.projectPath.split(/[/\\]/);
@@ -132,23 +136,86 @@ const vscode = acquireVsCodeApi();
     if (projectPath) {
       projectPath.textContent = data.projectPath || '/path/to/project';
     }
+    
+    // forceRefreshフラグがtrueの場合は、強制的に初期化メッセージを送信
+    if (data.forceRefresh) {
+      console.log('プロジェクトパスが変更されました - 強制更新のためサーバーに初期化メッセージを送信します');
+      
+      // 現在のスコープ情報をクリア
+      const scopeList = document.getElementById('scope-list');
+      if (scopeList) {
+        scopeList.innerHTML = '<div class="scope-item"><span>データを更新中...</span></div>';
+      }
+      
+      // ステータスバーのテキストを変更して更新中であることを示す
+      const progressText = document.getElementById('project-progress-text');
+      if (progressText) {
+        progressText.textContent = '更新中...';
+      }
+      
+      // 状態を完全にリセット
+      const resetState = {
+        scopes: [],
+        selectedScopeIndex: -1,
+        selectedScope: null,
+        directoryStructure: '',
+        isPreparationMode: false
+      };
+      
+      // 状態リセット
+      console.log('状態を完全にリセットします:', resetState);
+      vscode.setState(resetState);
+      
+      // UI要素をクリア
+      const selectedScopeTitle = document.getElementById('scope-title');
+      if (selectedScopeTitle) {
+        selectedScopeTitle.textContent = 'スコープを選択してください';
+      }
+      
+      // 選択されたスコープの詳細表示をクリア
+      const scopeDetailContent = document.getElementById('scope-detail-content');
+      if (scopeDetailContent) {
+        scopeDetailContent.style.display = 'none';
+      }
+      
+      const scopeEmptyMessage = document.getElementById('scope-empty-message');
+      if (scopeEmptyMessage) {
+        scopeEmptyMessage.style.display = 'block';
+      }
+      
+      // 初期化メッセージの送信（新しいプロジェクトデータを取得するためのリクエスト）
+      setTimeout(() => {
+        console.log('初期化メッセージを送信します');
+        vscode.postMessage({ command: 'initialize' });
+      }, 300); // タイムアウトを長めに設定
+    }
   }
   
   /**
    * 状態更新ハンドラー
    */
   function handleUpdateState(data) {
+    // デバッグログ
+    console.log('状態更新受信:', 
+      'スコープ数:', data.scopes ? data.scopes.length : 0, 
+      '選択中インデックス:', data.selectedScopeIndex, 
+      '準備モード:', data.isPreparationMode);
+      
     // 準備モードフラグを取得
     const isPreparationMode = data.isPreparationMode !== undefined ? data.isPreparationMode : previousState.isPreparationMode;
     
-    // 状態の更新
-    vscode.setState({
-      scopes: data.scopes || previousState.scopes,
-      selectedScopeIndex: data.selectedScopeIndex !== undefined ? data.selectedScopeIndex : previousState.selectedScopeIndex,
-      selectedScope: data.selectedScope || previousState.selectedScope,
-      directoryStructure: data.directoryStructure || previousState.directoryStructure,
+    // 状態の更新 - nullチェックを強化
+    const newState = {
+      scopes: data.scopes || [],
+      selectedScopeIndex: data.selectedScopeIndex !== undefined ? data.selectedScopeIndex : -1,
+      selectedScope: data.selectedScope || null,
+      directoryStructure: data.directoryStructure || '',
       isPreparationMode: isPreparationMode // 準備モードフラグを保存
-    });
+    };
+    
+    // 状態を更新
+    vscode.setState(newState);
+    console.log('状態更新完了:', newState);
     
     // プロジェクト情報を更新
     updateProjectInfo(data);
@@ -156,9 +223,9 @@ const vscode = acquireVsCodeApi();
     // モードに応じたUIの表示切替
     updateModeView(isPreparationMode);
     
-    // UIの更新
-    updateScopeList(data.scopes || []);
-    updateSelectedScope(data.selectedScope, data.selectedScopeIndex);
+    // UIの更新 - 新しい状態で更新
+    updateScopeList(newState.scopes);
+    updateSelectedScope(newState.selectedScope, newState.selectedScopeIndex);
     
     // ディレクトリ構造の更新
     updateDirectoryStructure(data.directoryStructure);
@@ -348,6 +415,9 @@ const vscode = acquireVsCodeApi();
     // リストをクリア
     scopeList.innerHTML = '';
     
+    // 最新の状態を取得
+    const currentState = vscode.getState() || previousState;
+    
     // スコープが空の場合の表示
     const directoryButton = document.getElementById('directory-structure-button');
     const createScopeButton = document.getElementById('create-scope-button');
@@ -373,9 +443,11 @@ const vscode = acquireVsCodeApi();
     // スコープ作成ボタンは常に表示する
     if (createScopeButton) createScopeButton.style.display = 'block';
     
+    console.log('スコープリスト更新:', scopes.length, '件のスコープ', '選択中インデックス:', currentState.selectedScopeIndex);
+    
     // スコープごとにリスト項目を生成
     scopes.forEach((scope, index) => {
-      const isActive = index === previousState.selectedScopeIndex;
+      const isActive = index === currentState.selectedScopeIndex;
       
       // ステータスに応じたクラスを設定
       const statusClass = `status-${scope.status || 'pending'}`;
@@ -387,7 +459,7 @@ const vscode = acquireVsCodeApi();
       scopeItem.setAttribute('data-index', index.toString());
       
       // スコープ名から「実装スコープ」という接頭辞を削除
-      const displayName = scope.name.replace(/^実装スコープ\s*/, '');
+      const displayName = scope.name ? scope.name.replace(/^実装スコープ\s*/, '') : 'スコープ名なし';
       
       scopeItem.innerHTML = `
         <h3>${displayName}</h3>
