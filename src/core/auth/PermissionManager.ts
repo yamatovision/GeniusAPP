@@ -119,10 +119,11 @@ export class PermissionManager {
       
       // メッセージ表示とアクション
       if (action.action === 'login') {
-        vscode.window.showInformationMessage(action.message, 'ログイン')
+        vscode.window.showInformationMessage(action.message, 'ログインページを開く')
           .then(selection => {
-            if (selection === 'ログイン' && action.command) {
-              vscode.commands.executeCommand(action.command);
+            if (selection === 'ログインページを開く' && action.command) {
+              // ログインコマンドを実行
+              vscode.commands.executeCommand('appgenius-ai.login');
             }
           });
       } else {
@@ -145,7 +146,7 @@ export class PermissionManager {
       return {
         message: `「${featureName}」を使用するにはログインが必要です。`,
         action: 'login',
-        command: 'appgenius.login'
+        command: 'appgenius-ai.login'
       };
     }
     

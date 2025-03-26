@@ -332,6 +332,47 @@ export function activate(context: vscode.ExtensionContext) {
         // グローバル変数に保存（拡張機能全体で参照できるように）
         global._appgenius_simple_auth_service = simpleAuthService;
 		
+		// 重要: 新認証システムのAuthStoreと連携
+		try {
+			// AuthStoreインスタンスを取得
+			const { AuthStore } = require('./core/auth/new/AuthStore');
+			const authStore = AuthStore.getInstance(context);
+			
+			// 現在の認証状態を即時に同期（初期化時に実行）
+			const currentState = simpleAuthService.getCurrentState();
+			if (currentState.isAuthenticated) {
+				authStore.setAuthenticated({
+					id: currentState.userId,
+					name: currentState.username,
+					role: currentState.role
+				}, currentState.expiresAt);
+				Logger.info(`初期認証状態をAuthStoreに同期しました: 認証済み (${currentState.username})`);
+			} else {
+				authStore.setUnauthenticated();
+				Logger.info('初期認証状態をAuthStoreに同期しました: 未認証');
+			}
+			
+			// SimpleAuthServiceからの認証状態変更をAuthStoreに反映
+			simpleAuthService.onStateChanged(state => {
+				// AuthStoreの状態を更新（setStateではなくより明示的なメソッドを使用）
+				if (state.isAuthenticated) {
+					authStore.setAuthenticated({
+						id: state.userId,
+						name: state.username,
+						role: state.role
+					}, state.expiresAt);
+				} else {
+					authStore.setUnauthenticated();
+				}
+				
+				Logger.info(`認証状態をAuthStoreに同期しました: ${state.isAuthenticated ? '認証済み' : '未認証'}`);
+			});
+			
+			Logger.info('SimpleAuthService と AuthStore の連携を確立しました');
+		} catch (error) {
+			Logger.error('AuthStoreとの連携に失敗しました', error as Error);
+		}
+		
 		// 新認証システムの初期化
 		try {
 			// 新認証モジュールのインポート
@@ -342,6 +383,22 @@ export function activate(context: vscode.ExtensionContext) {
 			
 			// グローバル変数に保存
 			global._appgenius_auth_module = authModule;
+			
+			// 重要: 明示的にPermissionServiceのインスタンスも取得して確認
+			const permissionService = authModule.getPermissionService();
+			Logger.info(`AuthModuleのPermissionServiceインスタンスを取得: 有効=${!!permissionService}`);
+			
+			// PermissionManagerに明示的にPermissionServiceを設定
+			try {
+				const PermissionManager = require('./core/auth/PermissionManager').PermissionManager;
+				// 直接内部フィールドを設定
+				if (PermissionManager.instance) {
+					PermissionManager.instance._permissionService = permissionService;
+					Logger.info('既存のPermissionManagerインスタンスに直接PermissionServiceを設定しました');
+				}
+			} catch (pmError) {
+				Logger.error('PermissionManagerへの設定エラー:', pmError);
+			}
 			
 			Logger.info('New AuthModule initialized successfully');
 		} catch (error) {

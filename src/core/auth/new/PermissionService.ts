@@ -98,10 +98,10 @@ export class PermissionService {
       
       // メッセージ表示とアクション
       if (action.action === 'login') {
-        vscode.window.showInformationMessage(action.message, 'ログイン')
+        vscode.window.showInformationMessage(action.message, 'ログインページを開く')
           .then(selection => {
-            if (selection === 'ログイン' && action.command) {
-              vscode.commands.executeCommand(action.command);
+            if (selection === 'ログインページを開く' && action.command) {
+              vscode.commands.executeCommand('appgenius-ai.login');
             }
           });
       } else {
@@ -124,7 +124,7 @@ export class PermissionService {
       return {
         message: `「${featureName}」を使用するにはログインが必要です。`,
         action: 'login',
-        command: 'appgenius.login'
+        command: 'appgenius-ai.login'
       };
     }
     
