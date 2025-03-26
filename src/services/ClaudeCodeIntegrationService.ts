@@ -659,6 +659,130 @@ export class ClaudeCodeIntegrationService {
   }
 
   /**
+   * ローカルファイルを使用してClaudeCodeを起動
+   * @param promptFilePath ローカルプロンプトファイルのパス
+   * @param projectPath プロジェクトパス
+   * @param additionalContent 追加コンテンツ（オプション）
+   * @param splitView 分割表示を使用するかどうか（オプション）
+   * @param options その他のオプション（タイトルなど）
+   * @returns 起動成功したかどうか
+   */
+  public async launchWithFile(
+    promptFilePath: string,
+    projectPath: string,
+    additionalContent?: string,
+    splitView?: boolean,
+    options?: { 
+      title?: string; 
+      deletePromptFile?: boolean;
+      location?: vscode.ViewColumn;
+    }
+  ): Promise<boolean> {
+    try {
+      Logger.info(`ローカルファイルでClaudeCodeを起動: ${promptFilePath}`);
+      
+      // プロンプトファイルが存在するか確認
+      if (!fs.existsSync(promptFilePath)) {
+        throw new Error(`プロンプトファイルが見つかりません: ${promptFilePath}`);
+      }
+      
+      // プロンプト内容を読み込む
+      let content = fs.readFileSync(promptFilePath, 'utf8');
+      
+      // 追加コンテンツがあれば追加
+      if (additionalContent) {
+        content += '\n\n---\n\n';
+        content += additionalContent;
+      }
+      
+      // 一時ファイルを作成
+      const tempDir = path.join(projectPath, '.appgenius_temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // ランダムな文字列を生成
+      const randomStr = Math.random().toString(36).substring(2, 15);
+      const tempFileName = `.vq${randomStr}`;
+      const tempFilePath = path.join(tempDir, tempFileName);
+      
+      // 一時ファイルに書き込み
+      fs.writeFileSync(tempFilePath, content, 'utf8');
+      Logger.info(`セキュアな一時ファイルを作成しました: ${tempFilePath}`);
+      
+      // ClaudeCodeを起動
+      return await this._launcher.launchClaudeCodeWithPrompt(
+        projectPath,
+        tempFilePath,
+        {
+          title: options?.title || 'ClaudeCode',
+          deletePromptFile: options?.deletePromptFile || true,
+          splitView: splitView,
+          location: options?.location
+        }
+      );
+    } catch (error) {
+      Logger.error('ローカルファイルでのClaudeCode起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`ローカルファイルでのClaudeCode起動に失敗しました: ${(error as Error).message}`);
+      return false;
+    }
+  }
+  
+  /**
+   * 直接プロンプト内容を使用してClaudeCodeを起動
+   * @param promptContent プロンプト内容
+   * @param projectPath プロジェクトパス
+   * @param splitView 分割表示を使用するかどうか（オプション）
+   * @param options その他のオプション（タイトルなど）
+   * @returns 起動成功したかどうか
+   */
+  public async launchWithDirectPrompt(
+    promptContent: string,
+    projectPath: string,
+    splitView?: boolean,
+    options?: { 
+      title?: string; 
+      deletePromptFile?: boolean;
+      location?: vscode.ViewColumn;
+    }
+  ): Promise<boolean> {
+    try {
+      Logger.info(`ダイレクトプロンプトでClaudeCodeを起動`);
+      
+      // 一時ファイルを作成
+      const tempDir = path.join(projectPath, '.appgenius_temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // ランダムな文字列を生成
+      const randomStr = Math.random().toString(36).substring(2, 15);
+      const tempFileName = `.vq${randomStr}`;
+      const tempFilePath = path.join(tempDir, tempFileName);
+      
+      // 一時ファイルに書き込み
+      fs.writeFileSync(tempFilePath, promptContent, 'utf8');
+      Logger.info(`セキュアな一時ファイルを作成しました: ${tempFilePath}`);
+      
+      // ClaudeCodeを起動
+      return await this._launcher.launchClaudeCodeWithPrompt(
+        projectPath,
+        tempFilePath,
+        {
+          title: options?.title || 'ClaudeCode',
+          deletePromptFile: options?.deletePromptFile || true,
+          splitView: splitView,
+          location: options?.location
+        }
+      );
+    } catch (error) {
+      Logger.error('ダイレクトプロンプトでのClaudeCode起動に失敗しました', error as Error);
+      vscode.window.showErrorMessage(`ダイレクトプロンプトでのClaudeCode起動に失敗しました: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  /**
    * リソースの解放
    */
   public dispose(): void {

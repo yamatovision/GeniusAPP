@@ -17,3 +17,5 @@ test_script/auth_token.txt
 
 # 環境変数ファイル
 .env
+logs/debug/sessions/*.json
+logs/debug/archived/*.json
