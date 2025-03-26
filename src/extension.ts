@@ -125,8 +125,9 @@ export function activate(context: vscode.ExtensionContext) {
 				// 認証サーバーのヘルスチェック
 				vscode.window.showInformationMessage('認証サーバーへの接続をチェック中...');
 				
-				// 既存のログインコマンドを内部的に実行
-				await vscode.commands.executeCommand('appgenius.simpleAuth.login');
+				// LoginWebviewPanelを使用してログインフォームを表示
+				const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
+				LoginWebviewPanel.createOrShow(context.extensionUri);
 			} catch (error) {
 				Logger.error('ログイン処理中にエラーが発生しました', error as Error);
 				vscode.window.showErrorMessage(`ログインエラー: ${(error as Error).message}`);
