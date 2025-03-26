@@ -17,6 +17,7 @@ ENV DB_SERVER_TIMEOUT_MS=30000
 ENV DB_SOCKET_TIMEOUT_MS=45000
 ENV DB_CONNECT_TIMEOUT_MS=30000
 ENV DB_MAX_POOL_SIZE=10
+ENV CORS_ORIGIN=https://geniemon.vercel.app,https://geniemon-yamatovisions-projects.vercel.app,https://geniemon-git-main-yamatovisions-projects.vercel.app
 
 # ポート5000を開放
 EXPOSE 5000

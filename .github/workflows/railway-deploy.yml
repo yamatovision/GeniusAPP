@@ -1,4 +1,4 @@
-name: Deploy Portal to Railway
+name: Deploy Portal to Google Cloud Run
 
 on:
   push:
@@ -7,7 +7,6 @@ on:
     paths:
       - 'portal/**'
       - '.github/workflows/railway-deploy.yml'
-      - '.railway/**'
 
 jobs:
   deploy:
@@ -16,10 +15,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Deploy to Railway
-        uses: bervProject/railway-deploy@main
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v1
         with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          service: "geniemon-portal-backend"
-          directory: "portal"
-          project_id: ${{ secrets.RAILWAY_PROJECT_ID }}
+          project_id: yamatovision-blue-lamp
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Authenticate Docker
+        run: gcloud auth configure-docker asia-northeast1-docker.pkg.dev
+
+      - name: Build and Push Docker image
+        run: |
+          cd portal
+          docker build -t asia-northeast1-docker.pkg.dev/yamatovision-blue-lamp/appgenius/portal-backend:${{ github.sha }} .
+          docker push asia-northeast1-docker.pkg.dev/yamatovision-blue-lamp/appgenius/portal-backend:${{ github.sha }}
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy appgenius-portal-backend \
+            --image asia-northeast1-docker.pkg.dev/yamatovision-blue-lamp/appgenius/portal-backend:${{ github.sha }} \
+            --platform managed \
+            --region asia-northeast1 \
+            --allow-unauthenticated \
+            --port 5000 \
+            --memory 1Gi \
+            --set-env-vars="CORS_ORIGIN=https://geniemon.vercel.app,https://geniemon-yamatovisions-projects.vercel.app,https://geniemon-git-main-yamatovisions-projects.vercel.app,vscode-webview://*"

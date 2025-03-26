@@ -28,7 +28,8 @@ const corsOrigins = process.env.CORS_ORIGIN ?
 // 環境変数の値と明示的な許可リストをマージ
 const allowedOrigins = [
   'https://geniemon.vercel.app', 
-  'https://geniemon-yamatovisions-projects.vercel.app', 
+  'https://geniemon-yamatovisions-projects.vercel.app',
+  'https://geniemon-git-main-yamatovisions-projects.vercel.app', // 新しいVercelプレビュー環境
   'http://localhost:3000', 
   'http://localhost:3001',
   'http://localhost:3002',
