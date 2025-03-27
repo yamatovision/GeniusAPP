@@ -794,14 +794,21 @@ export class SimpleAuthService {
       Logger.info('SimpleAuthService: ログアウト開始');
       
       if (this._refreshToken) {
-        // APIリクエスト（エラーはキャッチするが処理継続）
+        // APIリクエスト（タイムアウト5秒、エラーはキャッチするが処理継続）
         try {
           await axios.post(`${this.API_BASE_URL}/auth/logout`, {
             refreshToken: this._refreshToken
-          });
+          }, { timeout: 5000 });
           Logger.info('SimpleAuthService: サーバーログアウト成功');
         } catch (apiError) {
-          Logger.warn('SimpleAuthService: サーバーログアウトエラー', apiError as Error);
+          const isTimeout = apiError.code === 'ECONNABORTED' || (apiError.message && apiError.message.includes('timeout'));
+          Logger.warn(`SimpleAuthService: サーバーログアウトエラー${isTimeout ? '(タイムアウト)' : ''}`, apiError as Error);
+          
+          // タイムアウトの場合は専用通知を表示
+          if (isTimeout) {
+            const logoutNotification = (await import('../../ui/auth/LogoutNotification')).LogoutNotification.getInstance();
+            logoutNotification.showLogoutNotification('TIMEOUT');
+          }
         }
       }
       
@@ -948,7 +955,40 @@ export class SimpleAuthService {
             Logger.warn(`SimpleAuthService: デバッグモードのためダミーAPIキーを発行しました: ${dummyApiKey.substring(0, 10)}...`);
             return dummyApiKey;
           }
-          return undefined;
+
+          // ユーザーにAPIキーの入力を促す
+          try {
+            const apiKey = await vscode.window.showInputBox({
+              prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
+              placeHolder: 'sk-ant-api...',
+              password: true,
+              ignoreFocusOut: true,
+              validateInput: (text) => {
+                if (!text) {
+                  return 'APIキーを入力してください';
+                }
+                if (!text.startsWith('sk-')) {
+                  return 'APIキーはsk-で始まる必要があります';
+                }
+                return null;
+              }
+            });
+            
+            if (apiKey) {
+              // ユーザー入力のAPIキーを保存
+              this._apiKey = apiKey;
+              await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
+              const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+              Logger.info(`SimpleAuthService: ユーザー入力からAPIキーを設定しました: ${maskedKey}`);
+              return apiKey;
+            } else {
+              Logger.warn('SimpleAuthService: ユーザーがAPIキー入力をキャンセルしました');
+              throw new Error('APIキーの入力がキャンセルされました。設定から再度APIキーを入力してください。');
+            }
+          } catch (inputError) {
+            Logger.error('SimpleAuthService: APIキー入力中にエラーが発生しました', inputError as Error);
+            throw new Error('APIキーの入力プロセスでエラーが発生しました。VSCodeを再起動して再試行するか、管理者に連絡してください。');
+          }
         }
       }
       
@@ -978,33 +1018,61 @@ export class SimpleAuthService {
           }
         }
         
-        Logger.debug('【APIキー詳細】AnthropicApiKeyモデルからの取得に失敗、ユーザープロフィールを試行します');
+        Logger.debug('【APIキー詳細】AnthropicApiKeyモデルからの取得に失敗、ユーザー入力を試行します');
       } catch (apiKeyError) {
         Logger.debug(`【APIキー詳細】AnthropicApiKeyエンドポイントエラー: ${(apiKeyError as Error).message}`);
       }
       
-      // レガシーフォールバックがないためここで終了
-    Logger.warn(`SimpleAuthService: AnthropicApiKeyモデルからAPIキーを取得できませんでした。`);
-    Logger.warn(`SimpleAuthService: ユーザーモデルからのAPIキー取得は無効化されています。`);
-    
-    // 詳細なエラー情報
-    const errorMessage = `
-【重大エラー】AnthropicAPIキーが設定されていません
+      // サーバーからの取得に失敗した場合、ユーザーにAPIキーの入力を促す
+      try {
+        const apiKey = await vscode.window.showInputBox({
+          prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
+          placeHolder: 'sk-ant-api...',
+          password: true,
+          ignoreFocusOut: true,
+          validateInput: (text) => {
+            if (!text) {
+              return 'APIキーを入力してください';
+            }
+            if (!text.startsWith('sk-')) {
+              return 'APIキーはsk-で始まる必要があります';
+            }
+            return null;
+          }
+        });
+        
+        if (apiKey) {
+          // ユーザー入力のAPIキーを保存
+          this._apiKey = apiKey;
+          await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
+          const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+          Logger.info(`SimpleAuthService: ユーザー入力からAPIキーを設定しました: ${maskedKey}`);
+          return apiKey;
+        } else {
+          Logger.warn('SimpleAuthService: ユーザーがAPIキー入力をキャンセルしました');
+          throw new Error('APIキーの入力がキャンセルされました。設定から再度APIキーを入力してください。');
+        }
+      } catch (inputError) {
+        Logger.error('SimpleAuthService: APIキー入力中にエラーが発生しました', inputError as Error);
+        
+        // エラー情報を表示
+        const errorMessage = `
+【重大エラー】AnthropicAPIキーが設定できませんでした
 ----------------------------------------
-ユーザーにAnthropicAPIキーが設定されていないため、ClaudeCodeを起動できません。
+APIキーの取得または設定中にエラーが発生しました。
 
 問題の解決方法:
-1. 管理者に連絡してAPIキーの設定を依頼してください
-2. AnthropicアカウントでAPIキーが正しく設定されているか確認してください
+1. VSCodeを再起動して再試行してください
+2. 管理者に連絡してAPIキーの設定を依頼してください
 
-エラーコード: ANTHROPIC_API_KEY_NOT_FOUND
+エラーコード: ANTHROPIC_API_KEY_ERROR
 ユーザーID: ${this._currentState.userId || '不明'}
 認証状態: ${this._currentState.isAuthenticated ? '認証済み' : '未認証'}
+エラー詳細: ${(inputError as Error).message}
 `;
-    Logger.error(errorMessage);
-    
-    // nullを返す代わりにエラーをスロー
-    throw new Error('AnthropicAPIキーが設定されていません。管理者に連絡してください。');
+        Logger.error(errorMessage);
+        throw new Error('APIキーの入力プロセスでエラーが発生しました。VSCodeを再起動して再試行するか、管理者に連絡してください。');
+      }
     } catch (error) {
       Logger.error('SimpleAuthService: サーバーからのAPIキー取得に失敗しました', error as Error);
       
@@ -1023,6 +1091,38 @@ export class SimpleAuthService {
             return this.getApiKey();
           }
         }
+      }
+      
+      // ユーザー入力をリトライ
+      try {
+        const apiKey = await vscode.window.showInputBox({
+          prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
+          placeHolder: 'sk-ant-api...',
+          password: true,
+          ignoreFocusOut: true,
+          validateInput: (text) => {
+            if (!text) {
+              return 'APIキーを入力してください';
+            }
+            if (!text.startsWith('sk-')) {
+              return 'APIキーはsk-で始まる必要があります';
+            }
+            return null;
+          }
+        });
+        
+        if (apiKey) {
+          // ユーザー入力のAPIキーを保存
+          this._apiKey = apiKey;
+          await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
+          const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+          Logger.info(`SimpleAuthService: エラー後のリトライでAPIキーを設定しました: ${maskedKey}`);
+          return apiKey;
+        } else {
+          throw new Error('APIキーの入力がキャンセルされました。設定から再度APIキーを入力してください。');
+        }
+      } catch (retryError) {
+        throw new Error('APIキーの設定に失敗しました。VSCodeを再起動して再試行するか、管理者に連絡してください。');
       }
     }
     
@@ -1072,6 +1172,36 @@ export class SimpleAuthService {
       }
     } catch (userDataError) {
       Logger.error('SimpleAuthService: ユーザーデータからのAPIキー抽出に失敗しました', userDataError as Error);
+    }
+    
+    // 最終手段として、もう一度ユーザーにAPIキーの入力を促す
+    try {
+      const apiKey = await vscode.window.showInputBox({
+        prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
+        placeHolder: 'sk-ant-api...',
+        password: true,
+        ignoreFocusOut: true,
+        validateInput: (text) => {
+          if (!text) {
+            return 'APIキーを入力してください';
+          }
+          if (!text.startsWith('sk-')) {
+            return 'APIキーはsk-で始まる必要があります';
+          }
+          return null;
+        }
+      });
+      
+      if (apiKey) {
+        // ユーザー入力のAPIキーを保存
+        this._apiKey = apiKey;
+        await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
+        const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+        Logger.info(`SimpleAuthService: 最終手段としてユーザー入力からAPIキーを設定しました: ${maskedKey}`);
+        return apiKey;
+      }
+    } catch (finalError) {
+      Logger.error('SimpleAuthService: 最終的なAPIキー入力試行中にエラーが発生しました', finalError as Error);
     }
     
     return this._apiKey;
