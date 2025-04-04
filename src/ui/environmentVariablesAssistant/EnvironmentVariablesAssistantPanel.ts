@@ -2221,12 +2221,16 @@ ${this._generateEnvironmentVariablesList('production')}
       
       // env.mdファイルの情報を取得
       const envMdPath = path.join(this._projectPath, 'docs', 'env.md');
-      if (fs.existsSync(envMdPath)) {
-        const envMdContent = fs.readFileSync(envMdPath, 'utf8');
-        environmentInfo += `## env.mdファイル:\n\n`;
-        environmentInfo += '```markdown\n';
-        environmentInfo += envMdContent;
-        environmentInfo += '\n```\n\n';
+      try {
+        if (fs.existsSync(envMdPath)) {
+          const envMdContent = fs.readFileSync(envMdPath, 'utf8');
+          environmentInfo += `## env.mdファイル:\n\n`;
+          environmentInfo += '```markdown\n';
+          environmentInfo += envMdContent;
+          environmentInfo += '\n```\n\n';
+        }
+      } catch (error) {
+        Logger.warn(`env.mdファイルの読み込みに失敗しました: ${(error as Error).message}`);
       }
       
       // 一時ファイルに保存（デバッグ用・参照用）
@@ -2272,7 +2276,7 @@ ${this._generateEnvironmentVariablesList('production')}
           vscode.window.showInformationMessage('環境変数アシスタント用のClaudeCodeを起動しました（公開URL経由）');
           Logger.info(`環境変数アシスタントを公開URL経由で起動しました`);
           
-          return true;
+          return;
         } catch (urlError) {
           // URL起動に失敗した場合、ローカルファイルにフォールバック
           Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${urlError}`);

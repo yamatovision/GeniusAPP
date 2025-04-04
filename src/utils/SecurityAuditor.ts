@@ -872,7 +872,7 @@ export class SecurityAuditor {
    */
   private _checkXssPrevention(): SecurityCheckResult {
     // XSS対策の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'XSS対策が適切に実装されています';
     let details = undefined;
     
@@ -903,7 +903,7 @@ export class SecurityAuditor {
         }
         
         if (!webviewFound) {
-          status = 'info';
+          status = 'warning';
           message = 'WebViewが使用されていないため、XSS対策は該当しません';
         } else if (!contentSecurityFound) {
           status = 'warning';
@@ -929,7 +929,7 @@ export class SecurityAuditor {
       status,
       message,
       details,
-      recommendations: (status !== 'pass' && status !== 'info') ? [
+      recommendations: (status !== 'pass') ? [
         'WebViewでContent Security Policyを設定する',
         'ユーザー入力をエスケープして表示する',
         'localResourceRootsを適切に設定してリソースアクセスを制限する'

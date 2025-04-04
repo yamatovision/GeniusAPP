@@ -57,6 +57,10 @@ export interface FileSaveOptions {
   title?: string;
   format?: string;
   expirationHours?: number; // デフォルト24時間
+  metadata?: {
+    [key: string]: any;
+    suggestedFilename?: string;
+  };
 }
 
 /**
