@@ -1,9 +1,0 @@
-{
-  "id": "m8n1q871-5dgx",
-  "errorLog": "{success: true, message: \"ワークスペースが正常に作成されました (開発モード)\",…}\ndata\n: \n{workspaceId: \"ws_dev_1742819380358\", workspaceName: \"テストちゃん\", organization: \"test\",…}\nisDevelopment\n: \ntrue\norganization\n: \n\"test\"\nworkspaceId\n: \n\"ws_dev_1742819380358\"\nworkspaceName\n: \n\"テストちゃん\"\nmessage\n: \n\"ワークスペースが正常に作成されました (開発モード)\"\nsuccess\n: \ntrueとなっているんですが実際には作られてないです",
-  "status": "investigating",
-  "createdAt": "2025-03-24T12:31:34.141Z",
-  "errorType": "テストエラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-24T12:31:34.143Z"
-}

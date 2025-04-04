@@ -1,9 +1,0 @@
-{
-  "id": "m8non6il-hrl1",
-  "errorLog": "http://localhost:3000/dashboard こちらで、バイアウトチームのAPIキー数は7個になっているのに実際に、APIキー管理を見ると何も登録されていないとなっています",
-  "status": "investigating",
-  "createdAt": "2025-03-24T23:13:03.165Z",
-  "errorType": "不明なエラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-24T23:13:03.170Z"
-}

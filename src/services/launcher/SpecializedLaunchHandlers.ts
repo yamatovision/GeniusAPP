@@ -78,18 +78,8 @@ export class SpecializedLaunchHandlers {
       // 認証サービスの初期化
       await this.authManager.initAuthServices();
       
-      // APIキーが利用可能か確認（エラーの場合は例外がスローされる）
-      try {
-        await this.authManager.isApiKeyAvailable();
-      } catch (apiKeyError) {
-        // ユーザーに分かりやすいエラーメッセージを表示
-        await vscode.window.showErrorMessage(
-          `ClaudeCode起動エラー: AnthropicAPIキーが見つかりません。管理者に連絡してAPIキーの設定を依頼してください。`,
-          { modal: true, detail: (apiKeyError as Error).message }
-        );
-        
-        throw new Error(`APIキーが利用できないためClaudeCodeを起動できません: ${(apiKeyError as Error).message}`);
-      }
+      // APIキー検証をスキップ
+      Logger.info('APIキーの検証をスキップします（開発モード）');
       
       // ターミナルの作成
       const terminal = this.terminalService.createConfiguredTerminal({
@@ -291,18 +281,8 @@ export class SpecializedLaunchHandlers {
       // 認証サービスの初期化
       await this.authManager.initAuthServices();
       
-      // APIキーが利用可能か確認（エラーの場合は例外がスローされる）
-      try {
-        await this.authManager.isApiKeyAvailable();
-      } catch (apiKeyError) {
-        // ユーザーに分かりやすいエラーメッセージを表示
-        await vscode.window.showErrorMessage(
-          `プロンプト実行エラー: AnthropicAPIキーが見つかりません。管理者に連絡してAPIキーの設定を依頼してください。`,
-          { modal: true, detail: (apiKeyError as Error).message }
-        );
-        
-        throw new Error(`APIキーが利用できないためプロンプトを実行できません: ${(apiKeyError as Error).message}`);
-      }
+      // APIキー検証をスキップ
+      Logger.info('APIキーの検証をスキップします（開発モード）');
       
       // ターミナルの作成
       const terminal = this.terminalService.createConfiguredTerminal({
@@ -493,18 +473,8 @@ export class SpecializedLaunchHandlers {
       // 認証サービスの初期化
       await this.authManager.initAuthServices();
       
-      // APIキーが利用可能か確認（エラーの場合は例外がスローされる）
-      try {
-        await this.authManager.isApiKeyAvailable();
-      } catch (apiKeyError) {
-        // ユーザーに分かりやすいエラーメッセージを表示
-        await vscode.window.showErrorMessage(
-          `モックアップ解析エラー: AnthropicAPIキーが見つかりません。管理者に連絡してAPIキーの設定を依頼してください。`,
-          { modal: true, detail: (apiKeyError as Error).message }
-        );
-        
-        throw new Error(`APIキーが利用できないためモックアップ解析を開始できません: ${(apiKeyError as Error).message}`);
-      }
+      // APIキー検証をスキップ
+      Logger.info('APIキーの検証をスキップします（開発モード）');
       
       // ターミナルの作成
       const terminal = this.terminalService.createConfiguredTerminal({

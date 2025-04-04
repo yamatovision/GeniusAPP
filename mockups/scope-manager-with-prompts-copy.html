@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppGenius スコープマネージャー - プロンプトライブラリ統合</title>
+  <style>
+    :root {
+      --app-background: #1e1e1e;
+      --app-text: #d2d2d2;
+      --app-text-secondary: #adadad;
+      --app-heading-color: #f0f0f0;
+      --app-card-background: #333333;
+      --app-input-background: #252525;
+      --app-border-color: #454545;
+      --app-hover-background: #252525;
+      --app-selected-background: rgba(74, 105, 189, 0.2);
+      --app-selected-text: #f0f0f0;
+      --app-primary: #4a69bd;
+      --app-primary-dark: #3a5a9e;
+      --app-primary-light: rgba(74, 105, 189, 0.2);
+      --app-secondary: #00b894;
+      --app-secondary-dark: #00a77d;
+      --app-warning: #fdcb6e;
+      --app-danger: #e17055;
+      --app-gray-100: #f8f9fa;
+      --app-gray-200: #e9ecef;
+      --app-gray-300: #dee2e6;
+      --app-gray-700: #495057;
+      --app-spacing-xs: 4px;
+      --app-spacing-sm: 8px;
+      --app-spacing-md: 16px;
+      --app-spacing-lg: 24px;
+      --app-font-size-xs: 12px;
+      --app-font-size-sm: 14px;
+      --app-font-size-md: 16px;
+      --app-font-size-lg: 18px;
+      --app-font-weight-medium: 500;
+      --app-font-weight-bold: 700;
+      --app-border-radius: 8px;
+      --app-border-radius-sm: 4px;
+      --app-border-radius-lg: 12px;
+      --app-transition: 0.2s ease;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: auto;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      background-color: var(--app-background);
+      color: var(--app-text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .scope-manager-container {
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+    
+    /* ClaudeCode連携エリアのスタイル */
+    .claude-code-share-area {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: var(--app-card-background);
+      border-top: 1px solid var(--app-border-color);
+      padding: 15px;
+      z-index: 1000;
+      box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+      max-height: 300px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .claude-code-share-area.collapsed {
+      max-height: 40px;
+      overflow: hidden;
+    }
+    
+    .claude-code-share-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .share-content {
+      display: flex;
+      gap: 15px;
+      height: 100%;
+    }
+    
+    .text-share-zone {
+      flex: 3;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .image-share-zone {
+      flex: 1;
+      border: 2px dashed var(--app-border-color);
+      border-radius: var(--app-border-radius);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      min-height: 150px;
+      background-color: rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    
+    .image-preview {
+      max-width: 100%;
+      max-height: 130px;
+      object-fit: contain;
+    }
+    
+    .share-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 10px;
+      gap: 10px;
+    }
+    
+    .shared-history {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--app-border-color);
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: var(--app-border-radius-sm);
+      margin-bottom: 5px;
+      background-color: rgba(0, 0, 0, 0.1);
+      font-size: 12px;
+    }
+    
+    .history-item:hover {
+      background-color: rgba(74, 105, 189, 0.1);
+    }
+    
+    .share-textarea {
+      width: 100%;
+      resize: none;
+      height: 150px;
+      background-color: var(--app-input-background);
+      color: var(--app-text);
+      border: 1px solid var(--app-border-color);
+      border-radius: var(--app-border-radius-sm);
+      padding: 10px;
+      font-family: monospace;
+    }
+    
+    .share-textarea:focus {
+      outline: none;
+      border-color: var(--app-primary);
+    }
+    
+    .toggle-share-btn {
+      position: fixed;
+      bottom: 0;
+      right: 20px;
+      background-color: var(--app-card-background);
+      border: 1px solid var(--app-border-color);
+      border-bottom: none;
+      border-radius: var(--app-border-radius) var(--app-border-radius) 0 0;
+      padding: 5px 15px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      color: var(--app-text);
+      z-index: 1001;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--app-spacing-md);
+      padding-bottom: var(--app-spacing-sm);
+      border-bottom: 1px solid var(--app-border-color);
+    }
+
+    h1, h2, h3, h4 {
+      color: var(--app-heading-color);
+      margin-bottom: var(--app-spacing-sm);
+    }
+
+    .main-content {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: var(--app-spacing-md);
+      flex: 1;
+      overflow: visible;
+      min-height: 0;
+    }
+
+    .content-area {
+      display: flex;
+      flex-direction: column;
+      gap: var(--app-spacing-md);
+      overflow-y: visible;
+      padding-right: var(--app-spacing-sm);
+      max-height: none;
+    }
+
+    .card {
+      background-color: var(--app-card-background);
+      border-radius: var(--app-border-radius);
+      border: 1px solid var(--app-border-color);
+      padding: var(--app-spacing-md);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      margin-bottom: var(--app-spacing-md);
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: var(--app-spacing-md);
+      padding-bottom: var(--app-spacing-sm);
+      border-bottom: 1px solid var(--app-border-color);
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--app-border-color);
+      margin-bottom: var(--app-spacing-md);
+    }
+
+    .tab {
+      padding: var(--app-spacing-sm) var(--app-spacing-lg);
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      color: var(--app-text-secondary);
+      transition: all var(--app-transition);
+    }
+
+    .tab.active {
+      border-bottom-color: var(--app-primary);
+      color: var(--app-text);
+      font-weight: var(--app-font-weight-medium);
+    }
+
+    .tab:hover:not(.active) {
+      border-bottom-color: var(--app-gray-300);
+      color: var(--app-text);
+    }
+
+    .scope-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--app-spacing-sm);
+      overflow-y: auto;
+      max-height: 600px;
+      padding-right: var(--app-spacing-xs);
+    }
+
+    .scope-item {
+      background-color: var(--app-card-background);
+      border-radius: var(--app-border-radius);
+      border: 1px solid var(--app-border-color);
+      padding: var(--app-spacing-md);
+      cursor: pointer;
+      transition: all var(--app-transition);
+    }
+
+    .scope-item:hover {
+      border-color: var(--app-primary);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .scope-item.active {
+      border-left: 4px solid var(--app-primary);
+      background-color: var(--app-selected-background);
+    }
+
+    .scope-progress {
+      height: 8px;
+      border-radius: 12px;
+      margin-top: 10px;
+      overflow: hidden;
+      background-color: var(--app-gray-200);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .scope-progress-bar {
+      height: 100%;
+      transition: width 0.5s ease;
+      background-image: linear-gradient(to right, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
+    }
+
+    .status-pending {
+      background-color: var(--app-warning);
+    }
+
+    .status-in-progress {
+      background-color: var(--app-primary);
+    }
+
+    .status-completed {
+      background-color: var(--app-secondary);
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--app-border-color);
+      transition: all var(--app-transition);
+      border-radius: 4px;
+    }
+
+    .file-item:hover {
+      background-color: var(--app-hover-background);
+    }
+
+    .file-checkbox {
+      margin-right: 12px;
+      width: 18px;
+      height: 18px;
+      accent-color: var(--app-primary);
+      cursor: pointer;
+    }
+
+    .button {
+      padding: var(--app-spacing-sm) var(--app-spacing-md);
+      font-size: var(--app-font-size-md);
+      border-radius: var(--app-border-radius);
+      border: none;
+      cursor: pointer;
+      transition: all var(--app-transition);
+      display: flex;
+      align-items: center;
+      gap: var(--app-spacing-xs);
+      font-weight: var(--app-font-weight-medium);
+      background-color: var(--app-primary);
+      color: white;
+      box-shadow: 0 2px 4px rgba(74, 105, 189, 0.25);
+    }
+
+    .button:hover {
+      background-color: var(--app-primary-dark);
+      box-shadow: 0 4px 8px rgba(74, 105, 189, 0.3);
+      transform: translateY(-1px);
+    }
+
+    .button-secondary {
+      background-color: transparent;
+      color: var(--app-primary);
+      border: 1px solid var(--app-primary);
+      box-shadow: 0 1px 2px rgba(74, 105, 189, 0.1);
+    }
+
+    .button-secondary:hover {
+      background-color: var(--app-primary-light);
+      box-shadow: 0 2px 4px rgba(74, 105, 189, 0.15);
+    }
+
+    .prompt-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: var(--app-spacing-md);
+    }
+
+    .prompt-card {
+      background-color: var(--app-card-background);
+      border: 1px solid var(--app-border-color);
+      border-radius: var(--app-border-radius);
+      padding: var(--app-spacing-md);
+      cursor: pointer;
+      transition: all var(--app-transition);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+
+    .prompt-card:hover {
+      border-color: var(--app-primary);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .prompt-icon {
+      font-size: 36px;
+      margin-bottom: var(--app-spacing-sm);
+      color: var(--app-primary);
+    }
+
+    .prompt-title {
+      font-weight: var(--app-font-weight-medium);
+      margin-bottom: var(--app-spacing-xs);
+    }
+
+    .prompt-description {
+      font-size: var(--app-font-size-xs);
+      color: var(--app-text-secondary);
+    }
+
+    .material-icons {
+      font-family: 'Material Icons';
+      font-weight: normal;
+      font-style: normal;
+      font-size: 24px;
+      line-height: 1;
+      letter-spacing: normal;
+      text-transform: none;
+      display: inline-block;
+      white-space: nowrap;
+      word-wrap: normal;
+      direction: ltr;
+      -webkit-font-feature-settings: 'liga';
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Tab content styling */
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      margin-bottom: var(--app-spacing-md);
+      gap: var(--app-spacing-sm);
+    }
+
+    .search-input {
+      flex: 1;
+      padding: var(--app-spacing-sm);
+      background-color: var(--app-input-background);
+      color: var(--app-text);
+      border: 1px solid var(--app-border-color);
+      border-radius: var(--app-border-radius-sm);
+    }
+
+    .search-input:focus {
+      border-color: var(--app-primary);
+      outline: none;
+      box-shadow: 0 0 0 3px var(--app-primary-light);
+    }
+
+    .category-tag {
+      padding: 4px 8px;
+      border-radius: var(--app-border-radius-sm);
+      background-color: var(--app-primary-light);
+      color: var(--app-primary);
+      font-size: var(--app-font-size-xs);
+      margin-bottom: var(--app-spacing-xs);
+      display: inline-block;
+    }
+  </style>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+  <div class="scope-manager-container">
+    <div class="panel-header">
+      <h1 id="panel-header-title">AppGenius スコープマネージャー</h1>
+      <div style="display: flex; gap: 8px;">
+        <button class="button button-secondary" id="create-scope-button">
+          <span class="material-icons">add</span>
+          開発案件を追加する
+        </button>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <!-- 左サイドパネル：スコープリスト -->
+      <div class="card" style="margin-bottom: 0; padding: var(--app-spacing-sm);">
+        <div class="card-header">
+          <h2>開発スコープ</h2>
+          <button class="button button-secondary" id="directory-structure-button" style="padding: 4px 8px; font-size: 12px;">
+            <span class="material-icons" style="font-size: 16px;">folder</span>
+            ディレクトリ
+          </button>
+        </div>
+        <div id="scope-list" class="scope-list">
+          <!-- スコープアイテム例 -->
+          <div class="scope-item active">
+            <h3>認証システムの改善</h3>
+            <div class="scope-progress">
+              <div class="scope-progress-bar status-in-progress" style="width: 45%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+              <span style="font-size: 0.9rem; color: var(--app-text-secondary);">7ファイル</span>
+              <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
+                45% 進行中
+              </span>
+            </div>
+          </div>
+          <div class="scope-item">
+            <h3>環境変数管理機能</h3>
+            <div class="scope-progress">
+              <div class="scope-progress-bar status-completed" style="width: 100%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+              <span style="font-size: 0.9rem; color: var(--app-text-secondary);">5ファイル</span>
+              <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
+                100% 完了
+              </span>
+            </div>
+          </div>
+          <div class="scope-item">
+            <h3>モックアップ機能の改善</h3>
+            <div class="scope-progress">
+              <div class="scope-progress-bar status-pending" style="width: 20%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+              <span style="font-size: 0.9rem; color: var(--app-text-secondary);">9ファイル</span>
+              <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
+                20% 未着手
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右コンテンツエリア -->
+      <div class="content-area">
+        <!-- スコープ詳細カード -->
+        <div class="card">
+          <div class="card-header">
+            <h2 id="scope-title">認証システムの改善</h2>
+            <button class="button" id="implement-button">
+              <span class="material-icons">play_arrow</span>
+              実装を開始
+            </button>
+          </div>
+          <p id="scope-description">
+            ユーザー認証システムを改善し、セッション期限切れのハンドリングとトークン更新メカニズムを実装します。APIとの連携も強化します。
+          </p>
+          <div style="margin: var(--app-spacing-md) 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--app-spacing-xs);">
+              <span>進捗状況</span>
+              <span id="scope-progress">45%</span>
+            </div>
+            <div style="height: 8px; background-color: var(--app-gray-200); border-radius: 4px; overflow: hidden;">
+              <div id="scope-progress-bar" class="progress-fill status-in-progress" style="width: 45%; height: 100%;"></div>
+            </div>
+          </div>
+          <h3>実装予定ファイル</h3>
+          <div id="implementation-files">
+            <div class="file-item">
+              <input type="checkbox" class="file-checkbox" checked />
+              <span>src/core/auth/AuthenticationService.ts</span>
+            </div>
+            <div class="file-item">
+              <input type="checkbox" class="file-checkbox" checked />
+              <span>src/core/auth/TokenManager.ts</span>
+            </div>
+            <div class="file-item">
+              <input type="checkbox" class="file-checkbox" />
+              <span>src/ui/auth/AuthStatusBar.ts</span>
+            </div>
+            <div class="file-item">
+              <input type="checkbox" class="file-checkbox" />
+              <span>src/services/ClaudeCodeAuthSync.ts</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 開発プロンプトセクション -->
+        <div class="card">
+          <div class="tabs">
+            <div class="tab active" data-tab="prompts">開発プロンプト</div>
+            <div class="tab" data-tab="tools">開発ツール</div>
+          </div>
+
+          <!-- プロンプトタブコンテンツ -->
+          <div id="prompts-tab" class="tab-content active">
+            <div class="filter-bar">
+              <input type="text" class="search-input" placeholder="プロンプトを検索..." />
+              <select class="button button-secondary" style="padding: 6px 12px;">
+                <option value="all">すべてのカテゴリー</option>
+                <option value="implementation">実装</option>
+                <option value="planning">計画</option>
+                <option value="debug">デバッグ</option>
+                <option value="testing">テスト</option>
+                <option value="design">設計</option>
+                <option value="deploy">デプロイ</option>
+              </select>
+            </div>
+            <div class="prompt-grid">
+              <!-- 実装系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">build</span>
+                <div class="category-tag">実装</div>
+                <h3 class="prompt-title">スコープ実装アシスタント</h3>
+                <p class="prompt-description">指定スコープのコード実装を支援します</p>
+              </div>
+              
+              <!-- 計画系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">architecture</span>
+                <div class="category-tag">計画</div>
+                <h3 class="prompt-title">スコープクリエイター</h3>
+                <p class="prompt-description">詳細な実装スコープを設計します</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">assignment_turned_in</span>
+                <div class="category-tag">計画</div>
+                <h3 class="prompt-title">プロジェクト分析</h3>
+                <p class="prompt-description">開発スコープとプランを作成します</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">description</span>
+                <div class="category-tag">計画</div>
+                <h3 class="prompt-title">要件定義作成</h3>
+                <p class="prompt-description">詳細な要件定義書を作成します</p>
+              </div>
+              
+              <!-- デバッグ系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">bug_report</span>
+                <div class="category-tag">デバッグ</div>
+                <h3 class="prompt-title">デバッグ探偵</h3>
+                <p class="prompt-description">エラーを分析し解決策を提案します</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">check_circle</span>
+                <div class="category-tag">検証</div>
+                <h3 class="prompt-title">検証アシスタント</h3>
+                <p class="prompt-description">実装の検証と問題点の発見を行います</p>
+              </div>
+              
+              <!-- 分析・リファクタリング系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">psychology</span>
+                <div class="category-tag">分析</div>
+                <h3 class="prompt-title">コード分析</h3>
+                <p class="prompt-description">既存コードを分析し改善策を提案します</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">auto_fix_high</span>
+                <div class="category-tag">最適化</div>
+                <h3 class="prompt-title">リファクタリングマネージャー</h3>
+                <p class="prompt-description">コードの最適化と可読性向上をサポート</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">speed</span>
+                <div class="category-tag">最適化</div>
+                <h3 class="prompt-title">パフォーマンス最適化</h3>
+                <p class="prompt-description">アプリケーションの高速化と最適化</p>
+              </div>
+              
+              <!-- UI関連 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">web</span>
+                <div class="category-tag">UI</div>
+                <h3 class="prompt-title">モックアップ解析</h3>
+                <p class="prompt-description">UIモックアップから要件を詳細化します</p>
+              </div>
+              
+              <!-- テスト系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">science</span>
+                <div class="category-tag">テスト</div>
+                <h3 class="prompt-title">テスト生成</h3>
+                <p class="prompt-description">ユニットテストと統合テストを作成</p>
+              </div>
+              
+              <!-- 生成系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">code</span>
+                <div class="category-tag">生成</div>
+                <h3 class="prompt-title">コード生成</h3>
+                <p class="prompt-description">要件に基づいて新規コードを生成</p>
+              </div>
+              
+              <!-- 環境系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">settings</span>
+                <div class="category-tag">環境</div>
+                <h3 class="prompt-title">環境変数管理</h3>
+                <p class="prompt-description">環境設定と構成管理を支援</p>
+              </div>
+              
+              <!-- デプロイ系 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">cloud_upload</span>
+                <div class="category-tag">デプロイ</div>
+                <h3 class="prompt-title">デプロイマネージャー</h3>
+                <p class="prompt-description">アプリケーションのデプロイを支援</p>
+              </div>
+              
+              <!-- その他 -->
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">security</span>
+                <div class="category-tag">セキュリティ</div>
+                <h3 class="prompt-title">セキュリティチェック</h3>
+                <p class="prompt-description">脆弱性の検出と修正を支援</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">integration_instructions</span>
+                <div class="category-tag">統合</div>
+                <h3 class="prompt-title">API統合</h3>
+                <p class="prompt-description">外部APIとの連携実装をサポート</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- ツールタブコンテンツ -->
+          <div id="tools-tab" class="tab-content">
+            <div class="prompt-grid">
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">fact_check</span>
+                <h3 class="prompt-title">要件定義エディタ</h3>
+                <p class="prompt-description">要件定義書の編集と管理</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">emoji_objects</span>
+                <h3 class="prompt-title">環境変数アシスタント</h3>
+                <p class="prompt-description">環境変数の設定と管理</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">dashboard</span>
+                <h3 class="prompt-title">モックアップギャラリー</h3>
+                <p class="prompt-description">UIモックアップの表示と管理</p>
+              </div>
+              <div class="prompt-card">
+                <span class="material-icons prompt-icon">integration_instructions</span>
+                <h3 class="prompt-title">APIテスター</h3>
+                <p class="prompt-description">APIエンドポイントのテスト</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ClaudeCode連携エリア -->
+  <div class="toggle-share-btn" id="toggle-share-btn" style="display: flex;">
+    <span class="material-icons">sync</span>
+    <span>ClaudeCode連携</span>
+  </div>
+  
+  <div class="claude-code-share-area" id="claude-code-share">
+    <div class="claude-code-share-header">
+      <h3>ClaudeCode連携</h3>
+      <div>
+        <button class="button button-secondary" id="minimize-share-btn" style="padding: 4px 8px;">
+          <span class="material-icons" style="font-size: 16px;">expand_more</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="share-content">
+      <div class="text-share-zone">
+        <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキスト（エラーメッセージ、コード、メモなど）を入力またはペーストしてください..."></textarea>
+        <div class="shared-history">
+          <div class="history-item">
+            <span>認証サービスのエラーログ (2分前)</span>
+            <div>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
+            </div>
+          </div>
+          <div class="history-item">
+            <span>API接続テスト結果 (15分前)</span>
+            <div>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="image-share-zone" id="drop-zone">
+        <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
+        <p>画像をドラッグ＆ドロップ<br>または</p>
+        <button class="button button-secondary" style="margin-top: 10px;">ファイルを選択</button>
+        <!-- 画像がアップロードされたら表示される -->
+        <!-- <img src="path/to/image.jpg" class="image-preview" /> -->
+      </div>
+    </div>
+    
+    <div class="share-actions">
+      <button class="button button-secondary">クリア</button>
+      <button class="button" id="share-to-claude">一時ファイルに保存</button>
+    </div>
+    
+    <!-- 共有成功時に表示されるダイアログ -->
+    <div id="share-result-dialog" style="display: none; margin-top: 10px; padding: 10px; background-color: var(--app-dark-surface); border-radius: var(--app-border-radius); border: 1px solid var(--app-primary);">
+      <h4 style="margin-top: 0;">ファイル保存完了</h4>
+      <p>以下のコマンドをClaudeCodeに貼り付けてファイルを読み込んでください：</p>
+      <div style="background-color: #252525; padding: 8px; border-radius: 4px; position: relative;">
+        <code id="claude-command" style="font-family: monospace; color: #f0f0f0;">view /tmp/claude-share/shared_20250404_123045.txt</code>
+        <button id="copy-command" style="position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #adadad; cursor: pointer;">
+          <span class="material-icons" style="font-size: 16px;">content_copy</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // ClaudeCode連携エリアの制御
+      const toggleShareBtn = document.getElementById('toggle-share-btn');
+      const shareArea = document.getElementById('claude-code-share');
+      const minimizeBtn = document.getElementById('minimize-share-btn');
+      
+      toggleShareBtn.addEventListener('click', () => {
+        shareArea.classList.remove('collapsed');
+        toggleShareBtn.style.display = 'none';
+      });
+      
+      minimizeBtn.addEventListener('click', () => {
+        shareArea.classList.add('collapsed');
+        toggleShareBtn.style.display = 'flex';
+      });
+      
+      // 初期状態は非表示
+      shareArea.classList.add('collapsed');
+      
+      // ドラッグ&ドロップ機能
+      const dropZone = document.getElementById('drop-zone');
+      
+      // ドラッグ&ドロップイベントの処理
+      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+      });
+      
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+      });
+      
+      ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+      });
+      
+      function highlight() {
+        dropZone.style.borderColor = 'var(--app-primary)';
+        dropZone.style.backgroundColor = 'rgba(74, 105, 189, 0.1)';
+      }
+      
+      function unhighlight() {
+        dropZone.style.borderColor = 'var(--app-border-color)';
+        dropZone.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+      }
+      
+      // 画像ドロップ処理
+      dropZone.addEventListener('drop', handleDrop, false);
+      
+      // 画像保存用の情報
+      let uploadedImageInfo = null;
+      
+      function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length) {
+          // ファイルを処理
+          const file = files[0];
+          
+          if (file.type.match('image.*')) {
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+              // 画像のデータを保存
+              const now = new Date();
+              const dateStr = now.getFullYear() +
+                        ('0' + (now.getMonth() + 1)).slice(-2) +
+                        ('0' + now.getDate()).slice(-2) + '_' +
+                        ('0' + now.getHours()).slice(-2) +
+                        ('0' + now.getMinutes()).slice(-2) +
+                        ('0' + now.getSeconds()).slice(-2);
+              const randomStr = Math.random().toString(36).substring(2, 8);
+              const filename = `image_${dateStr}_${randomStr}.png`;
+              
+              // 画像情報を保存
+              uploadedImageInfo = {
+                filename: filename,
+                data: e.target.result,
+                originalName: file.name
+              };
+              
+              // 画像プレビューを表示
+              dropZone.innerHTML = `
+                <img src="${e.target.result}" class="image-preview" />
+                <p style="margin-top: 10px;">画像を共有準備完了</p>
+                <p style="font-size: 12px; color: var(--app-text-secondary);">${file.name}</p>
+              `;
+            };
+            
+            reader.readAsDataURL(file);
+          }
+        }
+      }
+      
+      // 一時ファイルに保存ボタンのイベント処理
+      const shareToClaudeBtn = document.getElementById('share-to-claude');
+      const shareResultDialog = document.getElementById('share-result-dialog');
+      const claudeCommand = document.getElementById('claude-command');
+      const copyCommandBtn = document.getElementById('copy-command');
+      const shareTextarea = document.querySelector('.share-textarea');
+      
+      shareToClaudeBtn.addEventListener('click', () => {
+        // 実際には一時ファイルに保存する処理が入る
+        // ここではモックアップのためダイアログ表示のみ
+        
+        // テキストと画像どちらを保存するか判断
+        let command = '';
+        
+        if (uploadedImageInfo) {
+          // 画像が選択されている場合
+          // 画像保存先のパスを定義（実際の実装ではVSCodeのワークスペースパスが考慮される）
+          const imagePath = `/tmp/claude-share/images/${uploadedImageInfo.filename}`;
+          command = `view ${imagePath}`;
+          
+          // 履歴に画像情報を追加
+          const historyList = document.querySelector('.shared-history');
+          const newItem = document.createElement('div');
+          newItem.className = 'history-item';
+          
+          // 現在時刻を取得
+          const now = new Date();
+          const timeStr = ('0' + now.getHours()).slice(-2) + ':' + 
+                         ('0' + now.getMinutes()).slice(-2);
+          
+          newItem.innerHTML = `
+            <span>画像: ${uploadedImageInfo.originalName} (${timeStr})</span>
+            <div>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
+            </div>
+          `;
+          
+          // 履歴リストの先頭に追加
+          historyList.insertBefore(newItem, historyList.firstChild);
+          
+        } else if (shareTextarea.value.trim() !== '') {
+          // テキストが入力されている場合
+          // 一時ファイル名の生成（現在日時＋ランダム文字列）
+          const now = new Date();
+          const dateStr = now.getFullYear() +
+                     ('0' + (now.getMonth() + 1)).slice(-2) +
+                     ('0' + now.getDate()).slice(-2) + '_' +
+                     ('0' + now.getHours()).slice(-2) +
+                     ('0' + now.getMinutes()).slice(-2) +
+                     ('0' + now.getSeconds()).slice(-2);
+          const randomStr = Math.random().toString(36).substring(2, 8);
+          const filename = `shared_${dateStr}_${randomStr}.txt`;
+          
+          // テキストファイルへのパス
+          command = `view /tmp/claude-share/${filename}`;
+          
+          // テキストエリアの内容に基づいて履歴に追加
+          const historyList = document.querySelector('.shared-history');
+          const newItem = document.createElement('div');
+          newItem.className = 'history-item';
+          
+          // テキストの最初の30文字を取得してプレビューとして表示
+          const textPreview = shareTextarea.value.trim().substring(0, 30) + 
+                             (shareTextarea.value.length > 30 ? '...' : '');
+          
+          // 現在時刻を取得
+          const timeStr = ('0' + now.getHours()).slice(-2) + ':' + 
+                         ('0' + now.getMinutes()).slice(-2);
+          
+          newItem.innerHTML = `
+            <span>${textPreview} (${timeStr})</span>
+            <div>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
+              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
+            </div>
+          `;
+          
+          // 履歴リストの先頭に追加
+          historyList.insertBefore(newItem, historyList.firstChild);
+        } else {
+          // テキストも画像も入力されていない場合
+          alert('テキストを入力するか、画像をドロップしてください');
+          return;
+        }
+        
+        // コマンドを表示
+        claudeCommand.textContent = command;
+        
+        // 結果ダイアログを表示
+        shareResultDialog.style.display = 'block';
+        
+        // 共有後にアップロード情報をリセット
+        if (uploadedImageInfo) {
+          uploadedImageInfo = null;
+          // 画像ドロップエリアを元に戻す
+          dropZone.innerHTML = `
+            <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
+            <p>画像をドラッグ＆ドロップ<br>または</p>
+            <button class="button button-secondary" style="margin-top: 10px;">ファイルを選択</button>
+          `;
+        }
+        
+        // テキストエリアをクリア
+        shareTextarea.value = '';
+      });
+      
+      // コピーボタンのイベント処理
+      copyCommandBtn.addEventListener('click', () => {
+        // コマンドをクリップボードにコピー
+        navigator.clipboard.writeText(claudeCommand.textContent)
+          .then(() => {
+            // コピー成功時の視覚的フィードバック
+            copyCommandBtn.innerHTML = '<span class="material-icons" style="font-size: 16px; color: var(--app-secondary);">check</span>';
+            setTimeout(() => {
+              copyCommandBtn.innerHTML = '<span class="material-icons" style="font-size: 16px;">content_copy</span>';
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('コピーに失敗しました', err);
+          });
+      });
+      
+      // タブ切り替え機能
+      const tabs = document.querySelectorAll('.tab');
+      const tabContents = document.querySelectorAll('.tab-content');
+      
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          // アクティブタブのクラスをリセット
+          tabs.forEach(t => t.classList.remove('active'));
+          tabContents.forEach(content => content.classList.remove('active'));
+          
+          // クリックされたタブをアクティブに
+          tab.classList.add('active');
+          
+          // 対応するコンテンツを表示
+          const tabId = tab.getAttribute('data-tab');
+          document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+      });
+      
+      // プロンプトカードクリックイベント
+      const promptCards = document.querySelectorAll('.prompt-card');
+      promptCards.forEach(card => {
+        card.addEventListener('click', () => {
+          const promptTitle = card.querySelector('.prompt-title').textContent;
+          console.log(`プロンプトカードがクリックされました: ${promptTitle}`);
+          // 実際の実装ではVSCodeとの通信を行う処理を追加
+        });
+      });
+    });
+  </script>
+</body>
+</html>

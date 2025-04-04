@@ -1,0 +1,466 @@
+システムアーキテクチャー：
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700ab2f8887a5c4faec
+
+プロジェクト分析アシスタント
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6
+
+要件定義アドバイザー
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39
+
+スコープマネージャー
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704
+環境変数設定アシスタント
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589
+
+テスター
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed
+モックアップアナライザー&ディレクター
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb
+
+スコープインプリメンター
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a
+
+デバック探偵シャーロックホームズ
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09
+
+精査管
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/bbc6e76a5f448e02bea16918fa1dc9ad
+
+
+
+
+詳細な実装計画ですが、
+
+・まず、実装モードと開発準備モードみたいなものがあったと思いましたがそれは完全に廃止して準備モードのコードは全部消す。
+・上にある10のプロンプトにワンクリックでClaudeCodeを立ち上げてそのファイルをWEBから一時ファイルを作成して読み込む方法にする。その際に元々のものは色々その他のファイルと組み合わせたりして実装に統一性を出すことが難しかったが今回に関してはシンプルに全部同じに変わるので、それに関してシンプルな構造にする。
+・開発ツールでは、要件定義エディター、環境開発アシスタント、APIテスターがあるがこれはレイアウトは新しいものに変えて動作は今のまま、APIテスターはデバック探偵に変更
+・開発スコープならびにタスク進捗表、あとモックアップでは消えているが、フォルダ情報とそうファイル数などがあるものは引き継ぐ
+・VSCodeのテーマに調和する近代的なデザイン▶︎これVSCODE依存（つまりVSCODEのライトモードとダークモードによって表現が変わる）レイアウト実装要素は完全排除（無理両方に合わせるの）
+・ClaudeCode連携機能は後で追加するようにする。まず上記を完了させる。
+
+
+
+
+⏺ Read(media/scopeManager.js)…
+  ⎿  Read 200 lines (ctrl+r to expand)
+
+⏺ Task(プロジェクトの移行計画を立てるために、既存のスコープマネージャーのコードと新しいモックアップを比較分析…
+      してください。…)
+  ⎿  Done (10 tool uses · 66.9k tokens · 1m 7.6s)
+
+⏺ スコープマネージャーUIUXの移行実装計画は以下の通りです：
+
+  1. 変更ファイル
+    - ScopeManagerPanel.ts
+    - scopeManager.css
+    - scopeManager.js
+    - 新規: ClaudeCodeShareService.ts
+    - 連携: promptLibraryApiClient.ts
+  2. 主な実装ステップ：
+    - フェーズ1: タブ機能と基本UIの更新
+    - フェーズ2: プロンプトライブラリ統合
+    - フェーズ3: ClaudeCode連携機能実装
+    - フェーズ4: 最適化とテスト
+  3. 新機能の実装：
+    - ClaudeCode連携エリア（テキスト/画像共有）
+    - プロンプトカードグリッド表示
+    - タブ切り替え機能
+    - 検索/フィルタリング
+
+  実装時の課題には、ファイル権限、WebViewの状態管理、拡張機能間連携があります。段階的アプローチで既存機能を維
+  持しながら新機能を導入することで、開発ワークフローを効率化できます。
+
+> /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/mockups/最新.txt　これ読み込んで実装計画をもっと明
+  確にして
+
+⏺ Read(mockups/最新.txt)…
+  ⎿  Read 41 lines (ctrl+r to expand)
+
+⏺ Search(pattern: "isPreparationMode", path: "src/ui/scopeManager")…
+  ⎿  Found 1 file (ctrl+r to expand)
+
+⏺ Read(src/ui/scopeManager/ScopeManagerPanel.ts)…
+  ⎿  Read 200 lines (ctrl+r to expand)
+
+⏺ Search(pattern: "**/services/ClaudeCode*.ts")…
+  ⎿  Found 3 files (ctrl+r to expand)
+
+⏺ Read(src/services/ClaudeCodeLauncherService.ts)…
+  ⎿  Read 148 lines (ctrl+r to expand)
+
+⏺ Search(pattern: "**/api/promptLibrary*.ts")…
+  ⎿  Found 0 files
+
+⏺ Search(pattern: "**/promptLibrary*.ts")…
+  ⎿  Found 2 files (ctrl+r to expand)
+
+⏺ Read(src/commands/promptLibraryCommands.ts)…
+  ⎿  Read 46 lines (ctrl+r to expand)
+
+⏺ Read(src/ui/promptLibrary/PromptLibraryPanel.ts)…
+  ⎿  Read 200 lines (ctrl+r to expand)
+
+⏺ スコープマネージャーUI改善の詳細実装計画：
+
+  1. 基本方針と優先事項
+
+  1. 準備モード/実装モードの廃止
+    - 現在のコードからisPreparationMode関連の実装を完全に削除
+    - 単一モードのシンプルな構造に統一
+  2. プロンプト一覧の統合
+    - 指定された10個のプロンプトURLを一覧表示
+    - ワンクリックでClaudeCodeを起動して一時ファイルを読み込む方式を採用
+  3. デザイン更新
+    - VSCodeのテーマに合わせた近代的なデザインを採用（ライト/ダークモード対応を廃止）
+    - 常にダークモードで統一
+  4. ClaudeCode連携は後回し
+    - 下部の画像/テキスト共有エリアの実装は後で追加
+
+  2. 変更必要ファイル
+
+  1. TypeScriptコード
+    - /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+    - 準備モード関連のコードを削除、プロンプト連携機能を追加
+  2. フロントエンドコード
+    - /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/media/scopeManager.css
+    - /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/media/scopeManager.js
+  3. 新規ファイル
+    - 後で実装: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/services/PromptServiceClient.ts
+
+  3. 具体的な実装ステップ
+
+  フェーズ1: 既存機能のクリーンアップ
+
+  1. ScopeManagerPanel.tsから準備モード関連のコードを完全削除
+  2. 既存の進捗表示やファイル数表示機能は維持
+
+  フェーズ2: UI基本構造の更新
+
+  1. HTMLテンプレートを新モックアップに合わせて更新
+  2. CSSファイルを更新し、常にダークモード固定に変更
+  3. 二列レイアウト（左：スコープリスト、右：詳細と実装ツール）に変更
+
+  フェーズ3: プロンプト連携機能実装
+
+  1. 指定された10個のプロンプトを専用APIで取得・表示する機能を実装
+  2. プロンプトカードをクリックするとClaudeCodeを起動する機能を実装
+  3. タブ切り替え（プロンプト/ツール）実装
+
+  フェーズ4: 開発ツール統合
+
+  1. 要件定義エディタ、環境変数アシスタント、デバッグ探偵へのリンク機能
+  2. 既存機能との連携維持（進捗管理など）
+
+  4. 技術的詳細
+
+  1. プロンプト取得・表示機能
+  private async _loadPrompts(): Promise<void> {
+    const promptUrls = [
+      "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700
+  ab2f8887a5c4faec",
+      "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8c09f971e4a3d020
+  497eec099a53e0a6",
+      // 他8つのURLも同様に追加
+    ];
+
+    const prompts = await Promise.all(
+      promptUrls.map(url => this._fetchPromptFromURL(url))
+    );
+
+    this._panel.webview.postMessage({
+      command: 'updatePrompts',
+      prompts
+    });
+  }
+
+  2. ClaudeCode起動機能
+  private async _handleLaunchPromptFromURL(promptUrl: string): Promise<void> {
+    try {
+      // 一時ファイル作成
+      const tempFile = await this._createTempFileFromURL(promptUrl);
+
+      // ClaudeCode起動
+      const launcher = ClaudeCodeLauncherService.getInstance();
+      await launcher.launchClaudeCodeWithPrompt(this._projectPath, tempFile);
+    } catch (error) {
+      Logger.error('プロンプト起動中にエラーが発生しました', error as Error);
+    }
+  }
+
+  5. 実装上の注意点
+
+  1. APIセキュリティ
+    - プロンプトURLのリクエストには認証情報が必要になる可能性がある
+  2. パフォーマンス考慮
+    - 10個のURLを同時に取得すると遅延が発生する可能性あり
+    - バッチ処理または非同期読み込みの検討
+  3. テーマ統一
+    - テーマ切り替え機能を削除し、常にダークモードに固定
+  4. スコープ管理機能の維持
+    - 現在のスコープ管理機能（ファイル数表示、進捗管理など）は維持する
+
+  この実装計画に従うことで、モダンなUIと強化された機能を備えたスコープマネージャーを段階的に構築できます。ま
+  ずはUI基本構造とプロンプト連携を優先し、ClaudeCode連携エリアは後で追加実装します。
+
+
+
+ はい、申し訳ありません。説明が不明確でした。
+
+  1. テーマの扱い：
+    - VSCodeテーマとの「調和」と「ダークモード固定」は確かに矛盾しています
+    - 正しくは「テーマ切り替え機能を削除し、VSCodeのネイティブテーマに自動追従する単一レイアウト」です
+    - VSCodeのテーマAPIを使って自動的に適切なカラースキームを適用します
+  2. モード削除：
+    - 準備モード/実装モードの分岐を完全に削除し、単一モードに統一します
+    - 常に「開発モード」として動作し、条件分岐やモード切替コードは全て除去します
+  3. 単一レイアウト：
+    - レイアウトは1種類のみで、VSCodeのテーマに合わせて色だけが自動調整されます
+    - 明示的なテーマ切替ボタンなどは提供せず、VSCodeの設定に従います
+
+  この理解で正しいでしょうか？
+
+> VSCODEの色使いがライトモードとかダークモードとか変わっても色使い変わらないでもらいたいんですけど大丈夫？
+
+⏺ はい、VSCodeのテーマが変わっても色は変わらない固定デザインで実装します。
+
+  具体的には:
+  - 完全に独自のカラースキームを使用
+  - VSCodeのテーマAPI連携を無効化
+  - CSSで固定カラー値を使用（変数ではなく直接指定）
+  - ダークテーマを基調とした配色に統一
+
+  これでVSCodeの設定に関わらず、常に同じ見た目を維持できます。
+
+> それでお願いします。余計なレイアウト情報は削除して実装を軽くしてください。　こちらで進められますか
+
+⏺ 了解しました。余計なレイアウト情報を削除し、固定カラースキームで実装を軽量化します。
+
+  具体的な実装計画は次の通りです：
+
+  1. ScopeManagerPanel.tsから準備モード関連コードを削除
+  2. テーマ切替機能と関連コードを完全に除去
+  3. 固定カラーの単一デザインに統一
+  4. 10個のプロンプト連携を実装
+  5. 最低限必要な機能だけを残し軽量化
+
+  対応を進めていきます。作業を開始してよろしいですか？
+
+
+
+必要な機能
+・CURRENT_STATUSとの連携の機能
+・メインエリアの上のファイルと進捗率などが同期している機能
+・ダッシュボードからクリックされたときにファイルの場所を引き継ぐ機能
+・左側のスコープカードでクリックするとメインエリアにそのスコープの詳細が出る機能
+・要件定義エディタ、モックアップギャラリー、環境変数アシスタント、デバック探偵ページへのリンク機能
+・テーマ関連
+  - 固定ダークテーマスタイルを適用
+ ・プロンプト連携機能
+    - 10個のAPIプロンプトURLの実装
+    - プロンプトカードのUI作成
+    - ClaudeCodeとの連携処理追加
+    - 指定された10個のプロンプトURLを一覧表示
+    - ワンクリックでClaudeCodeを起動して一時ファイルを読み込む方式を採用
+
+
+
+
+
+
+ 完了したこと
+
+  1. スコープマネージャーのリファクタリング計画を
+  分析
+  2. PromptServiceClient.tsを新規作成 -
+  プロンプトURLからデータを取得・保存
+  3. scopeManager.cssを更新 -
+  固定ダークテーマと新しいレイアウト対応
+  4. scopeManager.jsを更新 - タブ機能、プロンプト
+  カード、ClaudeCode連携機能を追加
+
+  現在の問題
+
+  - ScopeManagerPanel.ts修正時にエラーが発生
+  -
+  コンストラクタの問題や一部メソッドの不適合あり
+
+  今後必要な作業
+
+  1. ScopeManagerPanel.tsの修正
+    -
+  正しいパブリックメソッド名(createOrShow)の実装
+    - 重複プロパティの解決
+    - FileOperationManagerの正しいAPI使用
+    - 正しいイベントタイプの使用
+  2. 動作確認とテスト
+    - コンパイルエラーの解消
+    - 実際の動作テスト
+スコープ実装アシスタント
+スコープクリエイター
+システムアーキテクチャー
+プロジェクト分析
+要件定義作成
+デバック探偵
+検証アシスタント(精査管)
+モックアップ作成
+テスト生成
+環境変数管理
+
+
+
+
+ails' to show it.
+
+webpack 5.98.0 compiled with 11 errors in 1678 ms
+asset extension.js 1.89 MiB [emitted] (name: main) 1 related asset
+modules by path ./node_modules/ 459 KiB 119 modules
+modules by path ./src/ 1.43 MiB
+  modules by path ./src/ui/ 707 KiB 19 modules
+  modules by path ./src/core/ 274 KiB 14 modules
+  modules by path ./src/services/ 264 KiB 13 modules
+  modules by path ./src/utils/*.ts 131 KiB 9 modules
+  modules by path ./src/commands/*.ts 29.8 KiB 3 modules
+  modules by path ./src/api/*.ts 27.6 KiB 2 modules
+  ./src/extension.ts 29 KiB [built] [code generated]
+  ./src/types/index.ts 471 bytes [built] [code generated]
++ 16 modules
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 310:20-38
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(310,21)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1591:29-47
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1591,30)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1596:34-52
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1596,35)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1876:16-34
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1876,17)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1905:30-58
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1905,31)
+      TS2339: Property '_getPreparationStepsTemplate' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1956:11-29
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1956,12)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1975:15-33
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1975,16)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 1992:28-56
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(1992,29)
+      TS2339: Property '_getPreparationStepsTemplate' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts
+./src/ui/scopeManager/ScopeManagerPanel.ts 2006:11-29
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/scopeManager/ScopeManagerPanel.ts(2006,12)
+      TS2339: Property '_isPreparationMode' does not exist on type 'ScopeManagerPanel'.
+ @ ./src/extension.ts 61:28-74
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts
+./src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts 2179:16-42
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts(2179,17)
+      TS2393: Duplicate function implementation.
+ @ ./src/extension.ts 63:45-125
+
+ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts
+./src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts 2721:16-42
+[tsl] ERROR in /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/src/ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel.ts(2721,17)
+      TS2393: Duplicate function implementation.
+ @ ./src/extension.ts 63:45-125
+
+11 errors have detailed information that is not shown.
+Use 'stats.errorDetails: true' resp. '--stats-error-details' to show it.
+
+webpack 5.98.0 compiled with 11 errors in 1544 ms
+
+
+
+バウンス処理を実行します
+[2025-04-04T05:06:17.707Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました (Dashboard)
+[2025-04-04T05:06:17.709Z] [DEBUG] Event emitted: current-status-updated from DashboardPanel for project project_1742164692026
+[2025-04-04T05:06:17.709Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始
+[2025-04-04T05:06:17.712Z] [INFO] アクティブプロジェクトのCURRENT_STATUSが更新されたため、ウェブビューを強制更新します
+[2025-04-04T05:06:17.714Z] [INFO] CURRENT_STATUS更新に伴うダッシュボード更新完了
+[2025-04-04T05:06:17.717Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)
+[2025-04-04T05:06:17.717Z] [DEBUG] Event emitted: current-status-updated from scopeManager for project AppGenius
+[2025-04-04T05:06:17.717Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始
+[2025-04-04T05:06:17.718Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+[2025-04-04T05:06:17.718Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+[2025-04-04T05:06:17.720Z] [INFO] CURRENT_STATUS更新に伴うダッシュボード更新完了
+[2025-04-04T05:06:17.767Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)
+[2025-04-04T05:06:17.767Z] [DEBUG] Event emitted: current-status-updated from scopeManager for project AppGenius
+[2025-04-04T05:06:17.767Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始
+[2025-04-04T05:06:17.768Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+[2025-04-04T05:06:17.768Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+[2025-04-04T05:06:17.769Z] [INFO] CURRENT_STATUS更新に伴うダッシュボード更新完了
+[2025-04-04T05:06:17.812Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました (Dashboard)
+[2025-04-04T05:06:17.818Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)
+[2025-04-04T05:06:17.818Z] [DEBUG] Event emitted: current-status-updated from scopeManager for project AppGenius
+[2025-04-04T05:06:17.818Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始
+[2025-04-04T05:06:17.818Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+[2025-04-04T05:06:17.819Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+[2025-04-04T05:06:17.820Z] [INFO] CURRENT_STATUS更新に伴うダッシュボード更新完了
+[2025-04-04T05:06:17.869Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)
+[2025-04-04T05:06:17.869Z] [DEBUG] Event emitted: current-status-updated from scopeManager for project AppGenius
+[2025-04-04T05:06:17.869Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始
+[2025-04-04T05:06:17.870Z] [INFO] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md (サイズ: 5669 バイト)
+
+
+
+
+
+[2025-04-04T05:08:00.537Z] [INFO] CURRENT_STATUS.mdファイル変更のデバウンス処理を実行します
+[2025-04-04T05:08:00.544Z] [DEBUG] Event emitted: current-status-updated from DashboardPanel for project project_1742164692026
+[2025-04-04T05:08:00.544Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始
+[2025-04-04T05:08:00.546Z] [INFO] アクティブプロジェクトのCURRENT_STATUSが更新されたため、ウェブビューを強制更新します
+[2025-04-04T05:08:00.548Z] [INFO] CURRENT_STATUS更新に伴うダッシュボード更新完了
+[2025-04-04T05:08:02.995Z] [INFO] CoreLauncherService initialized
+[2025-04-04T05:08:02.995Z] [INFO] ClaudeCodeLauncherService (リファクタリング済み) initialized
+[2025-04-04T05:08:02.996Z] [ERROR] 認証サービスの初期化に失敗しました
+[2025-04-04T05:08:02.996Z] [ERROR] Error details: ClaudeCodeAuthSyncの初期化時にはExtensionContextが必要です
+[2025-04-04T05:08:02.996Z] [ERROR] Stack trace: Error: ClaudeCodeAuthSyncの初期化時にはExtensionContextが必要です
+	at ClaudeCodeAuthSync.getInstance (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:15395:23)
+	at /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:15114:148
+	at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+	at async AuthSyncManager.initAuthServices (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:15114:33)
+	at async SpecializedLaunchHandlers.launchWithPrompt (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:23632:13)
+	at async CoreLauncherService.launchClaudeCodeWithPrompt (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:14428:28)
+	at async ScopeManagerPanel._handleLaunchPromptFromURL (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33609:29)
+	at async Th.value (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33533:25)
+[2025-04-04T05:08:13.671Z] [ERROR] プロンプトを使用したClaudeCodeの起動に失敗しました
+[2025-04-04T05:08:13.671Z] [ERROR] Error details: APIキーが利用できないためプロンプトを実行できません: 認証サービスが初期化されていません。再ログインを試みてください。
+[2025-04-04T05:08:13.671Z] [ERROR] Stack trace: Error: APIキーが利用できないためプロンプトを実行できません: 認証サービスが初期化されていません。再ログインを試みてください。
+	at SpecializedLaunchHandlers.launchWithPrompt (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:23640:23)
+	at async CoreLauncherService.launchClaudeCodeWithPrompt (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:14428:28)
+	at async ScopeManagerPanel._handleLaunchPromptFromURL (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33609:29)
+	at async Th.value (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33533:25)
+[2025-04-04T05:08:13.672Z] [ERROR] プロンプトを使用したClaudeCodeの起動に失敗しました
+[2025-04-04T05:08:13.672Z] [ERROR] Error details: APIキーが利用できないためプロンプトを実行できません: 認証サービスが初期化されていません。再ログインを試みてください。
+[2025-04-04T05:08:13.672Z] [ERROR] Stack trace: Error: APIキーが利用できないためプロンプトを実行できません: 認証サービスが初期化されていません。再ログインを試みてください。
+	at CoreLauncherService.launchClaudeCodeWithPrompt (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:14436:73)
+	at async ScopeManagerPanel._handleLaunchPromptFromURL (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33609:29)
+	at async Th.value (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33533:25)
+

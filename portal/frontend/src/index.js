@@ -6,14 +6,15 @@ import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 // axios のデフォルト設定
-// 開発環境ではプロキシを使用してリクエストを転送するため、明示的なbaseURLは設定しない
-// 本番環境では環境変数から取得したURLを使用
-if (process.env.NODE_ENV === 'production') {
-  axios.defaults.baseURL = process.env.REACT_APP_API_URL || '/api';
-} else {
-  // 開発環境では相対パスを使用（React開発サーバーのプロキシ機能が/apiリクエストを転送）
-  axios.defaults.baseURL = '/api';
-}
+// window.REACT_APP_API_URLが最優先（ランタイム設定）
+// 次にprocess.env.REACT_APP_API_URL（ビルド時環境変数）
+// 最後にフォールバックとして相対パス
+const apiBaseURL = window.REACT_APP_API_URL || process.env.REACT_APP_API_URL || '/api';
+console.log('API Base URL:', apiBaseURL);
+axios.defaults.baseURL = apiBaseURL;
+
+// CORS設定
+axios.defaults.withCredentials = true;
 
 // 認証システムの改善
 // - 認証コンテキスト (AuthContext) を使用して一元管理

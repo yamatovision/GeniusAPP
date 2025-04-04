@@ -5,12 +5,16 @@ import axios from 'axios';
  * 認証関連のすべてのAPI操作を集約したクライアント
  */
 
-// API基本URL - index.jsでbaseURL='/api'が設定済みなので、先頭の'/api'は含めない
-const API_BASE_URL = '/simple';
+// 新しいバックエンドURL（テスト環境）
+const TEST_API_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
+
+// API基本URL - フォールバックパスは/simple
+const API_BASE_URL = TEST_API_URL + '/simple';
 
 // APIクライアントインスタンス
 export const authApi = axios.create({
-  baseURL: API_BASE_URL
+  baseURL: API_BASE_URL,
+  withCredentials: true
 });
 
 // リクエストインターセプター - 認証トークンを自動的に付加
