@@ -1,253 +1,102 @@
-# ClaudeCode共有機能 要件定義書
+# ClaudeCode共有機能 実装状況報告
 
-## 1. 機能概要
+## 1. 実装完了部分
 
-### 目的
-AppGeniusのスコープマネージャーとClaudeCode間でテキストデータや画像を効率的に共有するための機能を提供します。ユーザーがエラーログや長文テキスト、スクリーンショットなどをClaudeCodeと容易に共有できるようにすることで、開発ワークフローを円滑化します。
+### データモデル
+- `src/types/SharingTypes.ts` - 共有ファイル、履歴、設定などの型定義を実装
+  - SharedFile インターフェース
+  - SharingHistory インターフェース
+  - SharingSettings インターフェース
+  - イベント関連の型
 
-### 主要機能
-- テキストデータの共有（エラーログ、コード、開発メモなど）
-- 画像の共有（スクリーンショット、UI参照画像など）
-- 共有履歴の管理
-- コピー可能なコマンド生成
+### ファイル管理
+- `src/utils/TempFileManager.ts` - 一時ファイル管理機能を実装
+  - 一時ディレクトリの作成と管理
+  - テキスト・画像ファイルの保存
+  - 期限切れファイルの自動クリーンアップ
+  - ファイル操作ユーティリティ
 
-## 2. ユーザーインターフェース
+### 共有サービス
+- `src/services/ClaudeCodeSharingService.ts` - 共有サービスを実装
+  - テキスト・画像の共有機能
+  - 共有履歴の管理
+  - コマンド生成
+  - イベント処理
 
-### 基本UI構成
-1. **共有トグルボタン**
-   - スクリーン下部に常時表示
-   - クリックで共有パネルを展開/折りたたみ
+### フロントエンド
+- `media/components/sharingPanel.js` - クライアント側の共有パネル実装
+  - ドラッグ&ドロップによる画像アップロード
+  - テキスト入力処理
+  - 履歴表示と操作
+  - コマンドコピー機能
 
-2. **共有パネル**
-   - テキスト入力エリア
-   - 画像ドロップゾーン
-   - 共有履歴リスト
-   - アクションボタン（保存、クリア）
+- `media/scopeManager.css` - 共有パネルのスタイル定義を追加・更新
+  - パネルのレイアウト
+  - トグルボタンのスタイル
+  - 履歴表示のデザイン
+  - 共有結果表示のスタイル
 
-3. **結果表示エリア**
-   - 共有成功時のフィードバック
-   - コピー可能なコマンド表示
-   - クリップボードコピーボタン
+## 2. 統合状況
 
-### インタラクション設計
-- ドラッグ＆ドロップによる画像アップロード
-- ワンクリックでの共有実行
-- コマンドのコピー機能
-- 共有履歴からの再利用機能
+ファイルシステムを介した共有の基本機能部分は実装完了し、必要なコンポーネントは全て作成されました。しかし、これらのコンポーネントをスコープマネージャーパネルに統合するための最後のステップが残っています。
 
-## 3. データモデル設計
+### 残存課題
 
-### 共有ファイルのデータモデル
-```typescript
-interface SharedFile {
-  id: string;               // 一意のID
-  fileName: string;         // 生成されたファイル名
-  originalName?: string;    // 元のファイル名（ユーザーが設定可能）
-  title?: string;           // タイトル（ユーザーが設定可能）
-  type: 'text' | 'image';   // ファイルタイプ
-  size: number;             // ファイルサイズ（バイト）
-  format: string;           // ファイル形式（テキストならプレーンテキスト、画像ならPNG/JPG等）
-  createdAt: Date;          // 作成日時 
-  expiresAt: Date;          // 有効期限
-  path: string;             // ファイルパス
-  accessCount: number;      // アクセス回数
-  isExpired: boolean;       // 有効期限切れフラグ
-  metadata: {               // 追加メタデータ（拡張性のため）
-    [key: string]: any;
-  }
-}
-```
+1. **ScopeManagerPanel.tsへの統合**
+   - メッセージハンドラーの追加
+   - ClaudeCodeSharingServiceのインスタンス化と初期化
+   - WebViewとの連携強化
 
-### 共有履歴のデータモデル
-```typescript
-interface SharingHistory {
-  items: SharedFile[];      // 共有ファイルのリスト
-  lastUpdated: Date;        // 最終更新日時
-}
-```
+2. **テスト**
+   - 一時ファイル生成と削除のテスト
+   - 共有履歴の永続化テスト
+   - クロスプラットフォーム対応の検証
 
-### ファイル管理サービス
-```typescript
-interface FileManagementService {
-  // ファイル保存
-  saveFile(content: string | Buffer, options: {
-    type: 'text' | 'image';
-    title?: string;
-    format?: string;
-    expirationHours?: number; // デフォルト24時間
-  }): Promise<SharedFile>;
-  
-  // ファイル取得
-  getFile(id: string): Promise<SharedFile | null>;
-  
-  // 履歴の取得
-  getHistory(limit?: number): Promise<SharedFile[]>;
-  
-  // 期限切れファイルのクリーンアップ
-  cleanupExpiredFiles(): Promise<void>;
-  
-  // ファイルの削除
-  deleteFile(id: string): Promise<boolean>;
-}
-```
+3. **拡張機能**
+   - ClaudeCodeセッションへの直接送信機能
+   - 複数ファイルの一括共有
+   - ClaudeCodeからの応答連携
 
-### 設定モデル
-```typescript
-interface SharingSettings {
-  // 基本設定
-  defaultExpirationHours: number;  // デフォルト有効期限（時間）
-  maxHistoryItems: number;         // 履歴に保存する最大アイテム数
-  
-  // ファイル制限
-  maxTextSize: number;             // テキスト最大サイズ（文字数）
-  maxImageSize: number;            // 画像最大サイズ（バイト）
-  allowedImageFormats: string[];   // 許可される画像形式
-  
-  // 詳細設定
-  preserveHistoryBetweenSessions: boolean;  // セッション間で履歴を保持するか
-  baseStoragePath: string;                  // 保存先ベースパス
-}
-```
+## 3. 機能概要と動線
 
-### イベントモデル
-```typescript
-enum SharingEventType {
-  FILE_CREATED = 'file_created',
-  FILE_ACCESSED = 'file_accessed',
-  FILE_EXPIRED = 'file_expired',
-  FILE_DELETED = 'file_deleted'
-}
+### 基本的な使用フロー
 
-interface SharingEvent {
-  type: SharingEventType;
-  fileId: string;
-  timestamp: Date;
-  metadata?: any;
-}
+1. **テキスト共有**:
+   - スコープマネージャー画面下部の「ClaudeCode連携」ボタンをクリック
+   - テキスト入力エリアにコード、エラーログなどを入力
+   - 「一時ファイルに保存」ボタンをクリック
+   - 生成されたコマンドをコピー
+   - ClaudeCodeにコマンドを貼り付けて実行
 
-interface SharingEventBus {
-  emit(event: SharingEvent): void;
-  subscribe(type: SharingEventType, handler: (event: SharingEvent) => void): void;
-  unsubscribe(type: SharingEventType, handler: (event: SharingEvent) => void): void;
-}
-```
+2. **画像共有**:
+   - 共有パネルの画像ドロップゾーンに画像をドラッグ＆ドロップ
+   - 「一時ファイルに保存」ボタンをクリック
+   - 生成されたコマンドをコピーしてClaudeCodeで実行
 
-## 4. 技術仕様
+3. **履歴活用**:
+   - 共有履歴から過去の共有アイテムを選択して再利用
+   - 不要な履歴アイテムは削除ボタンで削除
 
-### データフロー
-1. ユーザーがテキスト入力または画像アップロード
-2. 「一時ファイルに保存」ボタンをクリック
-3. データを一時ディレクトリに保存（ファイル）とメタデータを管理（VSCode拡張のglobalState）
-4. ファイルへのアクセスコマンドを生成
-5. ユーザーがコマンドをコピーしてClaudeCodeで実行
+### セキュリティ
 
-### ファイル保存仕様
-- **保存場所**: `/tmp/claude-share/` ディレクトリ
-  - テキスト: `/tmp/claude-share/shared_[日時]_[ランダム文字列].txt`
-  - 画像: `/tmp/claude-share/images/image_[日時]_[ランダム文字列].png`
-
-- **ファイル名生成規則**:
-  - 日時フォーマット: `YYYYMMDD_HHMMSS`
-  - ランダム文字列: 6文字の英数字
-
-### 共有履歴管理
-- 最新の共有を先頭に表示
-- 各履歴項目に対して再利用・削除操作を提供
-- セッション間で履歴を保持（設定により変更可能）
-- 最大履歴保存件数を設定可能（デフォルト20件）
-
-## 5. セキュリティ要件
-
-### データ保護
 - 一時ファイルは24時間後に自動削除
-- 機密情報を含む可能性のあるデータを適切に保護
-- ファイル名にランダム性を持たせてアクセス予測を困難に
-- 拡張起動時に期限切れファイルの自動クリーンアップ
+- 機密情報が長時間ディスクに残らないよう配慮
+- ファイル名のランダム化によるセキュリティ向上
 
-### バリデーション
-- テキスト入力とファイルアップロード時に以下を検証:
-  - ファイルサイズ上限（画像: 10MB）
-  - テキスト長の制限（100,000文字まで）
-  - 許可される画像フォーマット（PNG, JPG, JPEG, GIF）
-- エラーメッセージを表示しユーザーに通知
+## 4. 次のステップ
 
-### 制限事項
-- 画像ファイルサイズ上限: 10MB
-- テキスト長の制限: 100,000文字まで
-- サポートする画像フォーマット: PNG, JPG, JPEG, GIF
-- 最大同時保存ファイル数: 100ファイル（自動クリーンアップ対象）
+1. ScopeManagerPanel.tsへの統合作業
+   - 既存コードの詳細分析とマージポイント特定
+   - メッセージハンドラーの追加実装
 
-## 6. 実装予定ファイル
+2. 統合テストとデバッグ
+   - 全機能の動作検証
+   - エラーハンドリングの強化
 
-### VSCode拡張側
-- `src/ui/scopeManager/ScopeManagerPanel.ts`: 共有パネルの基本UIを追加
-- `src/services/ClaudeCodeSharingService.ts`: 共有サービスの実装
-- `src/utils/TempFileManager.ts`: 一時ファイル管理機能
-- `src/types/SharingTypes.ts`: 共有機能に関する型定義
+3. ドキュメント整備
+   - 使用方法マニュアル作成
+   - 開発者向け実装ドキュメント
 
-### フロントエンド（Webview）
-- `media/scopeManager.js`: 共有パネルの動作制御
-- `media/scopeManager.css`: 共有パネルのスタイル定義
-- `media/components/sharingPanel.js`: 共有パネルコンポーネント
-
-## 7. 階層的クラス構造
-
-```typescript
-// 基本共有サービス
-class BaseSharingService implements FileManagementService {
-  // 共通機能の実装
-  // ファイル管理、履歴管理、イベント処理など
-}
-
-// テキスト共有サービス
-class TextSharingService extends BaseSharingService {
-  // テキスト特有の機能
-  // テキスト検証、フォーマット調整など
-}
-
-// 画像共有サービス
-class ImageSharingService extends BaseSharingService {
-  // 画像特有の機能
-  // 画像検証、リサイズ、変換処理など
-}
-
-// 履歴管理
-class SharingHistoryManager {
-  // 共有履歴の保存、復元、削除機能
-  // セッション間の状態保持
-}
-```
-
-## 8. 今後の拡張可能性
-
-### 短期的拡張
-- 特定のClaudeCodeセッションを指定して送信
-- 複数ファイルの一括共有
-- ファイル形式のプレビュー表示
-
-### 長期的拡張
-- WebSocketを利用したリアルタイム共有
-- ClaudeCodeからの直接レスポンス連携
-- VSCode拡張設定からの共有設定カスタマイズ
-
-## 9. 実装方針
-
-この機能はファイルシステムを介したデータ共有を基本とし、ClaudeCodeとの直接的な連携を実現します。一時ファイルを介した共有は、現状のVSCode拡張の制限を回避しながら、効率的なデータ交換を可能にします。
-
-具体的な実装アプローチ:
-
-1. **一時ファイルとメタデータの分離**:
-   - ファイル自体は一時ディレクトリに保存
-   - メタデータはJSON形式で別途管理（VSCode拡張のglobalState）
-
-2. **フロントエンドとバックエンドの分離**:
-   - UIコンポーネント: メタデータの表示と操作
-   - サービス層: ファイル操作とメタデータ管理
-   - イベント層: 状態変更の通知と反映
-
-3. **有効期限の管理**:
-   - 共有時に有効期限を設定
-   - 拡張起動時に期限切れファイルをチェックしクリーンアップ
-   - バックグラウンドでの定期的なクリーンアップ
-
-最終的には、VSCodeとClaudeCodeセッション間でのよりシームレスな通信を実現するために、拡張される可能性があります。
+4. 将来的な拡張計画
+   - リアルタイム共有機能の計画
+   - ClaudeCodeとの深い統合のためのAPI調査

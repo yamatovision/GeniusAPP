@@ -5,6 +5,17 @@
  * 特有のスタイルを定義します。
  */
 
+/* ベースレイアウト */
+.scope-manager-container {
+  padding: 20px;
+  background-color: #1e1e1e;
+  color: #d2d2d2;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
 /* 固定ダークテーマ定義 */
 :root {
   --app-background: #1e1e1e;
@@ -42,17 +53,6 @@
   --app-border-radius-sm: 4px;
   --app-border-radius-lg: 12px;
   --app-transition: 0.2s ease;
-}
-
-/* ベースレイアウト */
-.scope-manager-container {
-  padding: 20px;
-  background-color: var(--app-background);
-  color: var(--app-text);
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow-x: hidden;
 }
 
 .panel-header {
@@ -451,19 +451,88 @@ h1, h2, h3, h4 {
   z-index: 1001;
 }
 
-/* マテリアルアイコン */
-.material-icons {
-  font-family: 'Material Icons';
-  font-weight: normal;
-  font-style: normal;
-  font-size: 24px;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  -webkit-font-feature-settings: 'liga';
-  -webkit-font-smoothing: antialiased;
+/* 共有結果ダイアログ */
+#share-result-dialog {
+  margin-top: 10px;
+  padding: 10px;
+  background-color: var(--app-hover-background);
+  border-radius: var(--app-border-radius);
+  border: 1px solid var(--app-primary);
+}
+
+.command-container {
+  background-color: var(--app-input-background);
+  padding: 8px;
+  border-radius: 4px;
+  position: relative;
+  margin-top: 5px;
+  font-family: monospace;
+}
+
+.copy-button {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  background: transparent;
+  border: none;
+  color: var(--app-text-secondary);
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  color: var(--app-text);
+}
+
+/* ダイアログオーバーレイ */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.dialog {
+  background-color: var(--app-card-background);
+  border-radius: var(--app-border-radius);
+  width: 80%;
+  max-width: 800px;
+  max-height: 80vh;
+  padding: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.dialog-title {
+  font-size: var(--app-font-size-lg);
+  font-weight: var(--app-font-weight-bold);
+  margin-bottom: 15px;
+  color: var(--app-heading-color);
+}
+
+.dialog-content {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+/* ファイルアップロード関連 */
+.file-input {
+  display: none;
+}
+
+.file-label {
+  cursor: pointer;
 }

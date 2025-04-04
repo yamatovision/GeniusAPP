@@ -1,0 +1,375 @@
+import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
+import { TempFileManager } from '../utils/TempFileManager';
+import { 
+  SharedFile, 
+  SharingHistory, 
+  SharingSettings, 
+  SharingEvent, 
+  SharingEventType, 
+  FileSaveOptions 
+} from '../types/SharingTypes';
+
+/**
+ * ClaudeCode共有サービス
+ * VSCodeとClaudeCode間のデータ共有を管理
+ */
+export class ClaudeCodeSharingService {
+  private context: vscode.ExtensionContext;
+  private tempFileManager: TempFileManager;
+  private history: SharingHistory;
+  private settings: SharingSettings;
+  private eventHandlers: Map<SharingEventType, ((event: SharingEvent) => void)[]>;
+  
+  /**
+   * コンストラクタ
+   * @param context VSCode拡張コンテキスト
+   */
+  constructor(context: vscode.ExtensionContext) {
+    this.context = context;
+    this.tempFileManager = new TempFileManager();
+    this.eventHandlers = new Map();
+    
+    // デフォルト設定
+    this.settings = {
+      defaultExpirationHours: 24,
+      maxHistoryItems: 20,
+      maxTextSize: 100000,
+      maxImageSize: 10 * 1024 * 1024, // 10MB
+      allowedImageFormats: ['png', 'jpg', 'jpeg', 'gif'],
+      preserveHistoryBetweenSessions: true,
+      baseStoragePath: ''
+    };
+    
+    // 履歴の初期化
+    this.history = this.loadHistory();
+    
+    // 起動時にクリーンアップ実行
+    this.tempFileManager.cleanupExpiredFiles();
+    
+    // 定期的なクリーンアップをスケジュール
+    this.tempFileManager.scheduleCleanupJob(3); // 3時間ごとにクリーンアップ
+  }
+  
+  /**
+   * 履歴をロード
+   */
+  private loadHistory(): SharingHistory {
+    if (this.settings.preserveHistoryBetweenSessions) {
+      const savedHistory = this.context.globalState.get<SharingHistory>('claude-code-sharing-history');
+      if (savedHistory) {
+        // 日付文字列をDateオブジェクトに変換
+        savedHistory.lastUpdated = new Date(savedHistory.lastUpdated);
+        savedHistory.items.forEach(item => {
+          item.createdAt = new Date(item.createdAt);
+          item.expiresAt = new Date(item.expiresAt);
+        });
+        
+        // 有効期限切れのアイテムを除外
+        const now = new Date();
+        savedHistory.items = savedHistory.items.filter(item => {
+          const isValid = item.expiresAt > now;
+          item.isExpired = !isValid;
+          return isValid;
+        });
+        
+        return savedHistory;
+      }
+    }
+    
+    return {
+      items: [],
+      lastUpdated: new Date()
+    };
+  }
+  
+  /**
+   * 履歴を保存
+   */
+  private saveHistory(): void {
+    if (this.settings.preserveHistoryBetweenSessions) {
+      this.context.globalState.update('claude-code-sharing-history', this.history);
+    }
+  }
+  
+  /**
+   * 履歴に項目を追加
+   * @param item 追加する共有ファイル
+   */
+  private addToHistory(item: SharedFile): void {
+    // 履歴の先頭に追加
+    this.history.items.unshift(item);
+    
+    // 最大数を超えないよう管理
+    if (this.history.items.length > this.settings.maxHistoryItems) {
+      this.history.items = this.history.items.slice(0, this.settings.maxHistoryItems);
+    }
+    
+    this.history.lastUpdated = new Date();
+    
+    // 変更を保存
+    this.saveHistory();
+    
+    // イベント発行
+    this.emitEvent({
+      type: SharingEventType.FILE_CREATED,
+      fileId: item.id,
+      timestamp: new Date()
+    });
+  }
+  
+  /**
+   * テキストを共有
+   * @param text 共有するテキスト
+   * @param options 保存オプション
+   */
+  public async shareText(text: string, options?: FileSaveOptions): Promise<SharedFile> {
+    // テキストサイズをバリデーション
+    if (text.length > this.settings.maxTextSize) {
+      throw new Error(`テキストが長すぎます。${this.settings.maxTextSize}文字以内にしてください。`);
+    }
+    
+    // テキストファイルを保存
+    const file = await this.tempFileManager.saveTextFile(text, {
+      ...options,
+      type: 'text',
+      expirationHours: options?.expirationHours || this.settings.defaultExpirationHours
+    });
+    
+    // 履歴に追加
+    this.addToHistory(file);
+    
+    return file;
+  }
+  
+  /**
+   * 画像を共有
+   * @param imageData 画像データ
+   * @param format 画像形式（png, jpg, jpeg, gifなど）
+   * @param options 保存オプション
+   */
+  public async shareImage(imageData: Buffer, format: string, options?: FileSaveOptions): Promise<SharedFile> {
+    // 画像形式をバリデーション
+    format = format.toLowerCase();
+    if (!this.settings.allowedImageFormats.includes(format)) {
+      throw new Error(`サポートされていない画像形式です: ${format}。許可されている形式: ${this.settings.allowedImageFormats.join(', ')}`);
+    }
+    
+    // 画像サイズをバリデーション
+    if (imageData.length > this.settings.maxImageSize) {
+      throw new Error(`画像サイズが大きすぎます。${this.settings.maxImageSize / (1024 * 1024)}MB以内にしてください。`);
+    }
+    
+    // 画像ファイルを保存
+    const file = await this.tempFileManager.saveImageFile(imageData, {
+      ...options,
+      type: 'image',
+      format,
+      expirationHours: options?.expirationHours || this.settings.defaultExpirationHours
+    });
+    
+    // 履歴に追加
+    this.addToHistory(file);
+    
+    return file;
+  }
+  
+  /**
+   * 履歴から共有アイテムを取得
+   * @param limit 取得する最大アイテム数（デフォルトは全て）
+   */
+  public getHistory(limit?: number): SharedFile[] {
+    // 有効期限切れのアイテムを除外
+    const now = new Date();
+    const validItems = this.history.items.filter(item => {
+      const isValid = item.expiresAt > now;
+      item.isExpired = !isValid;
+      return isValid;
+    });
+    
+    return limit ? validItems.slice(0, limit) : validItems;
+  }
+  
+  /**
+   * 履歴からアイテムを削除
+   * @param id 削除するアイテムのID
+   */
+  public deleteFromHistory(id: string): boolean {
+    const index = this.history.items.findIndex(item => item.id === id);
+    
+    if (index !== -1) {
+      const file = this.history.items[index];
+      
+      // ファイルも削除
+      if (this.tempFileManager.fileExists(file.path)) {
+        this.tempFileManager.deleteFile(file.path);
+      }
+      
+      // 履歴から削除
+      this.history.items.splice(index, 1);
+      this.history.lastUpdated = new Date();
+      this.saveHistory();
+      
+      // イベント発行
+      this.emitEvent({
+        type: SharingEventType.FILE_DELETED,
+        fileId: id,
+        timestamp: new Date()
+      });
+      
+      return true;
+    }
+    
+    return false;
+  }
+  
+  /**
+   * 履歴をクリア
+   * @param deleteFiles ファイルも削除するかどうか
+   */
+  public clearHistory(deleteFiles: boolean = true): void {
+    if (deleteFiles) {
+      // 全ファイルの削除
+      this.history.items.forEach(file => {
+        if (this.tempFileManager.fileExists(file.path)) {
+          this.tempFileManager.deleteFile(file.path);
+        }
+      });
+    }
+    
+    // 履歴をクリア
+    this.history.items = [];
+    this.history.lastUpdated = new Date();
+    this.saveHistory();
+  }
+  
+  /**
+   * ファイルアクセスを記録
+   * @param id アクセスされたファイルのID
+   */
+  public recordAccess(id: string): void {
+    const file = this.history.items.find(item => item.id === id);
+    
+    if (file) {
+      file.accessCount++;
+      this.saveHistory();
+      
+      // イベント発行
+      this.emitEvent({
+        type: SharingEventType.FILE_ACCESSED,
+        fileId: id,
+        timestamp: new Date()
+      });
+    }
+  }
+  
+  /**
+   * ClaudeCode用のコマンドを生成
+   * @param file 共有ファイル
+   */
+  public generateCommand(file: SharedFile): string {
+    return `view ${file.path}`;
+  }
+  
+  /**
+   * 期限切れファイルをクリーンアップ
+   */
+  public cleanupExpiredFiles(): number {
+    const deletedCount = this.tempFileManager.cleanupExpiredFiles(this.history.items);
+    
+    // 有効期限切れのアイテムを履歴から削除
+    const now = new Date();
+    const originalLength = this.history.items.length;
+    
+    this.history.items = this.history.items.filter(item => {
+      const isValid = item.expiresAt > now;
+      
+      if (!isValid) {
+        // イベント発行
+        this.emitEvent({
+          type: SharingEventType.FILE_EXPIRED,
+          fileId: item.id,
+          timestamp: new Date()
+        });
+      }
+      
+      return isValid;
+    });
+    
+    if (this.history.items.length !== originalLength) {
+      this.history.lastUpdated = new Date();
+      this.saveHistory();
+    }
+    
+    return deletedCount;
+  }
+  
+  /**
+   * 設定を更新
+   * @param settings 新しい設定値
+   */
+  public updateSettings(settings: Partial<SharingSettings>): void {
+    this.settings = {
+      ...this.settings,
+      ...settings
+    };
+    
+    // 設定変更をグローバルステートに保存
+    this.context.globalState.update('claude-code-sharing-settings', this.settings);
+  }
+  
+  /**
+   * 現在の設定を取得
+   */
+  public getSettings(): SharingSettings {
+    return { ...this.settings };
+  }
+  
+  /**
+   * イベントハンドラを登録
+   * @param type イベントタイプ
+   * @param handler ハンドラ関数
+   */
+  public subscribeToEvent(type: SharingEventType, handler: (event: SharingEvent) => void): void {
+    if (!this.eventHandlers.has(type)) {
+      this.eventHandlers.set(type, []);
+    }
+    
+    this.eventHandlers.get(type)?.push(handler);
+  }
+  
+  /**
+   * イベントハンドラの登録を解除
+   * @param type イベントタイプ
+   * @param handler ハンドラ関数
+   */
+  public unsubscribeFromEvent(type: SharingEventType, handler: (event: SharingEvent) => void): void {
+    if (this.eventHandlers.has(type)) {
+      const handlers = this.eventHandlers.get(type);
+      if (handlers) {
+        const index = handlers.indexOf(handler);
+        if (index !== -1) {
+          handlers.splice(index, 1);
+        }
+      }
+    }
+  }
+  
+  /**
+   * イベントを発行
+   * @param event イベント情報
+   */
+  private emitEvent(event: SharingEvent): void {
+    const handlers = this.eventHandlers.get(event.type);
+    if (handlers) {
+      handlers.forEach(handler => {
+        try {
+          handler(event);
+        } catch (error) {
+          console.error(`イベントハンドラ実行中にエラーが発生しました: ${error}`);
+        }
+      });
+    }
+  }
+}
