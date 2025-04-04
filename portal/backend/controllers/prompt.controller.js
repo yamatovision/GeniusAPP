@@ -629,7 +629,7 @@ const promptController = {
       
       // 共有URL生成 (常に本番用のホスト名を使用)
       const host = process.env.NODE_ENV === 'production' 
-        ? 'geniemon-portal-backend-production.up.railway.app'
+        ? (process.env.API_HOST || 'appgenius-portal-backend-235426778039.asia-northeast1.run.app')
         : req.get('host');
       const shareUrl = `${req.protocol}://${host}/api/prompts/public/${prompt.publicToken}`;
       
