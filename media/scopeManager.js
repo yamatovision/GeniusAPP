@@ -74,6 +74,11 @@ const vscode = acquireVsCodeApi();
   window.addEventListener('message', event => {
     const message = event.data;
     
+    // シェアリングパネル関連のメッセージは無視（sharingPanel.jsが処理）
+    if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
+      return; // sharingPanel.jsに処理を任せる
+    }
+    
     switch (message.command) {
       case 'updateState':
         handleUpdateState(message);
@@ -86,15 +91,6 @@ const vscode = acquireVsCodeApi();
         break;
       case 'updateProjectPath':
         updateProjectPath(message);
-        break;
-      case 'showShareResult':
-        showShareResult(message.data);
-        break;
-      case 'updateSharingHistory':
-        updateSharingHistory(message.history);
-        break;
-      case 'commandCopied':
-        showCopySuccess(message.fileId);
         break;
     }
   });
@@ -566,139 +562,15 @@ const vscode = acquireVsCodeApi();
   }
   
   /**
-   * 共有結果の表示
-   * @param {Object} data 共有結果データ
+   * 共有機能関連の関数
+   * 以下の共有関連機能はsharingPanel.jsで実装されています
+   * - showShareResult()
+   * - updateSharingHistory()
+   * - showCopySuccess()
+   * - resetDropZone()
+   * 
+   * こちらのファイルからは除去し、重複による競合を防止します
    */
-  function showShareResult(data) {
-    // 新しいUI表示
-    const shareResult = document.getElementById('share-result');
-    const commandText = document.getElementById('command-text');
-    
-    if (shareResult && commandText) {
-      // コマンドテキストを設定
-      commandText.textContent = data.command;
-      
-      // 結果エリアを表示
-      shareResult.style.display = 'flex';
-      
-      // スクロールして結果が確実に見えるようにする
-      const shareActions = document.querySelector('.share-actions');
-      if (shareActions) {
-        shareActions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-      
-      // コピーボタンのイベントを再設定
-      const copyButton = document.getElementById('copy-button');
-      if (copyButton) {
-        copyButton.onclick = () => {
-          const commandText = document.getElementById('command-text').textContent;
-          
-          // コピーリクエスト
-          vscode.postMessage({
-            command: 'copyToClipboard',
-            text: commandText
-          });
-          
-          // コピーフィードバック
-          const originalText = copyButton.innerHTML;
-          copyButton.innerHTML = '<span class="material-icons" style="font-size: 16px;">check</span> コピー済み';
-          copyButton.style.backgroundColor = 'var(--app-secondary)';
-          
-          setTimeout(() => {
-            copyButton.innerHTML = originalText;
-            copyButton.style.backgroundColor = 'var(--app-primary)';
-          }, 2000);
-        };
-      }
-    }
-  }
-  
-  /**
-   * 共有履歴の更新
-   * @param {Array} history 履歴アイテムの配列
-   */
-  function updateSharingHistory(history) {
-    const historyContainer = document.querySelector('.shared-history');
-    if (!historyContainer) return;
-    
-    historyContainer.innerHTML = '';
-    
-    if (history && history.length > 0) {
-      history.forEach(item => {
-        const historyItem = document.createElement('div');
-        historyItem.className = 'history-item';
-        
-        // アイテム名の表示（先頭30文字まで）
-        const displayTitle = item.title || item.originalName || item.fileName;
-        const shortTitle = displayTitle.length > 30 
-          ? displayTitle.substring(0, 30) + '...' 
-          : displayTitle;
-        
-        // 時間表示の作成
-        const createdDate = new Date(item.createdAt);
-        const timeAgo = getTimeAgo(createdDate);
-        
-        historyItem.innerHTML = `
-          <span>${item.type === 'image' ? '画像: ' : ''}${shortTitle} (${timeAgo})</span>
-          <div>
-            <span class="material-icons history-action-copy" style="font-size: 16px; cursor: pointer;" title="コマンドをコピー">content_copy</span>
-            <span class="material-icons history-action-delete" style="font-size: 16px; cursor: pointer;" title="履歴から削除">delete</span>
-          </div>
-        `;
-        
-        // コピーボタンのイベント
-        const copyButton = historyItem.querySelector('.history-action-copy');
-        if (copyButton) {
-          copyButton.addEventListener('click', () => {
-            // コマンドコピーリクエスト
-            vscode.postMessage({
-              command: 'copyCommand',
-              fileId: item.id
-            });
-          });
-        }
-        
-        // 削除ボタンのイベント
-        const deleteButton = historyItem.querySelector('.history-action-delete');
-        if (deleteButton) {
-          deleteButton.addEventListener('click', () => {
-            // 履歴から削除リクエスト
-            vscode.postMessage({
-              command: 'deleteFromHistory',
-              fileId: item.id
-            });
-          });
-        }
-        
-        // 再利用のためのクリックイベント
-        historyItem.addEventListener('click', (e) => {
-          // ボタン部分がクリックされた場合は無視
-          if (e.target.closest('.history-action-copy') || e.target.closest('.history-action-delete')) {
-            return;
-          }
-          
-          // 履歴アイテムの再利用リクエスト
-          vscode.postMessage({
-            command: 'reuseHistoryItem',
-            fileId: item.id
-          });
-        });
-        
-        historyContainer.appendChild(historyItem);
-      });
-    } else {
-      historyContainer.innerHTML = '<div class="history-empty">履歴がありません</div>';
-    }
-  }
-  
-  /**
-   * コピー成功の表示
-   * @param {string} fileId ファイルID
-   */
-  function showCopySuccess(fileId) {
-    // 将来的な拡張のためのスタブ関数
-    console.log('コマンドをコピーしました: ' + fileId);
-  }
   
   /**
    * 相対時間の取得（〇分前、など）
@@ -847,6 +719,8 @@ const vscode = acquireVsCodeApi();
   
   /**
    * ClaudeCode連携エリアの初期化
+   * 注: 基本的な表示/非表示のトグル処理のみを担当し、
+   * 詳細機能はsharingPanel.jsに任せる簡易版
    */
   function initializeClaudeCodeShareArea() {
     // トグルボタンとシェアエリア要素を取得
@@ -871,133 +745,7 @@ const vscode = acquireVsCodeApi();
       toggleBtn.style.display = 'flex';
     });
     
-    // ドロップエリアの設定
-    const dropZone = document.getElementById('drop-zone');
-    if (dropZone) {
-      // ドラッグ&ドロップイベントの処理
-      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-      });
-      
-      function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      
-      // ドラッグオーバー時のハイライト
-      ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => {
-          dropZone.style.borderColor = 'var(--app-primary)';
-          dropZone.style.backgroundColor = 'rgba(74, 105, 189, 0.1)';
-        });
-      });
-      
-      // ドラッグ終了時のスタイルリセット
-      ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => {
-          dropZone.style.borderColor = 'var(--app-border-color)';
-          dropZone.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
-        });
-      });
-      
-      // ファイルドロップ処理
-      dropZone.addEventListener('drop', event => {
-        const dt = event.dataTransfer;
-        const files = dt.files;
-        
-        if (files.length) {
-          // 画像ファイルチェック
-          const file = files[0];
-          if (file.type.match('image.*')) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-              // 画像をプレビュー表示
-              dropZone.innerHTML = `
-                <img src="${e.target.result}" class="image-preview" />
-                <p style="margin-top: 10px;">画像を共有準備完了</p>
-                <p style="font-size: 12px; color: var(--app-text-secondary);">${file.name}</p>
-              `;
-              
-              // 画像データをVSCodeに送信
-              vscode.postMessage({
-                command: 'shareImage',
-                imageData: e.target.result,
-                fileName: file.name
-              });
-            };
-            reader.readAsDataURL(file);
-          }
-        }
-      });
-    }
-    
-    // テキスト共有ボタンの設定
-    const shareTextBtn = document.getElementById('share-to-claude');
-    const shareTextarea = document.querySelector('.share-textarea');
-    
-    if (shareTextBtn && shareTextarea) {
-      shareTextBtn.addEventListener('click', () => {
-        const text = shareTextarea.value.trim();
-        if (text) {
-          // テキストをVSCodeに送信
-          vscode.postMessage({
-            command: 'shareText',
-            text: text
-          });
-          
-          // テキストエリアをクリア
-          shareTextarea.value = '';
-        }
-      });
-    }
-    
-    // クリアボタンの設定
-    const clearButton = document.getElementById('clear-button');
-    if (clearButton) {
-      clearButton.addEventListener('click', () => {
-        // テキストエリアをクリア
-        const textarea = document.querySelector('.share-textarea');
-        if (textarea) {
-          textarea.value = '';
-        }
-        
-        // 画像ドロップゾーンをリセット
-        const dropZone = document.getElementById('drop-zone');
-        if (dropZone) {
-          dropZone.innerHTML = `
-            <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
-            <p>画像をドラッグ＆ドロップ<br>または</p>
-            <button class="button button-secondary" style="margin-top: 10px;">ファイルを選択</button>
-          `;
-        }
-        
-        // 結果表示を非表示
-        const shareResult = document.getElementById('share-result');
-        if (shareResult) {
-          shareResult.style.display = 'none';
-        }
-      });
-    }
-    
-    // コピーボタンの設定
-    const copyButton = document.getElementById('copy-button');
-    if (copyButton) {
-      copyButton.addEventListener('click', () => {
-        const commandText = document.getElementById('command-text').textContent;
-        
-        // クリップボードにコピー
-        navigator.clipboard.writeText(commandText).then(() => {
-          // コピー成功時の視覚的フィードバック
-          const originalText = copyButton.innerHTML;
-          copyButton.innerHTML = '<span class="material-icons" style="font-size: 16px;">check</span> コピー済み';
-          copyButton.style.backgroundColor = 'var(--app-secondary)';
-          
-          setTimeout(() => {
-            copyButton.innerHTML = originalText;
-            copyButton.style.backgroundColor = 'var(--app-primary)';
-          }, 2000);
-        });
-      });
-    }
+    console.log('scopeManager.js: 基本的なClaudeCode連携エリアの初期化を完了しました');
+    // 詳細な機能はsharingPanel.jsに任せるため、ここでは最小限の初期化のみ行う
   }
 })();

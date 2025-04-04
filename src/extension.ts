@@ -217,7 +217,7 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.commands.registerCommand('appgenius-ai.openScopeManager', (projectPath: string) => {
 				try {
 					Logger.info(`スコープマネージャーを開くコマンドが実行されました: ${projectPath}`);
-					ScopeManagerPanel.createOrShow(context.extensionUri, projectPath);
+					ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
 				} catch (error) {
 					Logger.error('スコープマネージャーを開く際にエラーが発生しました', error as Error);
 					vscode.window.showErrorMessage(`スコープマネージャーを開けませんでした: ${(error as Error).message}`);

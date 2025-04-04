@@ -62,20 +62,76 @@ export class TempFileManager {
    * 一時ファイルパスを作成
    * @param type ファイルタイプ（'text' または 'image'）
    * @param extension ファイル拡張子
+   * @param customName カスタムファイル名（オプション）
    */
-  private generateTempFilePath(type: 'text' | 'image', extension: string = ''): string {
-    const timestamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/T/, '_')
-      .substring(0, 15);
+  private generateTempFilePath(type: 'text' | 'image', extension: string = '', customName?: string): string {
+    // 人間が読みやすい日付形式
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
+    const timeStr = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
     
+    // 短い一意の識別子
     const randomStr = crypto.randomBytes(3).toString('hex');
     
+    // カスタム名が提供された場合は使用
+    const safeCustomName = customName 
+      ? this.sanitizeFileName(customName) 
+      : '';
+    
     if (type === 'text') {
-      return path.join(this.basePath, `shared_${timestamp}_${randomStr}.txt`);
+      const prefix = safeCustomName || 'shared_text';
+      // テキストファイルの命名規則：prefix_YYYYMMDD_HHMM_random.txt
+      return path.join(this.basePath, `${prefix}_${dateStr}_${timeStr}_${randomStr}.txt`);
     } else {
-      return path.join(this.imagePath, `image_${timestamp}_${randomStr}.${extension}`);
+      // 画像のファイル名はより明確に
+      const prefix = safeCustomName || 'image';
+      // 画像ファイルの命名規則：prefix_YYYYMMDD_HHMM_random.ext
+      return path.join(this.imagePath, `${prefix}_${dateStr}_${timeStr}_${randomStr}.${extension}`);
+    }
+  }
+  
+  /**
+   * ファイル名を安全な形式に変換
+   * @param name 元のファイル名
+   * @returns 安全なファイル名
+   */
+  private sanitizeFileName(name: string): string {
+    if (!name) return 'untitled';
+    
+    // 日本語を含むかチェック
+    const hasJapanese = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(name);
+    
+    // 日本語を含む場合の処理
+    if (hasJapanese) {
+      console.log('日本語を含むファイル名を検出: ' + name);
+      
+      // 空白をアンダースコアに置換
+      let safeName = name.replace(/\s+/g, '_');
+      
+      // ファイル名に使用できない文字を削除
+      safeName = safeName.replace(/[\\/:*?"<>|]/g, '');
+      
+      // 長すぎる場合は省略
+      if (safeName.length > 30) {
+        safeName = safeName.substring(0, 30);
+      }
+      
+      return safeName || 'untitled';
+    } 
+    // 英数字の場合の処理（従来通り）
+    else {
+      // 空白をアンダースコアに置換
+      let safeName = name.replace(/\s+/g, '_');
+      
+      // 使用不可文字を除去
+      safeName = safeName.replace(/[^a-zA-Z0-9_\-]/g, '');
+      
+      // 長すぎる場合は省略
+      if (safeName.length > 30) {
+        safeName = safeName.substring(0, 30);
+      }
+      
+      return safeName || 'untitled';
     }
   }
 
@@ -85,7 +141,34 @@ export class TempFileManager {
    * @param options 保存オプション
    */
   public async saveTextFile(content: string, options?: FileSaveOptions): Promise<SharedFile> {
-    const filePath = this.generateTempFilePath('text');
+    // テキストの先頭部分からファイル名を生成
+    let customName = options?.title;
+    let originalSuggestedName = '';
+    
+    // オプションで提供されているsuggestedFilenameを優先的に使用
+    if (options && options.metadata && options.metadata.suggestedFilename) {
+      originalSuggestedName = options.metadata.suggestedFilename;
+      customName = originalSuggestedName;
+      console.log(`提案されたファイル名を使用します: ${customName}`);
+      
+      // 日本語ファイル名の場合、特別な処理
+      const hasJapanese = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(customName);
+      if (hasJapanese) {
+        console.log('日本語の提案ファイル名を検出しました');
+      }
+    }
+    // フロントエンドからの提案ファイル名がない場合、テキスト内容から生成
+    else if (!customName && content) {
+      // 先頭の最大50文字を取得
+      const firstLine = content.split('\n')[0].trim();
+      if (firstLine) {
+        customName = firstLine.slice(0, 50);
+        originalSuggestedName = customName;
+        console.log(`テキスト内容からファイル名を生成します: ${customName}`);
+      }
+    }
+    
+    const filePath = this.generateTempFilePath('text', 'txt', customName);
     const now = new Date();
     
     // ファイルに書き込み
@@ -99,12 +182,17 @@ export class TempFileManager {
     const expirationHours = options?.expirationHours || 24;
     const expiresAt = new Date(now.getTime() + expirationHours * 60 * 60 * 1000);
     
+    // テキストの先頭部分を使ってタイトルを設定
+    // 日本語対応 - 表示用タイトルには日本語をそのまま使用
+    const displayTitle = originalSuggestedName || customName || content.substring(0, 50) || 'テキスト';
+    const fileNameTitle = customName || this.sanitizeFileName(content.substring(0, 50)) || 'テキスト';
+    
     // ファイル情報を作成
     const fileInfo: SharedFile = {
       id: path.basename(filePath, '.txt'),
       fileName: path.basename(filePath),
-      originalName: options?.title || 'shared_text.txt',
-      title: options?.title,
+      originalName: originalSuggestedName || options?.title || `${fileNameTitle}.txt`,
+      title: displayTitle, // 表示用タイトルには元の日本語を使用
       type: 'text',
       size: Buffer.from(content).length,
       format: 'text/plain',
@@ -113,7 +201,9 @@ export class TempFileManager {
       path: filePath,
       accessCount: 0,
       isExpired: false,
-      metadata: {}
+      metadata: {
+        originalSuggestedName: originalSuggestedName // 元の提案名を保持
+      }
     };
     
     return fileInfo;
@@ -126,7 +216,15 @@ export class TempFileManager {
    */
   public async saveImageFile(content: Buffer, options?: FileSaveOptions): Promise<SharedFile> {
     const format = options?.format || 'png';
-    const filePath = this.generateTempFilePath('image', format);
+    
+    // カスタム名が提供されているか、元のファイル名から拡張子を取り除いた部分を使用
+    let customName = options?.title;
+    if (customName && customName.includes('.')) {
+      // 拡張子を除去
+      customName = customName.split('.').slice(0, -1).join('.');
+    }
+    
+    const filePath = this.generateTempFilePath('image', format, customName);
     const now = new Date();
     
     // ファイルに書き込み
@@ -140,12 +238,15 @@ export class TempFileManager {
     const expirationHours = options?.expirationHours || 24;
     const expiresAt = new Date(now.getTime() + expirationHours * 60 * 60 * 1000);
     
+    // タイトルを設定（オリジナルのファイル名または生成された名前）
+    const title = customName || '画像';
+    
     // ファイル情報を作成
     const fileInfo: SharedFile = {
       id: path.basename(filePath).split('.')[0],
       fileName: path.basename(filePath),
-      originalName: options?.title || `image.${format}`,
-      title: options?.title,
+      originalName: options?.title || `${title}.${format}`,
+      title: title,
       type: 'image',
       size: content.length,
       format: `image/${format}`,

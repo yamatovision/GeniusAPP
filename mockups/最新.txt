@@ -464,3 +464,22 @@ webpack 5.98.0 compiled with 11 errors in 1544 ms
 	at async ScopeManagerPanel._handleLaunchPromptFromURL (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33609:29)
 	at async Th.value (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:33533:25)
 
+
+
+
+100,000
+50,000
+100,000
+100,000
+100,000
+300,000
+50,000
+150,000
+50,000
+75,000
+100,000
+100,000
+50,000
+90,000
+30,000
+

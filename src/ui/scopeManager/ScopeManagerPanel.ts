@@ -196,10 +196,24 @@ export class ScopeManagerPanel extends ProtectedPanel {
               await this._handleLaunchPromptFromURL(message.url, message.index);
               break;
             case 'shareText':
-              await this._handleShareText(message.text);
+              await this._handleShareText(message.text, message.suggestedFilename);
               break;
             case 'shareImage':
-              await this._handleShareImage(message.imageData, message.fileName);
+              // デバッグログを追加
+              console.log('ScopeManagerPanel: shareImage命令を受信', { 
+                hasImageData: !!message.imageData, 
+                hasData: !!message.data,
+                fileName: message.fileName
+              });
+              
+              // message.imageDataまたはmessage.dataのどちらかを使用（互換性のため）
+              const imageData = message.imageData || message.data;
+              if (!imageData) {
+                this._showError('画像データが見つかりません');
+                return;
+              }
+              
+              await this._handleShareImage(imageData, message.fileName);
               break;
             case 'openRequirementsVisualizer':
               await this._handleOpenRequirementsVisualizer();
@@ -212,12 +226,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             case 'openDebugDetective':
               await this._handleOpenDebugDetective();
-              break;
-            case 'shareText':
-              await this._handleShareText(message.text);
-              break;
-            case 'shareImage':
-              await this._handleShareImage(message.imageData, message.fileName);
               break;
             case 'getHistory':
               await this._handleGetHistory();
@@ -476,43 +484,91 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 共有履歴を取得してWebViewに送信
    */
   private async _handleGetHistory(): Promise<void> {
-    if (!this._sharingService) return;
+    if (!this._sharingService) {
+      console.log('警告: 共有サービスが初期化されていません');
+      return;
+    }
     
-    const history = this._sharingService.getHistory();
-    
-    this._panel.webview.postMessage({
-      command: 'updateSharingHistory',
-      history: history
-    });
+    try {
+      const history = this._sharingService.getHistory();
+      console.log('履歴取得:', history);
+      
+      // 履歴が空の場合は空の配列を送信
+      if (!history || history.length === 0) {
+        console.log('履歴が空です');
+      }
+      
+      this._panel.webview.postMessage({
+        command: 'updateSharingHistory',
+        history: history || []
+      });
+    } catch (error) {
+      console.error('履歴取得エラー:', error);
+    }
   }
 
   /**
    * テキストを共有サービスで共有
    */
-  private async _handleShareText(text: string): Promise<void> {
+  private async _handleShareText(text: string, suggestedFilename?: string): Promise<void> {
     try {
       if (!this._sharingService) {
         this._showError('共有サービスが初期化されていません');
         return;
       }
       
+      Logger.info('テキスト共有を開始します', { 
+        textLength: text.length, 
+        hasSuggestedFilename: !!suggestedFilename 
+      });
+      
+      // ファイル名のヒントを設定
+      const options: FileSaveOptions = {
+        type: 'text',
+        expirationHours: 24  // デフォルト有効期限
+      };
+      
+      // 提案されたファイル名があれば使用
+      if (suggestedFilename) {
+        options.title = suggestedFilename;
+        options.metadata = { suggestedFilename };
+      }
+      
       // 共有サービスを使ってテキストを共有
-      const file = await this._sharingService.shareText(text);
+      const file = await this._sharingService.shareText(text, options);
+      
+      Logger.info('テキスト共有成功', { 
+        fileName: file.fileName,
+        originalName: file.originalName,
+        title: file.title
+      });
       
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
       
-      // 成功メッセージを送信
-      this._panel.webview.postMessage({
-        command: 'showShareResult',
-        data: {
-          filePath: file.path,
-          command: command,
-          type: 'text'
-        }
-      });
+      // 履歴を確実に更新（先に実行）
+      await this._handleGetHistory();
+      
+      // 短い遅延後、成功メッセージを送信
+      // これにより、UIの更新がスムーズになります
+      setTimeout(() => {
+        this._panel.webview.postMessage({
+          command: 'showShareResult',
+          data: {
+            filePath: file.path,
+            command: command,
+            type: 'text',
+            title: file.title || suggestedFilename,
+            originalName: file.originalName
+          }
+        });
+        
+        // 保存後に確実に履歴が最新になっていることを確認するための二重チェック
+        setTimeout(() => this._handleGetHistory(), 500);
+      }, 100);
       
     } catch (error) {
+      Logger.error('テキスト共有エラー', error as Error);
       this._showError(`テキストの共有に失敗しました: ${(error as Error).message}`);
     }
   }
@@ -533,15 +589,40 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
       
-      // 成功メッセージを送信
+      // 履歴を確実に更新（先に実行）
+      await this._handleGetHistory();
+      
+      // 画像アップロードエリアをクリアするためのメッセージ
+      // 確実に処理されるよう明示的に指定
       this._panel.webview.postMessage({
-        command: 'showShareResult',
-        data: {
-          filePath: file.path,
-          command: command,
-          type: 'image'
-        }
+        command: 'resetDropZone',
+        force: true,
+        timestamp: new Date().getTime()
       });
+      
+      // 念のため少し遅延させて再度リセットコマンドを送信
+      setTimeout(() => {
+        this._panel.webview.postMessage({
+          command: 'resetDropZone',
+          force: true,
+          timestamp: new Date().getTime() + 100
+        });
+      }, 100);
+      
+      // 短い遅延後、成功メッセージを送信
+      setTimeout(() => {
+        this._panel.webview.postMessage({
+          command: 'showShareResult',
+          data: {
+            filePath: file.path,
+            command: command,
+            type: 'image'
+          }
+        });
+        
+        // 保存後に確実に履歴が最新になっていることを確認するための二重チェック
+        setTimeout(() => this._handleGetHistory(), 500);
+      }, 100);
       
     } catch (error) {
       this._showError(`画像の共有に失敗しました: ${(error as Error).message}`);
@@ -585,8 +666,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // 成功メッセージを送信
       this._panel.webview.postMessage({
         command: 'commandCopied',
-        fileId: fileId
+        fileId: fileId,
+        fileName: file.title || file.originalName || file.fileName
       });
+      
+      // VSCodeの通知も表示（オプション）
+      vscode.window.showInformationMessage(`コマンド "${command}" をコピーしました！`);
     }
   }
 
@@ -835,18 +920,24 @@ export class ScopeManagerPanel extends ProtectedPanel {
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js')
     );
+    const sharingPanelScriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'sharingPanel.js')
+    );
     
     // Material Iconsの読み込み
     const materialIconsUrl = 'https://fonts.googleapis.com/icon?family=Material+Icons';
     
     // CSPを設定
     const nonce = this._getNonce();
+    // CSPポリシーを緩和して、ドラッグ&ドロップ操作を簡単にする
+    // VSCodeのネイティブドラッグ&ドロップメッセージを抑制するスタイルも追加
     const csp = `
       default-src 'none';
       style-src ${webview.cspSource} 'unsafe-inline' https://fonts.googleapis.com;
       font-src https://fonts.gstatic.com;
-      script-src 'nonce-${nonce}';
+      script-src 'nonce-${nonce}' 'unsafe-inline';
       img-src ${webview.cspSource} data:;
+      connect-src ${webview.cspSource};
     `;
     
     // HTMLを生成
@@ -861,6 +952,83 @@ export class ScopeManagerPanel extends ProtectedPanel {
       <link href="${styleMainUri}" rel="stylesheet">
       <link href="${materialIconsUrl}" rel="stylesheet">
       <title>AppGenius スコープマネージャー</title>
+      <style>
+        /* VSCodeのネイティブドラッグ&ドロップメッセージを非表示にする */
+        .monaco-editor .dnd-overlay, 
+        .monaco-editor .dnd-overlay *,
+        .monaco-dnd-overlay,
+        .monaco-dnd-tree-overlay,
+        [role="tooltip"][aria-label*="シフト"],
+        [role="tooltip"][aria-label*="ドロップ"],
+        [role="tooltip"][aria-label*="⌘"],
+        [role="tooltip"][aria-label*="Cmd"] {
+          display: none !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
+        
+        /* ドラッグ中のデフォルトポインタを変更 */
+        body.dragging * {
+          cursor: copy !important;
+        }
+        
+        /* ドラッグ効果をより目立たせる */
+        .drag-effect.active {
+          background-color: rgba(74, 105, 189, 0.3) !important;
+          z-index: 9999999 !important;
+        }
+        
+        .file-input {
+          opacity: 0;
+          position: absolute;
+          pointer-events: none;
+        }
+      </style>
+      <script>
+        // 即時関数でVSCodeのドラッグ&ドロップメッセージを抑制
+        (function() {
+          // VSCodeのドラッグ&ドロップメッセージを検出して非表示にする
+          function suppressVSCodeDragDropMessage() {
+            // ドラッグ&ドロップ関連のオーバーレイを監視して非表示にする
+            const observer = new MutationObserver(function(mutations) {
+              document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"], [aria-label*="⌘"]').forEach(function(el) {
+                if (el) {
+                  el.style.display = 'none';
+                  el.style.opacity = '0';
+                  el.style.visibility = 'hidden';
+                  el.style.pointerEvents = 'none';
+                }
+              });
+            });
+            
+            // document全体を監視
+            observer.observe(document.documentElement, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class']
+            });
+            
+            // ドラッグ&ドロップイベントをキャプチャ
+            ['dragstart', 'dragover', 'dragenter', 'dragleave', 'drop'].forEach(function(eventName) {
+              document.addEventListener(eventName, function(e) {
+                // VSCodeのオーバーレイを強制的に非表示
+                document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"], [aria-label*="⌘"]').forEach(function(el) {
+                  if (el) el.style.display = 'none';
+                });
+              }, true);
+            });
+          }
+          
+          // DOM読み込み完了時または既に読み込まれている場合に実行
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', suppressVSCodeDragDropMessage);
+          } else {
+            suppressVSCodeDragDropMessage();
+          }
+        })();
+      </script>
     </head>
     <body>
       <div class="scope-manager-container">
@@ -969,46 +1137,54 @@ export class ScopeManagerPanel extends ProtectedPanel {
           </div>
         </div>
         
-        <div class="share-content">
-          <div class="text-share-zone">
-            <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキスト（エラーメッセージ、コード、メモなど）を入力またはペーストしてください..."></textarea>
-            <div class="shared-history">
-              <!-- 共有履歴はJSで動的に生成 -->
+        <div class="claude-share-container">
+          <!-- 左側：テキスト入力エリア -->
+          <div class="text-input-area">
+            <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
+            <!-- 履歴表示エリア -->
+            <div class="history-container">
+              <h4>履歴</h4>
+              <div class="shared-history-list shared-history">
+                <!-- 履歴アイテムはJSで動的に生成 -->
+              </div>
             </div>
           </div>
           
-          <div class="image-share-zone" id="drop-zone">
-            <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
-            <p>画像をドラッグ＆ドロップ<br>または</p>
-            <button class="button button-secondary" style="margin-top: 10px; margin-bottom: 10px;">ファイルを選択</button>
+          <!-- 右側：画像アップロードと操作ボタン -->
+          <div class="image-upload-area">
+            <!-- ドロップゾーン -->
+            <div class="drop-zone" id="drop-zone">
+              <span class="material-icons">image</span>
+              <p>画像をドラッグ＆ドロップ<br><span style="font-size: 12px; color: var(--app-text-secondary);">（シフトキーをホールドしてください）</span><br>または</p>
+              <button class="button-secondary" id="file-select-btn">ファイル選択</button>
+            </div>
             
-            <!-- ボタンをドロップゾーン内に配置 -->
-            <div class="image-action-buttons">
+            <!-- ボタンエリア -->
+            <div class="action-buttons">
               <button class="button button-secondary" id="clear-button">クリア</button>
               <button class="button" id="share-to-claude">保存</button>
-              <button class="button button-secondary" id="copy-button" style="display: none;">
-                <span class="material-icons" style="font-size: 16px;">content_copy</span>
-              </button>
+            </div>
+            
+            <!-- 保存結果通知（成功時のみ表示） -->
+            <div class="save-notification" id="save-notification" style="display: none;">
+              <span class="material-icons success-icon">check_circle</span>
+              <span class="notification-text">保存完了</span>
             </div>
           </div>
-        </div>
-        
-        <!-- 結果表示エリア (シンプル化) -->
-        <div class="share-result" id="share-result" style="display: none; margin-top: 10px;">
-          <div class="success-indicator">
-            <span class="material-icons" style="color: var(--app-secondary);">check_circle</span>
-            <span>保存完了:</span>
-          </div>
-          <div class="command-display" id="command-text">view /tmp/file.txt</div>
         </div>
         
         <!-- 旧ダイアログ（非表示、後方互換性のため残す） -->
         <div id="share-result-dialog" style="display: none;"></div>
+        <div class="share-result" id="share-result" style="display: none;"></div>
       </div>
       
       <div id="error-container" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: var(--app-danger); color: white; padding: 10px; border-radius: 4px;"></div>
       
+      <!-- メインスクリプト -->
       <script nonce="${nonce}" src="${scriptUri}"></script>
+      
+      <!-- 共有パネルコンポーネント専用スクリプト -->
+      <script nonce="${nonce}" src="${sharingPanelScriptUri}"></script>
     </body>
     </html>`;
   }

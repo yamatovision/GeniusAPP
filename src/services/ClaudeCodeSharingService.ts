@@ -144,20 +144,63 @@ export class ClaudeCodeSharingService {
   /**
    * テキストを共有
    * @param text 共有するテキスト
-   * @param options 保存オプション
+   * @param options 保存オプションまたは推奨ファイル名文字列
+   * @param additionalOptions 追加の保存オプション（互換性のため）
    */
-  public async shareText(text: string, options?: FileSaveOptions): Promise<SharedFile> {
+  public async shareText(
+    text: string, 
+    options?: FileSaveOptions | string, 
+    additionalOptions?: FileSaveOptions
+  ): Promise<SharedFile> {
     // テキストサイズをバリデーション
     if (text.length > this.settings.maxTextSize) {
       throw new Error(`テキストが長すぎます。${this.settings.maxTextSize}文字以内にしてください。`);
     }
     
-    // テキストファイルを保存
-    const file = await this.tempFileManager.saveTextFile(text, {
-      ...options,
-      type: 'text',
-      expirationHours: options?.expirationHours || this.settings.defaultExpirationHours
-    });
+    let fileOptions: FileSaveOptions = {
+      type: 'text' as 'text',
+      expirationHours: this.settings.defaultExpirationHours
+    };
+    
+    // 引数がstring型の場合（後方互換性のため）
+    if (typeof options === 'string') {
+      fileOptions.title = options; // ファイル名のヒントとして使用
+      fileOptions.metadata = { 
+        suggestedFilename: options 
+      };
+      
+      // 追加オプションがあれば適用
+      if (additionalOptions) {
+        fileOptions = {
+          ...fileOptions,
+          ...additionalOptions
+        };
+      }
+    } 
+    // 引数がオブジェクト型の場合（新しい使用法）
+    else if (options && typeof options === 'object') {
+      fileOptions = {
+        ...fileOptions,
+        ...options
+      };
+      
+      // suggestedFilenameが直接渡された場合、metadataにも保存
+      if (options.title && !options.metadata) {
+        fileOptions.metadata = { 
+          suggestedFilename: options.title
+        };
+      }
+    }
+    
+    // テキストの先頭行をタイトルとして使用（もしtitleが指定されていない場合）
+    if (!fileOptions.title && text) {
+      const firstLine = text.split('\n')[0].trim();
+      if (firstLine) {
+        fileOptions.title = firstLine.slice(0, 50);
+      }
+    }
+    
+    const file = await this.tempFileManager.saveTextFile(text, fileOptions);
     
     // 履歴に追加
     this.addToHistory(file);
