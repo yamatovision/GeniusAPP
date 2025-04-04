@@ -14,6 +14,7 @@ import { AuthenticationService } from '../../core/auth/AuthenticationService';
 import { ClaudeCodeApiClient } from '../../api/claudeCodeApiClient';
 import { PromptServiceClient } from '../../services/PromptServiceClient';
 import { ClaudeCodeSharingService } from '../../services/ClaudeCodeSharingService';
+import { SharedFile, FileSaveOptions } from '../../types/SharingTypes';
 
 /**
  * スコープマネージャーパネルクラス
@@ -357,69 +358,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * テキストを一時ファイルに保存して共有
+   * @deprecated 古いテキスト共有実装。_handleShareText(text, suggestedFilename)を使用してください
    */
-  private async _handleShareText(text: string): Promise<void> {
-    try {
-      // 隠しファイル名を生成
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '').substring(0, 15);
-      // ランダムな文字列を生成して隠しファイル名に使用
-      const randomStr = Math.random().toString(36).substring(2, 15);
-      const fileName = `.vq${randomStr}`;
-      const filePath = path.join(this._tempShareDir, fileName);
-      
-      // ファイルに書き込み
-      await fs.promises.writeFile(filePath, text, 'utf8');
-      
-      // 成功メッセージ
-      this._panel.webview.postMessage({
-        command: 'shareSuccess',
-        filePath,
-        viewCommand: `view ${filePath}`
-      });
-      
-      Logger.info(`テキストを共有しました: ${filePath}`);
-    } catch (error) {
-      Logger.error('テキスト共有中にエラーが発生しました', error as Error);
-      this._showError(`テキストの共有に失敗しました: ${(error as Error).message}`);
-    }
+  private async _handleLegacyShareText(text: string): Promise<void> {
+    // 新しいメソッドに委譲
+    await this._handleShareText(text);
   }
 
   /**
-   * 画像を一時ファイルに保存して共有
+   * @deprecated 古い画像共有実装。現在の実装に委譲
    */
-  private async _handleShareImage(imageData: string, fileName: string): Promise<void> {
-    try {
-      // 隠しファイル名を生成（.appgenius_tempディレクトリ直下に作成）
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '').substring(0, 15);
-      
-      // ランダムな文字列を生成して隠しファイル名に使用
-      const randomStr = Math.random().toString(36).substring(2, 15);
-      
-      // 拡張子を取得
-      const extension = path.extname(fileName) || '.png';
-      const saveFileName = `.vq${randomStr}${extension}`;
-      const filePath = path.join(this._tempShareDir, saveFileName);
-      
-      // Base64データを取得
-      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-      
-      // ファイルに書き込み
-      await fs.promises.writeFile(filePath, buffer);
-      
-      // 成功メッセージ
-      this._panel.webview.postMessage({
-        command: 'shareSuccess',
-        filePath,
-        viewCommand: `view ${filePath}`
-      });
-      
-      Logger.info(`画像を共有しました: ${filePath}`);
-    } catch (error) {
-      Logger.error('画像共有中にエラーが発生しました', error as Error);
-      this._showError(`画像の共有に失敗しました: ${(error as Error).message}`);
-    }
+  private async _handleLegacyShareImage(imageData: string, fileName: string): Promise<void> {
+    // 新しいメソッドに委譲
+    await this._handleShareImage(imageData, fileName);
   }
 
   /**

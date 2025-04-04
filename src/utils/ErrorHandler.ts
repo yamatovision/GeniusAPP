@@ -298,8 +298,8 @@ export class ErrorHandler {
       case ErrorSeverity.ERROR:
       case ErrorSeverity.CRITICAL:
         Logger.error(logMessage, error);
-        if (error.detail) {
-          Logger.debug(`エラー詳細: ${error.detail}`);
+        if ((error as any).detail) {
+          Logger.debug(`エラー詳細: ${(error as any).detail}`);
         }
         break;
     }
