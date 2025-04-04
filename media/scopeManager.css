@@ -374,9 +374,10 @@ h1, h2, h3, h4 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 10px;
-  min-height: 150px;
+  min-height: 180px;
+  max-height: 200px;
   background-color: rgba(0, 0, 0, 0.1);
   position: relative;
 }
@@ -387,11 +388,20 @@ h1, h2, h3, h4 {
   object-fit: contain;
 }
 
-.share-actions {
+.image-action-buttons {
   display: flex;
-  justify-content: flex-end;
-  margin-top: 10px;
+  justify-content: center;
+  margin-top: auto;
   gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  width: 100%;
+  visibility: visible !important;
+}
+
+/* 旧スタイル - 後方互換性のため */
+.share-actions {
+  display: none;
 }
 
 .shared-history {
@@ -420,7 +430,7 @@ h1, h2, h3, h4 {
 .share-textarea {
   width: 100%;
   resize: none;
-  height: 150px;
+  height: 120px;
   background-color: var(--app-input-background);
   color: var(--app-text);
   border: 1px solid var(--app-border-color);
@@ -451,13 +461,41 @@ h1, h2, h3, h4 {
   z-index: 1001;
 }
 
-/* 共有結果ダイアログ */
+/* 共有結果表示 */
+.share-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.command-display {
+  background-color: var(--app-input-background);
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 14px;
+  color: var(--app-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--app-border-color);
+}
+
+.success-indicator {
+  color: var(--app-secondary);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* 旧スタイル（後方互換性のため） */
 #share-result-dialog {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: var(--app-hover-background);
-  border-radius: var(--app-border-radius);
-  border: 1px solid var(--app-primary);
+  display: none;
 }
 
 .command-container {
@@ -470,17 +508,21 @@ h1, h2, h3, h4 {
 }
 
 .copy-button {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  background: transparent;
-  border: none;
-  color: var(--app-text-secondary);
   cursor: pointer;
+  background-color: var(--app-primary);
+  color: white;
+  border: none;
+  border-radius: var(--app-border-radius-sm);
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  transition: background-color 0.2s;
 }
 
 .copy-button:hover {
-  color: var(--app-text);
+  background-color: var(--app-primary-dark);
 }
 
 /* ダイアログオーバーレイ */

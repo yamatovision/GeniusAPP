@@ -177,7 +177,7 @@
     }
     
     // クリアボタン
-    const clearButton = document.querySelector('.share-actions .button-secondary');
+    const clearButton = document.getElementById('clear-button');
     if (clearButton) {
       clearButton.addEventListener('click', () => {
         // テキストエリアをクリア
@@ -189,11 +189,41 @@
         // 画像ドロップゾーンをリセット
         resetDropZone();
         
-        // 結果ダイアログを非表示
+        // 結果表示を非表示
+        const shareResult = document.getElementById('share-result');
+        if (shareResult) {
+          shareResult.style.display = 'none';
+        }
+        
+        // 後方互換性のため、古い結果ダイアログも非表示
         const resultDialog = document.getElementById('share-result-dialog');
         if (resultDialog) {
           resultDialog.style.display = 'none';
         }
+      });
+    }
+    
+    // コピーボタン
+    const copyButton = document.getElementById('copy-button');
+    if (copyButton) {
+      copyButton.addEventListener('click', () => {
+        const commandText = document.getElementById('command-text').textContent;
+        
+        // コピーリクエスト
+        vscode.postMessage({
+          command: 'copyToClipboard',
+          text: commandText
+        });
+        
+        // コピーフィードバック
+        const originalText = copyButton.innerHTML;
+        copyButton.innerHTML = '<span class="material-icons" style="font-size: 16px;">check</span> コピー済み';
+        copyButton.style.backgroundColor = 'var(--app-secondary)';
+        
+        setTimeout(() => {
+          copyButton.innerHTML = originalText;
+          copyButton.style.backgroundColor = 'var(--app-primary)';
+        }, 2000);
       });
     }
   }
@@ -339,43 +369,29 @@
    * @param {Object} data 共有結果データ
    */
   function showShareResult(data) {
-    const resultDialog = document.getElementById('share-result-dialog');
-    if (!resultDialog) return;
+    // 新しいUI表示
+    const shareResult = document.getElementById('share-result');
+    const commandText = document.getElementById('command-text');
     
-    // 表示内容の設定
-    resultDialog.innerHTML = `
-      <h4 style="margin-top: 0;">ファイル保存完了</h4>
-      <p>以下のコマンドをClaudeCodeに貼り付けてファイルを読み込んでください：</p>
-      <div class="command-container">
-        <code id="claude-command" style="font-family: monospace; color: #f0f0f0;">${data.command}</code>
-        <button id="copy-command" class="copy-button">
-          <span class="material-icons" style="font-size: 16px;">content_copy</span>
-        </button>
-      </div>
-    `;
-    
-    // コピーボタンのイベント設定
-    const copyButton = resultDialog.querySelector('#copy-command');
-    if (copyButton) {
-      copyButton.addEventListener('click', () => {
-        const commandText = document.getElementById('claude-command').textContent;
-        
-        // コピーリクエスト
-        vscode.postMessage({
-          command: 'copyToClipboard',
-          text: commandText
-        });
-        
-        // コピーフィードバック
-        copyButton.innerHTML = '<span class="material-icons" style="font-size: 16px; color: var(--app-secondary);">check</span>';
-        setTimeout(() => {
-          copyButton.innerHTML = '<span class="material-icons" style="font-size: 16px;">content_copy</span>';
-        }, 2000);
-      });
+    if (shareResult && commandText) {
+      // コマンドテキストを設定
+      commandText.textContent = data.command;
+      
+      // 結果エリアを表示
+      shareResult.style.display = 'flex';
+      
+      // 結果が確実に見えるようにスクロール
+      const shareActions = document.querySelector('.share-actions');
+      if (shareActions) {
+        shareActions.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
     
-    // ダイアログを表示
-    resultDialog.style.display = 'block';
+    // 後方互換性のため古いダイアログも処理（非表示）
+    const resultDialog = document.getElementById('share-result-dialog');
+    if (resultDialog) {
+      resultDialog.style.display = 'none';
+    }
     
     // 共有後に入力をクリア
     if (data.type === 'image') {
@@ -385,6 +401,34 @@
       if (textarea) {
         textarea.value = '';
       }
+    }
+    
+    // コピーボタンの機能を確認
+    const copyButton = document.getElementById('copy-button');
+    if (copyButton) {
+      // ボタンを表示
+      copyButton.style.display = 'inline-flex';
+      
+      // すでにイベントが設定されている可能性があるので、一度クリアしてから再設定
+      copyButton.onclick = () => {
+        const commandText = document.getElementById('command-text').textContent;
+        
+        // コピーリクエスト
+        vscode.postMessage({
+          command: 'copyToClipboard',
+          text: commandText
+        });
+        
+        // コピーフィードバック
+        const originalText = copyButton.innerHTML;
+        copyButton.innerHTML = '<span class="material-icons" style="font-size: 16px; color: var(--app-secondary);">check</span>';
+        copyButton.style.backgroundColor = 'var(--app-secondary)';
+        
+        setTimeout(() => {
+          copyButton.innerHTML = originalText;
+          copyButton.style.backgroundColor = '';
+        }, 2000);
+      };
     }
     
     // 履歴の更新リクエスト

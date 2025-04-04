@@ -13,6 +13,7 @@ import { Feature } from '../../core/auth/roles';
 import { AuthenticationService } from '../../core/auth/AuthenticationService';
 import { ClaudeCodeApiClient } from '../../api/claudeCodeApiClient';
 import { PromptServiceClient } from '../../services/PromptServiceClient';
+import { ClaudeCodeSharingService } from '../../services/ClaudeCodeSharingService';
 
 /**
  * スコープマネージャーパネルクラス
@@ -54,6 +55,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   private _isPreparationMode: boolean = false; // 準備モード（廃止予定で常にfalse）
   private _isUpdatingStatusFile: boolean = false; // ステータスファイル更新中フラグ
+  private _sharingService: ClaudeCodeSharingService | undefined; // ClaudeCode共有サービス
   
   /**
    * 準備ステップのテンプレートを取得（廃止予定）
@@ -88,7 +90,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 実際のパネル作成・表示ロジック
    * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel {
+  public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string): ScopeManagerPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -123,20 +125,23 @@ export class ScopeManagerPanel extends ProtectedPanel {
     );
     
     Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}`);
-    ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, projectPath);
+    ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, context, projectPath);
     return ScopeManagerPanel.currentPanel;
   }
 
   /**
    * コンストラクタ
    */
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath?: string) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string) {
     super();
     
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._fileManager = FileOperationManager.getInstance();
     this._promptServiceClient = PromptServiceClient.getInstance();
+    
+    // ClaudeCode共有サービスを初期化
+    this._sharingService = new ClaudeCodeSharingService(context);
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -208,6 +213,27 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'openDebugDetective':
               await this._handleOpenDebugDetective();
               break;
+            case 'shareText':
+              await this._handleShareText(message.text);
+              break;
+            case 'shareImage':
+              await this._handleShareImage(message.imageData, message.fileName);
+              break;
+            case 'getHistory':
+              await this._handleGetHistory();
+              break;
+            case 'deleteFromHistory':
+              await this._handleDeleteFromHistory(message.fileId);
+              break;
+            case 'copyCommand':
+              await this._handleCopyCommand(message.fileId);
+              break;
+            case 'copyToClipboard':
+              await this._handleCopyToClipboard(message.text);
+              break;
+            case 'reuseHistoryItem':
+              await this._handleReuseHistoryItem(message.fileId);
+              break;
           }
         } catch (error) {
           Logger.error(`メッセージ処理エラー: ${message.command}`, error as Error);
@@ -251,6 +277,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // PromptServiceClientにもプロジェクトパスを設定
     this._promptServiceClient.setProjectPath(projectPath);
     
+    // 共有サービスにもプロジェクトパスを設定
+    if (this._sharingService) {
+      this._sharingService.setProjectBasePath(projectPath);
+    }
+    
     // ファイルウォッチャーを設定
     this._setupFileWatcher();
 
@@ -274,6 +305,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
     // ディレクトリ構造を更新
     await this._updateDirectoryStructure();
+    
+    // 共有履歴を初期化
+    if (this._sharingService) {
+      await this._handleGetHistory();
+    }
   }
 
   /**
@@ -433,6 +469,161 @@ export class ScopeManagerPanel extends ProtectedPanel {
     } catch (error) {
       Logger.error('デバッグ探偵を開けませんでした', error as Error);
       this._showError('デバッグ探偵を開けませんでした');
+    }
+  }
+
+  /**
+   * 共有履歴を取得してWebViewに送信
+   */
+  private async _handleGetHistory(): Promise<void> {
+    if (!this._sharingService) return;
+    
+    const history = this._sharingService.getHistory();
+    
+    this._panel.webview.postMessage({
+      command: 'updateSharingHistory',
+      history: history
+    });
+  }
+
+  /**
+   * テキストを共有サービスで共有
+   */
+  private async _handleShareText(text: string): Promise<void> {
+    try {
+      if (!this._sharingService) {
+        this._showError('共有サービスが初期化されていません');
+        return;
+      }
+      
+      // 共有サービスを使ってテキストを共有
+      const file = await this._sharingService.shareText(text);
+      
+      // コマンドを生成
+      const command = this._sharingService.generateCommand(file);
+      
+      // 成功メッセージを送信
+      this._panel.webview.postMessage({
+        command: 'showShareResult',
+        data: {
+          filePath: file.path,
+          command: command,
+          type: 'text'
+        }
+      });
+      
+    } catch (error) {
+      this._showError(`テキストの共有に失敗しました: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * 画像を共有サービスで共有
+   */
+  private async _handleShareImage(imageData: string, fileName: string): Promise<void> {
+    try {
+      if (!this._sharingService) {
+        this._showError('共有サービスが初期化されていません');
+        return;
+      }
+      
+      // 共有サービスを使って画像を共有
+      const file = await this._sharingService.shareBase64Image(imageData, fileName);
+      
+      // コマンドを生成
+      const command = this._sharingService.generateCommand(file);
+      
+      // 成功メッセージを送信
+      this._panel.webview.postMessage({
+        command: 'showShareResult',
+        data: {
+          filePath: file.path,
+          command: command,
+          type: 'image'
+        }
+      });
+      
+    } catch (error) {
+      this._showError(`画像の共有に失敗しました: ${(error as Error).message}`);
+    }
+  }
+
+  /**
+   * 履歴からアイテムを削除
+   */
+  private async _handleDeleteFromHistory(fileId: string): Promise<void> {
+    if (!this._sharingService) return;
+    
+    const success = this._sharingService.deleteFromHistory(fileId);
+    
+    if (success) {
+      // 履歴を更新して送信
+      await this._handleGetHistory();
+    }
+  }
+
+  /**
+   * ファイルのコマンドをクリップボードにコピー
+   */
+  private async _handleCopyCommand(fileId: string): Promise<void> {
+    if (!this._sharingService) return;
+    
+    // ファイルを履歴から検索
+    const history = this._sharingService.getHistory();
+    const file = history.find(item => item.id === fileId);
+    
+    if (file) {
+      // コマンドを生成
+      const command = this._sharingService.generateCommand(file);
+      
+      // VSCodeのクリップボード機能を使用
+      vscode.env.clipboard.writeText(command);
+      
+      // アクセスカウントを増やす
+      this._sharingService.recordAccess(fileId);
+      
+      // 成功メッセージを送信
+      this._panel.webview.postMessage({
+        command: 'commandCopied',
+        fileId: fileId
+      });
+    }
+  }
+
+  /**
+   * テキストをクリップボードにコピー
+   */
+  private async _handleCopyToClipboard(text: string): Promise<void> {
+    // VSCodeのクリップボード機能を使用
+    vscode.env.clipboard.writeText(text);
+  }
+
+  /**
+   * 履歴アイテムを再利用
+   */
+  private async _handleReuseHistoryItem(fileId: string): Promise<void> {
+    if (!this._sharingService) return;
+    
+    // ファイルを履歴から検索
+    const history = this._sharingService.getHistory();
+    const file = history.find(item => item.id === fileId);
+    
+    if (file) {
+      // コマンドを生成
+      const command = this._sharingService.generateCommand(file);
+      
+      // アクセスカウントを増やす
+      this._sharingService.recordAccess(fileId);
+      
+      // 結果を表示
+      this._panel.webview.postMessage({
+        command: 'showShareResult',
+        data: {
+          filePath: file.path,
+          command: command,
+          type: file.type
+        }
+      });
     }
   }
 
@@ -789,26 +980,30 @@ export class ScopeManagerPanel extends ProtectedPanel {
           <div class="image-share-zone" id="drop-zone">
             <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
             <p>画像をドラッグ＆ドロップ<br>または</p>
-            <button class="button button-secondary" style="margin-top: 10px;">ファイルを選択</button>
+            <button class="button button-secondary" style="margin-top: 10px; margin-bottom: 10px;">ファイルを選択</button>
+            
+            <!-- ボタンをドロップゾーン内に配置 -->
+            <div class="image-action-buttons">
+              <button class="button button-secondary" id="clear-button">クリア</button>
+              <button class="button" id="share-to-claude">保存</button>
+              <button class="button button-secondary" id="copy-button" style="display: none;">
+                <span class="material-icons" style="font-size: 16px;">content_copy</span>
+              </button>
+            </div>
           </div>
         </div>
         
-        <div class="share-actions">
-          <button class="button button-secondary">クリア</button>
-          <button class="button" id="share-to-claude">一時ファイルに保存</button>
+        <!-- 結果表示エリア (シンプル化) -->
+        <div class="share-result" id="share-result" style="display: none; margin-top: 10px;">
+          <div class="success-indicator">
+            <span class="material-icons" style="color: var(--app-secondary);">check_circle</span>
+            <span>保存完了:</span>
+          </div>
+          <div class="command-display" id="command-text">view /tmp/file.txt</div>
         </div>
         
-        <!-- 共有成功時に表示されるダイアログ -->
-        <div id="share-result-dialog" style="display: none; margin-top: 10px; padding: 10px; background-color: var(--app-dark-surface); border-radius: var(--app-border-radius); border: 1px solid var(--app-primary);">
-          <h4 style="margin-top: 0;">ファイル保存完了</h4>
-          <p>以下のコマンドをClaudeCodeに貼り付けてファイルを読み込んでください：</p>
-          <div style="background-color: #252525; padding: 8px; border-radius: 4px; position: relative;">
-            <code id="claude-command" style="font-family: monospace; color: #f0f0f0;">view /tmp/claude-share/shared_file.txt</code>
-            <button id="copy-command" style="position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #adadad; cursor: pointer;">
-              <span class="material-icons" style="font-size: 16px;">content_copy</span>
-            </button>
-          </div>
-        </div>
+        <!-- 旧ダイアログ（非表示、後方互換性のため残す） -->
+        <div id="share-result-dialog" style="display: none;"></div>
       </div>
       
       <div id="error-container" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: var(--app-danger); color: white; padding: 10px; border-radius: 4px;"></div>
@@ -1078,6 +1273,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
     if (this._docsDirWatcher) {
       this._docsDirWatcher.close();
       this._docsDirWatcher = null;
+    }
+    
+    // 共有サービスの一時ファイルクリーンアップを実行
+    if (this._sharingService) {
+      this._sharingService.cleanupExpiredFiles();
     }
 
     // disposable なオブジェクトを破棄
