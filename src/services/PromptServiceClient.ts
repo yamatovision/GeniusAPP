@@ -29,11 +29,8 @@ export class PromptServiceClient {
 
   private constructor() {
     // 一時ディレクトリの作成 (隠しディレクトリ方式)
-    const homedir = os.homedir();
-    this.tempDir = path.join(homedir, '.appgenius_temp');
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true });
-    }
+    // 注意：実際のプロジェクトパスは使用時に動的に設定される
+    this.tempDir = ''; // 初期値は空文字列。使用時にプロジェクトパスから設定される
   }
 
   /**
@@ -47,11 +44,43 @@ export class PromptServiceClient {
   }
 
   /**
+   * プロジェクトパスに基づいてtempDirを設定する
+   * @param projectPath プロジェクトパス
+   */
+  public setProjectPath(projectPath: string): void {
+    if (!projectPath) {
+      Logger.warn('プロジェクトパスが空のため、一時ディレクトリを設定できません');
+      return;
+    }
+    
+    this.tempDir = path.join(projectPath, '.appgenius_temp');
+    if (!fs.existsSync(this.tempDir)) {
+      try {
+        fs.mkdirSync(this.tempDir, { recursive: true });
+        Logger.info(`プロジェクト直下に一時ディレクトリを作成しました: ${this.tempDir}`);
+      } catch (error) {
+        Logger.error('一時ディレクトリの作成に失敗しました', error as Error);
+      }
+    }
+  }
+
+  /**
    * プロンプトURLから内容を取得して一時ファイルに保存
    * @param promptUrl プロンプトURL
+   * @param promptIndex プロンプトのインデックス
+   * @param projectPath プロジェクトパス
    * @returns 一時ファイルのパス
    */
-  public async fetchAndSavePrompt(promptUrl: string, promptIndex: number): Promise<string> {
+  public async fetchAndSavePrompt(promptUrl: string, promptIndex: number, projectPath?: string): Promise<string> {
+    // プロジェクトパスが指定されている場合は、一時ディレクトリを更新
+    if (projectPath) {
+      this.setProjectPath(projectPath);
+    }
+    
+    // 一時ディレクトリが設定されていない場合は、エラー
+    if (!this.tempDir) {
+      throw new Error('一時ディレクトリが設定されていません。プロジェクトパスを指定してください。');
+    }
     try {
       const response = await axios.get(promptUrl);
       

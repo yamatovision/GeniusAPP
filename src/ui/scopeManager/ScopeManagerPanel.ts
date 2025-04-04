@@ -138,11 +138,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
     this._fileManager = FileOperationManager.getInstance();
     this._promptServiceClient = PromptServiceClient.getInstance();
     
-    // 一時ディレクトリの作成（隠しディレクトリとして）
-    this._tempShareDir = path.join(os.homedir(), '.appgenius_temp');
-    if (!fs.existsSync(this._tempShareDir)) {
-      fs.mkdirSync(this._tempShareDir, { recursive: true });
-    }
+    // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
+    this._tempShareDir = '';
     
     // プロジェクトパスが指定されている場合は設定
     if (projectPath) {
@@ -244,6 +241,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._docsDirWatcher = null;
     }
     
+    // プロジェクト直下に一時ディレクトリを作成
+    this._tempShareDir = path.join(projectPath, '.appgenius_temp');
+    if (!fs.existsSync(this._tempShareDir)) {
+      fs.mkdirSync(this._tempShareDir, { recursive: true });
+      Logger.info(`プロジェクト直下に一時ディレクトリを作成しました: ${this._tempShareDir}`);
+    }
+    
+    // PromptServiceClientにもプロジェクトパスを設定
+    this._promptServiceClient.setProjectPath(projectPath);
+    
     // ファイルウォッチャーを設定
     this._setupFileWatcher();
 
@@ -280,8 +287,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       const promptIndex = this._promptUrls.findIndex(u => u === url);
       const indexToUse = promptIndex !== -1 ? promptIndex : index;
       
-      // プロンプトの内容を取得して一時ファイルに保存
-      const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, indexToUse);
+      // プロンプトの内容を取得して一時ファイルに保存（プロジェクトパスを指定）
+      const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, indexToUse, this._projectPath);
       
       // ClaudeCodeを起動
       const launcher = ClaudeCodeLauncherService.getInstance();
