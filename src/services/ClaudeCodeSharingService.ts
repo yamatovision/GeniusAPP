@@ -53,6 +53,28 @@ export class ClaudeCodeSharingService {
   }
   
   /**
+   * プロジェクト特有の一時ディレクトリを設定
+   * @param projectPath プロジェクトパス
+   */
+  public setProjectBasePath(projectPath: string): void {
+    if (!projectPath) return;
+    
+    // プロジェクト直下の隠しディレクトリに一時ファイルを保存するよう設定
+    const tempDir = path.join(projectPath, '.appgenius_temp');
+    
+    // ディレクトリが存在しなければ作成
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    // 新しいTempFileManagerを設定
+    this.tempFileManager = new TempFileManager(tempDir);
+    
+    // 設定を更新
+    this.settings.baseStoragePath = tempDir;
+  }
+  
+  /**
    * 履歴をロード
    */
   private loadHistory(): SharingHistory {
@@ -173,6 +195,29 @@ export class ClaudeCodeSharingService {
     this.addToHistory(file);
     
     return file;
+  }
+  
+  /**
+   * Base64エンコードされた画像データを共有
+   * @param base64Data Base64エンコードされた画像データ
+   * @param fileName 元のファイル名
+   * @param options 保存オプション
+   */
+  public async shareBase64Image(base64Data: string, fileName: string, options?: FileSaveOptions): Promise<SharedFile> {
+    // Base64ヘッダーを削除
+    const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    
+    // バッファに変換
+    const buffer = Buffer.from(base64Content, 'base64');
+    
+    // ファイル形式を取得
+    const format = path.extname(fileName).slice(1).toLowerCase() || 'png';
+    
+    // 画像を共有
+    return this.shareImage(buffer, format, {
+      ...options,
+      title: fileName
+    });
   }
   
   /**
