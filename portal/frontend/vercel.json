@@ -5,11 +5,11 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/:path*"
+      "destination": "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/:path*"
     }
   ],
   "env": {
-    "REACT_APP_API_URL": "https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api"
+    "REACT_APP_API_URL": "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api"
   },
   "github": {
     "enabled": true,

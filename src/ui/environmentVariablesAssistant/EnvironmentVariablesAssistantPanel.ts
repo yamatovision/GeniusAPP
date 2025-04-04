@@ -2174,9 +2174,10 @@ ${this._generateEnvironmentVariablesList('production')}
   }
   
   /**
-   * 環境変数アシスタントのプロンプトを準備
+   * 環境変数アシスタントのプロンプトを準備 (レガシー)
+   * @deprecated 新しい実装がある場合は _prepareEnvAssistantPromptV2 を使用
    */
-  private async _prepareEnvAssistantPrompt(): Promise<string> {
+  private async _prepareEnvAssistantPromptLegacy(): Promise<string> {
     // プロジェクト内のプロンプトファイルのパス
     const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'environment_manager.md');
 
@@ -2232,8 +2233,8 @@ ${this._generateEnvironmentVariablesList('production')}
       const tempDir = path.join(os.tmpdir());
       
       try {
-        // プロンプトファイルを準備
-        const promptFilePath = await this._prepareEnvAssistantPrompt();
+        // プロンプトファイルを準備 (新しいバージョンの関数を使用)
+        const promptFilePath = await this._prepareEnvAssistantPromptV2();
         
         Logger.info(`環境変数アシスタントファイルを読み込みます: ${promptFilePath}`);
         
@@ -2716,9 +2717,9 @@ ${this._generateEnvironmentVariablesList('production')}
   }
   
   /**
-   * 環境変数アシスタント用のプロンプトを準備
+   * 環境変数アシスタント用のプロンプトを準備 (新バージョン)
    */
-  private async _prepareEnvAssistantPrompt(): Promise<string> {
+  private async _prepareEnvAssistantPromptV2(): Promise<string> {
     try {
       // プロジェクト内の一時ディレクトリを使用（他のコンポーネントと同様）
       const tempDir = path.join(this._projectPath, 'temp');

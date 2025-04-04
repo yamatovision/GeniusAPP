@@ -53,7 +53,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _fileWatcher: vscode.FileSystemWatcher | null = null;
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   private _isPreparationMode: boolean = false; // 準備モード（廃止予定で常にfalse）
-  private _isUpdatingStatusFile: boolean = false; // ステータスファイル更新中フラグ
   
   /**
    * 準備ステップのテンプレートを取得（廃止予定）
@@ -88,7 +87,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 実際のパネル作成・表示ロジック
    * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, projectPath?: string): ScopeManagerPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -276,12 +275,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       Logger.info(`プロンプトを取得中: ${url}`);
       
-      // プロンプトURLからインデックスを取得
-      const promptIndex = this._promptUrls.findIndex(u => u === url);
-      const indexToUse = promptIndex !== -1 ? promptIndex : index;
-      
       // プロンプトの内容を取得して一時ファイルに保存
-      const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, indexToUse);
+      const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, index);
       
       // ClaudeCodeを起動
       const launcher = ClaudeCodeLauncherService.getInstance();
@@ -322,7 +317,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._panel.webview.postMessage({
         command: 'shareSuccess',
         filePath,
-        viewCommand: `view ${filePath}`
+        command: `view ${filePath}`
       });
       
       Logger.info(`テキストを共有しました: ${filePath}`);
@@ -362,7 +357,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._panel.webview.postMessage({
         command: 'shareSuccess',
         filePath,
-        viewCommand: `view ${filePath}`
+        command: `view ${filePath}`
       });
       
       Logger.info(`画像を共有しました: ${filePath}`);
@@ -377,15 +372,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleOpenRequirementsVisualizer(): Promise<void> {
     // 要件定義エディタを開くコマンドを実行
-    // 注: 要件定義エディタのコマンドが存在しない場合は一時的にチャットを開く
-    try {
-      // 要件定義エディタ用のコマンドを探す
-      vscode.commands.executeCommand('appgenius-ai.openSimpleChat', this._projectPath);
-      Logger.info('要件定義エディタの代わりにSimpleChatを開きました');
-    } catch (error) {
-      Logger.error('要件定義エディタを開けませんでした', error as Error);
-      this._showError('要件定義エディタを開けませんでした');
-    }
+    vscode.commands.executeCommand('appgenius-ai.openRequirementsVisualizer');
   }
 
   /**
@@ -393,13 +380,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleOpenEnvironmentVariablesAssistant(): Promise<void> {
     // 環境変数アシスタントを開くコマンドを実行
-    try {
-      vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', this._projectPath);
-      Logger.info('環境変数アシスタントを開きました');
-    } catch (error) {
-      Logger.error('環境変数アシスタントを開けませんでした', error as Error);
-      this._showError('環境変数アシスタントを開けませんでした');
-    }
+    vscode.commands.executeCommand('appgenius-ai.showEnvironmentVariablesAssistant');
   }
 
   /**
@@ -407,13 +388,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleOpenMockupGallery(): Promise<void> {
     // モックアップギャラリーを開くコマンドを実行
-    try {
-      vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
-      Logger.info('モックアップギャラリーを開きました');
-    } catch (error) {
-      Logger.error('モックアップギャラリーを開けませんでした', error as Error);
-      this._showError('モックアップギャラリーを開けませんでした');
-    }
+    vscode.commands.executeCommand('appgenius-ai.showMockupGallery');
   }
 
   /**
@@ -421,13 +396,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleOpenDebugDetective(): Promise<void> {
     // デバッグ探偵を開くコマンドを実行
-    try {
-      vscode.commands.executeCommand('appgenius-ai.openDebugDetective', this._projectPath);
-      Logger.info('デバッグ探偵を開きました');
-    } catch (error) {
-      Logger.error('デバッグ探偵を開けませんでした', error as Error);
-      this._showError('デバッグ探偵を開けませんでした');
-    }
+    vscode.commands.executeCommand('appgenius-ai.showDebugDetective');
   }
 
   /**
@@ -462,26 +431,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       // スコープの実装を進めるためにClaudeCodeを起動
       const launcher = ClaudeCodeLauncherService.getInstance();
-      const scopeData = {
-        id: this._currentScope.id,
-        name: this._currentScope.name || '実装スコープ',
-        description: this._currentScope.description || '',
+      const success = await launcher.launchClaudeCode({
+        scopeId: this._currentScope.id,
+        scopeName: this._currentScope.name,
         projectPath: this._projectPath,
-        items: this._currentScope.files ? this._currentScope.files.map(file => ({
-          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          title: file.path,
-          description: `ファイル: ${file.path}`,
-          priority: 'medium',
-          complexity: 'medium',
-          dependencies: [],
-          completed: file.completed
-        })) : [],
-        selectedIds: [],
-        estimatedTime: '0h',
-        totalProgress: this._currentScope.progress || 0
-      };
-      
-      const success = await launcher.launchClaudeCode(scopeData);
+        files: this._currentScope.files || []
+      });
       
       if (!success) {
         this._showError('ClaudeCodeの起動に失敗しました');
@@ -556,7 +511,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // ステータスファイルを更新
     const updatedContent = content.substring(0, insertPosition) + newScopeContent + content.substring(insertPosition);
-    await fs.promises.writeFile(this._statusFilePath, updatedContent, 'utf8');
+    await this._fileManager.writeFile(this._statusFilePath, updatedContent);
     
     // スコープリストを再読み込み
     await this._loadStatusFile();
@@ -865,9 +820,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
 
-      // 更新中フラグを設定
-      this._isUpdatingStatusFile = true;
-
       // ファイルを読み込み
       let content = await this._fileManager.readFileAsString(this._statusFilePath);
       
@@ -966,46 +918,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
         fs.mkdirSync(docsDir, { recursive: true });
       }
       
-      // デバウンス用のタイマーID
-      let debounceTimer: NodeJS.Timeout | null = null;
-      // 前回変更時刻を記録
-      let lastModified = 0;
-      
       // Node.jsのネイティブfs.watchを使用してdocsディレクトリを監視
       this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
         if (filename === 'CURRENT_STATUS.md') {
-          // 最小間隔(300ms)以内の連続変更は無視する
-          const now = Date.now();
-          if (now - lastModified < 300) {
-            return;
-          }
-          lastModified = now;
-          
           Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)');
           
-          // 既存のタイマーをクリア
-          if (debounceTimer) {
-            clearTimeout(debounceTimer);
-          }
+          // イベントバスに通知を送信
+          const eventBus = AppGeniusEventBus.getInstance();
+          const projectId = path.basename(this._projectPath);
+          eventBus.emit(AppGeniusEventType.SCOPE_STATUS_UPDATED, { projectId });
           
-          // デバウンス処理：500ms後に実行
-          debounceTimer = setTimeout(() => {
-            // プログラムによる変更チェック（自分自身が変更した場合は通知しない）
-            if (this._isUpdatingStatusFile) {
-              this._isUpdatingStatusFile = false;
-              return;
-            }
-            
-            Logger.info('バウンス処理を実行します');
-            
-            // イベントバスに通知を送信
-            const eventBus = AppGeniusEventBus.getInstance();
-            const projectId = path.basename(this._projectPath);
-            eventBus.emit(AppGeniusEventType.CURRENT_STATUS_UPDATED, { projectId }, 'scopeManager', projectId);
-            
-            // ファイルが変更されたらステータスを再読み込み
-            this._loadStatusFile();
-          }, 500);
+          // ファイルが変更されたらステータスを再読み込み
+          this._loadStatusFile();
         }
       });
     } catch (error) {
@@ -1092,11 +1016,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // スコープを抽出して追加
       // 完了済みスコープのパターン: [x] スコープ名 (100%)
-      const completedScopeRegex = /- \[x\] ([^\n]+?) \(100%\)[^\n]*\n(?:  [^\n]*\n)*/g;
-      let completedScopeMatch;
-      while ((completedScopeMatch = completedScopeRegex.exec(content)) !== null) {
-        const scopeName = completedScopeMatch[1].trim();
-        const scopeContent = completedScopeMatch[0];
+      const completedScopeMatches = [...content.matchAll(/- \[x\] ([^\n]+?) \(100%\)[^\n]*\n(?:  [^\n]*\n)*/g)];
+      for (const match of completedScopeMatches) {
+        const scopeName = match[1].trim();
+        const scopeContent = match[0];
         
         // 説明とIDを抽出
         const descriptionMatch = scopeContent.match(/- 説明: ([^\n]+)/);
@@ -1116,12 +1039,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
       }
       
       // 進行中スコープのパターン: [ ] スコープ名 (進捗%)
-      const inProgressScopeRegex = /- \[ \] ([^\n]+?) \((\d+)%\)[^\n]*\n(?:  [^\n]*\n)*/g;
-      let inProgressScopeMatch;
-      while ((inProgressScopeMatch = inProgressScopeRegex.exec(content)) !== null) {
-        const scopeName = inProgressScopeMatch[1].trim();
-        const progress = parseInt(inProgressScopeMatch[2]);
-        const scopeContent = inProgressScopeMatch[0];
+      const inProgressScopeMatches = [...content.matchAll(/- \[ \] ([^\n]+?) \((\d+)%\)[^\n]*\n(?:  [^\n]*\n)*/g)];
+      for (const match of inProgressScopeMatches) {
+        const scopeName = match[1].trim();
+        const progress = parseInt(match[2]);
+        const scopeContent = match[0];
         
         // 説明とIDを抽出
         const descriptionMatch = scopeContent.match(/- 説明: ([^\n]+)/);

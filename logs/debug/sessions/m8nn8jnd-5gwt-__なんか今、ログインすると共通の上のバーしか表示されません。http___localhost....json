@@ -1,9 +1,0 @@
-{
-  "id": "m8nn8jnd-5gwt",
-  "errorLog": "> なんか今、ログインすると共通の上のバーしか表示されません。http://localhost:3000/dashboard　と   │\n│   なっていても、上のバーしか表示されず、プロンプト管理などのボタンを押しても全く動作しないです。  │\n│   ルーティングがおかしい？ちょとっと捜査してください。",
-  "status": "investigating",
-  "createdAt": "2025-03-24T22:33:40.730Z",
-  "errorType": "不明なエラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-24T22:33:40.732Z"
-}

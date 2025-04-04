@@ -1,9 +1,0 @@
-{
-  "id": "m8nobb9t-qmwe",
-  "errorLog": "[TokenRefresh] トークンリフレッシュAPIを呼び出し\nsimpleAuth.service.js:207 simpleAuth.getCurrentUser: レスポンス受信 200\nsimpleAuth.service.js:227 simpleAuth.getCurrentUser: 認証情報を更新しました\nsimpleAuth.service.js:135 simpleAuth.refreshToken: トークンリフレッシュ開始\ntoken-refresh.js:64 [TokenRefresh] 既存のリフレッシュ処理の完了を待機\ntoken-refresh.js:82 \n            \n            \n           POST http://localhost:3000/api/simple/auth/refresh-token 401 (Unauthorized)\ndispatchXhrRequest @ xhr.js:195\nxhr @ xhr.js:15\ndispatchRequest @ dispatchRequest.js:51\nPromise.then\n_request @ Axios.js:163\nrequest @ Axios.js:40\nhttpMethod @ Axios.js:226\nwrap @ bind.js:5\nrefreshToken @ token-refresh.js:82\nrefreshToken @ simpleAuth.service.js:143\nawait in refreshToken\ncheckAuthStatus @ App.js:140\nawait in checkAuthStatus\n（匿名） @ App.js:179\ncommitHookEffectListMount @ react-dom.development.js:23189\ncommitPassiveMountOnFiber @ react-dom.development.js:24965\ncommitPassiveMountEffects_complete @ react-dom.development.js:24930\ncommitPassiveMountEffects_begin @ react-dom.development.js:24917\ncommitPassiveMountEffects @ react-dom.development.js:24905\nflushPassiveEffectsImpl @ react-dom.development.js:27078\nflushPassiveEffects @ react-dom.development.js:27023\n（匿名） @ react-dom.development.js:26808\nworkLoop @ scheduler.development.js:266\nflushWork @ scheduler.development.js:239\nperformWorkUntilDeadline @ scheduler.development.js:533このエラーを分析AI\ntoken-refresh.js:207 [TokenRefresh] 401エラー検出、トークンリフレッシュを実行\ntoken-refresh.js:64 [TokenRefresh] 既存のリフレッシュ処理の完了を待機",
-  "status": "investigating",
-  "createdAt": "2025-03-24T23:03:49.457Z",
-  "errorType": "認証エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-24T23:03:49.467Z"
-}

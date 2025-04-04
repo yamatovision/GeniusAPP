@@ -1,4 +1,4 @@
-# AppGenius デプロイ情報（2025/03/26更新）
+# AppGenius デプロイ情報（2025/04/04更新）
 
 ## プロンプト管理システムのデプロイ構成
 
@@ -15,7 +15,9 @@ AppGeniusのプロンプト管理システムは以下の3つの主要コンポ�
 ### デプロイ環境とURL
 
 **本番環境**
-- バックエンド: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
+- バックエンド: 
+  - メイン: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
+  - テスト環境: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
 - フロントエンド: https://geniemon.vercel.app
 - データベース: MongoDB Atlas
 
@@ -31,7 +33,7 @@ Google Cloud Runは軽量コンテナをサーバーレスで実行するマネ�
 
 2. **Dockerfileの準備例**
    ```dockerfile
-   FROM node:16
+   FROM --platform=linux/amd64 node:16
    
    WORKDIR /app
    
@@ -45,6 +47,7 @@ Google Cloud Runは軽量コンテナをサーバーレスで実行するマネ�
    # 環境変数を設定
    ENV PORT=5000
    ENV NODE_ENV=production
+   ENV API_HOST=appgenius-portal-backend-235426778039.asia-northeast1.run.app
    
    # ポート5000を開放
    EXPOSE 5000
@@ -71,18 +74,29 @@ Google Cloud Runは軽量コンテナをサーバーレスで実行するマネ�
        --role="roles/secretmanager.secretAccessor"
      ```
 
-5. **デプロイコマンド**
+5. **マルチプラットフォームビルドとデプロイ（Apple Siliconから）**
    ```bash
-   # コンテナのビルドとデプロイ
-   gcloud builds submit --tag gcr.io/yamatovision-blue-lamp/appgenius-portal-backend
+   # buildxでマルチプラットフォームビルダーを設定
+   docker buildx create --use --name multi-arch-builder
    
+   # AMD64向けにビルドとプッシュ
+   docker buildx build --platform linux/amd64 \
+     -t gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest \
+     -f Dockerfile \
+     --push .
+   
+   # Cloud Runにデプロイ
    gcloud run deploy appgenius-portal-backend \
-     --image gcr.io/yamatovision-blue-lamp/appgenius-portal-backend \
+     --image gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest \
      --platform managed \
      --region asia-northeast1 \
      --allow-unauthenticated \
      --port 5000 \
-     --memory 1Gi
+     --memory 512Mi \
+     --cpu 1000m \
+     --max-instances 100 \
+     --concurrency 80 \
+     --timeout 5m
    ```
 
 6. **環境変数の設定**
@@ -494,7 +508,8 @@ VSCode拡張を使用するには以下の設定が必要です:
 | 変数名 | 説明 | 例 |
 |--------|------|-----|
 | NODE_ENV | 環境設定 | production |
-| PORT | サーバーポート | 8080 |
+| PORT | サーバーポート | 5000 |
+| API_HOST | プロンプト共有URL用ホスト名 | appgenius-portal-backend-235426778039.asia-northeast1.run.app |
 | MONGODB_URI | MongoDB接続文字列 | mongodb+srv://... |
 | JWT_SECRET | JWT署名用シークレット | appgenius_jwt_secret_key |
 | JWT_EXPIRY | JWTトークン有効期限 | 1h |
@@ -642,6 +657,36 @@ Railway.appで頻繁に発生していた下記の問題により、Google Cloud
 
 対応策:
 - サーバーコードでAPIレスポンス形式を統一
+
+#### Apple Silicon(ARM64)からのCloud Run(AMD64)へのデプロイ問題
+Apple Silicon搭載のMacからGoogle Cloud Run(AMD64アーキテクチャ)へデプロイする場合、アーキテクチャの不一致によるエラーが発生することがあります。
+
+**主な症状**:
+- `exec format error`というエラーメッセージ
+- コンテナが起動せずにヘルスチェックに失敗する
+- `terminated: Application failed to start`エラーが発生する
+
+**解決策**:
+1. Dockerfileに明示的にプラットフォームを指定する:
+   ```dockerfile
+   FROM --platform=linux/amd64 node:16
+   ```
+
+2. Docker BuildXを使用してマルチプラットフォームビルドを行う:
+   ```bash
+   docker buildx create --use --name multi-arch-builder
+   docker buildx build --platform linux/amd64 -t your-image-name -f Dockerfile --push .
+   ```
+
+3. 新しいサービス名でデプロイを試みる:
+   ```bash
+   gcloud run deploy new-service-name --image your-image-name --platform managed --region YOUR_REGION --allow-unauthenticated
+   ```
+
+4. 既存のイメージを再利用して新しいサービスとしてデプロイする:
+   ```bash
+   gcloud run deploy new-service-name --image gcr.io/your-project/your-existing-image --platform managed --region YOUR_REGION
+   ```
 
 #### Vercelビルドエラー
 - 依存関係のエラーが出る場合（例: `Cannot find module 'yocto-queue'`）：
