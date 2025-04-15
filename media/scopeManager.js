@@ -13,32 +13,42 @@ const vscode = acquireVsCodeApi();
     activeTab: 'prompts'
   };
   
-  // プロンプトURLリスト
+  // プロンプトURLリスト - developmentway.mdに基づいた15個のプロンプト
   const promptUrls = [
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700ab2f8887a5c4faec",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/bbc6e76a5f448e02bea16918fa1dc9ad"
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39", // 要件定義
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700ab2f8887a5c4faec", // システムアーキテクチャ
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb", // モックアップ作成
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/f0f6805b80ae32f3846c35fe9df4eefe", // データモデル統合
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/bbc6e76a5f448e02bea16918fa1dc9ad", // データモデル精査
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589", // 環境変数収集
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/44b995b91e9879080c4e0169e7a51c0e", // 認証システム
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/612fc1991ca477744c4544255d40fe0b", // デプロイ設定
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/e6167ac13d15f778c0cae369b0068813", // GitHub管理
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704", // 実装タスク分析
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a", // スコープ実装
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed", // テスト管理
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09", // デバッグ探偵
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6", // 追加機能実装
+    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/af9d922c29beffe1224ac6236d083946"  // リファクタリング
   ];
 
-  // プロンプト情報マッピング
+  // プロンプト情報マッピング - developmentway.mdに基づいた15個のプロンプト
   const promptInfo = [
-    { id: 0, name: "システムアーキテクチャー", icon: "architecture", category: "計画", description: "システム設計を支援します" },
-    { id: 1, name: "プロジェクト分析アシスタント", icon: "psychology", category: "分析", description: "プロジェクト分析を行います" },
-    { id: 2, name: "要件定義アドバイザー", icon: "description", category: "計画", description: "要件定義を支援します" },
-    { id: 3, name: "スコープマネージャー", icon: "assignment_turned_in", category: "管理", description: "開発スコープを管理します" },
-    { id: 4, name: "環境変数設定アシスタント", icon: "settings", category: "環境", description: "環境変数の設定を支援します" },
-    { id: 5, name: "テスト生成アシスタント", icon: "science", category: "テスト", description: "テスト生成を支援します" },
-    { id: 6, name: "モックアップアナライザー", icon: "web", category: "UI", description: "モックアップを分析します" },
-    { id: 7, name: "スコープインプリメンター", icon: "build", category: "実装", description: "スコープ実装を支援します" },
-    { id: 8, name: "デバック探偵", icon: "bug_report", category: "デバッグ", description: "エラーを分析し解決します" },
-    { id: 9, name: "検証アシスタント", icon: "check_circle", category: "検証", description: "実装の検証を行います" }
+    { id: 0, name: "要件定義", icon: "description", category: "計画", description: "ビジネス要件を要件定義書に変換" },
+    { id: 1, name: "システムアーキテクチャ", icon: "architecture", category: "設計", description: "システム全体の設計と開発基盤の確立" },
+    { id: 2, name: "モックアップ作成", icon: "web", category: "UI", description: "要件に基づいたモックアップ作成" },
+    { id: 3, name: "データモデル統合", icon: "data_object", category: "設計", description: "一貫性のあるシステム全体のモデル構築" },
+    { id: 4, name: "データモデル精査", icon: "psychology", category: "設計", description: "データモデルの厳格な精査と品質向上" },
+    { id: 5, name: "環境変数設定", icon: "settings", category: "環境", description: "実際の本番環境用の環境変数設定" },
+    { id: 6, name: "認証システム構築", icon: "security", category: "実装", description: "シンプルなJWT自社実装による認証" },
+    { id: 7, name: "デプロイ設定", icon: "cloud_upload", category: "環境", description: "クラウドベースのWebアプリケーションデプロイ" },
+    { id: 8, name: "GitHub管理", icon: "code", category: "管理", description: "コードの安全なアップロード・管理支援" },
+    { id: 9, name: "実装タスク分析", icon: "assignment_turned_in", category: "管理", description: "実装順序の最適化と環境統一化" },
+    { id: 10, name: "スコープ実装", icon: "build", category: "実装", description: "設計情報から高品質なコード生成" },
+    { id: 11, name: "テスト管理", icon: "science", category: "テスト", description: "実データに基づく効率的なテスト実装" },
+    { id: 12, name: "デバッグ探偵", icon: "bug_report", category: "デバッグ", description: "フロントエンドエラーとAPI連携問題の解決" },
+    { id: 13, name: "追加機能実装", icon: "add_circle", category: "実装", description: "機能追加・変更・削除要望の分析" },
+    { id: 14, name: "リファクタリング", icon: "tune", category: "改善", description: "技術的負債の特定と設計改善" }
   ];
   
   // 開発ツール情報
@@ -66,8 +76,14 @@ const vscode = acquireVsCodeApi();
     // 開発ツールのカードを初期化
     initializeToolCards();
     
+    // プロジェクトナビゲーションの開閉ボタン処理
+    initializeProjectNav();
+    
     // ClaudeCode連携エリアを初期化
     initializeClaudeCodeShareArea();
+    
+    // マークダウン表示の初期化
+    initializeMarkdownDisplay();
   });
   
   // メッセージハンドラーの設定
@@ -79,6 +95,8 @@ const vscode = acquireVsCodeApi();
       return; // sharingPanel.jsに処理を任せる
     }
     
+    console.log('メッセージ受信:', message.command);
+    
     switch (message.command) {
       case 'updateState':
         handleUpdateState(message);
@@ -86,11 +104,23 @@ const vscode = acquireVsCodeApi();
       case 'showError':
         showError(message.message);
         break;
+      case 'showSuccess':
+        showSuccess(message.message);
+        break;
       case 'showDirectoryStructure':
         showDirectoryStructure(message.structure);
         break;
       case 'updateProjectPath':
         updateProjectPath(message);
+        break;
+      case 'updateProjectName':
+        updateProjectName(message.projectName);
+        break;
+      case 'updateMarkdownContent':
+        displayMarkdownContent(message.content);
+        break;
+      case 'updateProjects':
+        updateProjects(message.projects, message.activeProject);
         break;
     }
   });
@@ -99,19 +129,36 @@ const vscode = acquireVsCodeApi();
    * プロジェクトパスの更新
    */
   function updateProjectPath(data) {
-    const projectTitle = document.getElementById('project-title');
-    const projectPath = document.getElementById('project-path');
+    const projectNameElement = document.querySelector('.project-name');
+    const projectPathElement = document.querySelector('.project-path-display');
     
     // プロジェクト情報の更新
-    if (projectTitle && data.projectPath) {
+    if (projectNameElement && data.projectPath) {
       // パスから最後のディレクトリ名を取得
       const pathParts = data.projectPath.split(/[/\\]/);
       const projectName = pathParts[pathParts.length - 1];
-      projectTitle.textContent = projectName || 'プロジェクト';
+      projectNameElement.textContent = projectName || 'プロジェクト';
+      
+      // プロジェクト表示部分も更新（タブバーの左側に表示されるプロジェクト名）
+      const projectDisplayName = document.querySelector('.project-display .project-name');
+      if (projectDisplayName) {
+        projectDisplayName.textContent = projectName || 'プロジェクト';
+      }
     }
     
-    if (projectPath) {
-      projectPath.textContent = data.projectPath || '/path/to/project';
+    if (projectPathElement) {
+      projectPathElement.textContent = data.projectPath || '/path/to/project';
+    }
+    
+    // CURRENT_STATUS.mdファイルの存在をチェック
+    if (data.statusFilePath && data.statusFileExists) {
+      console.log('CURRENT_STATUS.mdファイルが存在します:', data.statusFilePath);
+      
+      // ファイルが存在する場合はマークダウンコンテンツを取得するリクエストを送信
+      vscode.postMessage({
+        command: 'getMarkdownContent',
+        filePath: data.statusFilePath
+      });
     }
     
     // forceRefreshフラグがtrueの場合は、強制的に初期化メッセージを送信
@@ -189,6 +236,61 @@ const vscode = acquireVsCodeApi();
     
     // プロジェクト進捗の更新
     updateProjectProgress(data.scopes);
+    
+    // CURRENT_STATUS.mdのマークダウン表示（バックエンドから受け取っている場合）
+    if (data.currentStatusMarkdown) {
+      displayMarkdownContent(data.currentStatusMarkdown);
+    } else {
+      // バックエンドからマークダウンデータが取得できていない場合は
+      // ファイル取得メッセージを送信
+      if (data.statusFilePath) {
+        vscode.postMessage({
+          command: 'getMarkdownContent',
+          filePath: data.statusFilePath
+        });
+      }
+    }
+  }
+  
+  /**
+   * マークダウンコンテンツを表示
+   */
+  function displayMarkdownContent(markdownContent) {
+    const markdownContainer = document.querySelector('.markdown-content');
+    if (markdownContainer) {
+      // マークダウンをHTMLに変換（実際には適切なライブラリを使用する）
+      const htmlContent = convertMarkdownToHtml(markdownContent);
+      
+      // HTML内容を設定
+      markdownContainer.innerHTML = htmlContent;
+      
+      // チェックボックスのイベントリスナー設定
+      setupCheckboxes();
+    }
+  }
+  
+  /**
+   * マークダウン内のチェックボックスにイベントリスナーを設定
+   */
+  function setupCheckboxes() {
+    const checkboxes = document.querySelectorAll('.markdown-content input[type="checkbox"]');
+    
+    checkboxes.forEach(checkbox => {
+      checkbox.addEventListener('change', (e) => {
+        // チェックボックス変更のメッセージを送信
+        // この部分は実際の実装では、CURRENT_STATUS.mdファイルの変更に連動する必要がある
+        console.log('チェックボックス状態変更:', e.target.checked);
+        
+        // マークダウン内のチェックボックス変更メッセージを送信
+        vscode.postMessage({
+          command: 'updateMarkdownCheckbox',
+          checked: e.target.checked,
+          // 実際の実装では、ここにチェックボックスを特定するための情報が必要
+          // 例: テキスト内容や行番号など
+          index: Array.from(checkboxes).indexOf(e.target)
+        });
+      });
+    });
   }
   
   /**
@@ -547,18 +649,396 @@ const vscode = acquireVsCodeApi();
   function showError(message) {
     console.error('エラー:', message);
     
-    // VSCodeの通知API経由でエラーメッセージを表示することもできる
-    // ここでは簡易的なエラー表示
-    const errorContainer = document.getElementById('error-container');
-    if (errorContainer) {
-      errorContainer.textContent = message;
-      errorContainer.style.display = 'block';
-      
-      // 5秒後に非表示
-      setTimeout(() => {
-        errorContainer.style.display = 'none';
-      }, 5000);
+    // 既存のメッセージがあれば削除
+    const existingMessages = document.querySelectorAll('.error-message, .success-message');
+    existingMessages.forEach(el => el.remove());
+    
+    // エラーメッセージの作成
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.innerHTML = `<span>⚠️</span> ${message}`;
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '20px';
+    errorDiv.style.left = '50%';
+    errorDiv.style.transform = 'translateX(-50%)';
+    errorDiv.style.backgroundColor = '#f8d7da';
+    errorDiv.style.color = '#721c24';
+    errorDiv.style.padding = '10px 20px';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    errorDiv.style.zIndex = '10000';
+    
+    document.body.appendChild(errorDiv);
+    
+    // 5秒後に自動で消去
+    setTimeout(() => {
+      if (errorDiv.parentNode) {
+        errorDiv.parentNode.removeChild(errorDiv);
+      }
+    }, 5000);
+  }
+  
+  /**
+   * 成功メッセージ表示
+   */
+  function showSuccess(message) {
+    console.log('成功:', message);
+    
+    // 既存のメッセージがあれば削除
+    const existingMessages = document.querySelectorAll('.error-message, .success-message');
+    existingMessages.forEach(el => el.remove());
+    
+    // 成功メッセージの作成
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.innerHTML = `<span>✅</span> ${message}`;
+    successDiv.style.position = 'fixed';
+    successDiv.style.top = '20px';
+    successDiv.style.left = '50%';
+    successDiv.style.transform = 'translateX(-50%)';
+    successDiv.style.backgroundColor = '#d4edda';
+    successDiv.style.color = '#155724';
+    successDiv.style.padding = '10px 20px';
+    successDiv.style.borderRadius = '4px';
+    successDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    successDiv.style.zIndex = '10000';
+    
+    document.body.appendChild(successDiv);
+    
+    // 5秒後に自動で消去
+    setTimeout(() => {
+      if (successDiv.parentNode) {
+        successDiv.parentNode.removeChild(successDiv);
+      }
+    }, 5000);
+  }
+  
+  /**
+   * プロジェクト名を更新
+   */
+  function updateProjectName(projectName) {
+    // プロジェクト名をヘッダーに更新
+    const projectNameElement = document.querySelector('.project-name');
+    if (projectNameElement) {
+      projectNameElement.textContent = projectName;
     }
+    
+    // プロジェクト表示部分も更新（タブバーの左側に表示されるプロジェクト名）
+    const projectDisplayName = document.querySelector('.project-display .project-name');
+    if (projectDisplayName) {
+      projectDisplayName.textContent = projectName;
+    }
+    
+    // プロジェクトリストのアクティブなプロジェクト名も更新（一致するもの）
+    const projectItems = document.querySelectorAll('.project-item');
+    projectItems.forEach(item => {
+      const nameElement = item.querySelector('.project-name');
+      if (nameElement && nameElement.textContent === projectName) {
+        // このプロジェクトをアクティブに
+        projectItems.forEach(pi => pi.classList.remove('active'));
+        item.classList.add('active');
+      }
+    });
+  }
+  
+  /**
+   * プロジェクト一覧を更新
+   * @param {Array} projects プロジェクト一覧
+   * @param {Object} activeProject アクティブなプロジェクト
+   */
+  function updateProjects(projects, activeProject) {
+    console.log('プロジェクト一覧更新:', projects.length, '件');
+    
+    const projectList = document.getElementById('project-list');
+    if (!projectList) return;
+    
+    // リストをクリア
+    projectList.innerHTML = '';
+    
+    // プロジェクトがない場合の表示
+    if (!projects || projects.length === 0) {
+      projectList.innerHTML = '<div class="project-item">プロジェクトがありません</div>';
+      return;
+    }
+    
+    // 各プロジェクトをリストに追加
+    projects.forEach((project) => {
+      const item = document.createElement('div');
+      const isActive = activeProject && activeProject.id === project.id;
+      item.className = 'project-item' + (isActive ? ' active' : '');
+      
+      // プロジェクト表示名はパスの最後のディレクトリ名か設定されている名前を使用
+      let displayName = project.name || '';
+      if (!displayName && project.path) {
+        // パスから抽出
+        const pathParts = project.path.split(/[/\\]/);
+        displayName = pathParts[pathParts.length - 1] || 'プロジェクト';
+      }
+      
+      item.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+          <div>
+            <span class="project-name">${displayName}</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">${project.path || 'パスなし'}</span>
+          </div>
+          <button class="remove-project-btn" title="プロジェクトの登録を解除" style="background: none; border: none; cursor: pointer; color: var(--app-text-secondary); opacity: 0.5; font-size: 16px;">
+            <span class="material-icons" style="font-size: 16px;">close</span>
+          </button>
+        </div>
+      `;
+      
+      // 全体のクリックイベント
+      const handleProjectClick = () => {
+        // アクティブクラスを削除
+        document.querySelectorAll('.project-item').forEach(pi => pi.classList.remove('active'));
+        // クリックされた項目をアクティブに
+        item.classList.add('active');
+        
+        // プロジェクト名を取得
+        const projectName = item.querySelector('.project-name').textContent;
+        // プロジェクトタブ表示を更新
+        const projectNameTab = document.querySelector('.project-name-tab');
+        if (projectNameTab) {
+          projectNameTab.textContent = projectName;
+        }
+        
+        // プロジェクト選択の進行中メッセージを表示
+        const notification = document.createElement('div');
+        notification.className = 'save-notification';
+        notification.innerHTML = `
+          <span class="material-icons" style="color: var(--app-warning);">hourglass_top</span>
+          <span class="notification-text">プロジェクト「${projectName}」を読み込み中...</span>
+        `;
+        notification.style.display = 'flex';
+        notification.style.opacity = '1';
+        notification.style.backgroundColor = 'rgba(253, 203, 110, 0.15)';
+        
+        // 通知領域にメッセージを表示
+        const errorContainer = document.getElementById('error-container');
+        if (errorContainer) {
+          errorContainer.parentNode.insertBefore(notification, errorContainer);
+        } else {
+          document.body.appendChild(notification);
+        }
+        
+        // VSCodeにプロジェクト変更のメッセージを送信
+        vscode.postMessage({
+          command: 'selectProject',
+          projectName: projectName,
+          projectPath: project.path
+        });
+        
+        // 3秒後に通知を削除
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 3000);
+      };
+      
+      // 削除ボタンのクリックイベント
+      const removeBtn = item.querySelector('.remove-project-btn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+          // クリックイベントの伝播を停止
+          e.stopPropagation();
+          
+          // 確認ダイアログ
+          const projectName = item.querySelector('.project-name').textContent;
+          
+          // シンプルな確認ダイアログを作成
+          const overlay = document.createElement('div');
+          overlay.className = 'dialog-overlay';
+          overlay.style.zIndex = '10000';
+          
+          const dialog = document.createElement('div');
+          dialog.className = 'dialog';
+          dialog.innerHTML = `
+            <div class="dialog-title">プロジェクト登録解除の確認</div>
+            <div style="margin: 20px 0;">
+              <p>プロジェクト「${projectName}」の登録を解除しますか？</p>
+              <p style="color: var(--app-text-secondary); font-size: 0.9em; margin-top: 10px;">
+                注意: この操作はプロジェクトファイルを削除するものではなく、
+                AppGeniusからの登録を解除するだけです。
+              </p>
+            </div>
+            <div class="dialog-footer">
+              <button class="button button-secondary" id="cancel-remove">キャンセル</button>
+              <button class="button" id="confirm-remove" style="background-color: var(--app-danger);">登録解除</button>
+            </div>
+          `;
+          
+          overlay.appendChild(dialog);
+          document.body.appendChild(overlay);
+          
+          // キャンセルボタン
+          document.getElementById('cancel-remove')?.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+          });
+          
+          // 確認ボタン
+          document.getElementById('confirm-remove')?.addEventListener('click', () => {
+            // VSCodeにプロジェクト削除のメッセージを送信
+            vscode.postMessage({
+              command: 'removeProject',
+              projectName: projectName,
+              projectPath: project.path,
+              projectId: project.id
+            });
+            
+            // ダイアログを閉じる
+            document.body.removeChild(overlay);
+            
+            // 削除中のフィードバック
+            item.style.opacity = '0.5';
+            item.style.pointerEvents = 'none';
+          });
+        });
+        
+        // ホバー効果
+        removeBtn.addEventListener('mouseover', () => {
+          removeBtn.style.opacity = '0.8';
+          removeBtn.style.color = 'var(--app-text)';
+        });
+        
+        removeBtn.addEventListener('mouseout', () => {
+          removeBtn.style.opacity = '0.5';
+          removeBtn.style.color = 'var(--app-text-secondary)';
+        });
+      }
+      
+      // 削除ボタン以外の領域のクリックで全体のクリックイベントを発火
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.remove-project-btn')) {
+          handleProjectClick();
+        }
+      });
+      
+      projectList.appendChild(item);
+    });
+  }
+  
+  /**
+   * プロジェクトナビゲーションの初期化
+   */
+  function initializeProjectNav() {
+    const toggleNavBtn = document.getElementById('toggle-nav-btn');
+    if (toggleNavBtn) {
+      // 初期化時にアイコンの向きを確認・設定
+      const projectNav = document.querySelector('.project-nav');
+      const icon = toggleNavBtn.querySelector('.material-icons');
+      
+      if (projectNav && projectNav.classList.contains('collapsed')) {
+        icon.textContent = 'chevron_right';
+      } else if (icon) {
+        icon.textContent = 'chevron_left';
+      }
+      
+      toggleNavBtn.addEventListener('click', function() {
+        const projectNav = document.querySelector('.project-nav');
+        const contentArea = document.querySelector('.content-area');
+        const icon = toggleNavBtn.querySelector('.material-icons');
+        
+        if (projectNav.classList.contains('collapsed')) {
+          // パネルを展開
+          projectNav.classList.remove('collapsed');
+          contentArea.classList.remove('expanded');
+          icon.textContent = 'chevron_left';
+          toggleNavBtn.title = 'パネルを閉じる';
+        } else {
+          // パネルを折りたたむ
+          projectNav.classList.add('collapsed');
+          contentArea.classList.add('expanded');
+          icon.textContent = 'chevron_right';
+          toggleNavBtn.title = 'パネルを開く';
+        }
+      });
+    }
+    
+    // 初期化時はバックエンドからプロジェクト一覧を要求
+    // 初期化はすでに実行済みなので、この時点では何もしない
+
+    // プロジェクトリスト初期化
+    const projectList = document.getElementById('project-list');
+    if (projectList) {
+      // 初期状態ではローディングメッセージを表示
+      projectList.innerHTML = '<div class="project-item loading">プロジェクト一覧を読み込み中...</div>';
+    }
+    
+    // 新規プロジェクトボタンのイベント設定
+    const newProjectBtn = document.getElementById('new-project-btn');
+    if (newProjectBtn) {
+      newProjectBtn.addEventListener('click', () => {
+        console.log('新規プロジェクト作成ボタンがクリックされました');
+        showNewProjectModal();
+      });
+    }
+    
+    // プロジェクトファイル読み込みボタンのイベント設定
+    const loadProjectBtn = document.getElementById('load-project-btn');
+    if (loadProjectBtn) {
+      loadProjectBtn.addEventListener('click', () => {
+        console.log('プロジェクト読み込みボタンがクリックされました');
+        vscode.postMessage({
+          command: 'loadExistingProject'
+        });
+      });
+    }
+  }
+  
+  /**
+   * マークダウン表示の初期化
+   */
+  function initializeMarkdownDisplay() {
+    // CURRENT_STATUS.mdファイルをマークダウンとして表示する処理
+    // バックエンドから受け取ったマークダウンデータを表示
+    // この段階では何もしない、メッセージハンドラーで処理される
+    console.log('マークダウン表示の初期化完了');
+  }
+  
+  /**
+   * マークダウンをHTMLに変換する簡易的な関数
+   * 実際の実装ではmarked.jsなどのライブラリを使用するべき
+   */
+  function convertMarkdownToHtml(markdown) {
+    if (!markdown) return '';
+    
+    // 簡易的な実装
+    let html = markdown
+      // 見出し
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+      
+      // リスト
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+      
+      // 強調
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      
+      // リンク
+      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>')
+      
+      // コード
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      
+      // 段落
+      .replace(/\n\n/g, '</p><p>');
+    
+    // 段落タグで囲む
+    html = '<p>' + html + '</p>';
+    
+    // リストをリストタグで囲む処理（簡易的）
+    html = html.replace(/<li>(.+?)<\/li>/g, '<ul><li>$1</li></ul>');
+    
+    // チェックボックス対応
+    html = html.replace(/\[ \] (.+?)(?=<\/li>)/g, '<input type="checkbox"> $1');
+    html = html.replace(/\[x\] (.+?)(?=<\/li>)/g, '<input type="checkbox" checked> $1');
+    
+    return html;
   }
   
   /**
@@ -594,6 +1074,124 @@ const vscode = acquireVsCodeApi();
       // 日付のフォーマット
       return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
     }
+  }
+  
+  /**
+   * 新規プロジェクト作成用モーダルを表示
+   */
+  function showNewProjectModal() {
+    console.log('新規プロジェクトモーダル表示処理を開始します');
+    
+    try {
+      // 既存のモーダルを削除
+      document.querySelectorAll('#new-project-modal').forEach(m => {
+        console.log('モーダル要素を削除します:', m.id);
+        m.remove();
+      });
+      
+      // モーダルを新規作成
+      console.log('モーダルを新規作成します');
+      const modal = document.createElement('div');
+      modal.id = 'new-project-modal';
+      
+      // スタイルを詳細に設定
+      Object.assign(modal.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        right: '0',
+        bottom: '0',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: '10000'
+      });
+      
+      // シンプルなモーダル内容
+      modal.innerHTML = `
+        <div style="background-color: white; border-radius: 10px; width: 400px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);">
+          <div style="padding: 20px; border-bottom: 1px solid #ddd;">
+            <h2 style="margin: 0; font-size: 18px;">新規プロジェクト作成</h2>
+          </div>
+          <div style="padding: 20px;">
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px;">プロジェクト名 <span style="color: red;">*</span></label>
+              <input type="text" id="project-name" required placeholder="例: MyWebApp" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+          </div>
+          <div style="padding: 15px 20px; border-top: 1px solid #ddd; text-align: right;">
+            <button type="button" id="cancel-new-project" style="padding: 6px 12px; margin-right: 10px; background: #f1f1f1; border: none; border-radius: 4px; cursor: pointer;">キャンセル</button>
+            <button type="button" id="create-project-btn" style="padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px; cursor: pointer;">作成</button>
+          </div>
+        </div>
+      `;
+      
+      // ボディにモーダルを追加
+      document.body.appendChild(modal);
+      
+      // イベントリスナーを設定
+      const cancelBtn = document.getElementById('cancel-new-project');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', hideNewProjectModal);
+      }
+      
+      const createBtn = document.getElementById('create-project-btn');
+      if (createBtn) {
+        createBtn.addEventListener('click', createNewProject);
+      }
+      
+      // 名前フィールドにフォーカス
+      const projectName = document.getElementById('project-name');
+      if (projectName) {
+        projectName.focus();
+      }
+      
+    } catch (e) {
+      console.error('モーダル表示処理中にエラーが発生しました', e);
+    }
+  }
+  
+  /**
+   * 新規プロジェクトモーダルを非表示
+   */
+  function hideNewProjectModal() {
+    console.log('モーダルを非表示にします');
+    const modal = document.getElementById('new-project-modal');
+    if (modal) {
+      modal.remove();
+    }
+  }
+  
+  /**
+   * 新規プロジェクト作成処理
+   */
+  function createNewProject() {
+    console.log('新規プロジェクト作成処理を開始します');
+    const nameEl = document.getElementById('project-name');
+    
+    if (!nameEl) {
+      console.error('プロジェクト名入力フィールド(#project-name)が見つかりません');
+      return;
+    }
+    
+    const name = nameEl.value.trim();
+    console.log('入力されたプロジェクト名:', name);
+    
+    if (!name) {
+      console.warn('プロジェクト名が空です');
+      showError('プロジェクト名を入力してください');
+      return;
+    }
+    
+    console.log('VSCodeにメッセージを送信します: createProject');
+    vscode.postMessage({
+      command: 'createProject',
+      name,
+      description: ""
+    });
+    
+    hideNewProjectModal();
   }
   
   /**
@@ -666,8 +1264,14 @@ const vscode = acquireVsCodeApi();
         
         // コンテンツ表示を切り替え
         const tabId = tab.getAttribute('data-tab');
+        
+        // 対応するタブコンテンツを表示し、それ以外を非表示にする
         tabContents.forEach(content => {
-          content.classList.toggle('active', content.id === `${tabId}-tab`);
+          if (content.id === `${tabId}-tab`) {
+            content.classList.add('active');
+          } else {
+            content.classList.remove('active');
+          }
         });
       });
     });
@@ -727,6 +1331,7 @@ const vscode = acquireVsCodeApi();
     const toggleBtn = document.getElementById('toggle-share-btn');
     const shareArea = document.getElementById('claude-code-share');
     const minimizeBtn = document.getElementById('minimize-share-btn');
+    const shareTextarea = document.querySelector('.share-textarea');
     
     if (!toggleBtn || !shareArea || !minimizeBtn) return;
     
@@ -744,8 +1349,67 @@ const vscode = acquireVsCodeApi();
       shareArea.classList.add('collapsed');
       toggleBtn.style.display = 'flex';
     });
+
+    // テキストエリアは標準の動作のままにする
+    
+    // 開発プロンプトカードを初期化
+    initializePromptCardsInModal();
     
     console.log('scopeManager.js: 基本的なClaudeCode連携エリアの初期化を完了しました');
     // 詳細な機能はsharingPanel.jsに任せるため、ここでは最小限の初期化のみ行う
+  }
+  
+  /**
+   * 開発プロンプトモーダルにプロンプトカードを初期化
+   */
+  function initializePromptCardsInModal() {
+    const promptGrid = document.querySelector('.claude-code-share-area .prompt-grid');
+    if (!promptGrid) return;
+    
+    // developmentway.md に基づいた15個のプロンプト情報を使用
+    const allPrompts = [
+      { id: 0, name: "要件定義", icon: "description", category: "計画", description: "ビジネス要件を要件定義書に変換" },
+      { id: 1, name: "システムアーキテクチャ", icon: "architecture", category: "設計", description: "システム全体の設計と開発基盤の確立" },
+      { id: 2, name: "モックアップ作成", icon: "web", category: "UI", description: "要件に基づいたモックアップ作成" },
+      { id: 3, name: "データモデル統合", icon: "data_object", category: "設計", description: "一貫性のあるシステム全体のモデル構築" },
+      { id: 4, name: "データモデル精査", icon: "psychology", category: "設計", description: "データモデルの厳格な精査と品質向上" },
+      { id: 5, name: "環境変数設定", icon: "settings", category: "環境", description: "実際の本番環境用の環境変数設定" },
+      { id: 6, name: "認証システム構築", icon: "security", category: "実装", description: "シンプルなJWT自社実装による認証" },
+      { id: 7, name: "デプロイ設定", icon: "cloud_upload", category: "環境", description: "クラウドベースのWebアプリケーションデプロイ" },
+      { id: 8, name: "GitHub管理", icon: "code", category: "管理", description: "コードの安全なアップロード・管理支援" },
+      { id: 9, name: "実装タスク分析", icon: "assignment_turned_in", category: "管理", description: "実装順序の最適化と環境統一化" },
+      { id: 10, name: "スコープ実装", icon: "build", category: "実装", description: "設計情報から高品質なコード生成" },
+      { id: 11, name: "テスト管理", icon: "science", category: "テスト", description: "実データに基づく効率的なテスト実装" },
+      { id: 12, name: "デバッグ探偵", icon: "bug_report", category: "デバッグ", description: "フロントエンドエラーとAPI連携問題の解決" },
+      { id: 13, name: "追加機能実装", icon: "add_circle", category: "実装", description: "機能追加・変更・削除要望の分析" },
+      { id: 14, name: "リファクタリング", icon: "tune", category: "改善", description: "技術的負債の特定と設計改善" }
+    ];
+    
+    // モーダル内にプロンプトカードを追加
+    allPrompts.forEach(prompt => {
+      const card = document.createElement('div');
+      card.className = 'prompt-card';
+      card.innerHTML = `
+        <span class="material-icons prompt-icon">${prompt.icon}</span>
+        <div class="category-tag">${prompt.category}</div>
+        <h3 class="prompt-title">${prompt.name}</h3>
+        <p class="prompt-description">${prompt.description}</p>
+      `;
+      
+      // クリックイベント
+      card.addEventListener('click', () => {
+        // プロンプトのURL
+        const url = promptUrls[prompt.id];
+        if (url) {
+          vscode.postMessage({
+            command: 'launchPromptFromURL',
+            url: url,
+            index: prompt.id
+          });
+        }
+      });
+      
+      promptGrid.appendChild(card);
+    });
   }
 })();

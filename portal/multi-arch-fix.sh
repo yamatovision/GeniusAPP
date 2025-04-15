@@ -1,10 +1,10 @@
-#\!/bin/bash
+#!/bin/bash
 set -e
 
 # 変数設定
-SERVICE_NAME=appgenius-portal-backend
+SERVICE_NAME=appgenius-portal-test
 REGION=asia-northeast1
-IMAGE_NAME=gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:multi-arch-fix
+IMAGE_NAME=gcr.io/yamatovision-blue-lamp/appgenius-portal-test:url-fix
 
 # マルチプラットフォームビルダーを準備
 echo "マルチプラットフォームビルダーを準備しています..."
@@ -26,7 +26,7 @@ COPY backend ./backend
 # 環境変数を設定
 ENV PORT=5000
 ENV NODE_ENV=production
-ENV API_HOST=appgenius-portal-backend-235426778039.asia-northeast1.run.app
+ENV API_HOST=appgenius-portal-test-235426778039.asia-northeast1.run.app
 ENV DB_SERVER_TIMEOUT_MS=30000
 ENV DB_SOCKET_TIMEOUT_MS=45000
 ENV DB_CONNECT_TIMEOUT_MS=30000

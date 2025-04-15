@@ -7,27 +7,27 @@
 
 /* ベースレイアウト */
 .scope-manager-container {
-  padding: 20px;
-  background-color: #1e1e1e;
-  color: #d2d2d2;
+  padding: 0;
+  background-color: #f8f9fa;
+  color: #333333;
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
 }
 
-/* 固定ダークテーマ定義 */
+/* 固定ライトテーマ定義 */
 :root {
-  --app-background: #1e1e1e;
-  --app-text: #d2d2d2;
-  --app-text-secondary: #adadad;
-  --app-heading-color: #f0f0f0;
-  --app-card-background: #333333;
-  --app-input-background: #252525;
-  --app-border-color: #454545;
-  --app-hover-background: #252525;
-  --app-selected-background: rgba(74, 105, 189, 0.2);
-  --app-selected-text: #f0f0f0;
+  --app-background: #f8f9fa;
+  --app-text: #333333;
+  --app-text-secondary: #718096;
+  --app-heading-color: #2d3748;
+  --app-card-background: #ffffff;
+  --app-input-background: #ffffff;
+  --app-border-color: #e2e8f0;
+  --app-hover-background: #f1f5fd;
+  --app-selected-background: rgba(74, 105, 189, 0.1);
+  --app-selected-text: #333333;
   --app-primary: #4a69bd;
   --app-primary-dark: #3a5a9e;
   --app-primary-light: rgba(74, 105, 189, 0.2);
@@ -70,12 +70,148 @@ h1, h2, h3, h4 {
 }
 
 .main-content {
-  display: grid;
-  grid-template-columns: 300px 1fr;
+  display: flex;
   gap: var(--app-spacing-md);
   flex: 1;
   overflow: visible;
   min-height: 0;
+  position: relative;
+}
+
+/* プロジェクトナビゲーション */
+.project-nav {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--app-border-color);
+  padding: var(--app-spacing-md);
+  background-color: #fff;
+  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.project-nav.collapsed {
+  width: 40px;
+  overflow: hidden; /* テキストが見えないように完全に隠す */
+  padding: var(--app-spacing-md) 0;
+  background-color: #f0f2f5; /* 背景色を少し暗くして目立たせる */
+}
+
+.project-nav.collapsed .filter-bar,
+.project-nav.collapsed h3,
+.project-nav.collapsed .project-actions,
+.project-nav.collapsed .project-list, /* プロジェクトリストも非表示 */
+.project-nav.collapsed .project-item { /* 各アイテムも非表示 */
+  display: none;
+}
+
+.project-label {
+  display: none;
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 3px 8px;
+  background-color: var(--app-primary);
+  color: white;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  opacity: 0.7;
+}
+
+/* 完全に非表示にする - PRJラベルは不要 */
+.project-nav.collapsed .project-label {
+  display: none;
+}
+
+.toggle-nav-btn {
+  position: absolute;
+  top: 50%;
+  right: -12px; /* 右端からはみ出して目立たせる */
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: #fff;
+  border: 1px solid var(--app-border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100; /* 高いz-indexで必ず前面に表示 */
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15); /* 影を強くして目立たせる */
+  transform: translateY(-50%); /* 垂直方向の中央に配置 */
+}
+
+.toggle-nav-btn:hover {
+  background-color: var(--app-primary-light);
+  color: var(--app-primary);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  transform: translateY(-50%) scale(1.1); /* ホバー時に少し大きくする */
+}
+
+/* 閉じた状態のボタンスタイル */
+.project-nav.collapsed .toggle-nav-btn {
+  right: -14px; /* 右端からもっとはみ出して目立たせる */
+  background-color: var(--app-primary);
+  color: white;
+  border-color: var(--app-primary);
+}
+
+/* ボタンが見やすくなるように調整済み */
+
+.toggle-nav-btn .material-icons {
+  font-size: 18px;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 15px;
+  max-height: calc(100vh - 220px); /* 下部の「開発プロンプト」領域も考慮して高さを調整 */
+  overflow-y: auto;
+  padding-bottom: 15px; /* 下部にパディングを追加して見切れないようにする */
+}
+
+.project-item {
+  padding: 12px;
+  border-radius: var(--app-border-radius-sm);
+  cursor: pointer;
+  transition: all var(--app-transition);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background-color: #f8f9fa;
+  border: 1px solid var(--app-border-color);
+}
+
+.project-item:hover {
+  background-color: var(--app-hover-background);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.project-item.active {
+  background-color: var(--app-selected-background);
+  color: var(--app-selected-text);
+  font-weight: var(--app-font-weight-medium);
+  border-left: 3px solid var(--app-primary);
+  padding-left: calc(12px - 3px);
+  border-color: var(--app-primary);
+}
+
+.project-actions {
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+.project-actions .button {
+  flex: 1;
+  font-size: 12px;
+  padding: 8px;
 }
 
 .content-area {
@@ -84,7 +220,14 @@ h1, h2, h3, h4 {
   gap: var(--app-spacing-md);
   overflow-y: visible;
   padding-right: var(--app-spacing-sm);
+  padding-left: 12px; /* 左側にパディングを追加してボタンとの重なりを防ぐ */
   max-height: none;
+  flex: 1;
+}
+
+/* パネルが閉じられたときのコンテンツエリア */
+.content-area.expanded {
+  padding-left: 24px; /* パネルが閉じられたときは左パディングを増やして矢印ボタンとの重なりを完全に防止 */
 }
 
 .card {
@@ -92,9 +235,14 @@ h1, h2, h3, h4 {
   border-radius: var(--app-border-radius);
   border: 1px solid var(--app-border-color);
   padding: var(--app-spacing-md);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   margin-bottom: var(--app-spacing-md);
   overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 40px);
+  max-height: calc(100vh - 40px);
 }
 
 .card-header {
@@ -110,6 +258,13 @@ h1, h2, h3, h4 {
   display: flex;
   border-bottom: 1px solid var(--app-border-color);
   margin-bottom: var(--app-spacing-md);
+  justify-content: space-between; /* 左右に分ける */
+  padding: 0 var(--app-spacing-md);
+  align-items: flex-end;
+}
+
+.tabs-container {
+  display: flex;
 }
 
 .tab {
@@ -118,17 +273,186 @@ h1, h2, h3, h4 {
   border-bottom: 3px solid transparent;
   color: var(--app-text-secondary);
   transition: all var(--app-transition);
+  margin: 0 2px; /* タブ間に少しスペースを追加 */
 }
 
 .tab.active {
   border-bottom-color: var(--app-primary);
   color: var(--app-text);
   font-weight: var(--app-font-weight-medium);
+  background-color: var(--app-primary-light);
+  border-radius: 6px 6px 0 0;
 }
 
 .tab:hover:not(.active) {
   border-bottom-color: var(--app-gray-300);
   color: var(--app-text);
+  background-color: var(--app-gray-100);
+  border-radius: 6px 6px 0 0;
+}
+
+/* プロジェクト名エリア（タブバーの左側に表示） */
+.project-display {
+  display: flex;
+  flex-direction: column;
+  padding: var(--app-spacing-sm) var(--app-spacing-md);
+  background-color: var(--app-primary-light);
+  border-radius: 6px 6px 0 0;
+  border-bottom: 3px solid var(--app-primary);
+  margin-bottom: -1px; /* ボーダーの重なりを調整 */
+}
+
+.project-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--app-primary-dark);
+  margin: 0;
+  padding: 0;
+}
+
+.project-path-display {
+  font-size: 11px;
+  color: var(--app-text-secondary);
+  font-family: monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+.tab-content {
+  display: none;
+  overflow-y: auto;
+  height: calc(100vh - 130px);
+  max-height: calc(100vh - 130px);
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* カード本体のスタイル */
+.card-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 10px;
+  min-height: calc(100vh - 160px);
+  padding: var(--app-spacing-md);
+  height: calc(100vh - 120px);
+  max-height: calc(100vh - 120px);
+}
+
+/* マークダウン表示用スタイル */
+.markdown-content {
+  line-height: 1.6;
+  font-size: var(--app-font-size-sm);
+  padding: 0 5px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.markdown-content h1 {
+  font-size: 1.8em;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--app-border-color);
+}
+
+.markdown-content h2 {
+  font-size: 1.5em;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--app-border-color);
+}
+
+.markdown-content h3 {
+  font-size: 1.3em;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-content h4 {
+  font-size: 1.1em;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-content p {
+  margin-bottom: 1em;
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin-bottom: 1em;
+  padding-left: 2em;
+}
+
+.markdown-content li {
+  margin-bottom: 0.5em;
+}
+
+.markdown-content code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 0.2em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: 1em;
+  border-radius: var(--app-border-radius);
+  overflow-x: auto;
+  margin-bottom: 1em;
+}
+
+.markdown-content pre code {
+  background-color: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.9em;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid var(--app-primary);
+  padding-left: 1em;
+  margin-left: 0;
+  margin-bottom: 1em;
+  font-style: italic;
+  color: var(--app-text-secondary);
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 1em;
+}
+
+.markdown-content table th, .markdown-content table td {
+  border: 1px solid var(--app-border-color);
+  padding: 0.5em;
+}
+
+.markdown-content table th {
+  background-color: rgba(0, 0, 0, 0.05);
+  font-weight: var(--app-font-weight-bold);
+}
+
+/* スクロールバーのスタイル */
+.card-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.card-body::-webkit-scrollbar-track {
+  background: rgba(230, 230, 230, 0.5);
+  border-radius: 10px;
+}
+
+.card-body::-webkit-scrollbar-thumb {
+  background-color: rgba(74, 105, 189, 0.4);
+  border-radius: 10px;
 }
 
 .scope-list {
@@ -136,7 +460,7 @@ h1, h2, h3, h4 {
   flex-direction: column;
   gap: var(--app-spacing-sm);
   overflow-y: auto;
-  max-height: 600px;
+  max-height: calc(100vh - 200px);
   padding-right: var(--app-spacing-xs);
 }
 
@@ -248,6 +572,9 @@ h1, h2, h3, h4 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--app-spacing-md);
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+  padding-right: 10px;
 }
 
 .prompt-card {
@@ -298,6 +625,9 @@ h1, h2, h3, h4 {
 /* タブコンテンツ */
 .tab-content {
   display: none;
+  overflow-y: auto;
+  height: calc(100vh - 130px);
+  max-height: calc(100vh - 130px);
 }
 
 .tab-content.active {
@@ -326,40 +656,13 @@ h1, h2, h3, h4 {
   box-shadow: 0 0 0 3px var(--app-primary-light);
 }
 
-/* ClaudeCode連携エリア */
-.claude-code-share-area {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background-color: var(--app-card-background);
-  border-top: 1px solid var(--app-border-color);
-  padding: 15px;
-  z-index: 1000;
-  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  max-height: 350px;
-  display: flex;
-  flex-direction: column;
-}
-
-.claude-code-share-area.collapsed {
-  max-height: 40px;
-  overflow: hidden;
-}
-
-.claude-code-share-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-/* 新しいレイアウト構造 */
+/* ClaudeCode連携タブスタイル */
 .claude-share-container {
   display: flex;
   gap: 15px;
   height: 100%;
+  overflow-y: auto;
+  max-height: calc(100vh - 130px);
 }
 
 /* 左側：テキスト入力エリア */
@@ -385,19 +688,20 @@ h1, h2, h3, h4 {
 .share-textarea:focus {
   outline: none;
   border-color: var(--app-primary);
+  box-shadow: 0 0 0 2px rgba(74, 105, 189, 0.2);
 }
 
 .history-container {
   height: 150px;
   overflow-y: auto;
-  border: 1px solid rgba(100, 130, 180, 0.3);
+  border: 1px solid var(--app-border-color);
   border-radius: var(--app-border-radius);
   padding: 10px;
-  background-color: rgba(30, 35, 45, 0.2);
+  background-color: #f9f9f9;
   margin-top: 10px;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
   scrollbar-width: thin;
-  scrollbar-color: rgba(74, 105, 189, 0.5) rgba(30, 30, 30, 0.3);
+  scrollbar-color: rgba(74, 105, 189, 0.5) rgba(230, 230, 230, 0.5);
 }
 
 .history-container::-webkit-scrollbar {
@@ -405,14 +709,14 @@ h1, h2, h3, h4 {
 }
 
 .history-container::-webkit-scrollbar-track {
-  background: rgba(30, 30, 30, 0.3);
+  background: rgba(230, 230, 230, 0.5);
   border-radius: 10px;
 }
 
 .history-container::-webkit-scrollbar-thumb {
   background-color: rgba(74, 105, 189, 0.5);
   border-radius: 10px;
-  border: 2px solid rgba(30, 30, 30, 0.3);
+  border: 2px solid rgba(230, 230, 230, 0.5);
 }
 
 .history-container h4 {
@@ -420,12 +724,11 @@ h1, h2, h3, h4 {
   margin-bottom: 10px;
   font-size: 16px;
   font-weight: bold;
-  color: #a8c7ff;
-  border-bottom: 1px solid rgba(100, 140, 220, 0.4);
+  color: var(--app-primary);
+  border-bottom: 1px solid var(--app-border-color);
   padding-bottom: 6px;
   text-align: center;
   letter-spacing: 0.5px;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .shared-history-list, .shared-history {
@@ -455,7 +758,7 @@ h1, h2, h3, h4 {
   padding: 15px;
   transition: all 0.3s ease;
   min-height: 180px;
-  background-color: rgba(30, 30, 30, 0.4);
+  background-color: #f5f8ff;
   cursor: pointer;
   position: relative;
   overflow: hidden; /* 内部のコンテンツがはみ出さないように */
@@ -478,7 +781,7 @@ h1, h2, h3, h4 {
 }
 
 .drop-zone:hover {
-  background-color: rgba(40, 40, 40, 0.5);
+  background-color: #edf2ff;
   border-color: var(--app-primary);
 }
 
@@ -493,7 +796,7 @@ h1, h2, h3, h4 {
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.2);
   z-index: 9999;
   display: flex;
   justify-content: center;
@@ -505,9 +808,9 @@ h1, h2, h3, h4 {
 
 .drag-effect.active {
   opacity: 1;
-  background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 999999 !important;
 }
 
@@ -515,8 +818,8 @@ h1, h2, h3, h4 {
 #file-select-btn {
   position: relative;
   z-index: 10; /* 前面に表示 */
-  background-color: rgba(74, 105, 189, 0.2);
-  color: white;
+  background-color: white;
+  color: var(--app-primary);
   border-color: var(--app-primary);
   transition: all 0.2s ease;
   padding: 6px 16px;
@@ -524,21 +827,20 @@ h1, h2, h3, h4 {
 }
 
 #file-select-btn:hover {
-  background-color: var(--app-primary);
+  background-color: var(--app-primary-light);
   transform: scale(1.05);
-  box-shadow: 0 0 8px rgba(74, 105, 189, 0.6);
 }
 
 .drop-zone .material-icons {
   font-size: 32px;
   margin-bottom: 10px;
-  color: var(--app-text-secondary);
+  color: var(--app-primary);
 }
 
 .drop-zone p {
   text-align: center;
   margin-bottom: 10px;
-  color: var(--app-text-secondary);
+  color: var(--app-text);
 }
 
 .button-secondary {
@@ -619,22 +921,21 @@ h1, h2, h3, h4 {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: var(--app-border-radius-sm);
-  background-color: #24334a; /* ダークブルーの背景 */
+  background-color: #f8f9fa;
+  border: 1px solid var(--app-border-color);
   font-size: 13px;
   transition: all 0.2s ease;
-  border-left: 3px solid rgba(74, 105, 189, 0.7);
   margin-bottom: 4px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   position: relative;
   overflow: hidden;
 }
 
 .history-item:hover {
-  background-color: #2d3e57; /* ホバー時は少し明るく */
-  border-left-color: var(--app-primary);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.3);
+  background-color: var(--app-hover-background);
+  border-color: var(--app-primary);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .history-item-actions {
@@ -652,9 +953,60 @@ h1, h2, h3, h4 {
   background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
 }
 
+/* 共通のコピー済みスタイル */
 .history-item.copied {
-  background-color: rgba(0, 184, 148, 0.25);
-  border-left-color: var(--app-secondary);
+  position: relative;
+  border-left: 3px solid var(--app-secondary);
+  padding-left: calc(12px - 3px); /* パディングを調整して位置ずれを防止 */
+}
+
+/* テキストアイテム用のコピー済みスタイル */
+.history-item.text-history-item.copied::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 184, 148, 0.1); /* より薄い色に変更 */
+  pointer-events: none; /* クリックイベントを通過させる */
+  border-radius: var(--app-border-radius-sm);
+  z-index: 1; /* 下層に配置 */
+}
+
+/* 画像アイテム用のコピー済みスタイル - より控えめな表示 */
+.history-item.image-history-item.copied::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px; /* 左側のインジケーターのみ */
+  background-color: var(--app-secondary);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* コピー状態でも内部の要素が見えるように */
+.history-item.copied .history-item-name,
+.history-item.copied .history-item-actions,
+.history-item.copied .history-action-copy,
+.history-item.copied .history-action-delete,
+.history-item.copied .history-item-time {
+  position: relative;
+  z-index: 2; /* 前面に配置 */
+}
+
+/* 画像履歴アイテムの特別スタイリング */
+.history-item.image-history-item {
+  /* 画像アイテムには少し異なるスタイルを適用 */
+  background-color: rgba(240, 240, 240, 0.3);
+}
+
+.history-item.image-history-item .history-item-name {
+  /* 画像ファイル名を目立たせる */
+  font-style: italic;
+  color: var(--app-primary-dark);
 }
 
 .history-item-name {
@@ -663,11 +1015,10 @@ h1, h2, h3, h4 {
   white-space: nowrap;
   max-width: 70%;
   font-weight: 600;
-  color: #ffffff; /* テキストは白色でよく見える */
+  color: var(--app-text); 
   display: flex;
   align-items: center;
   gap: 6px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   letter-spacing: 0.2px;
   font-size: 14px;
 }
@@ -705,12 +1056,11 @@ h1, h2, h3, h4 {
 
 .history-item-time {
   font-size: 11px;
-  color: #e0e0e0;
-  background-color: rgba(70, 90, 120, 0.4);
+  color: var(--app-text-secondary);
+  background-color: var(--app-gray-100);
   padding: 3px 9px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--app-border-color);
   font-weight: 500;
   letter-spacing: 0.3px;
 }
@@ -818,8 +1168,9 @@ h1, h2, h3, h4 {
   position: fixed;
   bottom: 0;
   right: 20px;
-  background-color: var(--app-card-background);
-  border: 1px solid var(--app-border-color);
+  background-color: var(--app-primary);
+  color: white;
+  border: 1px solid var(--app-primary);
   border-bottom: none;
   border-radius: var(--app-border-radius) var(--app-border-radius) 0 0;
   padding: 5px 15px;
@@ -827,8 +1178,44 @@ h1, h2, h3, h4 {
   align-items: center;
   gap: 5px;
   cursor: pointer;
-  color: var(--app-text);
   z-index: 1001;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.toggle-share-btn:hover {
+  background-color: var(--app-primary-dark);
+  transform: translateY(-2px);
+}
+
+/* 開発プロンプト用モーダル */
+.claude-code-share-area {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--app-card-background);
+  border-top: 1px solid var(--app-border-color);
+  padding: 15px;
+  z-index: 1000;
+  box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  max-height: 450px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.claude-code-share-area.collapsed {
+  max-height: 40px;
+  overflow: hidden;
+}
+
+.claude-code-share-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
 
 /* 旧スタイル（後方互換性のため） */

@@ -5,176 +5,24 @@
  * クライアント側のWeb UI実装
  */
 (function() {
-  // VSCodeのネイティブドラッグ&ドロップ表示を抑制する処理
-  // モナコエディタとVSCodeのコア機能に直接介入する
-  function suppressVSCodeDragDropMessage() {
-    // DOMが完全にロードされてから処理を実行
-    console.log('VSCodeのネイティブドラッグ&ドロップ表示抑制処理を実行');
+  // ドラッグ&ドロップの適切なハンドリングのためのヘルパー関数
+  function initDropZoneStyles() {
+    console.log('ドロップゾーンのスタイルを初期化します');
     
-    // VSCodeのドラッグ&ドロップトーストを直接攻撃する試み
-    try {
-      // ドラッグ時にトーストメッセージを非表示にする関数
-      const killVSCodeToasts = () => {
-        const toasts = document.querySelectorAll('[role="tooltip"], [aria-label*="ドロップ"], [aria-label*="ホールド"]');
-        toasts.forEach(toast => {
-          if (toast) {
-            toast.remove(); // 要素そのものを削除
-          }
-        });
-      };
-      
-      // ドラッグイベント中に継続的に実行
-      document.addEventListener('dragover', () => {
-        killVSCodeToasts();
-        // 10ms間隔で継続的に監視
-        const intervalId = setInterval(killVSCodeToasts, 10);
-        setTimeout(() => clearInterval(intervalId), 1000); // 安全のため1秒後にクリア
-      });
-      
-      // ドロップエリアがフォーカスされたときにも実行
-      document.addEventListener('focusin', (e) => {
-        if (e.target.id === 'drop-zone' || e.target.closest('#drop-zone')) {
-          killVSCodeToasts();
-        }
-      });
-    } catch (e) {
-      console.error('トースト抑制でエラー:', e);
+    // ドロップゾーンのスタイルを初期化
+    const dropZone = document.getElementById('drop-zone');
+    if (dropZone) {
+      // ドロップゾーンに適切なスタイルを設定
+      dropZone.style.border = '2px dashed var(--app-border-color)';
+      dropZone.style.borderRadius = 'var(--app-border-radius)';
+      dropZone.style.padding = '15px';
+      dropZone.style.backgroundColor = 'rgba(74, 105, 189, 0.05)';
+      dropZone.style.transition = 'all 0.3s ease';
     }
-    
-    // スタイルを追加（超強力なセレクタでVSCodeのすべてのポップアップ/トースト/ツールチップを抑制）
-    const style = document.createElement('style');
-    style.textContent = `
-      /* VSCodeのドラッグ&ドロップ関連要素をすべて非表示 (最優先) */
-      .monaco-editor .dnd-overlay,
-      .monaco-editor [class*="dnd-"],
-      [aria-label*="ドロップする"],
-      [aria-label*="⌘"],
-      [aria-label*="ホールド"],
-      [aria-label*="CMD"],
-      [aria-label*="shift"],
-      [aria-label*="シフト"],
-      [aria-label*="エディター"],
-      [data-tooltip*="ドロップする"],
-      [data-tooltip*="へドロップ"],
-      [data-tooltip*="エディターにドロップ"],
-      [role="tooltip"],
-      .monaco-dnd-overlay,
-      .monaco-hover,
-      .monaco-hover-content,
-      .monaco-editor-hover,
-      .monaco-hover-widget,
-      .hover-row,
-      .monaco-editor [class*="hover-"],
-      #monaco-notification-container,
-      .monaco-notification,
-      .monaco-editor-overlaymessage,
-      .monaco-tooltip,
-      .monaco-keybinding {
-        display: none !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-        width: 0px !important;
-        height: 0px !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        top: -9999px !important;
-        left: -9999px !important;
-        z-index: -9999 !important;
-      }
-      
-      /* ドキュメント全体をドラッグ可能に */
-      html, body {
-        -webkit-user-drag: element !important;
-        user-drag: element !important;
-      }
-      
-      /* ドラッグ中のカーソルをカスタマイズ */
-      html.dragging *,
-      [draggable="true"],
-      body.drag-active * {
-        cursor: copy !important;
-      }
-      
-      /* ドラッグオーバーレイを強調 */
-      .drag-effect.active {
-        opacity: 1 !important;
-        z-index: 9999999 !important;
-        pointer-events: none !important;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    // HTML要素にも直接スタイルを設定してVSCodeの表示設定を上書き
-    try {
-      document.documentElement.style.setProperty('--vscode-editorHoverWidget-background', 'transparent', 'important');
-      document.documentElement.style.setProperty('--vscode-editorHoverWidget-foreground', 'transparent', 'important');
-      document.documentElement.style.setProperty('--vscode-editorHoverWidget-statusBarBackground', 'transparent', 'important');
-      document.documentElement.style.setProperty('--vscode-editorWidget-foreground', 'transparent', 'important');
-      document.documentElement.style.setProperty('--vscode-widget-shadow', 'none', 'important');
-    } catch (e) {
-      console.error('CSS変数設定エラー:', e);
-    }
-    
-    // 最も強力なMutationObserver: 監視して即座に削除
-    const observer = new MutationObserver(mutations => {
-      // 関連要素を即座に削除する関数
-      const removeVSCodeElements = () => {
-        // トーストやオーバーレイ要素を検索
-        const elements = document.querySelectorAll(`
-          .monaco-editor .dnd-overlay,
-          .monaco-editor [class*="dnd-"],
-          [aria-label*="ドロップする"],
-          [aria-label*="⌘"],
-          [aria-label*="ホールド"],
-          [aria-label*="CMD"],
-          [role="tooltip"],
-          .monaco-dnd-overlay,
-          .monaco-hover,
-          .monaco-editor-hover
-        `);
-        
-        // 見つかった要素をすべて削除
-        elements.forEach(el => {
-          if (el && el.parentNode) {
-            try {
-              el.parentNode.removeChild(el);
-            } catch (e) {
-              // 削除できない場合は非表示に
-              el.style.display = 'none';
-              el.style.visibility = 'hidden';
-              el.style.opacity = '0';
-            }
-          }
-        });
-      };
-      
-      // 即時実行
-      removeVSCodeElements();
-      
-      // 変更があった場合に再度実行
-      mutations.forEach(mutation => {
-        if (mutation.addedNodes && mutation.addedNodes.length) {
-          removeVSCodeElements();
-        }
-      });
-    });
-    
-    // すべての変更を監視（最大限のパワー）
-    observer.observe(document.documentElement, { 
-      childList: true, 
-      subtree: true, 
-      attributes: true,
-      characterData: true,
-      attributeOldValue: true,
-      characterDataOldValue: true
-    });
-    
-    console.log('VSCodeのネイティブドラッグ&ドロップ表示抑制処理が完了');
   }
   
   // 初期化時に実行
-  suppressVSCodeDragDropMessage();
+  initDropZoneStyles();
   // メッセージハンドラー
   window.addEventListener('message', event => {
     const message = event.data;
@@ -228,22 +76,6 @@
     
     // 履歴の更新リクエスト
     requestHistoryUpdate();
-    
-    // VSCodeのドラッグ&ドロップメッセージを継続的に抑制
-    suppressVSCodeDragDropMessage();
-    
-    // 200ms毎に実行して、動的に追加されるVSCodeのDNDオーバーレイを確実に非表示
-    // MutationObserverだけでは捕捉できない場合の対策
-    setInterval(() => {
-      const overlays = document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"]');
-      overlays.forEach(overlay => {
-        if (overlay) {
-          overlay.style.display = 'none';
-          overlay.style.opacity = '0';
-          overlay.style.visibility = 'hidden';
-        }
-      });
-    }, 200);
   });
   
   /**
@@ -335,9 +167,9 @@
         toggleShareBtn.style.display = 'flex';
       });
       
-      // 初期状態は表示（ユーザーが常に利用できるように）
-      shareArea.classList.remove('collapsed');
-      toggleShareBtn.style.display = 'none';
+      // 初期状態は非表示（ユーザーが必要なときに表示するように）
+      shareArea.classList.add('collapsed');
+      toggleShareBtn.style.display = 'flex';
       
       // ドロップゾーンに目立つスタイルを適用
       const dropZone = document.getElementById('drop-zone');
@@ -362,6 +194,7 @@
   
   /**
    * ドラッグ&ドロップ機能の初期化
+   * 改善版: ドロップゾーンのみに処理を限定し、グローバルな影響を排除
    */
   function initDragAndDrop() {
     console.log('ドラッグ&ドロップ機能を初期化します');
@@ -371,28 +204,10 @@
       return;
     }
     
-    // ドラッグ効果表示用の要素を作成（より目立つスタイルに）
-    let dragEffect = document.getElementById('drag-effect');
-    if (!dragEffect) {
-      dragEffect = document.createElement('div');
-      dragEffect.id = 'drag-effect';
-      dragEffect.className = 'drag-effect';
-      
-      // より目立つスタイル、メッセージとアイコンを追加
-      dragEffect.innerHTML = `
-        <div style="color: white; font-size: 28px; background: rgba(0,0,0,0.7); 
-                    padding: 30px; border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
-                    border: 2px solid var(--app-primary); text-align: center;">
-          <span class="material-icons" style="font-size: 48px; margin-bottom: 15px; color: var(--app-primary);">add_photo_alternate</span>
-          <div>ここにドロップして画像をアップロード</div>
-          <div style="font-size: 16px; margin-top: 10px; color: #aaa;">（シフトキーをホールドしながらドロップしてください）</div>
-        </div>
-      `;
-      
-      document.body.appendChild(dragEffect);
-      
-      // VSCodeのインターフェイスよりも前面に表示
-      dragEffect.style.zIndex = '9999';
+    // 古いグローバルなドラッグエフェクト要素を削除
+    const oldDragEffect = document.getElementById('drag-effect');
+    if (oldDragEffect && oldDragEffect.parentNode) {
+      oldDragEffect.parentNode.removeChild(oldDragEffect);
     }
     
     // ファイル入力要素を準備
@@ -418,8 +233,7 @@
       }
     });
     
-    // クリックでもファイル選択できるようにdropZone全体をクリック可能に
-    // onclick は addEventListener より優先されるため、より確実
+    // クリックでファイル選択できるようにdropZone全体をクリック可能に
     dropZone.onclick = function(e) {
       console.log('ドロップゾーンクリック');
       // ボタンのクリックイベントと重複しないように
@@ -432,7 +246,6 @@
     // ファイル選択ボタンの処理
     const fileSelectButton = document.getElementById('file-select-btn');
     if (fileSelectButton) {
-      // onclickはaddEventListenerより確実に動作
       fileSelectButton.onclick = function(e) {
         e.stopPropagation(); // dropZoneのクリックイベントと重複しないように
         console.log('ファイル選択ボタンクリック');
@@ -440,94 +253,13 @@
       };
     }
     
-    // グローバルなドラッグイベントを監視（VSCodeのネイティブ機能より優先）
-    document.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // ドラッグ中はbodyにdraggingクラスを追加
-      document.body.classList.add('dragging');
-      dragEffect.classList.add('active');
-      
-      // VSCodeのネイティブドラッグ&ドロップメッセージを非表示にする
-      const dndOverlays = document.querySelectorAll('.monaco-editor .dnd-overlay');
-      dndOverlays.forEach(overlay => {
-        if (overlay) overlay.style.display = 'none';
-      });
-      
-      // イベントをキャプチャして、VSCodeがこれ以上処理しないようにする
-      return false;
-    }, true);
-    
-    document.addEventListener('dragleave', function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      // マウスが画面外に出た場合のみ非表示
-      if (e.clientX <= 0 || e.clientX >= window.innerWidth || 
-          e.clientY <= 0 || e.clientY >= window.innerHeight) {
-        dragEffect.classList.remove('active');
-        document.body.classList.remove('dragging');
-      }
-      
-      // イベントをキャプチャして、VSCodeがこれ以上処理しないようにする
-      return false;
-    }, true);
-    
-    // ドキュメント全体でドロップを許可（キャプチャフェーズで処理）
-    document.addEventListener('drop', function(e) {
-      console.log('ドキュメント全体でドロップイベント発生');
-      e.preventDefault();
-      e.stopPropagation();
-      dragEffect.classList.remove('active');
-      document.body.classList.remove('dragging');
-      
-      // 画像ファイルのみ処理
-      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        const file = e.dataTransfer.files[0];
-        if (file.type.match('image.*')) {
-          handleFiles([file]);
-        } else {
-          showError('サポートされていない形式です。PNG, JPG, JPEG, GIF画像のみ対応しています。');
-        }
-      }
-      
-      // イベントをキャプチャして、VSCodeがこれ以上処理しないようにする
-      return false;
-    }, true);
-    
-    // ドロップゾーン専用のドラッグイベント
-    // ドラッグ&ドロップイベントの処理（特殊キーの必要がないように）
-    // すべてのイベントで最大限の優先度で捕捉してVSCodeの処理をブロック
+    // ドロップゾーンのみにドラッグ&ドロップイベントを設定
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      // 1. dropZoneのイベント
+      // ドロップゾーンのイベント
       dropZone.addEventListener(eventName, function(e) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation(); // 他のリスナーをブロック
-        
-        // VSCodeのドラッグ&ドロップメッセージを強制的に非表示
-        const overlays = document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"]');
-        overlays.forEach(overlay => {
-          if (overlay) overlay.style.display = 'none';
-        });
-        
-        return false;
-      }, true);
-      
-      // 2. documentにもイベントリスナーを追加して、最優先で処理
-      document.addEventListener(eventName, function(e) {
-        // ドラッグ&ドロップ中のオーバーレイを強制非表示
-        if (e.dataTransfer && e.dataTransfer.types) {
-          const hasFile = Array.from(e.dataTransfer.types).some(type => 
-            type === 'Files' || type === 'application/x-moz-file');
-          
-          if (hasFile) {
-            const overlays = document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"]');
-            overlays.forEach(overlay => {
-              if (overlay) overlay.style.display = 'none';
-            });
-          }
-        }
-      }, true);
+      }, false);
     });
     
     // ドラッグエンター/オーバー時のハイライト
@@ -547,7 +279,7 @@
       dropZone.style.backgroundColor = 'rgba(20, 20, 20, 0.3)';
     });
     
-    // ファイルドロップ時の処理
+    // ファイルドロップ時の処理（ドロップゾーンのみで動作）
     dropZone.addEventListener('drop', function(e) {
       console.log('ドロップゾーンでドロップイベント発生');
       dropZone.style.borderColor = 'var(--app-border-color)';
@@ -559,8 +291,8 @@
       }
     });
     
-    // パステイベントの処理（クリップボードからの画像ペースト）
-    document.addEventListener('paste', (e) => {
+    // ドロップゾーン内でのパステイベントの処理（クリップボードからの画像ペースト）
+    dropZone.addEventListener('paste', (e) => {
       const items = e.clipboardData.items;
       
       for (let i = 0; i < items.length; i++) {
@@ -966,8 +698,12 @@
         const createdDate = new Date(item.createdAt);
         const timeAgo = getTimeAgo(createdDate);
         
-        // ファイルタイプに応じたアイコン
+        // ファイルタイプに応じたアイコンとクラス
         const iconClass = item.type === 'image' ? 'image' : 'description';
+        const itemTypeClass = item.type === 'image' ? 'image-history-item' : 'text-history-item';
+        
+        // 適切なクラスを追加
+        historyItem.className = `history-item ${itemTypeClass}`;
         
         historyItem.innerHTML = `
           <div class="history-item-name ${jpClass}" title="${displayName}">
@@ -1180,8 +916,13 @@
     
     // 該当する履歴アイテムを強調表示
     historyItems.forEach(item => {
+      // 重要な修正: fileIdと一致するアイテムだけに処理を適用する
       if (item.dataset.id === fileId) {
-        // コピー成功の視覚的フィードバック
+        // 画像アイテムかどうかを確認
+        const isImage = item.classList.contains('image-history-item');
+        
+        // どのタイプのアイテムでも、コピー済みのクラスを追加
+        // CSSがアイテムタイプによって異なる視覚効果を提供する
         item.classList.add('copied');
         
         // コピーアイコンを一時的に変更
@@ -1195,12 +936,19 @@
           copyIcon.title = 'コピーしました！';
           copyIcon.style.color = 'var(--app-secondary)';
           
+          // 画像の場合はアイコンも拡大
+          if (isImage) {
+            copyIcon.style.transform = 'scale(1.2)';
+            copyIcon.style.transition = 'transform 0.2s ease, color 0.2s ease';
+          }
+          
           // 2秒後に元に戻す
           setTimeout(() => {
             item.classList.remove('copied');
             copyIcon.innerHTML = originalIcon;
             copyIcon.title = originalTitle;
             copyIcon.style.color = '';
+            copyIcon.style.transform = '';
           }, 2000);
         }
       }

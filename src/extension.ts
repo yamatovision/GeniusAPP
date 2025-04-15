@@ -85,8 +85,8 @@ export function activate(context: vscode.ExtensionContext) {
 	// AppGenius AI クイックアクセスステータスバーアイテムを追加
 	const appGeniusStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 	appGeniusStatusBarItem.text = "$(rocket) AppGenius";
-	appGeniusStatusBarItem.tooltip = "AppGenius AIダッシュボードを開く";
-	appGeniusStatusBarItem.command = "appgenius-ai.openDevelopmentAssistant";
+	appGeniusStatusBarItem.tooltip = "AppGenius AIスコープマネージャーを開く";
+	appGeniusStatusBarItem.command = "appgenius-ai.openScopeManager";
 	appGeniusStatusBarItem.show();
 	context.subscriptions.push(appGeniusStatusBarItem);
 	
@@ -154,13 +154,19 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 	
-	// 初回インストール時または自動起動が有効な場合にダッシュボードを表示
+	// 初回インストール時または自動起動が有効な場合にスコープマネージャーを表示
 	if (autoStartDashboard) {
 		// 少し遅延させてVSCodeの起動が完了してから表示
 		setTimeout(() => {
-			// メッセージに自動起動であることを伝える情報を追加（オンボーディング非表示フラグ）
-			vscode.commands.executeCommand('appgenius-ai.openDevelopmentAssistant', { skipOnboarding: true });
-			Logger.info('AppGenius AIダッシュボードを自動起動しました（オンボーディング非表示）');
+			// プロジェクトパスを取得
+			let projectPath: string | undefined;
+			if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+				projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+			}
+			
+			// スコープマネージャーを開く
+			vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
+			Logger.info('AppGenius AIスコープマネージャーを自動起動しました');
 		}, 2000);
 	}
 	
@@ -187,23 +193,25 @@ export function activate(context: vscode.ExtensionContext) {
 				try {
 					Logger.info(`認証状態変更イベント: ${isAuthenticated ? '認証済み' : '未認証'}`);
 					Logger.info('【デバッグ】appgenius.onAuthStateChangedコマンドが実行されました');
-					// 認証済みの場合、自動的にダッシュボードを表示
-					if (isAuthenticated && AuthGuard.checkAccess(Feature.DASHBOARD)) {
-						Logger.info('【デバッグ】ダッシュボード表示条件を満たしています - 表示を試みます');
-						// グローバル変数からaiServiceを取得（初期化順序の問題を防ぐため）
-						const globalAiService = (global as any)._appgenius_ai_service;
-						if (globalAiService) {
-							DashboardPanel.createOrShow(context.extensionUri, globalAiService, { skipOnboarding: true });
-							Logger.info('【デバッグ】ダッシュボード表示を要求しました（グローバルAIサービスを使用、オンボーディング非表示）');
-						} else {
-							Logger.error('【デバッグ】グローバルAIサービスが見つかりません');
+					// 認証済みの場合、自動的にスコープマネージャーを表示
+					if (isAuthenticated && AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+						Logger.info('【デバッグ】スコープマネージャー表示条件を満たしています - 表示を試みます');
+						
+						// プロジェクトパスを取得
+						let projectPath: string | undefined;
+						if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+							projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
 						}
+						
+						// スコープマネージャーを開く
+						ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
+						Logger.info('【デバッグ】スコープマネージャー表示を要求しました');
 					} else {
 						if (!isAuthenticated) {
-							Logger.info('【デバッグ】ダッシュボード表示スキップ: 認証されていません');
+							Logger.info('【デバッグ】スコープマネージャー表示スキップ: 認証されていません');
 						}
-						if (!AuthGuard.checkAccess(Feature.DASHBOARD)) {
-							Logger.info('【デバッグ】ダッシュボード表示スキップ: 権限がありません');
+						if (!AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+							Logger.info('【デバッグ】スコープマネージャー表示スキップ: 権限がありません');
 						}
 					}
 				} catch (error) {
@@ -422,21 +430,22 @@ export function activate(context: vscode.ExtensionContext) {
 					} catch (cmdError) {
 						Logger.error('【デバッグ】認証状態変更コマンド実行中にエラーが発生しました', cmdError as Error);
 						
-						// エラー発生時はダッシュボードを直接表示
+						// エラー発生時はスコープマネージャーを直接表示
 						try {
-							Logger.info('【デバッグ】代替手段: ダッシュボードを直接表示します');
-							if (AuthGuard.checkAccess(Feature.DASHBOARD)) {
-								// グローバル変数からaiServiceを取得
-								const globalAiService = (global as any)._appgenius_ai_service;
-								if (globalAiService) {
-									DashboardPanel.createOrShow(context.extensionUri, globalAiService, { skipOnboarding: true });
-									Logger.info('【デバッグ】代替手段で成功: ダッシュボードを表示しました（オンボーディング非表示）');
-								} else {
-									Logger.error('【デバッグ】グローバルAIサービスが見つかりません（代替手段）');
+							Logger.info('【デバッグ】代替手段: スコープマネージャーを直接表示します');
+							if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+								// プロジェクトパスを取得
+								let projectPath: string | undefined;
+								if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+									projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
 								}
+								
+								// スコープマネージャーを開く
+								ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
+								Logger.info('【デバッグ】代替手段で成功: スコープマネージャーを表示しました');
 							}
 						} catch (directError) {
-							Logger.error('【デバッグ】ダッシュボードの直接表示に失敗しました', directError as Error);
+							Logger.error('【デバッグ】スコープマネージャーの直接表示に失敗しました', directError as Error);
 						}
 					}
 				}

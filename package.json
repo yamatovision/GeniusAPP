@@ -2,6 +2,12 @@
   "name": "appgenius-ai",
   "displayName": "AppGenius AI",
   "description": "AI駆動の完全自動開発環境をVSCodeで提供",
+  "files": [
+    "out/**",
+    "dist/**", 
+    "media/**",
+    "docs/**"
+  ],
   "version": "1.0.18",
   "publisher": "mikoto",
   "repository": {

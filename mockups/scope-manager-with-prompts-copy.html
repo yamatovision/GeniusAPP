@@ -3,19 +3,19 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AppGenius スコープマネージャー - プロンプトライブラリ統合</title>
+  <title>AppGenius スコープマネージャー（改良版）</title>
   <style>
     :root {
-      --app-background: #1e1e1e;
-      --app-text: #d2d2d2;
-      --app-text-secondary: #adadad;
-      --app-heading-color: #f0f0f0;
-      --app-card-background: #333333;
-      --app-input-background: #252525;
-      --app-border-color: #454545;
-      --app-hover-background: #252525;
-      --app-selected-background: rgba(74, 105, 189, 0.2);
-      --app-selected-text: #f0f0f0;
+      --app-background: #f8f9fa;
+      --app-text: #333333;
+      --app-text-secondary: #718096;
+      --app-heading-color: #2d3748;
+      --app-card-background: #ffffff;
+      --app-input-background: #ffffff;
+      --app-border-color: #e2e8f0;
+      --app-hover-background: #f1f5fd;
+      --app-selected-background: rgba(74, 105, 189, 0.1);
+      --app-selected-text: #333333;
       --app-primary: #4a69bd;
       --app-primary-dark: #3a5a9e;
       --app-primary-light: rgba(74, 105, 189, 0.2);
@@ -63,7 +63,6 @@
     }
 
     .scope-manager-container {
-      padding: 20px;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -97,6 +96,72 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
+    }
+    
+    /* Claude共有コンテナのスタイル */
+    .claude-share-container {
+      display: flex;
+      gap: 15px;
+      height: 100%;
+    }
+    
+    .text-input-area {
+      flex: 2.5;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    
+    .image-upload-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      max-width: 320px;
+    }
+    
+    .history-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-top: 1px solid var(--app-border-color);
+      padding-top: 15px;
+      margin-top: 10px;
+    }
+    
+    .shared-history-list {
+      overflow-y: auto;
+      flex: 1;
+      margin-top: 5px;
+    }
+    
+    .history-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: var(--app-border-radius-sm);
+      margin-bottom: 5px;
+      background-color: #f8f9fa;
+      border: 1px solid var(--app-border-color);
+      transition: all 0.2s ease;
+    }
+    
+    .action-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    
+    .save-notification {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      background-color: rgba(0, 184, 148, 0.15);
+      border-radius: var(--app-border-radius);
+      margin-top: 10px;
     }
     
     .share-content {
@@ -164,18 +229,22 @@
     .share-textarea {
       width: 100%;
       resize: none;
-      height: 150px;
+      height: 200px;
       background-color: var(--app-input-background);
       color: var(--app-text);
       border: 1px solid var(--app-border-color);
-      border-radius: var(--app-border-radius-sm);
-      padding: 10px;
+      border-radius: var(--app-border-radius);
+      padding: 15px;
       font-family: monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      flex: 1;
     }
     
     .share-textarea:focus {
       outline: none;
       border-color: var(--app-primary);
+      box-shadow: 0 0 0 2px rgba(74, 105, 189, 0.2);
     }
     
     .toggle-share-btn {
@@ -197,11 +266,17 @@
 
     .panel-header {
       display: flex;
-      justify-content: space-between;
+      justify-content: flex-end;
       align-items: center;
-      margin-bottom: var(--app-spacing-md);
-      padding-bottom: var(--app-spacing-sm);
+      padding: 8px 15px;
       border-bottom: 1px solid var(--app-border-color);
+      background-color: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    .header-actions {
+      display: flex;
+      gap: 10px;
     }
 
     h1, h2, h3, h4 {
@@ -210,12 +285,199 @@
     }
 
     .main-content {
-      display: grid;
-      grid-template-columns: 300px 1fr;
+      display: flex;
       gap: var(--app-spacing-md);
       flex: 1;
       overflow: visible;
       min-height: 0;
+      position: relative;
+    }
+
+    .project-nav {
+      width: 300px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--app-border-color);
+      padding: var(--app-spacing-md);
+      background-color: #fff;
+      box-shadow: 2px 0 5px rgba(0, 0, 0, 0.05);
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    
+    .project-nav.collapsed {
+      width: 48px;
+      overflow: visible;
+      padding: var(--app-spacing-md) 0;
+    }
+    
+    .project-nav.collapsed .filter-bar,
+    .project-nav.collapsed h3,
+    .project-nav.collapsed .project-actions {
+      display: none;
+    }
+    
+    .project-nav.collapsed .project-list {
+      margin-top: 60px;
+    }
+    
+    .project-nav.collapsed .project-item {
+      padding: 15px 0;
+      justify-content: center;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      position: relative;
+    }
+    
+    .project-nav.collapsed .project-item .project-name,
+    .project-nav.collapsed .project-item .project-path {
+      opacity: 0;
+      width: 0;
+      overflow: hidden;
+    }
+    
+    .project-nav.collapsed .project-item .project-badge {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      padding: 0;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      font-size: 0;
+      text-indent: -9999px;
+    }
+    
+    .project-nav.collapsed .project-item.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background-color: var(--app-primary);
+    }
+    
+    .project-nav.collapsed .project-item::after {
+      content: 'folder';
+      font-family: 'Material Icons';
+      font-size: 22px;
+      color: var(--app-text-secondary);
+    }
+    
+    .project-nav.collapsed .project-item.active::after {
+      color: var(--app-primary);
+    }
+    
+    .project-nav.collapsed .toggle-nav-btn {
+      left: auto;
+      right: -12px;
+    }
+    
+    .toggle-nav-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background-color: #fff;
+      border: 1px solid var(--app-border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 10;
+      transition: all 0.3s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .toggle-nav-btn:hover {
+      background-color: var(--app-primary-light);
+      color: var(--app-primary);
+    }
+    
+    .toggle-nav-btn .material-icons {
+      font-size: 18px;
+    }
+    
+    .project-label {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      padding: 3px 8px;
+      background-color: var(--app-primary);
+      color: white;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    
+    .project-nav.collapsed .project-label {
+      display: block;
+    }
+    
+    .content-area.expanded {
+      margin-left: 0;
+      flex: 1;
+    }
+
+    .project-actions {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+    }
+
+    .project-actions .button {
+      flex: 1;
+      font-size: 12px;
+      padding: 8px;
+    }
+
+    .project-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 15px;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+
+    .project-item {
+      padding: 12px;
+      border-radius: var(--app-border-radius-sm);
+      cursor: pointer;
+      transition: all var(--app-transition);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      background-color: #f8f9fa;
+      border: 1px solid var(--app-border-color);
+    }
+
+    .project-item:hover {
+      background-color: var(--app-hover-background);
+      transform: translateY(-2px);
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .project-item.active {
+      background-color: var(--app-selected-background);
+      color: var(--app-selected-text);
+      font-weight: var(--app-font-weight-medium);
+      border-left: 3px solid var(--app-primary);
+      padding-left: calc(12px - 3px);
+      border-color: var(--app-primary);
+    }
+    
+    .project-badge {
+      background-color: var(--app-primary-light);
+      color: var(--app-primary);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
     }
 
     .content-area {
@@ -225,6 +487,7 @@
       overflow-y: visible;
       padding-right: var(--app-spacing-sm);
       max-height: none;
+      flex: 1;
     }
 
     .card {
@@ -232,9 +495,12 @@
       border-radius: var(--app-border-radius);
       border: 1px solid var(--app-border-color);
       padding: var(--app-spacing-md);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
       margin-bottom: var(--app-spacing-md);
       overflow: hidden;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
     }
 
     .card-header {
@@ -244,6 +510,32 @@
       margin-bottom: var(--app-spacing-md);
       padding-bottom: var(--app-spacing-sm);
       border-bottom: 1px solid var(--app-border-color);
+    }
+
+    .card-body {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 10px;
+      min-height: calc(100vh - 240px);
+    }
+
+    /* スクロールバーのスタイル */
+    .card-body::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .card-body::-webkit-scrollbar-track {
+      background: rgba(30, 30, 30, 0.2);
+      border-radius: 10px;
+    }
+
+    .card-body::-webkit-scrollbar-thumb {
+      background-color: rgba(74, 105, 189, 0.4);
+      border-radius: 10px;
+    }
+
+    .card-body::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(74, 105, 189, 0.6);
     }
 
     .tabs {
@@ -271,16 +563,15 @@
       color: var(--app-text);
     }
 
-    .scope-list {
+    /* モジュール一覧 */
+    .modules-list {
       display: flex;
       flex-direction: column;
       gap: var(--app-spacing-sm);
-      overflow-y: auto;
-      max-height: 600px;
-      padding-right: var(--app-spacing-xs);
+      margin-bottom: var(--app-spacing-md);
     }
 
-    .scope-item {
+    .module-item {
       background-color: var(--app-card-background);
       border-radius: var(--app-border-radius);
       border: 1px solid var(--app-border-color);
@@ -289,18 +580,18 @@
       transition: all var(--app-transition);
     }
 
-    .scope-item:hover {
+    .module-item:hover {
       border-color: var(--app-primary);
       transform: translateY(-2px);
       box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     }
 
-    .scope-item.active {
+    .module-item.active {
       border-left: 4px solid var(--app-primary);
       background-color: var(--app-selected-background);
     }
 
-    .scope-progress {
+    .module-progress {
       height: 8px;
       border-radius: 12px;
       margin-top: 10px;
@@ -309,7 +600,7 @@
       box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
-    .scope-progress-bar {
+    .module-progress-bar {
       height: 100%;
       transition: width 0.5s ease;
       background-image: linear-gradient(to right, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
@@ -327,27 +618,6 @@
       background-color: var(--app-secondary);
     }
 
-    .file-item {
-      display: flex;
-      align-items: center;
-      padding: 12px 10px;
-      border-bottom: 1px solid var(--app-border-color);
-      transition: all var(--app-transition);
-      border-radius: 4px;
-    }
-
-    .file-item:hover {
-      background-color: var(--app-hover-background);
-    }
-
-    .file-checkbox {
-      margin-right: 12px;
-      width: 18px;
-      height: 18px;
-      accent-color: var(--app-primary);
-      cursor: pointer;
-    }
-
     .button {
       padding: var(--app-spacing-sm) var(--app-spacing-md);
       font-size: var(--app-font-size-md);
@@ -357,6 +627,7 @@
       transition: all var(--app-transition);
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: var(--app-spacing-xs);
       font-weight: var(--app-font-weight-medium);
       background-color: var(--app-primary);
@@ -371,15 +642,15 @@
     }
 
     .button-secondary {
-      background-color: transparent;
+      background-color: #fff;
       color: var(--app-primary);
-      border: 1px solid var(--app-primary);
-      box-shadow: 0 1px 2px rgba(74, 105, 189, 0.1);
+      border: 1px solid var(--app-border-color);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
     .button-secondary:hover {
       background-color: var(--app-primary-light);
-      box-shadow: 0 2px 4px rgba(74, 105, 189, 0.15);
+      border-color: var(--app-primary);
     }
 
     .prompt-grid {
@@ -439,6 +710,143 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* マークダウン表示用スタイル */
+    .markdown-content {
+      line-height: 1.6;
+      font-size: var(--app-font-size-sm);
+      padding: 0 5px;
+    }
+
+    .markdown-content h1 {
+      font-size: 1.8em;
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--app-border-color);
+    }
+
+    .markdown-content h2 {
+      font-size: 1.5em;
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+      padding-bottom: 0.3em;
+      border-bottom: 1px solid var(--app-border-color);
+    }
+
+    .markdown-content h3 {
+      font-size: 1.3em;
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+    }
+
+    .markdown-content h4 {
+      font-size: 1.1em;
+      margin-top: 1em;
+      margin-bottom: 0.5em;
+    }
+
+    .markdown-content p {
+      margin-bottom: 1em;
+    }
+
+    .markdown-content ul, .markdown-content ol {
+      margin-bottom: 1em;
+      padding-left: 2em;
+    }
+
+    .markdown-content li {
+      margin-bottom: 0.5em;
+    }
+
+    .markdown-content code {
+      font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      background-color: rgba(0, 0, 0, 0.2);
+      padding: 0.2em 0.4em;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+
+    .markdown-content pre {
+      background-color: rgba(0, 0, 0, 0.2);
+      padding: 1em;
+      border-radius: var(--app-border-radius);
+      overflow-x: auto;
+      margin-bottom: 1em;
+    }
+
+    .markdown-content pre code {
+      background-color: transparent;
+      padding: 0;
+      border-radius: 0;
+      font-size: 0.9em;
+    }
+
+    .markdown-content blockquote {
+      border-left: 4px solid var(--app-primary);
+      padding-left: 1em;
+      margin-left: 0;
+      margin-bottom: 1em;
+      font-style: italic;
+      color: var(--app-text-secondary);
+    }
+
+    .markdown-content table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 1em;
+    }
+
+    .markdown-content table th, .markdown-content table td {
+      border: 1px solid var(--app-border-color);
+      padding: 0.5em;
+    }
+
+    .markdown-content table th {
+      background-color: rgba(0, 0, 0, 0.2);
+      font-weight: var(--app-font-weight-bold);
+    }
+
+    /* モジュールごとのセクション */
+    .module-section {
+      margin-bottom: 2em;
+      padding-bottom: 1em;
+      border-bottom: 1px dashed var(--app-border-color);
+    }
+
+    .module-section:last-child {
+      border-bottom: none;
+    }
+
+    .module-section h3 {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      color: var(--app-primary);
+    }
+
+    .task-list {
+      list-style-type: none;
+      padding-left: 1.5em;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 0.5em;
+    }
+
+    .task-checkbox {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--app-primary);
+    }
+
+    .task-completed {
+      text-decoration: line-through;
+      color: var(--app-text-secondary);
+    }
+    
     /* Tab content styling */
     .tab-content {
       display: none;
@@ -451,23 +859,35 @@
     .filter-bar {
       display: flex;
       align-items: center;
-      margin-bottom: var(--app-spacing-md);
       gap: var(--app-spacing-sm);
+      position: relative;
     }
 
     .search-input {
       flex: 1;
-      padding: var(--app-spacing-sm);
+      padding: 10px 10px 10px 36px;
       background-color: var(--app-input-background);
       color: var(--app-text);
       border: 1px solid var(--app-border-color);
-      border-radius: var(--app-border-radius-sm);
+      border-radius: var(--app-border-radius);
+      font-size: 14px;
     }
 
     .search-input:focus {
       border-color: var(--app-primary);
       outline: none;
       box-shadow: 0 0 0 3px var(--app-primary-light);
+    }
+    
+    .filter-bar::before {
+      content: "search";
+      font-family: 'Material Icons';
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--app-text-secondary);
+      font-size: 18px;
     }
 
     .category-tag {
@@ -479,252 +899,337 @@
       margin-bottom: var(--app-spacing-xs);
       display: inline-block;
     }
+
+    .edit-button {
+      background-color: transparent;
+      border: none;
+      color: var(--app-text-secondary);
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px;
+      margin-left: 10px;
+      border-radius: var(--app-border-radius-sm);
+      transition: all var(--app-transition);
+    }
+
+    .edit-button:hover {
+      color: var(--app-primary);
+      background-color: rgba(74, 105, 189, 0.1);
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 12px;
+      border-radius: 12px;
+      margin-left: 8px;
+    }
+
+    .badge-primary {
+      background-color: var(--app-primary-light);
+      color: var(--app-primary);
+    }
+
+    .badge-success {
+      background-color: rgba(0, 184, 148, 0.2);
+      color: var(--app-secondary);
+    }
+
+    .badge-warning {
+      background-color: rgba(253, 203, 110, 0.2);
+      color: var(--app-warning);
+    }
   </style>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 </head>
 <body>
   <div class="scope-manager-container">
-    <div class="panel-header">
-      <h1 id="panel-header-title">AppGenius スコープマネージャー</h1>
-      <div style="display: flex; gap: 8px;">
-        <button class="button button-secondary" id="create-scope-button">
-          <span class="material-icons">add</span>
-          開発案件を追加する
-        </button>
-      </div>
-    </div>
 
     <div class="main-content">
-      <!-- 左サイドパネル：スコープリスト -->
-      <div class="card" style="margin-bottom: 0; padding: var(--app-spacing-sm);">
-        <div class="card-header">
-          <h2>開発スコープ</h2>
-          <button class="button button-secondary" id="directory-structure-button" style="padding: 4px 8px; font-size: 12px;">
-            <span class="material-icons" style="font-size: 16px;">folder</span>
-            ディレクトリ
+      <!-- 左側: プロジェクトナビゲーション -->
+      <div class="project-nav">
+        <button class="toggle-nav-btn" id="toggle-nav-btn" title="パネルを開閉">
+          <span class="material-icons">chevron_left</span>
+        </button>
+        <div class="project-label">PRJ</div>
+        <div class="filter-bar">
+          <input type="text" class="search-input" placeholder="プロジェクト検索...">
+        </div>
+        <h3 style="margin-top: 10px;">プロジェクト</h3>
+        
+        <div class="project-actions">
+          <button class="button primary" id="new-project-btn">
+            <span class="material-icons">add</span>
+            新規プロジェクト
+          </button>
+          <button class="button secondary" id="load-project-btn">
+            <span class="material-icons">folder_open</span>
+            読み込む
           </button>
         </div>
-        <div id="scope-list" class="scope-list">
-          <!-- スコープアイテム例 -->
-          <div class="scope-item active">
-            <h3>認証システムの改善</h3>
-            <div class="scope-progress">
-              <div class="scope-progress-bar status-in-progress" style="width: 45%;"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-              <span style="font-size: 0.9rem; color: var(--app-text-secondary);">7ファイル</span>
-              <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
-                45% 進行中
-              </span>
-            </div>
+        
+        <div class="project-list">
+          <!-- プロジェクトアイテム -->
+          <div class="project-item active">
+            <span class="project-name">AppGenius</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">/システム開発/AppGenius2/AppGenius</span>
           </div>
-          <div class="scope-item">
-            <h3>環境変数管理機能</h3>
-            <div class="scope-progress">
-              <div class="scope-progress-bar status-completed" style="width: 100%;"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-              <span style="font-size: 0.9rem; color: var(--app-text-secondary);">5ファイル</span>
-              <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
-                100% 完了
-              </span>
-            </div>
+          <div class="project-item">
+            <span class="project-name">PRMaker</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">/システム開発/PRMaker</span>
           </div>
-          <div class="scope-item">
-            <h3>モックアップ機能の改善</h3>
-            <div class="scope-progress">
-              <div class="scope-progress-bar status-pending" style="width: 20%;"></div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-              <span style="font-size: 0.9rem; color: var(--app-text-secondary);">9ファイル</span>
-              <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
-                20% 未着手
-              </span>
-            </div>
+          <div class="project-item">
+            <span class="project-name">APIClient</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">/システム開発/APIClient</span>
+          </div>
+          <div class="project-item">
+            <span class="project-name">DataHub</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">/システム開発/DataHub</span>
+          </div>
+          <div class="project-item">
+            <span class="project-name">VSCode拡張</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">/システム開発/VSCode拡張</span>
           </div>
         </div>
       </div>
-
-      <!-- 右コンテンツエリア -->
+      
+      <!-- 右側: コンテンツエリア -->
       <div class="content-area">
-        <!-- スコープ詳細カード -->
-        <div class="card">
-          <div class="card-header">
-            <h2 id="scope-title">認証システムの改善</h2>
-            <button class="button" id="implement-button">
-              <span class="material-icons">play_arrow</span>
-              実装を開始
-            </button>
-          </div>
-          <p id="scope-description">
-            ユーザー認証システムを改善し、セッション期限切れのハンドリングとトークン更新メカニズムを実装します。APIとの連携も強化します。
-          </p>
-          <div style="margin: var(--app-spacing-md) 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--app-spacing-xs);">
-              <span>進捗状況</span>
-              <span id="scope-progress">45%</span>
-            </div>
-            <div style="height: 8px; background-color: var(--app-gray-200); border-radius: 4px; overflow: hidden;">
-              <div id="scope-progress-bar" class="progress-fill status-in-progress" style="width: 45%; height: 100%;"></div>
-            </div>
-          </div>
-          <h3>実装予定ファイル</h3>
-          <div id="implementation-files">
-            <div class="file-item">
-              <input type="checkbox" class="file-checkbox" checked />
-              <span>src/core/auth/AuthenticationService.ts</span>
-            </div>
-            <div class="file-item">
-              <input type="checkbox" class="file-checkbox" checked />
-              <span>src/core/auth/TokenManager.ts</span>
-            </div>
-            <div class="file-item">
-              <input type="checkbox" class="file-checkbox" />
-              <span>src/ui/auth/AuthStatusBar.ts</span>
-            </div>
-            <div class="file-item">
-              <input type="checkbox" class="file-checkbox" />
-              <span>src/services/ClaudeCodeAuthSync.ts</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 開発プロンプトセクション -->
+        <!-- CURRENT_STATUS表示 -->
         <div class="card">
           <div class="tabs">
-            <div class="tab active" data-tab="prompts">開発プロンプト</div>
+            <div class="project-name-tab" style="padding: var(--app-spacing-sm) var(--app-spacing-lg); font-weight: 500; color: var(--app-primary); border-right: 1px solid var(--app-border-color);">AppGenius</div>
+            <div class="tab active" data-tab="current-status">プロジェクト状況</div>
+            <div class="tab" data-tab="claude-code">ClaudeCode連携</div>
             <div class="tab" data-tab="tools">開発ツール</div>
           </div>
 
-          <!-- プロンプトタブコンテンツ -->
-          <div id="prompts-tab" class="tab-content active">
-            <div class="filter-bar">
-              <input type="text" class="search-input" placeholder="プロンプトを検索..." />
-              <select class="button button-secondary" style="padding: 6px 12px;">
-                <option value="all">すべてのカテゴリー</option>
-                <option value="implementation">実装</option>
-                <option value="planning">計画</option>
-                <option value="debug">デバッグ</option>
-                <option value="testing">テスト</option>
-                <option value="design">設計</option>
-                <option value="deploy">デプロイ</option>
-              </select>
+          <!-- CURRENT_STATUSタブコンテンツ -->
+          <div id="current-status-tab" class="tab-content active">
+            <div class="card-body">
+              <div class="markdown-content">
+                <h1>実装状況 (2025/04/15更新)</h1>
+                
+                <h2>全体進捗</h2>
+                <ul>
+                  <li>完成予定ファイル数: 68</li>
+                  <li>作成済みファイル数: 54</li>
+                  <li>進捗率: 79%</li>
+                  <li>最終更新日: 2025/04/15</li>
+                </ul>
+                
+                <blockquote>
+                  <p><strong>AppGenius開発進捗状況</strong>: VSCode拡張機能の認証システムリニューアルとUI改善を実施中。認証モジュールの実装を75%完了し、レガシーコードからの移行も進行中。新しいJWTベースの認証システムと認証状態管理の改善により、セッション期限切れの問題を解決。フロントエンドとバックエンドの連携強化も実施中。</p>
+                </blockquote>
+                
+                <h2>新規プロジェクト構造</h2>
+                
+                <h3>認証システム更新</h3>
+                <ul>
+                  <li><input type="checkbox" checked disabled> JWT認証サービス実装 (100%)</li>
+                  <li><input type="checkbox" checked disabled> トークン管理システム実装 (100%)</li>
+                  <li><input type="checkbox" checked disabled> 認証状態管理改善 (100%)</li>
+                  <li><input type="checkbox" checked disabled> APIリクエストヘッダー自動更新 (100%)</li>
+                  <li><input type="checkbox" checked disabled> エラーハンドリング改善 (100%)</li>
+                  <li><input type="checkbox" checked disabled> 期限切れトークン自動更新 (100%)</li>
+                  <li><input type="checkbox" checked disabled> 認証状態表示UI (100%)</li>
+                  <li><input type="checkbox" disabled> ユーザー権限管理 (0%)</li>
+                  <li><input type="checkbox" disabled> 管理者ダッシュボード連携 (0%)</li>
+                  <li><input type="checkbox" disabled> ロールベースアクセス制御 (0%)</li>
+                </ul>
+                
+                <h3>API連携基盤</h3>
+                <ul>
+                  <li><input type="checkbox" checked disabled> API基本クライアント実装 (100%)</li>
+                  <li><input type="checkbox" checked disabled> リクエスト/レスポンス型定義 (100%)</li>
+                  <li><input type="checkbox" checked disabled> エラーハンドリング共通化 (100%)</li>
+                  <li><input type="checkbox" checked disabled> 再試行メカニズム実装 (100%)</li>
+                  <li><input type="checkbox" checked disabled> タイムアウト処理 (100%)</li>
+                  <li><input type="checkbox" checked disabled> レート制限対応 (100%)</li>
+                  <li><input type="checkbox" checked disabled> ログ機能統合 (100%)</li>
+                  <li><input type="checkbox" checked disabled> パフォーマンス最適化 (100%)</li>
+                </ul>
+                
+                <h3>データモデル実装</h3>
+                <ul>
+                  <li><input type="checkbox" checked disabled> ユーザーモデル設計 (100%)</li>
+                  <li><input type="checkbox" checked disabled> 組織モデル設計 (100%)</li>
+                  <li><input type="checkbox" checked disabled> ワークスペースモデル設計 (100%)</li>
+                  <li><input type="checkbox" checked disabled> プロジェクトモデル設計 (100%)</li>
+                  <li><input type="checkbox" checked disabled> 共有型定義実装 (100%)</li>
+                  <li><input type="checkbox" disabled> APIキーモデル実装 (0%)</li>
+                  <li><input type="checkbox" disabled> 使用統計モデル実装 (0%)</li>
+                  <li><input type="checkbox" disabled> プロンプトモデル実装 (0%)</li>
+                  <li><input type="checkbox" disabled> バージョン履歴モデル実装 (0%)</li>
+                  <li><input type="checkbox" disabled> 設定モデル実装 (0%)</li>
+                </ul>
+                
+                <h3>環境変数管理</h3>
+                <ul>
+                  <li><input type="checkbox" disabled> 環境変数定義 (0%)</li>
+                  <li><input type="checkbox" disabled> 環境変数読み込み処理 (0%)</li>
+                  <li><input type="checkbox" disabled> エラーハンドリング (0%)</li>
+                  <li><input type="checkbox" disabled> デフォルト値設定 (0%)</li>
+                  <li><input type="checkbox" disabled> 環境設定UI (0%)</li>
+                  <li><input type="checkbox" disabled> 環境変数ドキュメント (0%)</li>
+                </ul>
+                
+                <h2>詳細実装計画 (修正版: 2025/04/15)</h2>
+                
+                <h3>Phase 1: 認証システム完成 (日程: 2025/04/16-04/18)</h3>
+                <ul>
+                  <li>ユーザー権限管理機能の実装</li>
+                  <li>管理者ダッシュボードとの連携</li>
+                  <li>ロールベースアクセス制御の実装</li>
+                  <li>ユニットテストの追加</li>
+                </ul>
+                
+                <h3>Phase 2: 環境変数管理実装 (日程: 2025/04/19-04/21)</h3>
+                <ul>
+                  <li>環境変数定義と読み込み処理</li>
+                  <li>エラーハンドリングとデフォルト値設定</li>
+                  <li>環境設定UI実装</li>
+                  <li>環境変数ドキュメント作成</li>
+                </ul>
+                
+                <h3>Phase 3: データモデル完成 (日程: 2025/04/22-04/25)</h3>
+                <ul>
+                  <li>APIキーモデル実装</li>
+                  <li>使用統計モデル実装</li>
+                  <li>プロンプトモデル実装</li>
+                  <li>バージョン履歴モデル実装</li>
+                  <li>設定モデル実装</li>
+                </ul>
+                
+                <h2>主要コンポーネント詳細</h2>
+                
+                <h3>認証システム</h3>
+                <ul>
+                  <li>AuthenticationService: 認証全体管理</li>
+                  <li>TokenManager: JWTトークン管理</li>
+                  <li>AuthState: 認証状態管理</li>
+                  <li>PermissionManager: 権限管理</li>
+                  <li>AuthStatusBar: 認証状態表示UI</li>
+                </ul>
+                
+                <h3>API連携基盤</h3>
+                <ul>
+                  <li>ApiClient: API通信基盤</li>
+                  <li>ErrorHandler: エラー処理共通化</li>
+                  <li>RetryManager: 再試行管理</li>
+                  <li>RateLimitHandler: レート制限対応</li>
+                  <li>LoggingInterceptor: リクエスト/レスポンスログ</li>
+                </ul>
+                
+                <h3>データモデル</h3>
+                <ul>
+                  <li>User: ユーザー情報</li>
+                  <li>Organization: 組織情報</li>
+                  <li>Workspace: ワークスペース</li>
+                  <li>Project: プロジェクト</li>
+                  <li>ApiKey: APIキー</li>
+                  <li>UsageStat: 使用統計</li>
+                  <li>Prompt: プロンプト定義</li>
+                  <li>VersionHistory: バージョン履歴</li>
+                  <li>Settings: 設定情報</li>
+                </ul>
+                
+                <h2>リスクと対策</h2>
+                
+                <ol>
+                  <li><strong>認証システム移行リスク</strong>
+                    <ul>
+                      <li>リスク: ユーザーセッションの中断</li>
+                      <li>対策: 段階的移行とフォールバックメカニズム</li>
+                    </ul>
+                  </li>
+                  <li><strong>API連携エラーリスク</strong>
+                    <ul>
+                      <li>リスク: バックエンドAPI変更による互換性問題</li>
+                      <li>対策: 型安全な共有定義と厳格なバージョニング</li>
+                    </ul>
+                  </li>
+                  <li><strong>パフォーマンスリスク</strong>
+                    <ul>
+                      <li>リスク: 大量データ処理時の遅延</li>
+                      <li>対策: 非同期処理と遅延読み込み</li>
+                    </ul>
+                  </li>
+                </ol>
+                
+                <h2>次のステップ</h2>
+                
+                <ul>
+                  <li>✓ <del>JWT認証サービスの実装</del></li>
+                  <li>✓ <del>トークン管理システムの実装</del></li>
+                  <li>✓ <del>認証状態管理の改善</del></li>
+                  <li>✓ <del>APIリクエストヘッダーの自動更新</del></li>
+                  <li>✓ <del>エラーハンドリングの改善</del></li>
+                  <li>✓ <del>期限切れトークンの自動更新</del></li>
+                  <li>✓ <del>認証状態表示UIの実装</del></li>
+                  <li>ユーザー権限管理の実装</li>
+                  <li>管理者ダッシュボードとの連携</li>
+                  <li>ロールベースアクセス制御の実装</li>
+                </ul>
+              </div>
             </div>
-            <div class="prompt-grid">
-              <!-- 実装系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">build</span>
-                <div class="category-tag">実装</div>
-                <h3 class="prompt-title">スコープ実装アシスタント</h3>
-                <p class="prompt-description">指定スコープのコード実装を支援します</p>
+          </div>
+
+
+          <!-- ClaudeCode連携タブコンテンツ -->
+          <div id="claude-code-tab" class="tab-content">
+            <div class="claude-share-container">
+              <!-- 左側：テキスト入力エリア（広げる） -->
+              <div class="text-input-area">
+                <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
+                <!-- ボタンエリア -->
+                <div class="action-buttons">
+                  <button class="button button-secondary" id="clear-button">クリア</button>
+                  <button class="button" id="share-to-claude">保存</button>
+                </div>
+                
+                <!-- 保存結果通知（成功時のみ表示） -->
+                <div class="save-notification" id="save-notification" style="display: none;">
+                  <span class="material-icons success-icon">check_circle</span>
+                  <span class="notification-text">保存完了</span>
+                </div>
               </div>
               
-              <!-- 計画系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">architecture</span>
-                <div class="category-tag">計画</div>
-                <h3 class="prompt-title">スコープクリエイター</h3>
-                <p class="prompt-description">詳細な実装スコープを設計します</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">assignment_turned_in</span>
-                <div class="category-tag">計画</div>
-                <h3 class="prompt-title">プロジェクト分析</h3>
-                <p class="prompt-description">開発スコープとプランを作成します</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">description</span>
-                <div class="category-tag">計画</div>
-                <h3 class="prompt-title">要件定義作成</h3>
-                <p class="prompt-description">詳細な要件定義書を作成します</p>
-              </div>
-              
-              <!-- デバッグ系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">bug_report</span>
-                <div class="category-tag">デバッグ</div>
-                <h3 class="prompt-title">デバッグ探偵</h3>
-                <p class="prompt-description">エラーを分析し解決策を提案します</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">check_circle</span>
-                <div class="category-tag">検証</div>
-                <h3 class="prompt-title">検証アシスタント</h3>
-                <p class="prompt-description">実装の検証と問題点の発見を行います</p>
-              </div>
-              
-              <!-- 分析・リファクタリング系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">psychology</span>
-                <div class="category-tag">分析</div>
-                <h3 class="prompt-title">コード分析</h3>
-                <p class="prompt-description">既存コードを分析し改善策を提案します</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">auto_fix_high</span>
-                <div class="category-tag">最適化</div>
-                <h3 class="prompt-title">リファクタリングマネージャー</h3>
-                <p class="prompt-description">コードの最適化と可読性向上をサポート</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">speed</span>
-                <div class="category-tag">最適化</div>
-                <h3 class="prompt-title">パフォーマンス最適化</h3>
-                <p class="prompt-description">アプリケーションの高速化と最適化</p>
-              </div>
-              
-              <!-- UI関連 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">web</span>
-                <div class="category-tag">UI</div>
-                <h3 class="prompt-title">モックアップ解析</h3>
-                <p class="prompt-description">UIモックアップから要件を詳細化します</p>
-              </div>
-              
-              <!-- テスト系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">science</span>
-                <div class="category-tag">テスト</div>
-                <h3 class="prompt-title">テスト生成</h3>
-                <p class="prompt-description">ユニットテストと統合テストを作成</p>
-              </div>
-              
-              <!-- 生成系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">code</span>
-                <div class="category-tag">生成</div>
-                <h3 class="prompt-title">コード生成</h3>
-                <p class="prompt-description">要件に基づいて新規コードを生成</p>
-              </div>
-              
-              <!-- 環境系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">settings</span>
-                <div class="category-tag">環境</div>
-                <h3 class="prompt-title">環境変数管理</h3>
-                <p class="prompt-description">環境設定と構成管理を支援</p>
-              </div>
-              
-              <!-- デプロイ系 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">cloud_upload</span>
-                <div class="category-tag">デプロイ</div>
-                <h3 class="prompt-title">デプロイマネージャー</h3>
-                <p class="prompt-description">アプリケーションのデプロイを支援</p>
-              </div>
-              
-              <!-- その他 -->
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">security</span>
-                <div class="category-tag">セキュリティ</div>
-                <h3 class="prompt-title">セキュリティチェック</h3>
-                <p class="prompt-description">脆弱性の検出と修正を支援</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">integration_instructions</span>
-                <div class="category-tag">統合</div>
-                <h3 class="prompt-title">API統合</h3>
-                <p class="prompt-description">外部APIとの連携実装をサポート</p>
+              <!-- 右側：画像アップロードエリアと履歴 -->
+              <div class="image-upload-area">
+                <!-- ドロップゾーン -->
+                <div class="drop-zone" id="drop-zone" style="background-color: #f5f8ff; border: 2px dashed var(--app-primary-light); border-radius: var(--app-border-radius); padding: 15px 10px; text-align: center; cursor: pointer; transition: all 0.3s ease;">
+                  <span class="material-icons" style="font-size: 36px; margin-bottom: 10px; color: var(--app-primary);">add_photo_alternate</span>
+                  <p style="margin-bottom: 8px; text-align: center; color: var(--app-text);">
+                    このエリアをクリックして画像をアップロード<br>
+                    <span style="font-size: 12px; color: var(--app-text-secondary);">またはShiftキーを押しながらファイルをドラッグ＆ドロップ</span>
+                  </p>
+                  <button id="file-select-btn" class="button-secondary" style="margin-top: 5px;">ブラウズ...</button>
+                  <input type="file" id="file-input" accept="image/*" style="display: none;">
+                </div>
+                
+                <!-- 履歴表示エリア -->
+                <div class="history-container">
+                  <h4>共有履歴</h4>
+                  <div class="shared-history-list shared-history">
+                    <div class="history-item">
+                      <div class="history-item-name">認証サービスのエラーログ</div>
+                      <div class="history-item-actions">
+                        <span class="history-item-time">2分前</span>
+                        <span class="material-icons history-action-copy" style="font-size: 16px; cursor: pointer; margin-left: 8px;" title="コマンドをコピー">content_copy</span>
+                        <span class="material-icons history-action-delete" style="font-size: 16px; cursor: pointer; margin-left: 4px;" title="履歴から削除">delete</span>
+                      </div>
+                    </div>
+                    <div class="history-item">
+                      <div class="history-item-name">API接続テスト結果</div>
+                      <div class="history-item-actions">
+                        <span class="history-item-time">15分前</span>
+                        <span class="material-icons history-action-copy" style="font-size: 16px; cursor: pointer; margin-left: 8px;" title="コマンドをコピー">content_copy</span>
+                        <span class="material-icons history-action-delete" style="font-size: 16px; cursor: pointer; margin-left: 4px;" title="履歴から削除">delete</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -748,9 +1253,9 @@
                 <p class="prompt-description">UIモックアップの表示と管理</p>
               </div>
               <div class="prompt-card">
-                <span class="material-icons prompt-icon">integration_instructions</span>
-                <h3 class="prompt-title">APIテスター</h3>
-                <p class="prompt-description">APIエンドポイントのテスト</p>
+                <span class="material-icons prompt-icon">bug_report</span>
+                <h3 class="prompt-title">デバッグ探偵</h3>
+                <p class="prompt-description">エラー解析と問題解決</p>
               </div>
             </div>
           </div>
@@ -759,15 +1264,15 @@
     </div>
   </div>
   
-  <!-- ClaudeCode連携エリア -->
+  <!-- 開発プロンプトエリア -->
   <div class="toggle-share-btn" id="toggle-share-btn" style="display: flex;">
-    <span class="material-icons">sync</span>
-    <span>ClaudeCode連携</span>
+    <span class="material-icons">description</span>
+    <span>開発プロンプト</span>
   </div>
   
   <div class="claude-code-share-area" id="claude-code-share">
     <div class="claude-code-share-header">
-      <h3>ClaudeCode連携</h3>
+      <h3>開発プロンプト</h3>
       <div>
         <button class="button button-secondary" id="minimize-share-btn" style="padding: 4px 8px;">
           <span class="material-icons" style="font-size: 16px;">expand_more</span>
@@ -775,56 +1280,113 @@
       </div>
     </div>
     
-    <div class="share-content">
-      <div class="text-share-zone">
-        <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキスト（エラーメッセージ、コード、メモなど）を入力またはペーストしてください..."></textarea>
-        <div class="shared-history">
-          <div class="history-item">
-            <span>認証サービスのエラーログ (2分前)</span>
-            <div>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
-            </div>
-          </div>
-          <div class="history-item">
-            <span>API接続テスト結果 (15分前)</span>
-            <div>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
-            </div>
-          </div>
-        </div>
+    <div class="prompt-grid">
+      <!-- 要件定義 -->
+      <div class="prompt-card">
+        <span class="material-icons prompt-icon">description</span>
+        <div class="category-tag">計画</div>
+        <h3 class="prompt-title">要件定義</h3>
+        <p class="prompt-description">ビジネス要件を要件定義書に変換</p>
       </div>
       
-      <div class="image-share-zone" id="drop-zone">
-        <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
-        <p>画像をドラッグ＆ドロップ<br>または</p>
-        <button class="button button-secondary" style="margin-top: 10px;">ファイルを選択</button>
-        <!-- 画像がアップロードされたら表示される -->
-        <!-- <img src="path/to/image.jpg" class="image-preview" /> -->
+      <!-- システムアーキテクチャ -->
+      <div class="prompt-card">
+        <span class="material-icons prompt-icon">architecture</span>
+        <div class="category-tag">設計</div>
+        <h3 class="prompt-title">システムアーキテクチャ</h3>
+        <p class="prompt-description">システム全体の設計と開発基盤の確立</p>
       </div>
-    </div>
-    
-    <div class="share-actions">
-      <button class="button button-secondary">クリア</button>
-      <button class="button" id="share-to-claude">一時ファイルに保存</button>
-    </div>
-    
-    <!-- 共有成功時に表示されるダイアログ -->
-    <div id="share-result-dialog" style="display: none; margin-top: 10px; padding: 10px; background-color: var(--app-dark-surface); border-radius: var(--app-border-radius); border: 1px solid var(--app-primary);">
-      <h4 style="margin-top: 0;">ファイル保存完了</h4>
-      <p>以下のコマンドをClaudeCodeに貼り付けてファイルを読み込んでください：</p>
-      <div style="background-color: #252525; padding: 8px; border-radius: 4px; position: relative;">
-        <code id="claude-command" style="font-family: monospace; color: #f0f0f0;">view /tmp/claude-share/shared_20250404_123045.txt</code>
-        <button id="copy-command" style="position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #adadad; cursor: pointer;">
-          <span class="material-icons" style="font-size: 16px;">content_copy</span>
-        </button>
+      
+      <!-- モックアップ作成 -->
+      <div class="prompt-card">
+        <span class="material-icons prompt-icon">web</span>
+        <div class="category-tag">UI</div>
+        <h3 class="prompt-title">モックアップ作成</h3>
+        <p class="prompt-description">要件に基づいたモックアップ作成</p>
+      </div>
+      
+      <!-- データモデル統合 -->
+      <div class="prompt-card">
+        <span class="material-icons prompt-icon">data_object</span>
+        <div class="category-tag">設計</div>
+        <h3 class="prompt-title">データモデル統合</h3>
+        <p class="prompt-description">一貫性のあるシステム全体のモデル構築</p>
       </div>
     </div>
   </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
+      // 起動時の要素確認（デバッグ用）
+      console.log('DOM読み込み完了');
+      
+      // 各タブコンテンツの存在確認
+      const tabIds = ['current-status-tab', 'claude-code-tab', 'tools-tab', 'prompts-tab'];
+      tabIds.forEach(id => {
+        const el = document.getElementById(id);
+        console.log(`タブコンテンツ '${id}' の存在:`, el ? '存在します' : '存在しません');
+      });
+      
+      // 下部パネル関連要素の確認
+      console.log('下部パネルボタン:', document.getElementById('toggle-share-btn'));
+      console.log('下部パネル本体:', document.getElementById('claude-code-share'));
+      
+      // プロジェクトナビゲーションの開閉ボタン処理
+      const toggleNavBtn = document.getElementById('toggle-nav-btn');
+      if (toggleNavBtn) {
+        toggleNavBtn.addEventListener('click', function() {
+          const projectNav = document.querySelector('.project-nav');
+          const contentArea = document.querySelector('.content-area');
+          const icon = toggleNavBtn.querySelector('.material-icons');
+          
+          if (projectNav.classList.contains('collapsed')) {
+            // パネルを展開
+            projectNav.classList.remove('collapsed');
+            contentArea.classList.remove('expanded');
+            icon.textContent = 'chevron_left';
+          } else {
+            // パネルを折りたたむ
+            projectNav.classList.add('collapsed');
+            contentArea.classList.add('expanded');
+            icon.textContent = 'chevron_right';
+          }
+        });
+        
+        // プロジェクト項目へのホバーイベントを追加（折りたたみ時に名前を表示）
+        const projectItems = document.querySelectorAll('.project-item');
+        projectItems.forEach(item => {
+          const projectName = item.querySelector('.project-name').textContent;
+          
+          item.addEventListener('mouseenter', function() {
+            if (document.querySelector('.project-nav.collapsed')) {
+              // ツールチップ要素を作成
+              let tooltip = document.createElement('div');
+              tooltip.className = 'project-tooltip';
+              tooltip.textContent = projectName;
+              tooltip.style.position = 'absolute';
+              tooltip.style.left = '50px';
+              tooltip.style.top = (this.offsetTop + 10) + 'px';
+              tooltip.style.backgroundColor = '#333';
+              tooltip.style.color = '#fff';
+              tooltip.style.padding = '5px 10px';
+              tooltip.style.borderRadius = '4px';
+              tooltip.style.fontSize = '12px';
+              tooltip.style.zIndex = '100';
+              tooltip.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+              document.body.appendChild(tooltip);
+              
+              // 現在のアイテムにツールチップIDを設定
+              this.setAttribute('data-tooltip', Date.now());
+            }
+          });
+          
+          item.addEventListener('mouseleave', function() {
+            // ツールチップを削除
+            const tooltips = document.querySelectorAll('.project-tooltip');
+            tooltips.forEach(t => t.remove());
+          });
+        });
+      }
       // ClaudeCode連携エリアの制御
       const toggleShareBtn = document.getElementById('toggle-share-btn');
       const shareArea = document.getElementById('claude-code-share');
@@ -840,8 +1402,15 @@
         toggleShareBtn.style.display = 'flex';
       });
       
-      // 初期状態は非表示
-      shareArea.classList.add('collapsed');
+      // 初期状態は表示（デバッグのため）
+      // shareArea.classList.add('collapsed');
+      // 最初から表示する
+      if (shareArea) {
+        shareArea.classList.remove('collapsed');
+        if (toggleShareBtn) toggleShareBtn.style.display = 'none';
+      } else {
+        console.error('shareArea要素が見つかりません');
+      }
       
       // ドラッグ&ドロップ機能
       const dropZone = document.getElementById('drop-zone');
@@ -925,7 +1494,34 @@
       
       // 一時ファイルに保存ボタンのイベント処理
       const shareToClaudeBtn = document.getElementById('share-to-claude');
-      const shareResultDialog = document.getElementById('share-result-dialog');
+      
+      // 結果ダイアログを動的に生成（存在しない場合）
+      let shareResultDialog = document.getElementById('share-result-dialog');
+      if (!shareResultDialog) {
+        shareResultDialog = document.createElement('div');
+        shareResultDialog.id = 'share-result-dialog';
+        shareResultDialog.style.display = 'none';
+        shareResultDialog.style.marginTop = '10px';
+        shareResultDialog.style.padding = '10px';
+        shareResultDialog.style.backgroundColor = 'var(--app-card-background)';
+        shareResultDialog.style.borderRadius = 'var(--app-border-radius)';
+        shareResultDialog.style.border = '1px solid var(--app-primary)';
+        
+        shareResultDialog.innerHTML = `
+          <h4 style="margin-top: 0;">ファイル保存完了</h4>
+          <p>以下のコマンドをClaudeCodeに貼り付けてファイルを読み込んでください：</p>
+          <div style="background-color: #252525; padding: 8px; border-radius: 4px; position: relative;">
+            <code id="claude-command" style="font-family: monospace; color: #f0f0f0;">view /tmp/claude-share/shared_example.txt</code>
+            <button id="copy-command" style="position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #adadad; cursor: pointer;">
+              <span class="material-icons" style="font-size: 16px;">content_copy</span>
+            </button>
+          </div>
+        `;
+        
+        // 共有エリアに追加
+        document.querySelector('.image-upload-area').appendChild(shareResultDialog);
+      }
+      
       const claudeCommand = document.getElementById('claude-command');
       const copyCommandBtn = document.getElementById('copy-command');
       const shareTextarea = document.querySelector('.share-textarea');
@@ -987,7 +1583,7 @@
           
           // テキストの最初の30文字を取得してプレビューとして表示
           const textPreview = shareTextarea.value.trim().substring(0, 30) + 
-                             (shareTextarea.value.length > 30 ? '...' : '');
+                           (shareTextarea.value.length > 30 ? '...' : '');
           
           // 現在時刻を取得
           const timeStr = ('0' + now.getHours()).slice(-2) + ':' + 
@@ -1009,11 +1605,21 @@
           return;
         }
         
-        // コマンドを表示
-        claudeCommand.textContent = command;
+        // コマンドを表示（要素が存在する場合のみ）
+        if (claudeCommand) {
+          claudeCommand.textContent = command;
+        } else {
+          console.error('claudeCommand要素が見つかりません');
+        }
         
-        // 結果ダイアログを表示
-        shareResultDialog.style.display = 'block';
+        // 結果ダイアログを表示（要素が存在する場合のみ）
+        if (shareResultDialog) {
+          shareResultDialog.style.display = 'block';
+        } else {
+          console.error('shareResultDialog要素が見つかりません');
+          // 成功メッセージを表示（代替手段）
+          alert(`ファイルを保存しました。コマンド: ${command}`);
+        }
         
         // 共有後にアップロード情報をリセット
         if (uploadedImageInfo) {
@@ -1052,6 +1658,8 @@
       
       tabs.forEach(tab => {
         tab.addEventListener('click', () => {
+          console.log('タブクリック:', tab);
+          
           // アクティブタブのクラスをリセット
           tabs.forEach(t => t.classList.remove('active'));
           tabContents.forEach(content => content.classList.remove('active'));
@@ -1061,10 +1669,31 @@
           
           // 対応するコンテンツを表示
           const tabId = tab.getAttribute('data-tab');
-          document.getElementById(`${tabId}-tab`).classList.add('active');
+          console.log(`探しているタブコンテンツID: ${tabId}-tab`);
+          
+          const tabContent = document.getElementById(`${tabId}-tab`);
+          if (tabContent) {
+            console.log('タブコンテンツが見つかりました:', tabContent);
+            tabContent.classList.add('active');
+          } else {
+            console.error(`タブコンテンツが見つかりません: ${tabId}-tab`);
+            // すべてのタブコンテンツを表示（デバッグ用）
+            document.querySelectorAll('.tab-content').forEach(el => {
+              console.log('存在するタブコンテンツ:', el.id);
+            });
+          }
         });
       });
       
+      // 更新ボタンのクリックイベント
+      const refreshButton = document.getElementById('refresh-button');
+      if (refreshButton) {
+        refreshButton.addEventListener('click', () => {
+          alert('CURRENT_STATUS.mdファイルを再読み込みします');
+          // 実際の実装ではファイルを再読み込みする処理
+        });
+      }
+    
       // プロンプトカードクリックイベント
       const promptCards = document.querySelectorAll('.prompt-card');
       promptCards.forEach(card => {
@@ -1072,6 +1701,37 @@
           const promptTitle = card.querySelector('.prompt-title').textContent;
           console.log(`プロンプトカードがクリックされました: ${promptTitle}`);
           // 実際の実装ではVSCodeとの通信を行う処理を追加
+        });
+      });
+
+      // 「編集」ボタンのクリックイベント
+      const editButton = document.getElementById('edit-current-status');
+      editButton.addEventListener('click', () => {
+        alert('CURRENT_STATUS.mdをエディタで開きます');
+        // 実際の実装ではVSCodeでファイルを開く処理
+      });
+      
+      // プロジェクト選択処理
+      const projectItems = document.querySelectorAll('.project-item');
+      projectItems.forEach(item => {
+        item.addEventListener('click', () => {
+          // アクティブクラスを削除
+          projectItems.forEach(pi => pi.classList.remove('active'));
+          // クリックされた項目をアクティブに
+          item.classList.add('active');
+          
+          // プロジェクト名を取得
+          const projectName = item.querySelector('.project-name').textContent;
+          // プロジェクトパスを取得
+          const projectPath = item.querySelector('.project-path').textContent;
+          // プロジェクト名タブを更新
+          document.querySelector('.project-name-tab').textContent = projectName;
+          
+          // 以前のプロジェクト名表示処理は削除
+          // document.querySelector('.project-location span:last-child').textContent = projectName;
+          
+          // 実際のアプリでは、選択されたプロジェクトに基づいてコンテンツを読み込む処理が入る
+          console.log(`プロジェクト切り替え: ${projectName} (${projectPath})`);
         });
       });
     });

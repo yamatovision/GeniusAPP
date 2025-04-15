@@ -187,9 +187,11 @@ export class TempFileManager {
     const displayTitle = originalSuggestedName || customName || content.substring(0, 50) || 'テキスト';
     const fileNameTitle = customName || this.sanitizeFileName(content.substring(0, 50)) || 'テキスト';
     
-    // ファイル情報を作成
+    // ファイル情報を作成 - IDに完全なランダム要素を追加して一意性を確保
+    const uniqueId = `${path.basename(filePath, '.txt')}_${crypto.randomBytes(6).toString('hex')}`;
+    
     const fileInfo: SharedFile = {
-      id: path.basename(filePath, '.txt'),
+      id: uniqueId, // 完全にユニークなIDを使用
       fileName: path.basename(filePath),
       originalName: originalSuggestedName || options?.title || `${fileNameTitle}.txt`,
       title: displayTitle, // 表示用タイトルには元の日本語を使用
@@ -202,7 +204,8 @@ export class TempFileManager {
       accessCount: 0,
       isExpired: false,
       metadata: {
-        originalSuggestedName: originalSuggestedName // 元の提案名を保持
+        originalSuggestedName: originalSuggestedName, // 元の提案名を保持
+        uniqueId: uniqueId // メタデータにもIDを保存
       }
     };
     
@@ -241,9 +244,11 @@ export class TempFileManager {
     // タイトルを設定（オリジナルのファイル名または生成された名前）
     const title = customName || '画像';
     
-    // ファイル情報を作成
+    // ファイル情報を作成 - IDに完全なランダム要素を追加して一意性を確保
+    const uniqueId = `${path.basename(filePath).split('.')[0]}_${crypto.randomBytes(6).toString('hex')}`;
+    
     const fileInfo: SharedFile = {
-      id: path.basename(filePath).split('.')[0],
+      id: uniqueId, // 完全にユニークなIDを使用
       fileName: path.basename(filePath),
       originalName: options?.title || `${title}.${format}`,
       title: title,
@@ -255,7 +260,9 @@ export class TempFileManager {
       path: filePath,
       accessCount: 0,
       isExpired: false,
-      metadata: {}
+      metadata: {
+        uniqueId: uniqueId // メタデータにもIDを保存
+      }
     };
     
     return fileInfo;
