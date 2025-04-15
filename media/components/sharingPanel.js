@@ -26,6 +26,13 @@
   // メッセージハンドラー
   window.addEventListener('message', event => {
     const message = event.data;
+    
+    // displayModelMockupメッセージは処理しない（scopeManager.jsに任せる）
+    if (message.command === 'displayModelMockup') {
+      console.log('メッセージをスキップ: displayModelMockup (scopeManager.jsが処理)');
+      return;
+    }
+    
     console.log('メッセージ受信:', message.command, message);
     
     switch (message.command) {
@@ -157,8 +164,7 @@
         shareArea.classList.remove('collapsed');
         toggleShareBtn.style.display = 'none';
         
-        // 共有パネルが表示されたらVSCodeメッセージを強制的に非表示にする
-        suppressVSCodeDragDropMessage();
+        // VSCodeのネイティブメッセージは自然に表示させる
       });
       
       // 最小化ボタンのクリックイベント
@@ -184,7 +190,7 @@
           p.innerHTML = `
             <span style="color: white; font-weight: bold;">画像をここにドロップ</span><br>
             <span style="font-size: 12px; color: var(--app-text-secondary);">
-              シフトキーをホールドしながらドロップしてください
+              画像ファイルをここにドラッグしてください
             </span>
           `;
         }
@@ -194,26 +200,19 @@
   
   /**
    * ドラッグ&ドロップ機能の初期化
-   * 改善版: ドロップゾーンのみに処理を限定し、グローバルな影響を排除
+   * シンプル版: 基本的なドラッグ&ドロップ処理に集中
    */
   function initDragAndDrop() {
-    console.log('ドラッグ&ドロップ機能を初期化します');
+    console.log('シンプル化されたドラッグ&ドロップ機能を初期化します');
     const dropZone = document.getElementById('drop-zone');
     if (!dropZone) {
       console.error('ドロップゾーン要素が見つかりません');
       return;
     }
     
-    // 古いグローバルなドラッグエフェクト要素を削除
-    const oldDragEffect = document.getElementById('drag-effect');
-    if (oldDragEffect && oldDragEffect.parentNode) {
-      oldDragEffect.parentNode.removeChild(oldDragEffect);
-    }
-    
     // ファイル入力要素を準備
     let fileInput = document.querySelector('.file-input');
     if (fileInput) {
-      // 既存の入力要素があれば削除（初期化のため）
       fileInput.remove();
     }
     
@@ -227,19 +226,15 @@
     
     // ファイル選択イベント
     fileInput.addEventListener('change', e => {
-      console.log('ファイル選択イベント:', e.target.files);
       if (e.target.files && e.target.files.length > 0) {
         handleFiles(e.target.files);
       }
     });
     
-    // クリックでファイル選択できるようにdropZone全体をクリック可能に
+    // クリックでファイル選択
     dropZone.onclick = function(e) {
-      console.log('ドロップゾーンクリック');
-      // ボタンのクリックイベントと重複しないように
       if (e.target.id !== 'file-select-btn' && !e.target.closest('#file-select-btn')) {
-        console.log('ファイル選択ダイアログを開きます');
-        fileInput.click(); // これでファイル選択ダイアログが開く
+        fileInput.click();
       }
     };
     
@@ -247,15 +242,13 @@
     const fileSelectButton = document.getElementById('file-select-btn');
     if (fileSelectButton) {
       fileSelectButton.onclick = function(e) {
-        e.stopPropagation(); // dropZoneのクリックイベントと重複しないように
-        console.log('ファイル選択ボタンクリック');
+        e.stopPropagation();
         fileInput.click();
       };
     }
     
     // ドロップゾーンのみにドラッグ&ドロップイベントを設定
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-      // ドロップゾーンのイベント
       dropZone.addEventListener(eventName, function(e) {
         e.preventDefault();
         e.stopPropagation();
@@ -279,9 +272,8 @@
       dropZone.style.backgroundColor = 'rgba(20, 20, 20, 0.3)';
     });
     
-    // ファイルドロップ時の処理（ドロップゾーンのみで動作）
+    // ファイルドロップ時の処理
     dropZone.addEventListener('drop', function(e) {
-      console.log('ドロップゾーンでドロップイベント発生');
       dropZone.style.borderColor = 'var(--app-border-color)';
       dropZone.style.backgroundColor = 'rgba(20, 20, 20, 0.3)';
       
@@ -291,7 +283,7 @@
       }
     });
     
-    // ドロップゾーン内でのパステイベントの処理（クリップボードからの画像ペースト）
+    // クリップボードからの画像ペースト
     dropZone.addEventListener('paste', (e) => {
       const items = e.clipboardData.items;
       
@@ -332,11 +324,11 @@
       const reader = new FileReader();
       
       reader.onload = function(e) {
-        // プレビュー表示
+        // プレビュー表示（アップロード中表示）
         dropZone.innerHTML = `
           <img src="${e.target.result}" class="image-preview" />
           <p style="margin: 0 0 10px 0; color: var(--app-text-secondary);">${file.name}</p>
-          <button id="file-select-btn" class="button-secondary">他の画像を選択</button>
+          <p style="color: var(--app-warning);">自動保存中...</p>
         `;
         
         // ファイル情報を保存
@@ -344,16 +336,10 @@
         dropZone.dataset.fileType = file.type;
         dropZone.dataset.fileData = e.target.result.toString();
         
-        // ファイル選択ボタンのイベントを再設定
-        const fileSelectButton = document.getElementById('file-select-btn');
-        if (fileSelectButton) {
-          fileSelectButton.addEventListener('click', () => {
-            const fileInput = document.querySelector('.file-input');
-            if (fileInput) {
-              fileInput.click();
-            }
-          });
-        }
+        // 自動的に保存処理を実行
+        setTimeout(() => {
+          handleSaveClick();
+        }, 300); // 少し遅延させて実行（UIのレンダリングが完了した後）
       };
       
       reader.readAsDataURL(file);
@@ -441,14 +427,14 @@
         fileType: fileType
       });
       
-      // 画像保存ボタンを押した直後に即時リセット
+      // 画像保存後、確実にドロップゾーンをリセット
       console.log('画像保存後すぐにドロップゾーンをリセットします');
-      resetDropZone();
+      resetDropZone(true); // 強制リセット
       
       // 念のため、タイマーを使って少し遅れて再度リセットする
       setTimeout(() => {
         console.log('遅延リセットを実行');
-        resetDropZone();
+        resetDropZone(true); // 強制リセット
       }, 500);
     } else if (hasText) {
       // テキストの共有、先頭部分をファイル名に
@@ -517,7 +503,7 @@
           <span class="material-icons" style="font-size: 36px; margin-bottom: 10px; color: var(--app-primary);">add_photo_alternate</span>
           <p style="margin-bottom: 8px; color: #ffffff; text-align: center;">
             このエリアをクリックして画像をアップロード<br>
-            <span style="font-size: 12px; color: var(--app-text-secondary);">またはファイルをドラッグ＆ドロップ（シフトキーをホールド）</span>
+            <span style="font-size: 12px; color: var(--app-text-secondary);">またはファイルをドラッグ＆ドロップ</span>
           </p>
           <button id="file-select-btn" class="button-secondary">ブラウズ...</button>
         `;

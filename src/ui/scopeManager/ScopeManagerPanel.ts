@@ -116,6 +116,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
+        // HTMLのスクリプト実行を許可する簡易なCSP
+        contentSecurityPolicy: "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src *;",
         localResourceRoots: [
           vscode.Uri.joinPath(extensionUri, 'media'),
           vscode.Uri.joinPath(extensionUri, 'dist'),
@@ -263,6 +265,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             case 'removeProject':
               await this._handleRemoveProject(message.projectName, message.projectPath, message.projectId);
+              break;
+            // モックアップビューア関連のコマンド
+            case 'selectMockup':
+              await this._handleSelectMockup(message.filePath);
+              break;
+            case 'openInBrowser':
+              await this._handleOpenMockupInBrowser(message.filePath);
               break;
           }
         } catch (error) {
@@ -731,14 +740,284 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * モックアップギャラリーを開く
    */
   private async _handleOpenMockupGallery(): Promise<void> {
-    // モックアップギャラリーを開くコマンドを実行
+    // モックアップギャラリーの代わりにSimpleModelViewerを開く
     try {
-      // 新しいタブで開く
-      vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath, vscode.ViewColumn.Beside);
-      Logger.info('モックアップギャラリーを新しいタブで開きました');
+      // 同じタブ内で表示するためのメソッドを呼び出す
+      await this._handleOpenSimpleModelViewer();
+      Logger.info('SimpleModelViewerを同じタブ内で開きました');
     } catch (error) {
-      Logger.error('モックアップギャラリーを開けませんでした', error as Error);
-      this._showError('モックアップギャラリーを開けませんでした');
+      Logger.error('SimpleModelViewerを開けませんでした', error as Error);
+      this._showError('モックアップビューアを開けませんでした');
+    }
+  }
+  
+  /**
+   * SimpleModelViewerを同じタブ内で表示する
+   */
+  private async _handleOpenSimpleModelViewer(): Promise<void> {
+    try {
+      // mockupsディレクトリが存在するか確認
+      const mockupsDir = path.join(this._projectPath, 'mockups');
+      if (!fs.existsSync(mockupsDir)) {
+        fs.mkdirSync(mockupsDir, { recursive: true });
+      }
+      
+      // モックアップファイル一覧を取得
+      const mockupFiles = fs.readdirSync(mockupsDir)
+        .filter(file => file.endsWith('.html'))
+        .map(file => {
+          const filePath = path.join(mockupsDir, file);
+          const stats = fs.statSync(filePath);
+          return {
+            name: file,
+            path: filePath,
+            modified: stats.mtime.getTime()
+          };
+        })
+        .sort((a, b) => b.modified - a.modified);
+      
+      // SimpleModelViewerのHTMLを組み立て
+      const modelViewerHTML = this._getModelViewerHTML(mockupFiles);
+      
+      // ツールタブの内容を直接更新（selectTabコマンドは送信しない）
+      // フロントエンド側ですでにタブが選択されているため
+      this._panel.webview.postMessage({
+        command: 'updateToolsTab',
+        content: modelViewerHTML
+      });
+      
+      // アクションフィードバックを表示
+      this._showSuccess('モックアップビューアを表示しました');
+      
+      Logger.info('SimpleModelViewerをスコープマネージャータブ内に表示しました');
+    } catch (error) {
+      Logger.error('SimpleModelViewerの表示に失敗しました', error as Error);
+      this._showError(`モックアップビューアの表示に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * SimpleModelViewerのHTML生成
+   */
+  private _getModelViewerHTML(mockupFiles: any[]): string {
+    let fileListHTML = '';
+    
+    if (mockupFiles.length === 0) {
+      fileListHTML = '<div class="empty-state">モックアップがありません</div>';
+    } else {
+      // モックアップリストのHTML
+      mockupFiles.forEach(file => {
+        fileListHTML += `<div class="model-file-item" data-path="${file.path}">${file.name}</div>`;
+      });
+    }
+    
+    // モデルビューアのスタイルを含むHTML
+    return `
+      <div class="model-viewer-container">
+        <div class="model-file-list-panel">
+          <div class="file-list-header">
+            <h3>モックアップファイル</h3>
+            <button id="toggle-file-list" class="toggle-btn">
+              <span class="material-icons">chevron_left</span>
+            </button>
+          </div>
+          <div id="model-file-list" class="model-file-list">
+            ${fileListHTML}
+          </div>
+        </div>
+        <div class="model-preview-panel">
+          <div class="model-preview-header">
+            <h3 id="model-preview-title">プレビュー</h3>
+            <div class="preview-actions">
+              <button id="expand-file-list" class="toggle-btn" style="display: none;">
+                <span class="material-icons">chevron_right</span>
+              </button>
+              <button id="model-open-in-browser" class="button" disabled>ブラウザで開く</button>
+            </div>
+          </div>
+          <div class="model-preview-content" id="model-preview-content">
+            <!-- プレビュー内容はJavaScriptで挿入されます -->
+          </div>
+        </div>
+      </div>
+      <!-- イベントハンドラはscopeManager.jsで処理 -->
+      <style>
+        .model-viewer-container {
+          display: flex;
+          height: calc(100vh - 160px);
+          border: 1px solid var(--vscode-panel-border);
+          background-color: var(--vscode-editor-background);
+          margin-top: 10px;
+        }
+        
+        .model-file-list-panel {
+          width: 300px;
+          border-right: 1px solid var(--vscode-panel-border);
+          display: flex;
+          flex-direction: column;
+          transition: width 0.3s ease;
+        }
+        
+        .model-file-list-panel.collapsed {
+          width: 0;
+          overflow: hidden;
+          border-right: none;
+        }
+        
+        .file-list-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px;
+          border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .file-list-header h3 {
+          margin: 0;
+        }
+        
+        .toggle-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          color: var(--vscode-foreground);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 2px;
+          border-radius: 4px;
+        }
+        
+        .toggle-btn:hover {
+          background-color: var(--vscode-toolbar-hoverBackground);
+        }
+        
+        .model-file-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 10px;
+        }
+        
+        .model-file-item {
+          padding: 8px;
+          border-radius: 4px;
+          cursor: pointer;
+          margin-bottom: 5px;
+        }
+        
+        .model-file-item:hover {
+          background-color: var(--vscode-list-hoverBackground);
+        }
+        
+        .model-file-item.active {
+          background-color: var(--vscode-list-activeSelectionBackground);
+          color: var(--vscode-list-activeSelectionForeground);
+        }
+        
+        .model-preview-panel {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+        }
+        
+        .model-preview-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 10px;
+          border-bottom: 1px solid var(--vscode-panel-border);
+        }
+        
+        .model-preview-header h3 {
+          margin: 0;
+        }
+        
+        .preview-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .model-preview-content {
+          flex: 1;
+          position: relative;
+        }
+        
+        #model-preview-frame {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          border: none;
+          background-color: white;
+        }
+        
+        .empty-state {
+          padding: 20px;
+          color: var(--vscode-descriptionForeground);
+          text-align: center;
+        }
+      </style>
+    `;
+  }
+  
+  /**
+   * モックアップファイル選択処理
+   */
+  private async _handleSelectMockup(filePath: string): Promise<void> {
+    try {
+      Logger.info(`モックアップ選択リクエスト: ${filePath}`);
+      
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`ファイルが見つかりません: ${filePath}`);
+      }
+      
+      const content = fs.readFileSync(filePath, 'utf8');
+      Logger.info(`モックアップファイルを読み込みました: ${filePath} (${content.length} bytes)`);
+      
+      // モックアップファイル名を取得
+      const fileName = path.basename(filePath);
+      
+      // CSS適用のためにHTMLを修正
+      const modifiedHtml = content
+        // ベースパスを修正
+        .replace(/<head>/i, `<head><base href="${this._panel.webview.asWebviewUri(vscode.Uri.file(path.dirname(filePath)))}/"/>`)
+        // スタイルを適用
+        .replace(/<\/head>/i, `<style>body { margin: 0; padding: 0; }</style></head>`);
+      
+      // webviewに表示命令を送信 - HTML内容も一緒に送信
+      this._panel.webview.postMessage({
+        command: 'displayModelMockup',
+        html: modifiedHtml,
+        filePath: filePath
+      });
+      
+      Logger.info(`モックアップ表示メッセージを送信しました: ${filePath}`);
+      
+      // 成功メッセージを表示
+      this._showSuccess(`モックアップ「${path.basename(filePath)}」を表示しました`);
+    } catch (error) {
+      const errorMsg = `モックアップ選択エラー: ${(error as Error).message}`;
+      Logger.error(errorMsg);
+      this._showError(errorMsg);
+    }
+  }
+  
+  /**
+   * モックアップをブラウザで開く
+   */
+  private async _handleOpenMockupInBrowser(filePath: string): Promise<void> {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`ファイルが見つかりません: ${filePath}`);
+      }
+      
+      await vscode.env.openExternal(vscode.Uri.file(filePath));
+      
+      Logger.info(`モックアップをブラウザで開きました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`ブラウザ表示エラー: ${(error as Error).message}`);
     }
   }
 
@@ -1422,7 +1701,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
                 <div class="tabs-container">
                   <div class="tab active" data-tab="current-status">プロジェクト状況</div>
                   <div class="tab" data-tab="claude-code">ClaudeCode連携</div>
-                  <div class="tab" data-tab="tools">開発ツール</div>
+                  <div class="tab" data-tab="tools">モックアップギャラリー</div>
                 </div>
               </div>
               
@@ -1476,9 +1755,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
                 </div>
               </div>
               
-              <!-- 開発ツールタブコンテンツ -->
+              <!-- 開発ツールタブコンテンツ (モックアップギャラリー表示用のプレースホルダ) -->
               <div id="tools-tab" class="tab-content">
-                <!-- ツールカードはJSで動的に生成されます -->
+                <!-- モックアップギャラリーを表示するための空のコンテナ -->
               </div>
             </div>
           </div>
@@ -1731,6 +2010,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
       text += possible.charAt(Math.floor(Math.random() * possible.length));
     }
     return text;
+  }
+  
+  /**
+   * HTML文字列をエスケープ
+   */
+  private _escapeHtml(html: string): string {
+    return html
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   /**

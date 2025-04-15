@@ -73,9 +73,6 @@ const vscode = acquireVsCodeApi();
     // プロンプトカードを初期化
     initializePromptCards();
     
-    // 開発ツールのカードを初期化
-    initializeToolCards();
-    
     // プロジェクトナビゲーションの開閉ボタン処理
     initializeProjectNav();
     
@@ -91,8 +88,17 @@ const vscode = acquireVsCodeApi();
     const message = event.data;
     
     // シェアリングパネル関連のメッセージは無視（sharingPanel.jsが処理）
-    if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
+    // ただし、displayModelMockupは必ずscopeManager.jsが処理する
+    if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command) && 
+        message.command !== 'displayModelMockup') {
       return; // sharingPanel.jsに処理を任せる
+    }
+    
+    // displayModelMockupコマンドの場合はイベント伝搬を止める特別処理
+    if (message.command === 'displayModelMockup') {
+      event.stopPropagation();
+      event.preventDefault();
+      console.log('モックアップ表示メッセージを専用ハンドラで処理します');
     }
     
     console.log('メッセージ受信:', message.command);
@@ -121,6 +127,15 @@ const vscode = acquireVsCodeApi();
         break;
       case 'updateProjects':
         updateProjects(message.projects, message.activeProject);
+        break;
+      case 'selectTab':
+        selectTab(message.tabId);
+        break;
+      case 'updateToolsTab':
+        updateToolsTab(message.content);
+        break;
+      case 'displayModelMockup':
+        displayModelMockup(message.html, message.filePath);
         break;
     }
   });
@@ -1195,6 +1210,147 @@ const vscode = acquireVsCodeApi();
   }
   
   /**
+   * モックアッププレビューを処理するためのグローバル変数と関数
+   */
+  let currentModelFilePath = null;
+  
+  /**
+   * モックアップリストのイベントハンドラを登録
+   * タブ内容更新後に呼び出される
+   */
+  function setupMockupViewerHandlers() {
+    console.log('モックアップビューアのイベントハンドラを設定します');
+    
+    // ファイルアイテムクリックイベント
+    document.querySelectorAll('.model-file-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const filePath = item.getAttribute('data-path');
+        console.log('モックアップファイルがクリックされました', filePath);
+        
+        // VSCodeにメッセージ送信
+        vscode.postMessage({
+          command: 'selectMockup',
+          filePath: filePath
+        });
+        
+        // アクティブクラスの切り替え
+        document.querySelectorAll('.model-file-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+      });
+    });
+    
+    // ブラウザで開くボタン
+    const openInBrowserButton = document.getElementById('model-open-in-browser');
+    if (openInBrowserButton) {
+      openInBrowserButton.addEventListener('click', () => {
+        if (currentModelFilePath) {
+          console.log('ブラウザで開くボタンがクリックされました', currentModelFilePath);
+          vscode.postMessage({
+            command: 'openInBrowser',
+            filePath: currentModelFilePath
+          });
+        }
+      });
+    }
+    
+    // ファイルリスト折りたたみボタン
+    const toggleFileListBtn = document.getElementById('toggle-file-list');
+    const expandFileListBtn = document.getElementById('expand-file-list');
+    const fileListPanel = document.querySelector('.model-file-list-panel');
+    
+    if (toggleFileListBtn && expandFileListBtn && fileListPanel) {
+      // 折りたたみボタンのクリックイベント
+      toggleFileListBtn.addEventListener('click', () => {
+        fileListPanel.classList.add('collapsed');
+        toggleFileListBtn.style.display = 'none';
+        expandFileListBtn.style.display = 'block';
+      });
+      
+      // 展開ボタンのクリックイベント
+      expandFileListBtn.addEventListener('click', () => {
+        fileListPanel.classList.remove('collapsed');
+        toggleFileListBtn.style.display = 'block';
+        expandFileListBtn.style.display = 'none';
+      });
+    }
+  }
+  
+  /**
+   * モックアップの表示設定と「ブラウザで開く」ボタンの有効化を行う
+   */
+  function displayModelMockup(html, filePath) {
+    console.log('モックアップ表示関数が呼び出されました:', filePath);
+    currentModelFilePath = filePath;
+    
+    // ファイル名を表示し、ブラウザで開くボタンを有効化
+    const previewTitle = document.getElementById('model-preview-title');
+    const openInBrowserButton = document.getElementById('model-open-in-browser');
+    const previewContent = document.getElementById('model-preview-content');
+    
+    if (previewTitle && openInBrowserButton && previewContent) {
+      try {
+        // ファイル名を表示
+        const fileName = filePath.split(/[\\/]/).pop();
+        previewTitle.textContent = fileName;
+        
+        // ブラウザで開くボタンを有効化
+        openInBrowserButton.disabled = false;
+        
+        // HTMLコンテンツをiframeを使って表示（オリジナルのモックアップギャラリーと同じ実装）
+        if (html) {
+          previewContent.innerHTML = `
+            <iframe id="model-preview-frame" 
+                   style="width:100%; height:100%; border:none;">
+            </iframe>
+          `;
+          
+          // オリジナルのモックアップギャラリーと同じ実装方法
+          // iframeを取得してコンテンツを設定
+          setTimeout(() => {
+            try {
+              const iframe = document.getElementById('model-preview-frame');
+              if (iframe) {
+                const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
+                if (doc) {
+                  doc.open();
+                  doc.write(html);
+                  doc.close();
+                } else {
+                  console.error('iframe documentにアクセスできません');
+                }
+              }
+            } catch (innerError) {
+              console.error('iframe描画エラー:', innerError);
+              previewContent.innerHTML = `
+                <div style="padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 4px;">
+                  <h3>モックアップ表示エラー</h3>
+                  <p>モックアップの表示に失敗しました。「ブラウザで開く」ボタンを使用してください。</p>
+                </div>
+              `;
+            }
+          }, 10);
+        }
+        
+        console.log('モックアッププレビュー表示設定を更新しました', { fileName });
+      } catch (error) {
+        console.error('プレビュー表示設定でエラーが発生しました', error);
+        
+        // エラーメッセージをユーザーに表示
+        showError(`モックアップ表示の設定に失敗しました: ${error.message}`);
+        
+        // それでもブラウザボタンは有効化
+        openInBrowserButton.disabled = false;
+      }
+    } else {
+      console.error('必要な要素が見つかりません', { 
+        foundTitle: !!previewTitle,
+        foundButton: !!openInBrowserButton,
+        foundContent: !!previewContent
+      });
+    }
+  }
+  
+  /**
    * ディレクトリ構造ダイアログを表示
    */
   function showDirectoryStructure(structure) {
@@ -1255,17 +1411,34 @@ const vscode = acquireVsCodeApi();
       tab.addEventListener('click', () => {
         // アクティブなタブの状態を保存
         const newState = vscode.getState() || {};
-        newState.activeTab = tab.getAttribute('data-tab');
+        const tabId = tab.getAttribute('data-tab');
+        newState.activeTab = tabId;
         vscode.setState(newState);
         
         // タブの見た目を更新
         tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         
-        // コンテンツ表示を切り替え
-        const tabId = tab.getAttribute('data-tab');
+        // 「モックアップギャラリー」タブの場合は、直接SimpleModelViewerを表示し
+        // 中間ページを表示しない
+        if (tabId === 'tools') {
+          // 対応するタブコンテンツを表示（表示設定が必要）
+          tabContents.forEach(content => {
+            if (content.id === `${tabId}-tab`) {
+              content.classList.add('active');
+            } else {
+              content.classList.remove('active');
+            }
+          });
+          
+          // 即座にモックアップギャラリーを開くコマンドを送信
+          vscode.postMessage({
+            command: 'openMockupGallery'
+          });
+          return;
+        }
         
-        // 対応するタブコンテンツを表示し、それ以外を非表示にする
+        // 他のタブの場合は通常通り対応するタブコンテンツを表示
         tabContents.forEach(content => {
           if (content.id === `${tabId}-tab`) {
             content.classList.add('active');
@@ -1277,49 +1450,7 @@ const vscode = acquireVsCodeApi();
     });
   }
   
-  /**
-   * 開発ツールカードの初期化
-   */
-  function initializeToolCards() {
-    const toolsTab = document.getElementById('tools-tab');
-    if (!toolsTab) return;
-    
-    // すでに初期化されていれば何もしない
-    if (toolsTab.querySelector('.prompt-grid')) return;
-    
-    const toolsGrid = document.createElement('div');
-    toolsGrid.className = 'prompt-grid';
-    
-    // 開発ツール情報のマッピング（commandはScopeManagerPanel.tsの対応するメソッド名）
-    const tools = [
-      { id: "requirements-editor", name: "要件定義エディタ", icon: "fact_check", description: "要件定義書の編集と管理", command: "openRequirementsVisualizer" },
-      { id: "env-assistant", name: "環境変数アシスタント", icon: "emoji_objects", description: "環境変数の設定と管理", command: "openEnvironmentVariablesAssistant" },
-      { id: "mockup-gallery", name: "モックアップギャラリー", icon: "dashboard", description: "UIモックアップの表示と管理", command: "openMockupGallery" },
-      { id: "debug-detective", name: "デバッグ探偵", icon: "bug_report", description: "エラー解析と問題解決", command: "openDebugDetective" }
-    ];
-    
-    // 各ツールのカードを作成
-    tools.forEach(tool => {
-      const card = document.createElement('div');
-      card.className = 'prompt-card';
-      card.innerHTML = `
-        <span class="material-icons prompt-icon">${tool.icon}</span>
-        <h3 class="prompt-title">${tool.name}</h3>
-        <p class="prompt-description">${tool.description}</p>
-      `;
-      
-      // クリックイベント - ツールを開く
-      card.addEventListener('click', () => {
-        vscode.postMessage({
-          command: tool.command
-        });
-      });
-      
-      toolsGrid.appendChild(card);
-    });
-    
-    toolsTab.appendChild(toolsGrid);
-  }
+  // 中間ページ関連のコードは不要になりました
   
   /**
    * ClaudeCode連携エリアの初期化
@@ -1358,6 +1489,94 @@ const vscode = acquireVsCodeApi();
     console.log('scopeManager.js: 基本的なClaudeCode連携エリアの初期化を完了しました');
     // 詳細な機能はsharingPanel.jsに任せるため、ここでは最小限の初期化のみ行う
   }
+  
+  /**
+   * 指定したタブを選択状態にする
+   * @param {string} tabId タブID
+   */
+  function selectTab(tabId) {
+    if (!tabId) return;
+    
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    // タブの選択状態を更新
+    tabs.forEach(tab => {
+      if (tab.getAttribute('data-tab') === tabId) {
+        tab.classList.add('active');
+      } else {
+        tab.classList.remove('active');
+      }
+    });
+    
+    // タブコンテンツの表示状態を更新
+    tabContents.forEach(content => {
+      if (content.id === `${tabId}-tab`) {
+        content.classList.add('active');
+      } else {
+        content.classList.remove('active');
+      }
+    });
+    
+    // タブ状態を保存
+    const newState = vscode.getState() || {};
+    newState.activeTab = tabId;
+    vscode.setState(newState);
+    
+    console.log(`タブを切り替えました: ${tabId}`);
+  }
+  
+  /**
+   * ツールタブの内容を更新
+   * @param {string} content HTMLコンテンツ
+   */
+  function updateToolsTab(content) {
+    const toolsTab = document.getElementById('tools-tab');
+    if (!toolsTab) {
+      console.error('tools-tabが見つかりません');
+      return;
+    }
+    
+    console.log('ツールタブの内容を更新します');
+    
+    // 既存の内容をクリア
+    toolsTab.innerHTML = '';
+    
+    // 新しい内容を設定
+    toolsTab.innerHTML = content;
+    
+    console.log('ツールタブの内容を更新しました');
+    
+    // モックアップビューアのUIが含まれているか確認
+    const hasModelViewer = !!document.querySelector('.model-viewer-container');
+    if (hasModelViewer) {
+      console.log('モックアップビューアUIを検出しました - イベントハンドラを設定します');
+      // 次のタイクでイベントハンドラを設定（DOM更新を待つため）
+      setTimeout(() => {
+        setupMockupViewerHandlers();
+        
+        // 最初のモックアップを自動選択（もし存在すれば）
+        const firstMockupItem = document.querySelector('.model-file-item');
+        if (firstMockupItem && !currentModelFilePath) {
+          console.log('最初のモックアップを自動選択します');
+          const filePath = firstMockupItem.getAttribute('data-path');
+          if (filePath) {
+            // アクティブクラスを追加
+            firstMockupItem.classList.add('active');
+            
+            // バックエンドに選択コマンドを送信
+            vscode.postMessage({
+              command: 'selectMockup',
+              filePath: filePath
+            });
+            
+            console.log('モックアップを自動選択しました:', filePath);
+          }
+        }
+      }, 100);
+    }
+  }
+  
   
   /**
    * 開発プロンプトモーダルにプロンプトカードを初期化
