@@ -43,20 +43,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
+  private readonly _extensionPath: string; // 拡張機能のファイルシステムパス（テンプレート読み込みに使用）
   private _disposables: vscode.Disposable[] = [];
 
   private _projectPath: string = '';
   private _fileManager: FileOperationManager;
   private _statusFilePath: string = '';
-  private _scopes: any[] = [];
-  private _selectedScopeIndex: number = -1;
-  private _currentScope: any = null;
   private _directoryStructure: string = '';
   private _fileWatcher: vscode.FileSystemWatcher | null = null;
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   private _isPreparationMode: boolean = false; // 準備モード（廃止予定で常にfalse）
-  private _isUpdatingStatusFile: boolean = false; // ステータスファイル更新中フラグ
   private _sharingService: ClaudeCodeSharingService | undefined; // ClaudeCode共有サービス
+  private _currentProjects: any[] = []; // プロジェクト一覧
+  private _activeProject: any = null; // アクティブなプロジェクト
   
   /**
    * 準備ステップのテンプレートを取得（廃止予定）
@@ -138,6 +137,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     this._panel = panel;
     this._extensionUri = extensionUri;
+    this._extensionPath = context.extensionPath; // 拡張機能のファイルシステムパスを保存
     this._fileManager = FileOperationManager.getInstance();
     this._promptServiceClient = PromptServiceClient.getInstance();
     
@@ -146,6 +146,24 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
+    
+    // ProjectManagementServiceからプロジェクト一覧を取得
+    try {
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      this._currentProjects = projectService.getAllProjects();
+      this._activeProject = projectService.getActiveProject();
+      
+      Logger.info(`プロジェクト一覧を取得しました: ${this._currentProjects.length}件`);
+      
+      // アクティブプロジェクトが指定されていない場合は、引数または現在のアクティブプロジェクトを使用
+      if (!projectPath && this._activeProject && this._activeProject.path) {
+        projectPath = this._activeProject.path;
+        Logger.info(`アクティブプロジェクトパスを使用: ${projectPath}`);
+      }
+    } catch (error) {
+      Logger.warn(`プロジェクト一覧の取得に失敗しました: ${error}`);
+    }
     
     // プロジェクトパスが指定されている場合は設定
     if (projectPath) {
@@ -177,20 +195,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'initialize':
               await this._handleInitialize();
               break;
-            case 'selectScope':
-              await this._handleSelectScope(message.index);
-              break;
-            case 'startImplementation':
-              await this._handleStartImplementation();
-              break;
             case 'showDirectoryStructure':
               await this._handleShowDirectoryStructure();
               break;
-            case 'addNewScope':
-              await this._handleAddNewScope();
-              break;
-            case 'toggleFileStatus':
-              await this._handleToggleFileStatus(message.filePath, message.completed);
+            case 'getMarkdownContent':
+              await this._handleGetMarkdownContent(message.filePath);
               break;
             // 新しいコマンド
             case 'launchPromptFromURL':
@@ -243,6 +252,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'reuseHistoryItem':
               await this._handleReuseHistoryItem(message.fileId);
               break;
+            case 'selectProject':
+              await this._handleSelectProject(message.projectName, message.projectPath);
+              break;
+            case 'loadExistingProject':
+              await this._handleLoadExistingProject();
+              break;
+            case 'createProject':
+              await this._handleCreateProject(message.name, message.description);
+              break;
+            case 'removeProject':
+              await this._handleRemoveProject(message.projectName, message.projectPath, message.projectId);
+              break;
           }
         } catch (error) {
           Logger.error(`メッセージ処理エラー: ${message.command}`, error as Error);
@@ -254,6 +275,271 @@ export class ScopeManagerPanel extends ProtectedPanel {
     );
   }
 
+  /**
+   * 新規プロジェクト作成処理
+   */
+  private async _handleCreateProject(projectName: string, description: string): Promise<void> {
+    try {
+      Logger.info(`新規プロジェクト作成: ${projectName}`);
+      
+      // フォルダ選択ダイアログを表示
+      const folderUri = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: 'プロジェクト保存先を選択',
+        title: '新規プロジェクトの保存先'
+      });
+      
+      if (!folderUri || folderUri.length === 0) {
+        Logger.info('プロジェクト作成がキャンセルされました: フォルダが選択されていません');
+        return;
+      }
+      
+      const projectPath = folderUri[0].fsPath;
+      
+      // プロジェクトディレクトリを作成
+      const projectDir = path.join(projectPath, projectName);
+      
+      // すでに同名のディレクトリがある場合は確認
+      if (fs.existsSync(projectDir)) {
+        const overwrite = await vscode.window.showWarningMessage(
+          `フォルダ「${projectName}」はすでに存在します。上書きしますか？`,
+          { modal: true },
+          '上書きする'
+        );
+        
+        if (overwrite !== '上書きする') {
+          Logger.info('プロジェクト作成がキャンセルされました: 上書き確認でキャンセル');
+          return;
+        }
+      } else {
+        // ディレクトリを作成
+        fs.mkdirSync(projectDir, { recursive: true });
+      }
+      
+      // docs, mockupsディレクトリを作成
+      const docsDir = path.join(projectDir, 'docs');
+      const mockupsDir = path.join(projectDir, 'mockups');
+      
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+      
+      if (!fs.existsSync(mockupsDir)) {
+        fs.mkdirSync(mockupsDir, { recursive: true });
+      }
+      
+      // CLAUDE.mdとCURRENT_STATUS.mdファイルを作成
+      const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
+      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
+      
+      // CLAUDETEMPLATEからCLAUDE.mdのコンテンツを読み込む
+      let claudeMdContent = '';
+      // 拡張機能のパスを使用して正確なテンプレートファイルを参照
+      const claudeTemplatePath = path.join(this._extensionPath, 'docs', 'CLAUDETEMPLATE.md');
+      try {
+        if (fs.existsSync(claudeTemplatePath)) {
+          // テンプレートファイルを読み込む
+          claudeMdContent = fs.readFileSync(claudeTemplatePath, 'utf8');
+          // プロジェクト名とプロジェクト説明を置換
+          claudeMdContent = claudeMdContent
+            .replace(/# プロジェクト名/, `# ${projectName}`)
+            .replace(/\[プロジェクトの概要と目的を簡潔に記述してください。1-2段落程度が理想的です。\]/, description || `${projectName}プロジェクトの説明をここに記述します。`)
+            .replace(/\[コマンド\]/g, 'npm start'); // 開発コマンドの例を追加
+            
+          Logger.info(`CLAUDETEMPLATEを読み込みました: ${claudeTemplatePath}`);
+        } else {
+          // テンプレートが見つからない場合はデフォルトテンプレートを使用
+          claudeMdContent = `# ${projectName}\n\n## プロジェクト概要\n\n${description || `${projectName}プロジェクトの説明をここに記述します。`}\n\n## 参考リンク\n\n- [要件定義](./docs/requirements.md)\n- [開発状況](./docs/CURRENT_STATUS.md)\n\n## プロジェクト情報\n- 作成日: ${new Date().toISOString().split('T')[0]}\n- ステータス: 計画中\n`;
+          Logger.warn(`CLAUDETEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${claudeTemplatePath}`);
+        }
+      } catch (error) {
+        // エラーが発生した場合はデフォルトテンプレートを使用
+        claudeMdContent = `# ${projectName}\n\n## プロジェクト概要\n\n${description || `${projectName}プロジェクトの説明をここに記述します。`}\n\n## 参考リンク\n\n- [要件定義](./docs/requirements.md)\n- [開発状況](./docs/CURRENT_STATUS.md)\n\n## プロジェクト情報\n- 作成日: ${new Date().toISOString().split('T')[0]}\n- ステータス: 計画中\n`;
+        Logger.error(`CLAUDETEMPLATEの読み込みに失敗しました: ${claudeTemplatePath}`, error as Error);
+      }
+      
+      // CURRENT_STATUSTEMPLATEからCURRENT_STATUS.mdのコンテンツを読み込む
+      let statusContent = '';
+      // 拡張機能のパスを使用して正確なテンプレートファイルを参照
+      const statusTemplatePath = path.join(this._extensionPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
+      try {
+        if (fs.existsSync(statusTemplatePath)) {
+          // テンプレートファイルを読み込む
+          statusContent = fs.readFileSync(statusTemplatePath, 'utf8');
+          // プロジェクト名を置換
+          statusContent = statusContent
+            .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${projectName} - スコープマネージャー使用ガイド`)
+            .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
+            
+          Logger.info(`CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
+        } else {
+          // テンプレートが見つからない場合はデフォルトテンプレートを使用
+          statusContent = this._getDefaultTemplate();
+          Logger.warn(`CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
+        }
+      } catch (error) {
+        // エラーが発生した場合はデフォルトテンプレートを使用
+        statusContent = this._getDefaultTemplate();
+        Logger.error(`CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
+      }
+      
+      // ファイルに書き込み
+      fs.writeFileSync(claudeMdPath, claudeMdContent, 'utf8');
+      fs.writeFileSync(statusFilePath, statusContent, 'utf8');
+      
+      // プロジェクトを開く
+      this.setProjectPath(projectDir);
+      
+      // 新しく作成したCURRENT_STATUS.mdファイルの内容も読み込んで表示
+      if (fs.existsSync(statusFilePath)) {
+        await this._handleGetMarkdownContent(statusFilePath);
+      }
+      
+      // 成功メッセージを表示
+      this._panel.webview.postMessage({
+        command: 'showSuccess',
+        message: `プロジェクト「${projectName}」を作成しました`
+      });
+      
+      // プロジェクト名を更新
+      this._panel.webview.postMessage({
+        command: 'updateProjectName',
+        projectName: projectName
+      });
+      
+      Logger.info(`プロジェクト「${projectName}」の作成が完了しました: ${projectDir}`);
+    } catch (error) {
+      Logger.error(`プロジェクト作成中にエラーが発生しました: ${projectName}`, error as Error);
+      this._showError(`プロジェクトの作成に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 既存プロジェクトの読み込み処理
+   */
+  private async _handleLoadExistingProject(): Promise<void> {
+    try {
+      Logger.info('既存プロジェクト読み込み処理を開始');
+      
+      // フォルダ選択ダイアログを表示
+      const folderUri = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: 'プロジェクトフォルダを選択',
+        title: '既存プロジェクトの選択'
+      });
+      
+      if (!folderUri || folderUri.length === 0) {
+        Logger.info('プロジェクト読み込みがキャンセルされました: フォルダが選択されていません');
+        return;
+      }
+      
+      const projectPath = folderUri[0].fsPath;
+      
+      // 選択されたフォルダが有効なプロジェクトかチェック
+      const docsDir = path.join(projectPath, 'docs');
+      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
+      
+      // ディレクトリが存在しない場合は作成
+      if (!fs.existsSync(docsDir)) {
+        const createDocs = await vscode.window.showInformationMessage(
+          'docsディレクトリが見つかりません。自動的に作成しますか？',
+          { modal: true },
+          '作成する'
+        );
+        
+        if (createDocs === '作成する') {
+          fs.mkdirSync(docsDir, { recursive: true });
+        } else {
+          Logger.info('プロジェクト読み込みがキャンセルされました: docsディレクトリの作成がキャンセル');
+          return;
+        }
+      }
+      
+      // ステータスファイルが存在しない場合は作成
+      if (!fs.existsSync(statusFilePath)) {
+        const createStatus = await vscode.window.showInformationMessage(
+          'CURRENT_STATUS.mdファイルが見つかりません。自動的に作成しますか？',
+          { modal: true },
+          '作成する'
+        );
+        
+        if (createStatus === '作成する') {
+          // CURRENT_STATUSTEMPLATEからコンテンツを読み込む
+          let statusContent = '';
+          // 拡張機能のパスを使用して正確なテンプレートファイルを参照
+          const statusTemplatePath = path.join(this._extensionPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
+          
+          try {
+            if (fs.existsSync(statusTemplatePath)) {
+              // テンプレートファイルを読み込む
+              statusContent = fs.readFileSync(statusTemplatePath, 'utf8');
+              // プロジェクト名を取得（フォルダ名から）
+              const projectName = path.basename(projectPath);
+              // プロジェクト名と日付を置換
+              statusContent = statusContent
+                .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${projectName} - スコープマネージャー使用ガイド`)
+                .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
+                
+              Logger.info(`CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
+            } else {
+              // テンプレートが見つからない場合はデフォルトテンプレートを使用
+              statusContent = this._getDefaultTemplate();
+              Logger.warn(`CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
+            }
+          } catch (error) {
+            // エラーが発生した場合はデフォルトテンプレートを使用
+            statusContent = this._getDefaultTemplate();
+            Logger.error(`CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
+          }
+          
+          fs.writeFileSync(statusFilePath, statusContent, 'utf8');
+        } else {
+          Logger.info('プロジェクト読み込みがキャンセルされました: CURRENT_STATUS.mdの作成がキャンセル');
+          return;
+        }
+      }
+      
+      // mockupsディレクトリが存在しない場合は作成
+      const mockupsDir = path.join(projectPath, 'mockups');
+      if (!fs.existsSync(mockupsDir)) {
+        fs.mkdirSync(mockupsDir, { recursive: true });
+      }
+      
+      // プロジェクト名を取得（フォルダ名から）
+      const projectName = path.basename(projectPath);
+      
+      // プロジェクトパスを設定
+      this.setProjectPath(projectPath);
+      
+      // ステータスファイルの内容を読み込んで表示
+      const projectStatusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
+      if (fs.existsSync(projectStatusFilePath)) {
+        await this._handleGetMarkdownContent(projectStatusFilePath);
+      }
+      
+      // プロジェクト名をWebViewに送信
+      this._panel.webview.postMessage({
+        command: 'updateProjectName',
+        projectName: projectName
+      });
+      
+      // 成功メッセージを表示
+      this._panel.webview.postMessage({
+        command: 'showSuccess',
+        message: `プロジェクト「${projectName}」を読み込みました`
+      });
+      
+      Logger.info(`プロジェクト「${projectName}」の読み込みが完了しました: ${projectPath}`);
+    } catch (error) {
+      Logger.error('プロジェクト読み込み中にエラーが発生しました', error as Error);
+      this._showError(`プロジェクトの読み込みに失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
   /**
    * プロジェクトパスを設定する
    */
@@ -310,6 +596,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 初期化処理
    */
   private async _handleInitialize(): Promise<void> {
+    // 最新のプロジェクト一覧を取得して送信
+    await this._refreshProjects();
+    
     await this._loadStatusFile();
 
     // ディレクトリ構造を更新
@@ -318,6 +607,40 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // 共有履歴を初期化
     if (this._sharingService) {
       await this._handleGetHistory();
+    }
+    
+    // CURRENT_STATUS.mdの内容を読み込む
+    if (this._statusFilePath && fs.existsSync(this._statusFilePath)) {
+      await this._handleGetMarkdownContent(this._statusFilePath);
+    }
+  }
+  
+  /**
+   * プロジェクト一覧を更新
+   */
+  private async _refreshProjects(): Promise<void> {
+    try {
+      // ProjectManagementServiceからプロジェクト一覧を取得
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      this._currentProjects = projectService.getAllProjects();
+      this._activeProject = projectService.getActiveProject();
+      
+      Logger.info(`プロジェクト一覧を更新しました: ${this._currentProjects.length}件`);
+      
+      // WebViewにプロジェクト一覧を送信
+      this._panel.webview.postMessage({
+        command: 'updateProjects',
+        projects: this._currentProjects,
+        activeProject: this._activeProject ? {
+          id: this._activeProject.id,
+          name: this._activeProject.name,
+          path: this._activeProject.path
+        } : null
+      });
+    } catch (error) {
+      Logger.error(`プロジェクト一覧の更新に失敗しました`, error as Error);
+      this._showError(`プロジェクト一覧の取得に失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -380,9 +703,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // 要件定義エディタを開くコマンドを実行
     // 注: 要件定義エディタのコマンドが存在しない場合は一時的にチャットを開く
     try {
-      // 要件定義エディタ用のコマンドを探す
-      vscode.commands.executeCommand('appgenius-ai.openSimpleChat', this._projectPath);
-      Logger.info('要件定義エディタの代わりにSimpleChatを開きました');
+      // 要件定義エディタ用のコマンドを探す - 新しいタブで開く
+      vscode.commands.executeCommand('appgenius-ai.openSimpleChat', this._projectPath, vscode.ViewColumn.Beside);
+      Logger.info('要件定義エディタの代わりにSimpleChatを新しいタブで開きました');
     } catch (error) {
       Logger.error('要件定義エディタを開けませんでした', error as Error);
       this._showError('要件定義エディタを開けませんでした');
@@ -395,8 +718,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _handleOpenEnvironmentVariablesAssistant(): Promise<void> {
     // 環境変数アシスタントを開くコマンドを実行
     try {
-      vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', this._projectPath);
-      Logger.info('環境変数アシスタントを開きました');
+      // 新しいタブで開く
+      vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', this._projectPath, vscode.ViewColumn.Beside);
+      Logger.info('環境変数アシスタントを新しいタブで開きました');
     } catch (error) {
       Logger.error('環境変数アシスタントを開けませんでした', error as Error);
       this._showError('環境変数アシスタントを開けませんでした');
@@ -409,8 +733,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _handleOpenMockupGallery(): Promise<void> {
     // モックアップギャラリーを開くコマンドを実行
     try {
-      vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
-      Logger.info('モックアップギャラリーを開きました');
+      // 新しいタブで開く
+      vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath, vscode.ViewColumn.Beside);
+      Logger.info('モックアップギャラリーを新しいタブで開きました');
     } catch (error) {
       Logger.error('モックアップギャラリーを開けませんでした', error as Error);
       this._showError('モックアップギャラリーを開けませんでした');
@@ -423,8 +748,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _handleOpenDebugDetective(): Promise<void> {
     // デバッグ探偵を開くコマンドを実行
     try {
-      vscode.commands.executeCommand('appgenius-ai.openDebugDetective', this._projectPath);
-      Logger.info('デバッグ探偵を開きました');
+      // 新しいタブで開く
+      vscode.commands.executeCommand('appgenius-ai.openDebugDetective', this._projectPath, vscode.ViewColumn.Beside);
+      Logger.info('デバッグ探偵を新しいタブで開きました');
     } catch (error) {
       Logger.error('デバッグ探偵を開けませんでした', error as Error);
       this._showError('デバッグ探偵を開けませんでした');
@@ -600,29 +926,34 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _handleCopyCommand(fileId: string): Promise<void> {
     if (!this._sharingService) return;
     
-    // ファイルを履歴から検索
-    const history = this._sharingService.getHistory();
-    const file = history.find(item => item.id === fileId);
-    
-    if (file) {
-      // コマンドを生成
-      const command = this._sharingService.generateCommand(file);
+    try {
+      // ファイルを履歴から検索
+      const history = this._sharingService.getHistory();
+      const file = history.find(item => item.id === fileId);
       
-      // VSCodeのクリップボード機能を使用
-      vscode.env.clipboard.writeText(command);
-      
-      // アクセスカウントを増やす
-      this._sharingService.recordAccess(fileId);
-      
-      // 成功メッセージを送信
-      this._panel.webview.postMessage({
-        command: 'commandCopied',
-        fileId: fileId,
-        fileName: file.title || file.originalName || file.fileName
-      });
-      
-      // VSCodeの通知も表示（オプション）
-      vscode.window.showInformationMessage(`コマンド "${command}" をコピーしました！`);
+      if (file) {
+        // コマンドを生成
+        const command = this._sharingService.generateCommand(file);
+        
+        // VSCodeのクリップボード機能を使用
+        await vscode.env.clipboard.writeText(command);
+        
+        // アクセスカウントを増やす
+        this._sharingService.recordAccess(fileId);
+        
+        // 成功メッセージを送信 - 特定のファイルIDを明示
+        this._panel.webview.postMessage({
+          command: 'commandCopied',
+          fileId: fileId,
+          fileName: file.title || file.originalName || file.fileName
+        });
+        
+        // VSCodeの通知も表示（オプション）
+        vscode.window.showInformationMessage(`コマンド "${command}" をコピーしました！`);
+      }
+    } catch (error) {
+      Logger.error(`コピーコマンド実行中にエラーが発生しました: ${fileId}`, error as Error);
+      this._showError(`コピーに失敗しました: ${(error as Error).message}`);
     }
   }
 
@@ -662,66 +993,132 @@ export class ScopeManagerPanel extends ProtectedPanel {
       });
     }
   }
-
+  
   /**
-   * スコープを選択
+   * プロジェクト選択処理
+   * @param projectName プロジェクト名
+   * @param projectPath プロジェクトパス
    */
-  private async _handleSelectScope(index: number): Promise<void> {
-    if (index < 0 || index >= this._scopes.length) {
-      return;
-    }
-    
-    this._selectedScopeIndex = index;
-    this._currentScope = this._scopes[index];
-    
-    // Webviewに選択したスコープの情報を送信
-    this._panel.webview.postMessage({
-      command: 'updateState',
-      scopes: this._scopes,
-      selectedScopeIndex: this._selectedScopeIndex,
-      selectedScope: this._currentScope
-    });
-  }
-
-  /**
-   * 実装を開始
-   */
-  private async _handleStartImplementation(): Promise<void> {
-    if (!this._currentScope) {
-      this._showError('スコープが選択されていません');
-      return;
-    }
-    
+  private async _handleSelectProject(projectName: string, projectPath: string): Promise<void> {
     try {
-      // スコープの実装を進めるためにClaudeCodeを起動
-      const launcher = ClaudeCodeLauncherService.getInstance();
-      const scopeData = {
-        id: this._currentScope.id,
-        name: this._currentScope.name || '実装スコープ',
-        description: this._currentScope.description || '',
-        projectPath: this._projectPath,
-        items: this._currentScope.files ? this._currentScope.files.map(file => ({
-          id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          title: file.path,
-          description: `ファイル: ${file.path}`,
-          priority: 'medium',
-          complexity: 'medium',
-          dependencies: [],
-          completed: file.completed
-        })) : [],
-        selectedIds: [],
-        estimatedTime: '0h',
-        totalProgress: this._currentScope.progress || 0
-      };
+      Logger.info(`プロジェクト選択: ${projectName}, パス: ${projectPath}`);
       
-      const success = await launcher.launchClaudeCode(scopeData);
+      // ProjectManagementServiceを取得
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
       
-      if (!success) {
-        this._showError('ClaudeCodeの起動に失敗しました');
+      // 既存のプロジェクトを検索
+      const projects = projectService.getAllProjects();
+      let projectId: string | undefined;
+      let project = projects.find(p => p.path === projectPath);
+      
+      // プロジェクトが見つからない場合、パスが存在するか確認
+      if (!project) {
+        // 相対パスをフルパスに変換して試行
+        const fullPath = path.resolve(projectPath);
+        project = projects.find(p => p.path === fullPath);
+        
+        if (project) {
+          projectPath = fullPath;
+          Logger.info(`相対パスから絶対パスに変換: ${projectPath} -> ${fullPath}`);
+        } else if (fs.existsSync(projectPath)) {
+          // プロジェクトはデータベースにないが、パスは存在する場合
+          Logger.info(`プロジェクトがデータベースにありませんが、パスは存在します: ${projectPath}`);
+        } else if (fs.existsSync(fullPath)) {
+          // 絶対パスとして存在する場合
+          projectPath = fullPath;
+          Logger.info(`相対パスから絶対パスに変換: ${projectPath} -> ${fullPath}`);
+        } else {
+          // フォルダ選択ダイアログを表示
+          const folderUri = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            openLabel: `プロジェクト「${projectName}」のフォルダを選択`
+          });
+          
+          if (!folderUri || folderUri.length === 0) {
+            throw new Error('プロジェクトのフォルダが選択されませんでした');
+          }
+          
+          projectPath = folderUri[0].fsPath;
+          Logger.info(`ユーザーが新しいプロジェクトパスを選択: ${projectPath}`);
+        }
+      } else {
+        projectId = project.id;
       }
+      
+      // 既存のプロジェクトと同じ場合は何もしない
+      if (this._projectPath === projectPath) {
+        Logger.info(`同じプロジェクトが既に選択されています: ${projectPath}`);
+        return;
+      }
+      
+      // プロジェクトパスを更新
+      this.setProjectPath(projectPath);
+      
+      // 既存プロジェクトのIDがあれば、そのプロジェクトをアクティブに設定
+      if (projectId) {
+        await projectService.setActiveProject(projectId);
+        Logger.info(`既存プロジェクトをアクティブに設定: ID=${projectId}, パス=${projectPath}`);
+      } else {
+        // プロジェクトが見つからない場合は、新規作成または更新
+        try {
+          const existingProjectWithPath = projects.find(p => p.path === projectPath);
+          
+          if (existingProjectWithPath) {
+            // パスが同じプロジェクトが見つかった場合は更新
+            projectId = existingProjectWithPath.id;
+            await projectService.updateProject(projectId, {
+              name: projectName,
+              updatedAt: Date.now()
+            });
+            Logger.info(`既存プロジェクトを更新: ID=${projectId}, 名前=${projectName}`);
+          } else {
+            // 新規プロジェクトとして登録
+            projectId = await projectService.createProject({
+              name: projectName,
+              description: "",
+              path: projectPath
+            });
+            Logger.info(`新規プロジェクトを作成: ID=${projectId}, 名前=${projectName}, パス=${projectPath}`);
+          }
+          
+          // 作成または更新したプロジェクトをアクティブに設定
+          if (projectId) {
+            await projectService.setActiveProject(projectId);
+          }
+        } catch (error) {
+          Logger.warn(`プロジェクト登録に失敗しましたが、ローカルパスのみで続行します: ${error}`);
+        }
+      }
+      
+      // イベントバスでプロジェクト選択イベントを発火
+      try {
+        const { AppGeniusEventBus, AppGeniusEventType } = require('../../services/AppGeniusEventBus');
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_SELECTED,
+          { id: projectId, path: projectPath, name: projectName },
+          'ScopeManagerPanel',
+          projectId || projectPath
+        );
+        Logger.info(`プロジェクト選択イベントを発行: ${projectName}, ${projectPath}`);
+      } catch (error) {
+        Logger.warn(`イベント発行に失敗しました: ${error}`);
+      }
+      
+      // WebViewに成功メッセージを送信
+      this._panel.webview.postMessage({
+        command: 'showSuccess',
+        message: `プロジェクト「${projectName}」を開きました`
+      });
+      
+      // VSCodeの通知も表示
+      vscode.window.showInformationMessage(`プロジェクト「${projectName}」を開きました`);
     } catch (error) {
-      Logger.error('実装の開始に失敗しました', error as Error);
-      this._showError(`実装の開始に失敗しました: ${(error as Error).message}`);
+      Logger.error(`プロジェクトを開く際にエラーが発生しました`, error as Error);
+      this._showError(`プロジェクトを開けませんでした: ${(error as Error).message}`);
     }
   }
 
@@ -740,100 +1137,30 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * 新しいスコープを追加
+   * マークダウンファイルの内容を取得して表示
    */
-  private async _handleAddNewScope(): Promise<void> {
-    // スコープ名の入力
-    const scopeName = await vscode.window.showInputBox({
-      prompt: '新しいスコープの名前を入力してください',
-      placeHolder: '例: 認証システムの改善'
-    });
-    
-    if (!scopeName) {
-      return;
+  private async _handleGetMarkdownContent(filePath: string): Promise<void> {
+    try {
+      // ファイルが存在するか確認
+      if (!fs.existsSync(filePath)) {
+        this._showError(`ファイルが見つかりません: ${filePath}`);
+        return;
+      }
+      
+      // ファイルの内容を読み込む
+      const content = await this._fileManager.readFileAsString(filePath);
+      
+      // WebViewにマークダウン内容を送信
+      this._panel.webview.postMessage({
+        command: 'updateMarkdownContent',
+        content: content
+      });
+      
+      Logger.info(`マークダウンコンテンツを読み込みました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`マークダウンコンテンツの読み込みに失敗しました: ${filePath}`, error as Error);
+      this._showError(`マークダウンファイルの読み込みに失敗しました: ${(error as Error).message}`);
     }
-    
-    // スコープの説明を入力
-    const description = await vscode.window.showInputBox({
-      prompt: 'スコープの説明を入力してください',
-      placeHolder: '例: ユーザー認証の機能を改善し、セキュリティを強化します'
-    });
-    
-    if (!description) {
-      return;
-    }
-    
-    // CURRENT_STATUS.mdファイルを読み込む
-    let content = await this._fileManager.readFileAsString(this._statusFilePath);
-    
-    // 「### 未着手スコープ」セクションを探す
-    const pendingSectionMatch = content.match(/### 未着手スコープ[^\n]*\n/);
-    if (!pendingSectionMatch) {
-      this._showError('CURRENT_STATUS.mdファイルに「### 未着手スコープ」セクションが見つかりません');
-      return;
-    }
-    
-    // 新しいスコープを追加する位置を特定
-    const pendingSectionIndex = pendingSectionMatch.index || 0;
-    const insertPosition = pendingSectionIndex + pendingSectionMatch[0].length;
-    
-    // 新しいスコープの内容を作成
-    const newScopeContent = `- [ ] ${scopeName} (0%)
-  - 説明: ${description}
-  - ステータス: 未着手
-  - スコープID: scope-${Date.now()}
-  - 関連ファイル:
-    - (ファイルはまだ定義されていません)
-
-`;
-    
-    // ステータスファイルを更新
-    const updatedContent = content.substring(0, insertPosition) + newScopeContent + content.substring(insertPosition);
-    await fs.promises.writeFile(this._statusFilePath, updatedContent, 'utf8');
-    
-    // スコープリストを再読み込み
-    await this._loadStatusFile();
-  }
-
-  /**
-   * ファイルのステータスを切り替え
-   */
-  private async _handleToggleFileStatus(filePath: string, completed: boolean): Promise<void> {
-    if (!this._currentScope || !this._currentScope.files) {
-      return;
-    }
-    
-    // 対象ファイルを見つける
-    const fileIndex = this._currentScope.files.findIndex((f: any) => f.path === filePath);
-    if (fileIndex === -1) {
-      return;
-    }
-    
-    // ファイルのステータスを更新
-    this._currentScope.files[fileIndex].completed = completed;
-    
-    // 完了したファイルの数をカウント
-    const totalFiles = this._currentScope.files.length;
-    const completedFiles = this._currentScope.files.filter((f: any) => f.completed).length;
-    
-    // 進捗率を計算
-    const progress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
-    this._currentScope.progress = progress;
-    
-    // スコープのステータスを更新
-    if (progress === 100) {
-      this._currentScope.status = 'completed';
-    } else if (progress > 0) {
-      this._currentScope.status = 'in-progress';
-    } else {
-      this._currentScope.status = 'pending';
-    }
-    
-    // CURRENT_STATUS.mdファイルを更新
-    await this._updateStatusFile();
-    
-    // スコープリストを再読み込み
-    await this._loadStatusFile();
   }
 
   /**
@@ -844,6 +1171,79 @@ export class ScopeManagerPanel extends ProtectedPanel {
       command: 'showError',
       message: message
     });
+  }
+  
+  /**
+   * 成功メッセージを表示
+   */
+  private _showSuccess(message: string): void {
+    this._panel.webview.postMessage({
+      command: 'showSuccess',
+      message: message
+    });
+  }
+  
+  /**
+   * プロジェクト登録解除処理
+   */
+  private async _handleRemoveProject(projectName: string, projectPath: string, projectId?: string): Promise<void> {
+    try {
+      Logger.info(`プロジェクト登録解除: ${projectName}, パス: ${projectPath}, ID: ${projectId || 'なし'}`);
+      
+      if (!projectName && !projectPath && !projectId) {
+        this._showError('プロジェクト情報が不足しています');
+        return;
+      }
+      
+      // ProjectManagementServiceを使用してプロジェクトを登録解除
+      try {
+        const { ProjectManagementService } = require('../../services/ProjectManagementService');
+        const projectService = ProjectManagementService.getInstance();
+        
+        // IDが指定されている場合はそれを使用、なければパスで検索
+        let removed = false;
+        
+        if (projectId) {
+          removed = await projectService.removeProjectById(projectId);
+        } else {
+          removed = await projectService.removeProjectByPath(projectPath);
+        }
+        
+        if (removed) {
+          Logger.info(`プロジェクト「${projectName}」の登録解除に成功しました`);
+          
+          // プロジェクト一覧を更新
+          this._currentProjects = projectService.getAllProjects();
+          this._activeProject = projectService.getActiveProject();
+          
+          // WebViewにプロジェクト一覧と現在のプロジェクトを送信
+          this._panel.webview.postMessage({
+            command: 'updateProjects',
+            projects: this._currentProjects,
+            activeProject: this._activeProject
+          });
+          
+          // 現在のプロジェクトが削除されたプロジェクトと同じ場合、別のプロジェクトへ切り替え
+          if (this._projectPath === projectPath) {
+            if (this._activeProject && this._activeProject.path) {
+              await this.setProjectPath(this._activeProject.path);
+            } else if (this._currentProjects.length > 0) {
+              await this.setProjectPath(this._currentProjects[0].path);
+            }
+          }
+          
+          this._showSuccess(`プロジェクト「${projectName}」の登録を解除しました`);
+        } else {
+          this._showError(`プロジェクト「${projectName}」の登録解除に失敗しました`);
+        }
+      } catch (error) {
+        Logger.error('プロジェクト登録解除エラー', error as Error);
+        this._showError(`プロジェクト登録解除に失敗しました: ${(error as Error).message}`);
+      }
+    } catch (error) {
+      Logger.error('プロジェクト登録解除処理エラー', error as Error);
+      this._showError(`プロジェクト登録解除に失敗しました: ${(error as Error).message}`);
+    }
   }
 
   /**
@@ -880,13 +1280,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // CSPを設定
     const nonce = this._getNonce();
-    // CSPポリシーを緩和して、ドラッグ&ドロップ操作を簡単にする
-    // VSCodeのネイティブドラッグ&ドロップメッセージを抑制するスタイルも追加
+    // インラインスクリプトはnonceを使用して制限
     const csp = `
       default-src 'none';
       style-src ${webview.cspSource} 'unsafe-inline' https://fonts.googleapis.com;
       font-src https://fonts.gstatic.com;
-      script-src 'nonce-${nonce}' 'unsafe-inline';
+      script-src 'nonce-${nonce}';
       img-src ${webview.cspSource} data:;
       connect-src ${webview.cspSource};
     `;
@@ -936,7 +1335,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
           pointer-events: none;
         }
       </style>
-      <script>
+      <script nonce="${nonce}">
         // 即時関数でVSCodeのドラッグ&ドロップメッセージを抑制
         (function() {
           // VSCodeのドラッグ&ドロップメッセージを検出して非表示にする
@@ -983,150 +1382,129 @@ export class ScopeManagerPanel extends ProtectedPanel {
     </head>
     <body>
       <div class="scope-manager-container">
-        <div class="panel-header">
-          <h1 id="panel-header-title">AppGenius スコープマネージャー</h1>
-          <div style="display: flex; gap: 8px;">
-            <button class="button button-secondary" id="create-scope-button">
-              <span class="material-icons">add</span>
-              開発案件を追加する
-            </button>
-          </div>
-        </div>
-
         <div class="main-content">
-          <!-- 左サイドパネル：スコープリスト -->
-          <div class="card" style="margin-bottom: 0; padding: var(--app-spacing-sm);">
-            <div class="card-header">
-              <h2>開発スコープ</h2>
-              <button class="button button-secondary" id="directory-structure-button" style="padding: 4px 8px; font-size: 12px;">
-                <span class="material-icons" style="font-size: 16px;">folder</span>
-                ディレクトリ
+          <!-- 左側: プロジェクトナビゲーション -->
+          <div class="project-nav">
+            <button class="toggle-nav-btn" id="toggle-nav-btn" title="パネルを開閉">
+              <span class="material-icons">chevron_left</span>
+            </button>
+            <div class="project-label">PRJ</div>
+            <div class="filter-bar">
+              <input type="text" class="search-input" placeholder="プロジェクト検索...">
+            </div>
+            <h3 style="margin-top: 10px;">プロジェクト</h3>
+            
+            <div class="project-actions">
+              <button class="button button-secondary" id="new-project-btn">
+                <span class="material-icons">add</span>
+                新規作成
+              </button>
+              <button class="button button-secondary" id="load-project-btn">
+                <span class="material-icons">folder_open</span>
+                読み込む
               </button>
             </div>
-            <div id="scope-list" class="scope-list">
-              <!-- スコープアイテムはJSで動的に生成される -->
-              <div class="scope-item">
-                <p>読み込み中...</p>
-              </div>
+            
+            <div id="project-list" class="project-list">
+              <!-- プロジェクトリストはJSで動的に生成 -->
             </div>
           </div>
-
-          <!-- 右コンテンツエリア -->
+          
+          <!-- 右側: コンテンツエリア -->
           <div class="content-area">
-            <!-- スコープ詳細カード -->
-            <div class="card">
-              <div class="card-header">
-                <h2 id="scope-title">スコープが選択されていません</h2>
-                <button class="button" id="implement-button">
-                  <span class="material-icons">play_arrow</span>
-                  実装を開始
-                </button>
-              </div>
-              <p id="scope-description">
-                左側のリストからスコープを選択してください。
-              </p>
-              <div style="margin: var(--app-spacing-md) 0;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--app-spacing-xs);">
-                  <span>進捗状況</span>
-                  <span id="scope-progress">0%</span>
-                </div>
-                <div style="height: 8px; background-color: var(--app-gray-200); border-radius: 4px; overflow: hidden;">
-                  <div id="scope-progress-bar" class="status-pending" style="width: 0%; height: 100%;"></div>
-                </div>
-              </div>
-              <h3>実装予定ファイル</h3>
-              <div id="implementation-files">
-                <div class="file-item">実装予定ファイルがありません</div>
-              </div>
-            </div>
-
-            <!-- 開発プロンプトセクション -->
+            <!-- タブ付きカード -->
             <div class="card">
               <div class="tabs">
-                <div class="tab active" data-tab="prompts">開発プロンプト</div>
-                <div class="tab" data-tab="tools">開発ツール</div>
-              </div>
-
-              <!-- プロンプトタブコンテンツ -->
-              <div id="prompts-tab" class="tab-content active">
-                <div class="filter-bar">
-                  <input type="text" class="search-input" placeholder="プロンプトを検索..." />
-                  <select class="button button-secondary" style="padding: 6px 12px;">
-                    <option value="all">すべてのカテゴリー</option>
-                    <option value="implementation">実装</option>
-                    <option value="planning">計画</option>
-                    <option value="debug">デバッグ</option>
-                    <option value="testing">テスト</option>
-                    <option value="design">設計</option>
-                  </select>
+                <div class="project-display">
+                  <span class="project-name">AppGenius</span>
+                  <span class="project-path-display">/path/to/project</span>
                 </div>
-                <!-- プロンプトカードはJSで動的に生成 -->
+                <div class="tabs-container">
+                  <div class="tab active" data-tab="current-status">プロジェクト状況</div>
+                  <div class="tab" data-tab="claude-code">ClaudeCode連携</div>
+                  <div class="tab" data-tab="tools">開発ツール</div>
+                </div>
+              </div>
+              
+              <!-- プロジェクト状況タブコンテンツ -->
+              <div id="current-status-tab" class="tab-content active">
+                <div class="card-body">
+                  <div class="markdown-content">
+                    <!-- ここにCURRENT_STATUS.mdの内容がマークダウン表示される -->
+                    <p>読み込み中...</p>
+                  </div>
+                </div>
               </div>
 
-              <!-- ツールタブコンテンツ -->
+              <!-- ClaudeCode連携タブコンテンツ -->
+              <div id="claude-code-tab" class="tab-content">
+                <div class="claude-share-container">
+                  <!-- 左側：テキスト入力エリア -->
+                  <div class="text-input-area">
+                    <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
+                    <!-- ボタンエリア -->
+                    <div class="action-buttons">
+                      <button class="button button-secondary" id="clear-button">クリア</button>
+                      <button class="button" id="share-to-claude">保存</button>
+                    </div>
+                    
+                    <!-- 保存結果通知（成功時のみ表示） -->
+                    <div class="save-notification" id="save-notification" style="display: none;">
+                      <span class="material-icons success-icon">check_circle</span>
+                      <span class="notification-text">保存完了</span>
+                    </div>
+                  </div>
+                  
+                  <!-- 右側：画像アップロードエリアと履歴 -->
+                  <div class="image-upload-area">
+                    <!-- ドロップゾーン -->
+                    <div class="drop-zone" id="drop-zone">
+                      <span class="material-icons">add_photo_alternate</span>
+                      <p>画像をアップロード<br><span style="font-size: 12px; color: var(--app-text-secondary);">（ファイルをドラッグ＆ドロップ）</span></p>
+                      <button class="button-secondary" id="file-select-btn">ブラウズ...</button>
+                      <input type="file" id="file-input" accept="image/*" style="display: none;">
+                    </div>
+                    
+                    <!-- 履歴表示エリア -->
+                    <div class="history-container">
+                      <h4>共有履歴</h4>
+                      <div class="shared-history-list">
+                        <!-- 履歴アイテムはJSで動的に生成 -->
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- 開発ツールタブコンテンツ -->
               <div id="tools-tab" class="tab-content">
-                <!-- ツールカードはJSで動的に生成 -->
+                <!-- ツールカードはJSで動的に生成されます -->
               </div>
             </div>
           </div>
         </div>
       </div>
       
-      <!-- ClaudeCode連携エリア -->
+      <!-- 開発プロンプトモーダル -->
       <div class="toggle-share-btn" id="toggle-share-btn" style="display: flex;">
-        <span class="material-icons">sync</span>
-        <span>ClaudeCode連携</span>
+        <span class="material-icons">description</span>
+        <span>開発プロンプト</span>
       </div>
       
       <div class="claude-code-share-area" id="claude-code-share">
         <div class="claude-code-share-header">
-          <h3>ClaudeCode連携</h3>
+          <h3>開発プロンプト</h3>
           <div>
-            <button class="button button-secondary" id="minimize-share-btn" style="padding: 4px 8px;">
-              <span class="material-icons" style="font-size: 16px;">expand_more</span>
+            <button class="button button-secondary" id="minimize-share-btn">
+              <span class="material-icons">expand_more</span>
             </button>
           </div>
         </div>
         
-        <div class="claude-share-container">
-          <!-- 左側：テキスト入力エリア -->
-          <div class="text-input-area">
-            <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
-            <!-- 履歴表示エリア -->
-            <div class="history-container">
-              <h4>履歴</h4>
-              <div class="shared-history-list shared-history">
-                <!-- 履歴アイテムはJSで動的に生成 -->
-              </div>
-            </div>
-          </div>
-          
-          <!-- 右側：画像アップロードと操作ボタン -->
-          <div class="image-upload-area">
-            <!-- ドロップゾーン -->
-            <div class="drop-zone" id="drop-zone">
-              <span class="material-icons">image</span>
-              <p>画像をドラッグ＆ドロップ<br><span style="font-size: 12px; color: var(--app-text-secondary);">（シフトキーをホールドしてください）</span><br>または</p>
-              <button class="button-secondary" id="file-select-btn">ファイル選択</button>
-            </div>
-            
-            <!-- ボタンエリア -->
-            <div class="action-buttons">
-              <button class="button button-secondary" id="clear-button">クリア</button>
-              <button class="button" id="share-to-claude">保存</button>
-            </div>
-            
-            <!-- 保存結果通知（成功時のみ表示） -->
-            <div class="save-notification" id="save-notification" style="display: none;">
-              <span class="material-icons success-icon">check_circle</span>
-              <span class="notification-text">保存完了</span>
-            </div>
-          </div>
+        <!-- プロンプトグリッド - 初期表示要素なし、JSで動的に生成 -->
+        <div class="prompt-grid">
+          <!-- プロンプトカードはJSで動的に生成 -->
         </div>
-        
-        <!-- 旧ダイアログ（非表示、後方互換性のため残す） -->
-        <div id="share-result-dialog" style="display: none;"></div>
-        <div class="share-result" id="share-result" style="display: none;"></div>
       </div>
       
       <div id="error-container" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: var(--app-danger); color: white; padding: 10px; border-radius: 4px;"></div>
@@ -1158,104 +1536,46 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // ステータスファイルが存在しない場合はテンプレートを作成
       if (!fs.existsSync(this._statusFilePath)) {
         Logger.info('CURRENT_STATUS.mdファイルが存在しないため、テンプレートを作成します');
-        const templateContent = this._getDefaultTemplate();
+        
+        // CURRENT_STATUSTEMPLATEからコンテンツを読み込む
+        let templateContent = '';
+        // 拡張機能のパスを使用して正確なテンプレートファイルを参照
+        const statusTemplatePath = path.join(this._extensionPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
+        
+        try {
+          if (fs.existsSync(statusTemplatePath)) {
+            // テンプレートファイルを読み込む
+            templateContent = fs.readFileSync(statusTemplatePath, 'utf8');
+            // プロジェクト名を取得（フォルダ名から）
+            const projectName = path.basename(this._projectPath);
+            // プロジェクト名と日付を置換
+            templateContent = templateContent
+              .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${projectName} - スコープマネージャー使用ガイド`)
+              .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
+              
+            Logger.info(`CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
+          } else {
+            // テンプレートが見つからない場合はデフォルトテンプレートを使用
+            templateContent = this._getDefaultTemplate();
+            Logger.warn(`CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
+          }
+        } catch (error) {
+          // エラーが発生した場合はデフォルトテンプレートを使用
+          templateContent = this._getDefaultTemplate();
+          Logger.error(`CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
+        }
+        
         await fs.promises.writeFile(this._statusFilePath, templateContent, 'utf8');
       }
 
-      // ファイルを読み込み
-      const content = await this._fileManager.readFileAsString(this._statusFilePath);
-      
-      // スコープ情報を解析
-      await this._parseStatusFile(content);
-      
-      // ファイルの存在に基づいてスコープの完了状態を確認し更新
-      await this._checkAndUpdateScopeCompletion();
-      
-      // Webviewに状態を送信
-      this._panel.webview.postMessage({
-        command: 'updateState',
-        scopes: this._scopes,
-        selectedScopeIndex: this._selectedScopeIndex,
-        selectedScope: this._currentScope
-      });
+      // マークダウン表示を更新するためにファイルを読み込み
+      await this._handleGetMarkdownContent(this._statusFilePath);
     } catch (error) {
       Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error as Error);
       this._showError(`ステータスファイルの読み込みに失敗しました: ${(error as Error).message}`);
     }
   }
 
-  /**
-   * ステータスファイルを更新する
-   */
-  private async _updateStatusFile(): Promise<void> {
-    try {
-      if (!this._statusFilePath || !this._projectPath) {
-        return;
-      }
-
-      // 更新中フラグを設定
-      this._isUpdatingStatusFile = true;
-
-      // ファイルを読み込み
-      let content = await this._fileManager.readFileAsString(this._statusFilePath);
-      
-      // 現在のスコープ情報を更新
-      if (this._currentScope) {
-        const scopeName = this._currentScope.name;
-        const progress = this._currentScope.progress || 0;
-        const status = this._currentScope.status || 'pending';
-        
-        // 完了したスコープ
-        if (status === 'completed') {
-          // 進行中または未着手からスコープを削除
-          content = content.replace(new RegExp(`- \\[ \\] ${scopeName}[^\n]*\n(?:  [^\n]*\n)*`, 'g'), '');
-          
-          // 完了済みスコープセクションにスコープを追加
-          const completedMatch = content.match(/### 完了済みスコープ[^\n]*\n/);
-          if (completedMatch) {
-            const insertPos = completedMatch.index || 0;
-            const completedSection = completedMatch[0];
-            const newCompletedScope = `- [x] ${scopeName} (100%)\n  - 説明: ${this._currentScope.description || ''}\n  - ステータス: 完了\n  - スコープID: ${this._currentScope.id || ''}\n\n`;
-            
-            // セクションの直後にスコープを挿入
-            content = content.substring(0, insertPos + completedSection.length) + newCompletedScope + content.substring(insertPos + completedSection.length);
-          }
-        } 
-        // 進行中スコープ
-        else if (status === 'in-progress') {
-          // 既存のスコープ情報を更新
-          const scopeRegex = new RegExp(`- \\[ \\] ${scopeName} \\((\\d+)%\\)`, 'g');
-          content = content.replace(scopeRegex, `- [ ] ${scopeName} (${progress}%)`);
-        }
-        
-        // ファイルリストの更新
-        if (this._currentScope.files && this._currentScope.files.length > 0) {
-          // スコープセクションを見つける
-          const scopeSection = content.match(new RegExp(`(###[^#]+${scopeName}[^#]+)`, 'g'));
-          if (scopeSection) {
-            // ファイルリストの開始位置を見つける
-            const fileListMatch = scopeSection[0].match(/関連ファイル:(\s*\n(?:\s*- (?:\[[^\]]*\] )?[^\n]+\n)*)/);
-            if (fileListMatch) {
-              // 新しいファイルリストを生成
-              let newFileList = '  - 関連ファイル:\n';
-              this._currentScope.files.forEach((file: any) => {
-                newFileList += `    - [${file.completed ? 'x' : ' '}] ${file.path}\n`;
-              });
-              
-              // ファイルリストを置換
-              content = content.replace(fileListMatch[0], `関連ファイル:${newFileList}`);
-            }
-          }
-        }
-      }
-      
-      // ファイルを更新
-      await fs.promises.writeFile(this._statusFilePath, content, 'utf8');
-    } catch (error) {
-      Logger.error('ステータスファイルの更新中にエラーが発生しました', error as Error);
-      this._showError(`ステータスファイルの更新に失敗しました: ${(error as Error).message}`);
-    }
-  }
 
   /**
    * ディレクトリ構造を更新する
@@ -1288,54 +1608,88 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private _setupFileWatcher(): void {
     try {
+      // 既存の監視があれば破棄
+      if (this._fileWatcher) {
+        this._fileWatcher.dispose();
+        this._fileWatcher = null;
+      }
+      
+      if (this._docsDirWatcher) {
+        this._docsDirWatcher.close();
+        this._docsDirWatcher = null;
+      }
+      
+      if (!this._projectPath) {
+        return;
+      }
+      
       // docs ディレクトリが存在しない場合は作成
       const docsDir = path.join(this._projectPath, 'docs');
       if (!fs.existsSync(docsDir)) {
         fs.mkdirSync(docsDir, { recursive: true });
       }
       
-      // デバウンス用のタイマーID
-      let debounceTimer: NodeJS.Timeout | null = null;
-      // 前回変更時刻を記録
-      let lastModified = 0;
+      // VSCodeのFileSystemWatcherを使用してCURRENT_STATUS.mdファイルの変更を直接監視
+      const watchStatusPath = path.join(docsDir, 'CURRENT_STATUS.md');
+      if (fs.existsSync(watchStatusPath)) {
+        // ファイルが存在する場合はそのファイルのみを監視
+        this._fileWatcher = vscode.workspace.createFileSystemWatcher(watchStatusPath);
+        
+        // ファイル変更時にマークダウンコンテンツを更新
+        this._fileWatcher.onDidChange(async (uri) => {
+          Logger.info(`CURRENT_STATUS.mdファイルの変更を検出: ${uri.fsPath}`);
+          // マークダウンコンテンツのみを更新
+          await this._handleGetMarkdownContent(uri.fsPath);
+        });
+        
+        Logger.info(`CURRENT_STATUS.mdファイルの監視を設定: ${watchStatusPath}`);
+      } else {
+        // ファイルが存在しない場合はdocsディレクトリ内のマークダウンファイルを監視
+        const pattern = new vscode.RelativePattern(docsDir, '*CURRENT_STATUS.md');
+        this._fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
+        
+        // ファイル作成時にマークダウンコンテンツを更新
+        this._fileWatcher.onDidCreate(async (uri) => {
+          Logger.info(`CURRENT_STATUS.mdファイルが作成されました: ${uri.fsPath}`);
+          await this._handleGetMarkdownContent(uri.fsPath);
+        });
+        
+        // ファイル変更時にマークダウンコンテンツを更新
+        this._fileWatcher.onDidChange(async (uri) => {
+          Logger.info(`CURRENT_STATUS.mdファイルの変更を検出: ${uri.fsPath}`);
+          await this._handleGetMarkdownContent(uri.fsPath);
+        });
+        
+        Logger.info(`docsディレクトリ内のCURRENT_STATUS.mdファイルの監視を設定: ${docsDir}`);
+      }
       
-      // Node.jsのネイティブfs.watchを使用してdocsディレクトリを監視
-      this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
-        if (filename === 'CURRENT_STATUS.md') {
-          // 最小間隔(300ms)以内の連続変更は無視する
-          const now = Date.now();
-          if (now - lastModified < 300) {
+      // イベントバスからのCURRENT_STATUS_UPDATEDイベントをリッスン
+      const eventBus = AppGeniusEventBus.getInstance();
+      this._disposables.push(
+        eventBus.onEventType(AppGeniusEventType.CURRENT_STATUS_UPDATED, async (event) => {
+          // 自分自身が送信したイベントは無視（循環を防ぐ）
+          if (event.source === 'scopeManager') {
             return;
           }
-          lastModified = now;
           
-          Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)');
-          
-          // 既存のタイマーをクリア
-          if (debounceTimer) {
-            clearTimeout(debounceTimer);
+          // 自分が対象のプロジェクトIDを持っていない場合や
+          // プロジェクトIDが一致しない場合は無視
+          if (!this._projectPath || !event.projectId || 
+              !this._projectPath.includes(event.projectId)) {
+            return;
           }
           
-          // デバウンス処理：500ms後に実行
-          debounceTimer = setTimeout(() => {
-            // プログラムによる変更チェック（自分自身が変更した場合は通知しない）
-            if (this._isUpdatingStatusFile) {
-              this._isUpdatingStatusFile = false;
-              return;
-            }
-            
-            Logger.info('バウンス処理を実行します');
-            
-            // イベントバスに通知を送信
-            const eventBus = AppGeniusEventBus.getInstance();
-            const projectId = path.basename(this._projectPath);
-            eventBus.emit(AppGeniusEventType.CURRENT_STATUS_UPDATED, { projectId }, 'scopeManager', projectId);
-            
-            // ファイルが変更されたらステータスを再読み込み
-            this._loadStatusFile();
-          }, 500);
-        }
-      });
+          Logger.info('他のコンポーネントからのCURRENT_STATUS更新イベントを受信しました');
+          
+          // ステータスファイルが存在する場合はその内容を読み込み
+          const eventStatusPath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
+          if (fs.existsSync(eventStatusPath)) {
+            await this._handleGetMarkdownContent(eventStatusPath);
+          }
+        })
+      );
+      
+      Logger.info('ScopeManagerPanel: ファイル監視設定完了 - VSCodeFileSystemWatcherとイベントリスナーを使用');
     } catch (error) {
       Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
     }
@@ -1416,156 +1770,4 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * ファイル存在に基づいて解析したスコープ情報をステータスファイルから解析
-   */
-  private async _parseStatusFile(content: string): Promise<void> {
-    try {
-      this._scopes = [];
-      
-      // スコープを抽出して追加
-      // 完了済みスコープのパターン: [x] スコープ名 (100%)
-      const completedScopeRegex = /- \[x\] ([^\n]+?) \(100%\)[^\n]*\n(?:  [^\n]*\n)*/g;
-      let completedScopeMatch;
-      while ((completedScopeMatch = completedScopeRegex.exec(content)) !== null) {
-        const scopeName = completedScopeMatch[1].trim();
-        const scopeContent = completedScopeMatch[0];
-        
-        // 説明とIDを抽出
-        const descriptionMatch = scopeContent.match(/- 説明: ([^\n]+)/);
-        const idMatch = scopeContent.match(/- スコープID: ([^\n]+)/);
-        
-        const description = descriptionMatch ? descriptionMatch[1].trim() : '';
-        const id = idMatch ? idMatch[1].trim() : `scope-${Date.now()}`;
-        
-        this._scopes.push({
-          name: scopeName,
-          description: description,
-          id: id,
-          status: 'completed',
-          progress: 100,
-          files: []
-        });
-      }
-      
-      // 進行中スコープのパターン: [ ] スコープ名 (進捗%)
-      const inProgressScopeRegex = /- \[ \] ([^\n]+?) \((\d+)%\)[^\n]*\n(?:  [^\n]*\n)*/g;
-      let inProgressScopeMatch;
-      while ((inProgressScopeMatch = inProgressScopeRegex.exec(content)) !== null) {
-        const scopeName = inProgressScopeMatch[1].trim();
-        const progress = parseInt(inProgressScopeMatch[2]);
-        const scopeContent = inProgressScopeMatch[0];
-        
-        // 説明とIDを抽出
-        const descriptionMatch = scopeContent.match(/- 説明: ([^\n]+)/);
-        const idMatch = scopeContent.match(/- スコープID: ([^\n]+)/);
-        
-        const description = descriptionMatch ? descriptionMatch[1].trim() : '';
-        const id = idMatch ? idMatch[1].trim() : `scope-${Date.now()}`;
-        
-        // ファイルリストを抽出
-        const filesMatch = scopeContent.match(/関連ファイル:([^\n]*\n(?:    - (?:\[[^\]]*\] )?[^\n]+\n)*)/);
-        const files: any[] = [];
-        
-        if (filesMatch) {
-          const filesContent = filesMatch[1];
-          const fileLines = filesContent.split('\n');
-          
-          for (const line of fileLines) {
-            const fileMatch = line.match(/^\s*- \[([x ])\] (.+)$/);
-            if (fileMatch) {
-              files.push({
-                path: fileMatch[2].trim(),
-                completed: fileMatch[1] === 'x'
-              });
-            } else if (line.match(/^\s*- [^[]/) && !line.includes('ファイルはまだ定義されていません')) {
-              // チェックボックスなしの箇条書き
-              const filePath = line.replace(/^\s*- /, '').trim();
-              files.push({
-                path: filePath,
-                completed: false
-              });
-            }
-          }
-        }
-        
-        this._scopes.push({
-          name: scopeName,
-          description: description,
-          id: id,
-          status: progress > 0 ? 'in-progress' : 'pending',
-          progress: progress,
-          files: files
-        });
-      }
-      
-      // 現在のスコープと選択インデックスを更新
-      if (this._selectedScopeIndex >= this._scopes.length) {
-        this._selectedScopeIndex = this._scopes.length > 0 ? 0 : -1;
-      }
-      
-      if (this._selectedScopeIndex >= 0) {
-        this._currentScope = this._scopes[this._selectedScopeIndex];
-      } else {
-        this._currentScope = null;
-      }
-    } catch (error) {
-      Logger.error('ステータスファイルの解析中にエラーが発生しました', error as Error);
-      this._showError(`ステータスファイルの解析に失敗しました: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * ファイルの存在に基づいてスコープの完了状態を確認し更新する
-   */
-  private async _checkAndUpdateScopeCompletion(): Promise<void> {
-    try {
-      if (!this._projectPath) {
-        return;
-      }
-      
-      // スコープのファイルリストを確認
-      for (const scope of this._scopes) {
-        if (scope.files && scope.files.length > 0) {
-          let completedFiles = 0;
-          
-          for (const file of scope.files) {
-            // ファイルパスの最初の文字が / または \ の場合は絶対パス、そうでなければ相対パス
-            const isAbsolutePath = file.path.startsWith('/') || file.path.startsWith('\\');
-            const absolutePath = isAbsolutePath ? file.path : path.join(this._projectPath, file.path);
-            
-            // ファイルが存在するか確認
-            file.exists = fs.existsSync(absolutePath);
-            
-            if (file.exists && file.completed) {
-              completedFiles++;
-            }
-          }
-          
-          // 進捗率を計算
-          const totalFiles = scope.files.length;
-          const progress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
-          
-          // 進捗率が変更された場合は更新
-          if (progress !== scope.progress) {
-            scope.progress = progress;
-            
-            // スコープのステータスを更新
-            if (progress === 100) {
-              scope.status = 'completed';
-            } else if (progress > 0) {
-              scope.status = 'in-progress';
-            } else {
-              scope.status = 'pending';
-            }
-          }
-        }
-      }
-      
-      // ステータスファイルを更新
-      await this._updateStatusFile();
-    } catch (error) {
-      Logger.error('スコープ完了状態の確認中にエラーが発生しました', error as Error);
-    }
-  }
 }

@@ -227,255 +227,9 @@ export class ProjectManagementService {
             fs.writeFileSync(currentStatusTemplatePath, templateContent, 'utf8');
             Logger.info(`CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
           } else {
-            // テンプレートが見つからない場合は基本的なCURRENT_STATUSTEMPLATE.mdを作成
-            fs.writeFileSync(
-              currentStatusTemplatePath,
-              `CURRENT_STATUSTEMPLATE
-
-このプロジェクトは複数のAIがプロジェクト完遂のために統一性のある綺麗な重複のないジョブスもニッコリのシンプルかつ美しいコードアーキテクチャーで堅牢性と拡張性の高いアプリケーションを開発を行えることを目的にCURRENT_STATUSに基づいて実装管理を行っています。
-
-CURRENT_STATUSTEMPLATEはこのCURRENT_STATUSを更新していくための手順書です。
-なお、このプロジェクトはCURRENT_STATUSの記述ルールをパースしてプロジェクトスコープに反映させてユーザーに開発進捗を知らせることになりますのでパースルールから外れないように下記の形式を必ず守って記述更新をしてください。
-
-## パースルール
-
-ScopeManagerPanelはCURRENT_STATUS.mdの内容を以下のルールでパースして表示します：
-
-1. **スコープの検出**:
-   - 「### 進行中スコープ」セクションから \`- [ ] スコープ名 (進捗率%)\` 形式のスコープを検出
-   - 「### 未着手スコープ」セクションから \`- [ ] スコープ名 (0%)\` または \`- [ ] スコープ名\` 形式のスコープを検出
-   - 「### 完了済みスコープ」セクションから \`- [x] スコープ名 (100%)\` 形式のスコープを検出
-
-2. **ファイルリストの検出**:
-   - 「## スコープ名」形式のセクションからそのスコープに関連するファイルリストを検出
-   - \`- [x] ファイルパス\` は完了したファイル、\`- [ ] ファイルパス\` は未完了のファイルとして認識
-   - **重要**: ファイルリストは「## スコープ名」の直下に配置する必要があります
-   - **重要**: ファイルリストとスコープ名の間に他の見出し（###など）を入れるとパースされません
-   - **重要**: カテゴリ分けする場合は、最初に少なくとも1つのファイルを直接リストした後、太字テキストでカテゴリを表示します
-
-3. **進捗率の計算**:
-   - 各スコープの進捗率はファイルリストの完了状態から自動計算される
-   - 明示的に記載された進捗率（例：\`スコープ名 (50%)\`）も認識される
-
-4. **セクション名の重要性**:
-   - 「### 完了済みスコープ」「### 進行中スコープ」「### 未着手スコープ」の見出しは正確に記述する必要がある
-   - 「## スコープ名」の見出しはスコープ名と完全に一致する必要がある
-
-5. **パースに影響しない追加情報の記述方法**:
-   - ファイルリストの後にメモや参考資料を追加する場合は「### 参考資料」のように見出しを使用できます
-   - スコープ内でファイルをカテゴリに分ける場合は、見出し（###）ではなく**太字テキスト**を使用してください
-   - 例: 「**バックエンドサービス**」「**フロントエンド**」など
-   - カテゴリを使用する場合の正しい構造:
-   \`\`\`
-   ## スコープ名
-   - [x] file1.js - メインファイル
-   - [ ] file2.js - メインファイル
-   
-   **データモデル**
-   - [ ] model1.js - モデルファイル
-   - [ ] model2.js - モデルファイル
-   \`\`\`
-
-6. **コンテキスト効率化のための記述方法**:
-   - 完了済みスコープは詳細なファイルリストを省略し、\`**実装概要**\`を使用して重要情報のみ記載する
-   - 例: 
-   \`\`\`
-   ## スコープ名 ✅
-   
-   **実装概要**
-   - 認証サービスの改善（JWT設定修正、トークンリフレッシュ処理改善）
-   - トークン管理の強化（有効期限チェック、自動リフレッシュ機能）
-   - ログイン/ログアウト処理の改善
-   - 最終更新日: 2025/03/15
-   
-   ### 参考資料
-   - 詳細スコープ: docs/scopes/scope-name.md
-   \`\`\`
-
-これらのルールに従わない記述や形式はパースエラーを引き起こす可能性があります。
-
-
-<具体例>
-
-# プロジェクト名 - 実装状況 (YYYY/MM/DD更新)
-
-## 全体進捗
-- 完成予定ファイル数: 82
-- 作成済みファイル数: 41
-- 進捗率: 50%
-- 最終更新日: 2025/03/12
-
-## スコープ状況
-
-### 進行中スコープ
-- [ ] スコープ名3 (50%) - ユーザー管理画面実装
-- [ ] スコープ名4 (15%) - 組織管理機能実装
-
-### 未着手スコープ
-- [ ] スコープ名5 (0%) - ワークスペース管理機能
-- [ ] スコープ名6 (0%) - 使用量分析ダッシュボード
-
-### 完了済みスコープ
-- [x] スコープ名1 (100%) - JWT認証改善と安全なトークン管理
-- [x] スコープ名2 (100%) - プロンプトバージョン履歴表示機能
-
-## 最終的なディレクトリ構造(予測)
-\`\`\`
-project-root/
-└── [ディレクトリ構造]
-\`\`\`
-
-## 現在のディレクトリ構造
-\`\`\`
-project-root/
-└── [ディレクトリ構造]
-\`\`\`
-
-## スコープ名1 ✅
-
-**実装概要**
-- JWT認証の設定改善（有効期限延長、リフレッシュトークン実装）
-- トークン管理の強化（ローカルストレージ→セキュアストレージ移行）
-- ログイン/ログアウト処理の改善
-- 最終更新日: 2025/03/10
-
-### 参考資料
-- 要件定義書: docs/requirements.md
-- スコープ仕様書: docs/scopes/scope-name1.md
-- API仕様: docs/api.md
-
-## スコープ名2 ✅
-
-**実装概要**
-- プロンプトバージョン履歴表示機能の修正
-- バージョンの比較表示UI改善
-- バージョン保存APIの修正
-- 最終更新日: 2025/03/11
-
-### 参考資料
-- 要件定義書: docs/requirements.md
-- スコープ仕様書: docs/scopes/scope-name2.md
-
-## スコープ名3
-- [ ] src/ui/promptLibrary/PromptLibraryPanel.ts - ライブラリパネルのUI実装
-- [ ] src/ui/promptLibrary/PromptEditor.ts - プロンプト編集機能の実装
-
-**実装メモ**
-- PromptLibraryPanelはまだ基本レイアウトのみ実装。フィルタリング機能が未完成
-- PromptEditorは構造は完成だが、保存機能とバリデーションが未実装
-
-### 参考資料
-- 要件定義書: docs/requirements.md
-- スコープ仕様書: docs/scopes/scope-name3.md
-- 技術資料: docs/technical-specs/library-integration.md
-
-## スコープ名4
-- [x] models/organization.model.js - 組織モデルの実装
-- [x] models/workspace.model.js - ワークスペースモデルの実装
-- [ ] models/billingPlan.model.js - 課金プランモデル
-
-**データモデル**
-- [ ] models/subscription.model.js - サブスクリプションモデル
-- [ ] models/payment.model.js - 支払い情報モデル
-
-**バックエンドサービス**
-- [ ] services/organizationService.js - 組織管理サービス
-- [ ] services/billingService.js - 課金管理サービス
-
-**フロントエンド**
-- [ ] components/OrganizationList.js - 組織一覧コンポーネント
-- [ ] components/BillingDashboard.js - 課金ダッシュボード
-
-**実装メモ**
-- データモデルは設計完了。組織モデルとワークスペースモデルは実装済み
-- バックエンドAPIは設計中。RESTful APIを採用予定
-- フロントエンド実装はまだ着手していない
-
-### 参考資料
-- 要件定義書: docs/requirements.md
-- スコープ仕様書: docs/scopes/scope-name4.md
-
-</具体例>
-
-
-## CURRENT_STATUSの更新・作成ルール
-
-### 基本原則
-
-1. **一貫した構造を維持する**：
-   - CURRENT_STATUSTEMPLATEの構造に従う
-   - 主要セクション（スコープ状況、ディレクトリ構造など）は常に維持する
-   - フォーマットの一貫性を保つ（見出しレベル、箇条書き形式など）
-
-2. **スコープの状態遷移**：
-   - 完了済みスコープ → 変更しない（歴史的記録として保持）
-   - 進行中スコープ → 進捗率を更新または完了へ移行
-   - 未着手スコープ → 進行中へ移行または修正/追加/削除
-
-3. **ファイルリストの管理**：
-   - 進行中/未着手スコープは詳細なファイルリストを維持
-   - 完了済みスコープはファイルリストを省略し、\`**実装概要**\`で要点のみ記載
-   - 進行中スコープには必要に応じて\`**実装メモ**\`を追加し、状態や課題を記録
-   - 新規ファイルは「- [ ] ファイルパス」形式で追加
-   - 完了したファイルは「- [x] ファイルパス」に変更
-   - 不要になったファイルは削除（ただし実装計画変更の根拠を記録）
-
-4. **進捗率の計算**：
-   - 各スコープの進捗率 = (完了ファイル数 ÷ 全ファイル数) × 100%
-   - 全体進捗率 = (全完了ファイル数 ÷ 全予定ファイル数) × 100%
-   - 例: 10ファイル中3ファイル完了 → 進捗率30%
-
-5. **日付の更新**：
-   - ヘッダーの日付（# プロジェクト名 - 実装状況 (YYYY/MM/DD更新)）
-   - 全体進捗セクションの最終更新日
-   - 各スコープの最終更新日（特に\`**実装概要**\`セクション内）
-   - 両方を必ず最新の日付に更新する
-
-6. **参考資料の明記**：
-   - 各スコープに「### 参考資料」セクションを追加
-   - 要件定義書、スコープ仕様書、技術資料などの場所を明記
-   - ファイルパスは正確に記載（docs/scopes/scope-name.md など）
-
-7. **完了済みスコープの表記**：
-   - スコープ名の後に「✅」を追加（例: \`## スコープ名 ✅\`）
-   - ファイルリストは省略し、代わりに\`**実装概要**\`で重要ポイントのみ箇条書きで記載
-   - 最終更新日を必ず記載する
-   - 依然として参考資料セクションは維持する
-
-### エッジケースの対応
-
-1. **スコープの分割が必要な場合**：
-   - 元のスコープを進行中または完了済みとしてマーク
-   - 新しく分割したスコープを追加し、依存関係を明記
-
-2. **スコープの統合が必要な場合**：
-   - 統合元のスコープを完了済みとしてマーク
-   - 新しい統合スコープを追加し、参照元を明記
-
-3. **スコープ内でファイルをカテゴリ分けする場合**：
-   - 「## スコープ名」の直下に全てのファイルリストを配置する
-   - カテゴリ名は \`**カテゴリ名**\` のように太字で表示する（見出し ### は使わない）
-   - カテゴリの前に必ず1行以上の通常のファイルリスト項目を配置する
-   - 例:
-     \`\`\`
-     ## スコープ名
-     - [x] file1.js - 説明
-     - [ ] file2.js - 説明
-     
-     **データモデル**
-     - [ ] model1.js - 説明
-     - [ ] model2.js - 説明
-     \`\`\`
-
-4. **パースエラーが発生した場合**：
-   - マークダウン構文を確認（特に見出しレベルと箇条書き）
-   - スコープ名の一貫性を確認（セクション見出しとリスト項目で同一）
-   - チェックボックス形式を確認（\`- [ ]\` と \`- [x]\` のスペースを含む）
-   - ファイルリストの間に見出し（###）が入っていないか確認
-   - ファイルリストが「## スコープ名」の直下にあるか確認`,
-              'utf8'
-            );
-            Logger.info(`Basic CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
+            // テンプレートが見つからない場合はエラーを記録
+            Logger.error(`テンプレートファイルが見つかりません: ${templatePath}`);
+            throw new Error(`CURRENT_STATUSTEMPLATE.md テンプレートファイルが見つかりません`);
           }
         } else {
           Logger.info(`CURRENT_STATUSTEMPLATE.md already exists for project at: ${projectPath}, skipping creation`);
@@ -693,41 +447,6 @@ project-root/
     }
   }
   
-  /**
-   * プロジェクトのアーカイブ/アクティブ化
-   * @param id プロジェクトID
-   * @param isArchived アーカイブ状態にするかどうか
-   * @returns 更新されたプロジェクト
-   */
-  public async toggleArchiveProject(id: string, isArchived: boolean): Promise<any> {
-    try {
-      const existingProject = this.projects.get(id);
-      
-      if (!existingProject) {
-        throw new Error(`Project with ID ${id} not found`);
-      }
-      
-      // プロジェクトのステータスを更新
-      const updatedProject = {
-        ...existingProject,
-        status: isArchived ? 'archived' : 'active',
-        updatedAt: Date.now()
-      };
-      
-      // メモリ上のマップを更新
-      this.projects.set(id, updatedProject);
-      
-      // メタデータファイルの更新
-      await this.saveMetadata();
-      
-      Logger.info(`Project ${isArchived ? 'archived' : 'activated'}: ${id}`);
-      
-      return updatedProject;
-    } catch (error) {
-      Logger.error(`Failed to toggle archive project: ${(error as Error).message}`);
-      throw new Error(`プロジェクトのアーカイブ状態変更に失敗しました: ${(error as Error).message}`);
-    }
-  }
   
   /**
    * 指定したプロジェクトをアクティブに設定
@@ -757,119 +476,52 @@ project-root/
     }
   }
   
+  
+  
   /**
-   * プロジェクトのフェーズ状態を更新
-   * @param projectId プロジェクトID
-   * @param phase 更新するフェーズ名
-   * @param isCompleted 完了状態
-   * @returns 更新されたプロジェクト
+   * パスでプロジェクトを検索して削除
+   * @param projectPath プロジェクトのパス
+   * @returns 成功した場合はtrue、プロジェクトが見つからない場合はfalse
    */
-  public async updateProjectPhase(projectId: string, phase: string, isCompleted: boolean): Promise<any> {
+  public async removeProjectByPath(projectPath: string): Promise<boolean> {
     try {
-      const project = this.getProject(projectId);
+      // パスでプロジェクトを検索
+      let projectId: string | null = null;
       
-      if (!project) {
-        throw new Error(`プロジェクトID ${projectId} が見つかりません`);
+      // 比較のために正規化したパスを使用
+      const normalizedPath = path.normalize(projectPath);
+      
+      for (const [id, project] of this.projects.entries()) {
+        if (project.path && path.normalize(project.path) === normalizedPath) {
+          projectId = id;
+          break;
+        }
       }
       
-      // フェーズが存在するか確認
-      if (!project.phases || typeof project.phases !== 'object') {
-        project.phases = {
-          requirements: false,
-          design: false,
-          implementation: false,
-          testing: false,
-          deployment: false
-        };
+      if (!projectId) {
+        Logger.warn(`プロジェクトが見つかりません: パス ${projectPath}`);
+        return false;
       }
       
-      // フェーズ状態を更新
-      const updatedPhases = {
-        ...project.phases,
-        [phase]: isCompleted
-      };
-      
-      // プロジェクトを更新
-      const updatedProject = await this.updateProject(projectId, {
-        phases: updatedPhases,
-        updatedAt: Date.now()
-      });
-      
-      Logger.info(`プロジェクトフェーズを更新: ${projectId}.${phase} = ${isCompleted}`);
-      
-      return updatedProject;
+      // 見つかったIDを使用してプロジェクトを削除
+      return await this.deleteProject(projectId);
     } catch (error) {
-      Logger.error(`プロジェクトフェーズの更新に失敗: ${(error as Error).message}`);
-      throw new Error(`プロジェクトフェーズの更新に失敗しました: ${(error as Error).message}`);
+      Logger.error(`パスによるプロジェクト削除に失敗: ${(error as Error).message}`);
+      return false;
     }
   }
   
   /**
-   * プロジェクトのエクスポート
-   * @param id プロジェクトID
-   * @param exportPath エクスポート先のパス
+   * IDでプロジェクトを削除
+   * @param projectId プロジェクトID
    * @returns 成功した場合はtrue
    */
-  public async exportProject(id: string, exportPath: string): Promise<boolean> {
+  public async removeProjectById(projectId: string): Promise<boolean> {
     try {
-      const project = this.projects.get(id);
-      
-      if (!project) {
-        throw new Error(`Project with ID ${id} not found`);
-      }
-      
-      // プロジェクトデータとメタデータをJSONとしてエクスポート
-      const exportData = {
-        ...project,
-        exportedAt: Date.now()
-      };
-      
-      this.ensureDirectoryExists(path.dirname(exportPath));
-      fs.writeFileSync(exportPath, JSON.stringify(exportData, null, 2), 'utf8');
-      
-      Logger.info(`Project exported: ${id} to ${exportPath}`);
-      
-      return true;
+      return await this.deleteProject(projectId);
     } catch (error) {
-      Logger.error(`Failed to export project: ${(error as Error).message}`);
-      throw new Error(`プロジェクトのエクスポートに失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  /**
-   * プロジェクトのインポート
-   * @param importPath インポート元のパス
-   * @returns インポートされたプロジェクトのID
-   */
-  public async importProject(importPath: string): Promise<string> {
-    try {
-      // インポートファイルを読み込み
-      const data = fs.readFileSync(importPath, 'utf8');
-      const importedData = JSON.parse(data);
-      
-      // 新しいIDを生成
-      const newId = `project_${Date.now()}`;
-      
-      // インポートデータを新しいプロジェクトとして作成
-      const project = {
-        ...importedData,
-        id: newId,
-        importedAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      
-      // メモリ上のマップに保存
-      this.projects.set(newId, project);
-      
-      // メタデータファイルの更新
-      await this.saveMetadata();
-      
-      Logger.info(`Project imported: ${newId} from ${importPath}`);
-      
-      return newId;
-    } catch (error) {
-      Logger.error(`Failed to import project: ${(error as Error).message}`);
-      throw new Error(`プロジェクトのインポートに失敗しました: ${(error as Error).message}`);
+      Logger.error(`IDによるプロジェクト削除に失敗: ${(error as Error).message}`);
+      return false;
     }
   }
 }

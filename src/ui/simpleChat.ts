@@ -1555,8 +1555,9 @@ ${projectName}/
             
             if (isRequirementsChanged) {
               // フェーズを更新
-              await projectService.updateProjectPhase(projectId, 'requirements', true);
-              Logger.info(`要件定義ファイルの変更を検出し、フェーズを更新しました: ${projectId}`);
+              // フェーズ更新機能は削除されました
+              // await projectService.updateProjectPhase(projectId, 'requirements', true);
+              Logger.info(`要件定義ファイルの変更を検出しました: ${projectId}`);
             }
           }
         }
