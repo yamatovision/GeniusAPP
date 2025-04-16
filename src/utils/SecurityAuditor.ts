@@ -38,7 +38,7 @@ export interface SecurityCheckResult {
   description: string;      // 説明
   scope: SecurityScope;     // 対象領域
   severity: SecuritySeverity; // 重要度
-  status: 'pass' | 'fail' | 'warning' | 'info'; // 結果ステータス
+  status: 'pass' | 'fail' | 'warning'; // 結果ステータス
   message: string;          // 結果メッセージ
   details?: string;         // 詳細情報
   recommendations?: string[]; // 推奨対応策
@@ -141,7 +141,8 @@ export class SecurityAuditor {
       return results;
     } catch (error) {
       const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditAuthentication');
-      Logger.error('認証セキュリティ監査中にエラーが発生しました', appError);
+      const errorObj = new Error(appError.message);
+      Logger.error('認証セキュリティ監査中にエラーが発生しました', errorObj);
       
       // エラー発生時も部分的な結果を返す
       this._processResults(results);
@@ -177,7 +178,8 @@ export class SecurityAuditor {
       return results;
     } catch (error) {
       const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditApiSecurity');
-      Logger.error('API通信セキュリティ監査中にエラーが発生しました', appError);
+      const apiErrorObj = new Error(appError.message);
+      Logger.error('API通信セキュリティ監査中にエラーが発生しました', apiErrorObj);
       
       // エラー発生時も部分的な結果を返す
       this._processResults(results);
@@ -210,7 +212,8 @@ export class SecurityAuditor {
       return results;
     } catch (error) {
       const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditFrontendSecurity');
-      Logger.error('フロントエンドセキュリティ監査中にエラーが発生しました', appError);
+      const frontendErrorObj = new Error(appError.message);
+      Logger.error('フロントエンドセキュリティ監査中にエラーが発生しました', frontendErrorObj);
       
       // エラー発生時も部分的な結果を返す
       this._processResults(results);
@@ -250,7 +253,8 @@ export class SecurityAuditor {
       return allResults;
     } catch (error) {
       const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditAll');
-      Logger.error('セキュリティ監査中にエラーが発生しました', appError);
+      const securityErrorObj = new Error(appError.message);
+      Logger.error('セキュリティ監査中にエラーが発生しました', securityErrorObj);
       return [];
     }
   }
@@ -361,7 +365,7 @@ export class SecurityAuditor {
    */
   private async _checkTokenStorageSecurity(): Promise<SecurityCheckResult> {
     // VSCode Secret Storage APIの利用を確認するチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'トークンはVSCode Secret Storage APIで安全に保存されています';
     let details = undefined;
     
@@ -426,7 +430,7 @@ export class SecurityAuditor {
    */
   private async _checkTokenRefreshMechanism(): Promise<SecurityCheckResult> {
     // トークンリフレッシュメカニズムの実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'トークンリフレッシュメカニズムが適切に実装されています';
     let details = undefined;
     
@@ -490,7 +494,7 @@ export class SecurityAuditor {
    */
   private async _checkSessionManagement(): Promise<SecurityCheckResult> {
     // セッション管理の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'セッション管理が適切に実装されています';
     let details = undefined;
     
@@ -556,7 +560,7 @@ export class SecurityAuditor {
    */
   private async _checkLogoutProcess(): Promise<SecurityCheckResult> {
     // ログアウト処理の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'ログアウト処理が適切に実装されています';
     let details = undefined;
     
@@ -621,7 +625,7 @@ export class SecurityAuditor {
    */
   private _checkHttpsUsage(): SecurityCheckResult {
     // APIエンドポイントがHTTPSを使用しているかチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'すべてのAPIリクエストでHTTPSが使用されています';
     let details = undefined;
     
@@ -670,7 +674,7 @@ export class SecurityAuditor {
    */
   private _checkAuthHeaders(): SecurityCheckResult {
     // 認証ヘッダーが適切に使用されているかチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = '認証ヘッダーが適切に使用されています';
     let details = undefined;
     
@@ -734,7 +738,7 @@ export class SecurityAuditor {
    */
   private async _checkRateLimitingProtection(): Promise<SecurityCheckResult> {
     // レート制限対策の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'レート制限対策が適切に実装されています';
     let details = undefined;
     
@@ -799,7 +803,7 @@ export class SecurityAuditor {
    */
   private _checkErrorHandling(): SecurityCheckResult {
     // APIエラー処理の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'APIエラー処理が適切に実装されています';
     let details = undefined;
     
@@ -943,7 +947,7 @@ export class SecurityAuditor {
    */
   private _checkCsrfPrevention(): SecurityCheckResult {
     // CSRF対策の実装をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'CSRF対策が適切に実装されています';
     let details = undefined;
     
@@ -962,12 +966,12 @@ export class SecurityAuditor {
               !authServiceCode.includes('XSRF')) {
             
             // VS Code拡張では一般的なWebページと異なりCSRFのリスクは低いため、警告ではなく情報として表示
-            status = 'info';
+            status = 'warning';
             message = 'CSRFトークンは見つかりませんが、VS Code拡張ではCSRFリスクは限定的です';
             details = 'VS Code WebViewは一般的なWebページとは異なり、CSRFのリスクが低いため、トークンが見つからなくても問題ない場合があります。';
           }
         } else {
-          status = 'info';
+          status = 'warning';
           message = 'AuthenticationService.tsが見つからないため、CSRF対策は評価できません';
         }
       } else {
@@ -989,7 +993,7 @@ export class SecurityAuditor {
       status,
       message,
       details,
-      recommendations: (status !== 'pass' && status !== 'info') ? [
+      recommendations: (status !== 'pass') ? [
         '状態変更を伴うリクエストにCSRFトークンを使用する',
         'カスタムHTTPヘッダーを使用して制御する',
         'SameSite Cookieポリシーを実装する'
@@ -1003,7 +1007,7 @@ export class SecurityAuditor {
    */
   private _checkSecureLocalStorage(): SecurityCheckResult {
     // ローカルストレージの使用をチェック
-    let status: 'pass' | 'fail' | 'warning' | 'info' = 'pass';
+    let status: 'pass' | 'fail' | 'warning' = 'pass';
     let message = 'ローカルストレージが安全に使用されています';
     let details = undefined;
     

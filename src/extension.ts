@@ -35,7 +35,7 @@ import { ScopeExporter } from './utils/ScopeExporter';
 import { MessageBroker } from './utils/MessageBroker';
 import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
 import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
-import { EnvironmentVariablesAssistantPanel } from './ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel';
+// 環境変数アシスタントは不要になったため削除
 import { TokenManager } from './core/auth/TokenManager';
 import { AuthenticationService } from './core/auth/AuthenticationService';
 import { SimpleAuthManager } from './core/auth/SimpleAuthManager'; // 新しい認証マネージャー
@@ -48,6 +48,7 @@ import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
 import { AuthGuard } from './ui/auth/AuthGuard';
 import { Feature } from './core/auth/roles';
 import { AuthStorageManager } from './utils/AuthStorageManager';
+// SimpleModelViewerPanel is removed - not needed anymore
 
 // グローバル変数としてExtensionContextを保持（安全対策）
 declare global {
@@ -233,32 +234,8 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 		);
 		
-		// 環境変数アシスタントを開くコマンドの登録
-		context.subscriptions.push(
-			vscode.commands.registerCommand('appgenius-ai.openEnvironmentVariablesAssistant', (projectPath?: string) => {
-				try {
-					Logger.info(`環境変数アシスタントを開くコマンドが実行されました: ${projectPath || 'プロジェクトパスなし'}`);
-					EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
-				} catch (error) {
-					Logger.error('環境変数アシスタントを開く際にエラーが発生しました', error as Error, undefined, true);
-					vscode.window.showErrorMessage(`環境変数アシスタントを開けませんでした: ${(error as Error).message}`);
-				}
-			})
-		);
+		// 環境変数アシスタント関連のコマンドは不要なため削除
 		
-		// 環境変数アシスタントを開くエイリアスコマンドの登録
-		context.subscriptions.push(
-			vscode.commands.registerCommand('appgenius.ai.openEnvironmentVariablesAssistant', (projectPath?: string) => {
-				try {
-					Logger.info(`環境変数アシスタントエイリアスコマンドからリダイレクトします`);
-					// 元のコマンドにリダイレクト
-					vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', projectPath);
-				} catch (error) {
-					Logger.error('環境変数アシスタントエイリアスのリダイレクトに失敗しました', error as Error, undefined, true);
-					vscode.window.showErrorMessage(`環境変数アシスタントを開けませんでした: ${(error as Error).message}`);
-				}
-			})
-		);
 		Logger.info('ScopeManager command registered successfully');
 		
 		// デバッグ探偵を開くコマンドの登録
@@ -311,6 +288,21 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 		);
 		Logger.info('MockupGallery command registered successfully');
+		
+		// シンプルモデルビューアを開くコマンドの登録
+// 		context.subscriptions.push(
+// 			vscode.commands.registerCommand('appgenius-ai.openSimpleModelViewer', (projectPath: string) => {
+// 				try {
+// 					Logger.info(`シンプルモデルビューアを開くコマンドが実行されました: ${projectPath}`);
+// 					SimpleModelViewerPanel.createOrShow(context.extensionUri, projectPath);
+// 					Logger.info('シンプルモデルビューアを正常に開きました');
+// 				} catch (error) {
+// 					Logger.error('シンプルモデルビューアを開く際にエラーが発生しました', error as Error);
+// 					vscode.window.showErrorMessage(`シンプルモデルビューアを開けませんでした: ${(error as Error).message}`);
+// 				}
+// 			})
+// 		);
+// 		Logger.info('SimpleModelViewer command registered successfully');
 		
 		// 要件定義ビジュアライザー（SimpleChatPanel）を開くコマンドの登録
 		context.subscriptions.push(
@@ -476,37 +468,7 @@ export function activate(context: vscode.ExtensionContext) {
 		// 環境変数管理コマンドの登録
 		registerEnvironmentCommands(context);
 		
-		// コマンドの直接登録を確認
-		vscode.commands.getCommands().then(commands => {
-			const hasCommand = commands.includes('appgenius-ai.openEnvironmentVariablesAssistant');
-			Logger.info(`環境変数アシスタントコマンド登録状態: ${hasCommand ? '登録済み' : '未登録'}`);
-			
-			// コマンドが登録されていなければ直接登録
-			if (!hasCommand) {
-				// 環境変数アシスタントコマンドを直接登録
-				context.subscriptions.push(
-					vscode.commands.registerCommand('appgenius-ai.openEnvironmentVariablesAssistant', async () => {
-						Logger.info('環境変数アシスタントを開きます（直接登録されたコマンド）');
-						
-						try {
-							// アクティブなワークスペースを取得
-							let projectPath: string | undefined;
-							
-							if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-								projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
-							}
-							
-							// パネルを表示
-							EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
-						} catch (error) {
-							Logger.error('環境変数アシスタントのオープンに失敗しました', error as Error);
-							vscode.window.showErrorMessage(`環境変数アシスタントの表示に失敗しました: ${(error as Error).message}`);
-						}
-					})
-				);
-				Logger.info('環境変数アシスタントコマンドを直接登録しました');
-			}
-		});
+		// 環境変数アシスタントは不要なため、チェックと登録部分を削除
 		
 		Logger.info('Environment commands registered successfully');
 		

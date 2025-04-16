@@ -290,14 +290,17 @@ export class ErrorHandler {
     
     switch (error.severity) {
       case ErrorSeverity.INFO:
-        Logger.info(logMessage, error);
+        const errorObj = new Error(error.message);
+        Logger.info(logMessage, errorObj);
         break;
       case ErrorSeverity.WARNING:
-        Logger.warn(logMessage, error);
+        const warnErrorObj = new Error(error.message);
+        Logger.warn(logMessage, warnErrorObj);
         break;
       case ErrorSeverity.ERROR:
       case ErrorSeverity.CRITICAL:
-        Logger.error(logMessage, error);
+        const criticalErrorObj = new Error(error.message);
+        Logger.error(logMessage, criticalErrorObj);
         if ((error as any).detail) {
           Logger.debug(`エラー詳細: ${(error as any).detail}`);
         }
