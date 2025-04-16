@@ -88,17 +88,8 @@ const vscode = acquireVsCodeApi();
     const message = event.data;
     
     // シェアリングパネル関連のメッセージは無視（sharingPanel.jsが処理）
-    // ただし、displayModelMockupは必ずscopeManager.jsが処理する
-    if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command) && 
-        message.command !== 'displayModelMockup') {
+    if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
       return; // sharingPanel.jsに処理を任せる
-    }
-    
-    // displayModelMockupコマンドの場合はイベント伝搬を止める特別処理
-    if (message.command === 'displayModelMockup') {
-      event.stopPropagation();
-      event.preventDefault();
-      console.log('モックアップ表示メッセージを専用ハンドラで処理します');
     }
     
     console.log('メッセージ受信:', message.command);
@@ -133,9 +124,6 @@ const vscode = acquireVsCodeApi();
         break;
       case 'updateToolsTab':
         updateToolsTab(message.content);
-        break;
-      case 'displayModelMockup':
-        displayModelMockup(message.html, message.filePath);
         break;
     }
   });
@@ -1209,146 +1197,7 @@ const vscode = acquireVsCodeApi();
     hideNewProjectModal();
   }
   
-  /**
-   * モックアッププレビューを処理するためのグローバル変数と関数
-   */
-  let currentModelFilePath = null;
-  
-  /**
-   * モックアップリストのイベントハンドラを登録
-   * タブ内容更新後に呼び出される
-   */
-  function setupMockupViewerHandlers() {
-    console.log('モックアップビューアのイベントハンドラを設定します');
-    
-    // ファイルアイテムクリックイベント
-    document.querySelectorAll('.model-file-item').forEach(item => {
-      item.addEventListener('click', () => {
-        const filePath = item.getAttribute('data-path');
-        console.log('モックアップファイルがクリックされました', filePath);
-        
-        // VSCodeにメッセージ送信
-        vscode.postMessage({
-          command: 'selectMockup',
-          filePath: filePath
-        });
-        
-        // アクティブクラスの切り替え
-        document.querySelectorAll('.model-file-item').forEach(el => el.classList.remove('active'));
-        item.classList.add('active');
-      });
-    });
-    
-    // ブラウザで開くボタン
-    const openInBrowserButton = document.getElementById('model-open-in-browser');
-    if (openInBrowserButton) {
-      openInBrowserButton.addEventListener('click', () => {
-        if (currentModelFilePath) {
-          console.log('ブラウザで開くボタンがクリックされました', currentModelFilePath);
-          vscode.postMessage({
-            command: 'openInBrowser',
-            filePath: currentModelFilePath
-          });
-        }
-      });
-    }
-    
-    // ファイルリスト折りたたみボタン
-    const toggleFileListBtn = document.getElementById('toggle-file-list');
-    const expandFileListBtn = document.getElementById('expand-file-list');
-    const fileListPanel = document.querySelector('.model-file-list-panel');
-    
-    if (toggleFileListBtn && expandFileListBtn && fileListPanel) {
-      // 折りたたみボタンのクリックイベント
-      toggleFileListBtn.addEventListener('click', () => {
-        fileListPanel.classList.add('collapsed');
-        toggleFileListBtn.style.display = 'none';
-        expandFileListBtn.style.display = 'block';
-      });
-      
-      // 展開ボタンのクリックイベント
-      expandFileListBtn.addEventListener('click', () => {
-        fileListPanel.classList.remove('collapsed');
-        toggleFileListBtn.style.display = 'block';
-        expandFileListBtn.style.display = 'none';
-      });
-    }
-  }
-  
-  /**
-   * モックアップの表示設定と「ブラウザで開く」ボタンの有効化を行う
-   */
-  function displayModelMockup(html, filePath) {
-    console.log('モックアップ表示関数が呼び出されました:', filePath);
-    currentModelFilePath = filePath;
-    
-    // ファイル名を表示し、ブラウザで開くボタンを有効化
-    const previewTitle = document.getElementById('model-preview-title');
-    const openInBrowserButton = document.getElementById('model-open-in-browser');
-    const previewContent = document.getElementById('model-preview-content');
-    
-    if (previewTitle && openInBrowserButton && previewContent) {
-      try {
-        // ファイル名を表示
-        const fileName = filePath.split(/[\\/]/).pop();
-        previewTitle.textContent = fileName;
-        
-        // ブラウザで開くボタンを有効化
-        openInBrowserButton.disabled = false;
-        
-        // HTMLコンテンツをiframeを使って表示（オリジナルのモックアップギャラリーと同じ実装）
-        if (html) {
-          previewContent.innerHTML = `
-            <iframe id="model-preview-frame" 
-                   style="width:100%; height:100%; border:none;">
-            </iframe>
-          `;
-          
-          // オリジナルのモックアップギャラリーと同じ実装方法
-          // iframeを取得してコンテンツを設定
-          setTimeout(() => {
-            try {
-              const iframe = document.getElementById('model-preview-frame');
-              if (iframe) {
-                const doc = iframe.contentDocument || (iframe.contentWindow && iframe.contentWindow.document);
-                if (doc) {
-                  doc.open();
-                  doc.write(html);
-                  doc.close();
-                } else {
-                  console.error('iframe documentにアクセスできません');
-                }
-              }
-            } catch (innerError) {
-              console.error('iframe描画エラー:', innerError);
-              previewContent.innerHTML = `
-                <div style="padding: 20px; background-color: #f8d7da; color: #721c24; border-radius: 4px;">
-                  <h3>モックアップ表示エラー</h3>
-                  <p>モックアップの表示に失敗しました。「ブラウザで開く」ボタンを使用してください。</p>
-                </div>
-              `;
-            }
-          }, 10);
-        }
-        
-        console.log('モックアッププレビュー表示設定を更新しました', { fileName });
-      } catch (error) {
-        console.error('プレビュー表示設定でエラーが発生しました', error);
-        
-        // エラーメッセージをユーザーに表示
-        showError(`モックアップ表示の設定に失敗しました: ${error.message}`);
-        
-        // それでもブラウザボタンは有効化
-        openInBrowserButton.disabled = false;
-      }
-    } else {
-      console.error('必要な要素が見つかりません', { 
-        foundTitle: !!previewTitle,
-        foundButton: !!openInBrowserButton,
-        foundContent: !!previewContent
-      });
-    }
-  }
+  // displayModelMockupとsetupMockupViewerHandlersは不要になったため削除
   
   /**
    * ディレクトリ構造ダイアログを表示
@@ -1408,10 +1257,25 @@ const vscode = acquireVsCodeApi();
     
     // タブクリックイベントの設定
     tabs.forEach(tab => {
-      tab.addEventListener('click', () => {
+      tab.addEventListener('click', (event) => {
+        const tabId = tab.getAttribute('data-tab');
+        
+        // 「モックアップギャラリー」タブの場合、イベントをキャンセルして別ウィンドウだけ開く
+        if (tabId === 'tools') {
+          // デフォルトのタブ切り替え動作を防止
+          event.preventDefault();
+          event.stopPropagation();
+          
+          // 単にモックアップギャラリーを別ウィンドウで開くだけ
+          vscode.postMessage({ command: 'openOriginalMockupGallery' });
+          
+          // 現在アクティブなタブはそのまま維持（タブ切り替えを行わない）
+          return;
+        }
+        
+        // 他のタブの場合は通常の動作（以下は元のコード）
         // アクティブなタブの状態を保存
         const newState = vscode.getState() || {};
-        const tabId = tab.getAttribute('data-tab');
         newState.activeTab = tabId;
         vscode.setState(newState);
         
@@ -1419,26 +1283,7 @@ const vscode = acquireVsCodeApi();
         tabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         
-        // 「モックアップギャラリー」タブの場合は、直接SimpleModelViewerを表示し
-        // 中間ページを表示しない
-        if (tabId === 'tools') {
-          // 対応するタブコンテンツを表示（表示設定が必要）
-          tabContents.forEach(content => {
-            if (content.id === `${tabId}-tab`) {
-              content.classList.add('active');
-            } else {
-              content.classList.remove('active');
-            }
-          });
-          
-          // 即座にモックアップギャラリーを開くコマンドを送信
-          vscode.postMessage({
-            command: 'openMockupGallery'
-          });
-          return;
-        }
-        
-        // 他のタブの場合は通常通り対応するタブコンテンツを表示
+        // タブコンテンツを更新
         tabContents.forEach(content => {
           if (content.id === `${tabId}-tab`) {
             content.classList.add('active');
@@ -1546,35 +1391,6 @@ const vscode = acquireVsCodeApi();
     toolsTab.innerHTML = content;
     
     console.log('ツールタブの内容を更新しました');
-    
-    // モックアップビューアのUIが含まれているか確認
-    const hasModelViewer = !!document.querySelector('.model-viewer-container');
-    if (hasModelViewer) {
-      console.log('モックアップビューアUIを検出しました - イベントハンドラを設定します');
-      // 次のタイクでイベントハンドラを設定（DOM更新を待つため）
-      setTimeout(() => {
-        setupMockupViewerHandlers();
-        
-        // 最初のモックアップを自動選択（もし存在すれば）
-        const firstMockupItem = document.querySelector('.model-file-item');
-        if (firstMockupItem && !currentModelFilePath) {
-          console.log('最初のモックアップを自動選択します');
-          const filePath = firstMockupItem.getAttribute('data-path');
-          if (filePath) {
-            // アクティブクラスを追加
-            firstMockupItem.classList.add('active');
-            
-            // バックエンドに選択コマンドを送信
-            vscode.postMessage({
-              command: 'selectMockup',
-              filePath: filePath
-            });
-            
-            console.log('モックアップを自動選択しました:', filePath);
-          }
-        }
-      }, 100);
-    }
   }
   
   

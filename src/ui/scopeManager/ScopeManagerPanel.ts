@@ -27,19 +27,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   // 必要な権限を指定
   protected static readonly _feature: Feature = Feature.SCOPE_MANAGER;
 
-  /**
-   * API接続をテストして認証状態と接続性を確認
-   */
-  private async _testAPIConnection(): Promise<boolean> {
-    try {
-      // 外部モジュールを使用してAPI接続テストを実行
-      const { testAPIConnection } = await import('../../api/scopeManagerTestAPI');
-      return testAPIConnection();
-    } catch (error) {
-      Logger.error('API接続テスト中にエラーが発生しました', error as Error);
-      return false;
-    }
-  }
+  // 未使用メソッドを削除
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
@@ -57,30 +45,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _currentProjects: any[] = []; // プロジェクト一覧
   private _activeProject: any = null; // アクティブなプロジェクト
   
-  /**
-   * 準備ステップのテンプレートを取得（廃止予定）
-   * @deprecated 準備モードとともに廃止予定
-   */
-  private _getPreparationStepsTemplate(): string {
-    return `<div class="preparation-steps">
-      <h3>準備モードは廃止されました</h3>
-      <p>準備モードは実装から削除されました。代わりにClaudeCodeを直接使用してください。</p>
-    </div>`;
-  }
+  // 準備モード関連のメソッドは廃止されました
   
-  // プロンプト関連のURLリスト
-  private readonly _promptUrls = [
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700ab2f8887a5c4faec",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/50eb4d1e924c9139ef685c2f39766589",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/247df2890160a2fa8f6cc0f895413aed",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09",
-    "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/bbc6e76a5f448e02bea16918fa1dc9ad"
-  ];
+  // 一時ファイル保存ディレクトリの設定
   
   // 一時ファイル保存ディレクトリ (隠しフォルダ方式)
   private _tempShareDir: string = '';
@@ -116,8 +83,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       {
         enableScripts: true,
         retainContextWhenHidden: true,
-        // HTMLのスクリプト実行を許可する簡易なCSP
-        contentSecurityPolicy: "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src *;",
+        // カスタムCSP設定を削除し、VSCodeのデフォルト設定を使用
+        // contentSecurityPolicy: "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src *;",
         localResourceRoots: [
           vscode.Uri.joinPath(extensionUri, 'media'),
           vscode.Uri.joinPath(extensionUri, 'dist'),
@@ -235,6 +202,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             case 'openMockupGallery':
               await this._handleOpenMockupGallery();
+              break;
+            case 'openOriginalMockupGallery':
+              await this._handleOpenOriginalMockupGallery(message.filePath);
               break;
             case 'openDebugDetective':
               await this._handleOpenDebugDetective();
@@ -660,12 +630,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       Logger.info(`プロンプトを取得中: ${url}`);
       
-      // プロンプトURLからインデックスを取得
-      const promptIndex = this._promptUrls.findIndex(u => u === url);
-      const indexToUse = promptIndex !== -1 ? promptIndex : index;
-      
+      // フロントエンドから送信されたURLとインデックスをそのまま使用
       // プロンプトの内容を取得して一時ファイルに保存（プロジェクトパスを指定）
-      const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, indexToUse, this._projectPath);
+      const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, index, this._projectPath);
       
       // ClaudeCodeを起動
       const launcher = ClaudeCodeLauncherService.getInstance();
@@ -689,21 +656,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * @deprecated 古いテキスト共有実装。_handleShareText(text, suggestedFilename)を使用してください
-   */
-  private async _handleLegacyShareText(text: string): Promise<void> {
-    // 新しいメソッドに委譲
-    await this._handleShareText(text);
-  }
-
-  /**
-   * @deprecated 古い画像共有実装。現在の実装に委譲
-   */
-  private async _handleLegacyShareImage(imageData: string, fileName: string): Promise<void> {
-    // 新しいメソッドに委譲
-    await this._handleShareImage(imageData, fileName);
-  }
+  // レガシー共有メソッドは削除されました
 
   /**
    * 要件定義エディタを開く
@@ -740,284 +693,47 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * モックアップギャラリーを開く
    */
   private async _handleOpenMockupGallery(): Promise<void> {
-    // モックアップギャラリーの代わりにSimpleModelViewerを開く
-    try {
-      // 同じタブ内で表示するためのメソッドを呼び出す
-      await this._handleOpenSimpleModelViewer();
-      Logger.info('SimpleModelViewerを同じタブ内で開きました');
-    } catch (error) {
-      Logger.error('SimpleModelViewerを開けませんでした', error as Error);
-      this._showError('モックアップビューアを開けませんでした');
-    }
+    // _handleOpenOriginalMockupGalleryを呼び出すだけのシンプルな実装に変更
+    await this._handleOpenOriginalMockupGallery();
   }
   
   /**
-   * SimpleModelViewerを同じタブ内で表示する
+   * 独立したモックアップギャラリーパネルを開く
+   * @param filePath 表示するモックアップファイルのパス（オプション）
    */
-  private async _handleOpenSimpleModelViewer(): Promise<void> {
+  private async _handleOpenOriginalMockupGallery(filePath?: string): Promise<void> {
     try {
-      // mockupsディレクトリが存在するか確認
-      const mockupsDir = path.join(this._projectPath, 'mockups');
-      if (!fs.existsSync(mockupsDir)) {
-        fs.mkdirSync(mockupsDir, { recursive: true });
-      }
-      
-      // モックアップファイル一覧を取得
-      const mockupFiles = fs.readdirSync(mockupsDir)
-        .filter(file => file.endsWith('.html'))
-        .map(file => {
-          const filePath = path.join(mockupsDir, file);
-          const stats = fs.statSync(filePath);
-          return {
-            name: file,
-            path: filePath,
-            modified: stats.mtime.getTime()
-          };
-        })
-        .sort((a, b) => b.modified - a.modified);
-      
-      // SimpleModelViewerのHTMLを組み立て
-      const modelViewerHTML = this._getModelViewerHTML(mockupFiles);
-      
-      // ツールタブの内容を直接更新（selectTabコマンドは送信しない）
-      // フロントエンド側ですでにタブが選択されているため
-      this._panel.webview.postMessage({
-        command: 'updateToolsTab',
-        content: modelViewerHTML
-      });
-      
-      // アクションフィードバックを表示
-      this._showSuccess('モックアップビューアを表示しました');
-      
-      Logger.info('SimpleModelViewerをスコープマネージャータブ内に表示しました');
+      // 別ウィンドウでモックアップギャラリーを開く
+      await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
+      Logger.info(`独立したモックアップギャラリーを開きました${filePath ? ': ' + filePath : ''}`);
+      this._showSuccess('モックアップギャラリーを開きました');
     } catch (error) {
-      Logger.error('SimpleModelViewerの表示に失敗しました', error as Error);
-      this._showError(`モックアップビューアの表示に失敗しました: ${(error as Error).message}`);
+      Logger.error('モックアップギャラリーを開けませんでした', error as Error);
+      this._showError('モックアップギャラリーを開けませんでした');
     }
   }
   
   /**
-   * SimpleModelViewerのHTML生成
-   */
-  private _getModelViewerHTML(mockupFiles: any[]): string {
-    let fileListHTML = '';
-    
-    if (mockupFiles.length === 0) {
-      fileListHTML = '<div class="empty-state">モックアップがありません</div>';
-    } else {
-      // モックアップリストのHTML
-      mockupFiles.forEach(file => {
-        fileListHTML += `<div class="model-file-item" data-path="${file.path}">${file.name}</div>`;
-      });
-    }
-    
-    // モデルビューアのスタイルを含むHTML
-    return `
-      <div class="model-viewer-container">
-        <div class="model-file-list-panel">
-          <div class="file-list-header">
-            <h3>モックアップファイル</h3>
-            <button id="toggle-file-list" class="toggle-btn">
-              <span class="material-icons">chevron_left</span>
-            </button>
-          </div>
-          <div id="model-file-list" class="model-file-list">
-            ${fileListHTML}
-          </div>
-        </div>
-        <div class="model-preview-panel">
-          <div class="model-preview-header">
-            <h3 id="model-preview-title">プレビュー</h3>
-            <div class="preview-actions">
-              <button id="expand-file-list" class="toggle-btn" style="display: none;">
-                <span class="material-icons">chevron_right</span>
-              </button>
-              <button id="model-open-in-browser" class="button" disabled>ブラウザで開く</button>
-            </div>
-          </div>
-          <div class="model-preview-content" id="model-preview-content">
-            <!-- プレビュー内容はJavaScriptで挿入されます -->
-          </div>
-        </div>
-      </div>
-      <!-- イベントハンドラはscopeManager.jsで処理 -->
-      <style>
-        .model-viewer-container {
-          display: flex;
-          height: calc(100vh - 160px);
-          border: 1px solid var(--vscode-panel-border);
-          background-color: var(--vscode-editor-background);
-          margin-top: 10px;
-        }
-        
-        .model-file-list-panel {
-          width: 300px;
-          border-right: 1px solid var(--vscode-panel-border);
-          display: flex;
-          flex-direction: column;
-          transition: width 0.3s ease;
-        }
-        
-        .model-file-list-panel.collapsed {
-          width: 0;
-          overflow: hidden;
-          border-right: none;
-        }
-        
-        .file-list-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 10px;
-          border-bottom: 1px solid var(--vscode-panel-border);
-        }
-        
-        .file-list-header h3 {
-          margin: 0;
-        }
-        
-        .toggle-btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          color: var(--vscode-foreground);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 2px;
-          border-radius: 4px;
-        }
-        
-        .toggle-btn:hover {
-          background-color: var(--vscode-toolbar-hoverBackground);
-        }
-        
-        .model-file-list {
-          flex: 1;
-          overflow-y: auto;
-          padding: 10px;
-        }
-        
-        .model-file-item {
-          padding: 8px;
-          border-radius: 4px;
-          cursor: pointer;
-          margin-bottom: 5px;
-        }
-        
-        .model-file-item:hover {
-          background-color: var(--vscode-list-hoverBackground);
-        }
-        
-        .model-file-item.active {
-          background-color: var(--vscode-list-activeSelectionBackground);
-          color: var(--vscode-list-activeSelectionForeground);
-        }
-        
-        .model-preview-panel {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-        }
-        
-        .model-preview-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 10px;
-          border-bottom: 1px solid var(--vscode-panel-border);
-        }
-        
-        .model-preview-header h3 {
-          margin: 0;
-        }
-        
-        .preview-actions {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        
-        .model-preview-content {
-          flex: 1;
-          position: relative;
-        }
-        
-        #model-preview-frame {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          border: none;
-          background-color: white;
-        }
-        
-        .empty-state {
-          padding: 20px;
-          color: var(--vscode-descriptionForeground);
-          text-align: center;
-        }
-      </style>
-    `;
-  }
-  
-  /**
-   * モックアップファイル選択処理
+   * モックアップファイルを選択
+   * @param filePath モックアップファイルのパス
    */
   private async _handleSelectMockup(filePath: string): Promise<void> {
-    try {
-      Logger.info(`モックアップ選択リクエスト: ${filePath}`);
-      
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`ファイルが見つかりません: ${filePath}`);
-      }
-      
-      const content = fs.readFileSync(filePath, 'utf8');
-      Logger.info(`モックアップファイルを読み込みました: ${filePath} (${content.length} bytes)`);
-      
-      // モックアップファイル名を取得
-      const fileName = path.basename(filePath);
-      
-      // CSS適用のためにHTMLを修正
-      const modifiedHtml = content
-        // ベースパスを修正
-        .replace(/<head>/i, `<head><base href="${this._panel.webview.asWebviewUri(vscode.Uri.file(path.dirname(filePath)))}/"/>`)
-        // スタイルを適用
-        .replace(/<\/head>/i, `<style>body { margin: 0; padding: 0; }</style></head>`);
-      
-      // webviewに表示命令を送信 - HTML内容も一緒に送信
-      this._panel.webview.postMessage({
-        command: 'displayModelMockup',
-        html: modifiedHtml,
-        filePath: filePath
-      });
-      
-      Logger.info(`モックアップ表示メッセージを送信しました: ${filePath}`);
-      
-      // 成功メッセージを表示
-      this._showSuccess(`モックアップ「${path.basename(filePath)}」を表示しました`);
-    } catch (error) {
-      const errorMsg = `モックアップ選択エラー: ${(error as Error).message}`;
-      Logger.error(errorMsg);
-      this._showError(errorMsg);
-    }
+    // 直接別ウィンドウのモックアップギャラリーを開く
+    await this._handleOpenOriginalMockupGallery(filePath);
   }
   
   /**
    * モックアップをブラウザで開く
+   * @param filePath モックアップファイルのパス
    */
   private async _handleOpenMockupInBrowser(filePath: string): Promise<void> {
     try {
-      if (!fs.existsSync(filePath)) {
-        throw new Error(`ファイルが見つかりません: ${filePath}`);
-      }
-      
+      // 外部ブラウザでファイルを開く
       await vscode.env.openExternal(vscode.Uri.file(filePath));
-      
       Logger.info(`モックアップをブラウザで開きました: ${filePath}`);
     } catch (error) {
-      Logger.error(`ブラウザ表示エラー: ${(error as Error).message}`);
+      Logger.error('モックアップをブラウザで開けませんでした', error as Error);
+      this._showError('モックアップをブラウザで開けませんでした');
     }
   }
 

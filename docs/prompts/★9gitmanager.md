@@ -106,41 +106,65 @@ grep -r -i "APIKey\|secret\|password\|token\|credential\|mongodb+srv" --include=
 
 ## 特殊状況ガイドライン
 
-### センシティブファイルが過去コミットに含まれる場合
+### センシティブファイルが直前のコミットに含まれる場合
+
+```bash
+# 安全なクリーンアップ手順:
+# 1. 現在の状態を確認
+git status
+
+# 2. 直前のコミットを取り消す（作業内容は保持したまま）
+git reset --soft HEAD~1
+
+# 3. センシティブ情報を含むファイルを特定
+grep -r "APIKey\|password\|secret\|token\|credential\|mongodb" --include="*.md" --include="*.js" --include="*.ts" .
+
+# 4. 該当ファイルを修正（センシティブ情報を除去または環境変数に置き換え）
+# エディタでファイルを開き、センシティブデータをプレースホルダに置換:
+# 例: "password: abc123" → "password: [PASSWORD]"
+
+# 5. ステージングエリアから変更前のファイルを取り消し
+git reset HEAD <センシティブファイルのパス>
+
+# 6. 修正済みのファイルを追加
+git add <修正したファイルのパス>
+
+# 7. 残りの変更をすべてステージング
+git add .
+
+# 8. 変更内容の最終確認
+git status
+
+# 9. コミットを作成し直す
+git commit -m "元のコミットメッセージ（機密情報を削除）"
+
+# 10. リモートにプッシュ
+git push
+```
+
+### センシティブファイルが過去のコミットに含まれる場合
 
 ```bash
 # 安全なクリーンアップ手順:
 # 1. 現状の作業を必ず外部バックアップ（作業ディレクトリコピー）
-# 2. 新ブランチ作成: 
-git branch backup-branch 
+# 2. 問題のファイルの修正バージョンを作成:
+#    - 機密情報をプレースホルダーに置き換え
+#    - 環境変数を使用するよう変更
 
-# 3. orphanブランチで新履歴開始: 
-git checkout --orphan clean-branch
+# 3. 変更をステージング
+git add <修正したファイル>
 
-# 4. すべてのファイルをステージ: 
-git add .
+# 4. 修正をコミット
+git commit -m "機密情報を削除"
 
-# 5. センシティブファイルをアンステージ: 
-git reset パス/ファイル
+# 5. リモートリポジトリにプッシュ
+git push
 
-# 6. 全ファイルの初期コミット作成
-git commit -m "Clean repository state without sensitive data"
-
-# 7. 新ブランチをリモートにプッシュ: 
-git push -u origin clean-branch
-
-# 元のブランチ名を維持する必要がある場合の追加手順:
-# 8. バックアップを再確認: 
-git branch backup-before-replace
-
-# 9. 元ブランチに切り替え: 
-git checkout original-branch
-
-# 10. 履歴置換: 
-git reset --hard clean-branch
-
-# 11. 強制プッシュ: 
-git push -f origin original-branch
+# より複雑な履歴修正が必要な場合（古いコミットの機密情報を削除）:
+# 注意: この操作はリポジトリ履歴を書き換えるため、チーム全体への影響を考慮すること
+# これは非常に高度な操作であり、必ず事前にリポジトリ全体のバックアップを取得すること
+# git filter-branch --force --index-filter "git rm --cached --ignore-unmatch パス/機密ファイル" --prune-empty --tag-name-filter cat -- --all
+# git push origin --force --all
 ```
 
 ### 全ファイルコミットの標準手順
