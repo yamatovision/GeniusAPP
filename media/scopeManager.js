@@ -453,30 +453,7 @@ const vscode = acquireVsCodeApi();
     });
   }
   
-  /**
-   * タブ切り替え処理
-   */
-  function setupTabSwitching() {
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabs.forEach(tab => {
-      tab.addEventListener('click', () => {
-        // 全てのタブから active クラスを削除
-        tabs.forEach(t => t.classList.remove('active'));
-        
-        // クリックされたタブに active クラスを追加
-        tab.classList.add('active');
-        
-        // 全てのタブコンテンツを非表示
-        tabContents.forEach(content => content.classList.remove('active'));
-        
-        // クリックされたタブに対応するコンテンツを表示
-        const tabId = tab.getAttribute('data-tab');
-        document.getElementById(`${tabId}-tab`).classList.add('active');
-      });
-    });
-  }
+  // タブ切り替え処理は initializeTabs に統合されたため、この関数は削除
   
   /**
    * プロンプトカードの初期化
@@ -606,8 +583,7 @@ const vscode = acquireVsCodeApi();
       });
     }
     
-    // タブ切り替えの設定
-    setupTabSwitching();
+    // タブ切り替えは initializeTabs で設定済み
   }
   
   /**
@@ -812,17 +788,6 @@ const vscode = acquireVsCodeApi();
     } else {
       console.warn('プロジェクト名表示要素が見つかりません: .project-display .project-name');
     }
-    
-    // プロジェクトリストのアクティブなプロジェクト名も更新（一致するもの）
-    const projectItems = document.querySelectorAll('.project-item');
-    projectItems.forEach(item => {
-      const nameElement = item.querySelector('.project-name');
-      if (nameElement && nameElement.textContent === projectName) {
-        // このプロジェクトをアクティブに
-        projectItems.forEach(pi => pi.classList.remove('active'));
-        item.classList.add('active');
-      }
-    });
   }
   
   /**
@@ -1250,54 +1215,11 @@ const vscode = acquireVsCodeApi();
       
       console.log('プロジェクト状態の復元を試みます:', { activeProjectName, activeProjectPath, activeTab });
       
-      // プロジェクト名かパスのどちらかが保存されていない場合は、バックエンドに現在のアクティブプロジェクトを問い合わせる
+      // 状態がローカルに保存されていない場合は、バックエンドから直接同期される
       if (!activeProjectName || !activeProjectPath) {
-        console.log('ローカルにプロジェクト状態が保存されていません。バックエンドに問い合わせます。');
-        vscode.postMessage({ command: 'getActiveProject' });
+        console.log('ローカルにプロジェクト状態が保存されていません。バックエンドから同期を待ちます。');
+        // 自動で同期されるため何もしない
         return;
-      }
-      
-      // プロジェクト名表示部分を更新
-      const projectDisplayName = document.querySelector('.project-display .project-name');
-      if (projectDisplayName) {
-        projectDisplayName.textContent = activeProjectName;
-      }
-      
-      // プロジェクトパス表示部分を更新
-      const projectPathElement = document.querySelector('.project-path-display');
-      if (projectPathElement) {
-        projectPathElement.textContent = activeProjectPath;
-      }
-      
-      // 該当するプロジェクト要素を探す
-      const projectItems = document.querySelectorAll('.project-item');
-      let targetProject = null;
-      
-      projectItems.forEach(item => {
-        const nameElement = item.querySelector('.project-name');
-        const pathElement = item.querySelector('.project-path');
-        
-        if (nameElement && pathElement) {
-          const name = nameElement.textContent;
-          const path = pathElement.textContent;
-          
-          if (name === activeProjectName && path === activeProjectPath) {
-            targetProject = item;
-          }
-        }
-      });
-      
-      // 該当するプロジェクトが見つかったら選択状態にする
-      if (targetProject) {
-        console.log(`プロジェクト状態を復元: ${activeProjectName}`);
-        
-        // 他のプロジェクトの選択状態を解除
-        projectItems.forEach(item => item.classList.remove('active'));
-        
-        // このプロジェクトをアクティブに
-        targetProject.classList.add('active');
-      } else {
-        console.log(`対応するプロジェクト要素が見つかりません: ${activeProjectName}`);
       }
       
       // タブが保存されている場合はそのタブを選択
@@ -1325,14 +1247,7 @@ const vscode = acquireVsCodeApi();
         console.log(`タブ状態を復元: ${activeTab}`);
       }
       
-      // バックエンドに現在のアクティブプロジェクトとの同期を要求
-      // 注意: ProjectManagementServiceから最新のプロジェクト情報を取得するため
-      vscode.postMessage({
-        command: 'ensureActiveProject',
-        projectName: activeProjectName,
-        projectPath: activeProjectPath,
-        activeTab: activeTab || 'current-status'
-      });
+      // すべての状態はバックエンドのProjectManagementServiceから同期される
     }, 300); // UIの読み込み完了を待つため
   }
 
@@ -1554,7 +1469,7 @@ const vscode = acquireVsCodeApi();
           return;
         }
         
-        // 他のタブの場合は通常の動作（以下は元のコード）
+        // 他のタブの場合は通常の動作
         // アクティブなタブの状態を保存
         const newState = vscode.getState() || {};
         newState.activeTab = tabId;
@@ -1623,7 +1538,7 @@ const vscode = acquireVsCodeApi();
   }
   
   /**
-   * 指定したタブを選択状態にする
+   * 指定したタブを選択状態にする (シンプル化版)
    * @param {string} tabId タブID
    * @param {boolean} preserveProject プロジェクト選択状態を保持するかどうか
    */
@@ -1651,47 +1566,23 @@ const vscode = acquireVsCodeApi();
       }
     });
     
-    // タブ状態を保存
-    const newState = vscode.getState() || {};
-    
-    // 現在選択中のプロジェクト情報を状態に保存 (プロジェクト名、パス)
-    if (preserveProject) {
-      const activeProjectItem = document.querySelector('.project-item.active');
-      if (activeProjectItem) {
-        const projectName = activeProjectItem.querySelector('.project-name')?.textContent || '';
-        const projectPath = activeProjectItem.querySelector('.project-path')?.textContent || '';
-        
-        newState.activeProjectName = projectName;
-        newState.activeProjectPath = projectPath;
-        
-        console.log(`現在のプロジェクト状態を保存: ${projectName}, ${projectPath}`);
-      }
-    }
-    
-    newState.activeTab = tabId;
-    vscode.setState(newState);
-    
     // 前回保存したタブと同じ場合は保存しない（無限ループ防止）
     const prevState = vscode.getState() || {};
     const previousTab = prevState.lastSavedTab;
     
     if (previousTab !== tabId) {
-      // 状態を更新して最後に保存したタブを記録
-      prevState.lastSavedTab = tabId;
-      vscode.setState(prevState);
+      // 状態を保存
+      const newState = vscode.getState() || {};
+      newState.activeTab = tabId;
+      newState.lastSavedTab = tabId;
+      vscode.setState(newState);
       
       // タブ状態をプロジェクトのメタデータに保存
       vscode.postMessage({
         command: 'saveTabState',
         tabId: tabId
       });
-      
-      console.log(`タブ状態保存を送信: ${tabId} (前回: ${previousTab})`);
-    } else {
-      console.log(`タブ状態は既に保存済み: ${tabId} - 重複送信を防止`);
     }
-    
-    console.log(`タブを切り替えました: ${tabId}`);
   }
   
   /**

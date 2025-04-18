@@ -1980,36 +1980,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * 現在のアクティブプロジェクトを取得してWebViewに送信
-   * ローカルに保存されたプロジェクト情報がない場合に使用
-   */
-  private async _handleGetActiveProject(): Promise<void> {
-    try {
-      const { ProjectManagementService } = require('../../services/ProjectManagementService');
-      const projectService = ProjectManagementService.getInstance();
-      
-      // 最新のアクティブプロジェクトを取得
-      const activeProject = projectService.getActiveProject();
-      
-      if (activeProject) {
-        Logger.info(`アクティブプロジェクト情報をWebViewに送信: ${activeProject.name}`);
-        
-        // プロジェクト状態同期メッセージを送信
-        this._panel.webview.postMessage({
-          command: 'syncProjectState',
-          project: activeProject
-        });
-      } else {
-        Logger.warn('アクティブプロジェクトが見つかりません');
-        this._showError('アクティブプロジェクトが見つかりません');
-      }
-    } catch (error) {
-      Logger.error('アクティブプロジェクト情報の取得に失敗しました', error as Error);
-      this._showError('プロジェクト情報の取得に失敗しました');
-    }
-  }
-  
-  /**
    * 指定されたプロジェクトがアクティブであることを確認し、必要に応じて選択状態を更新
    * WebViewとバックエンドの状態を同期する目的で使用
    */
