@@ -40,7 +40,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _directoryStructure: string = '';
   private _fileWatcher: vscode.FileSystemWatcher | null = null;
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
-  private _isPreparationMode: boolean = false; // 準備モード（廃止予定で常にfalse）
+  // 準備モードは廃止されました
   private _sharingService: ClaudeCodeSharingService | undefined; // ClaudeCode共有サービス
   private _currentProjects: any[] = []; // プロジェクト一覧
   private _activeProject: any = null; // アクティブなプロジェクト
@@ -170,6 +170,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'getMarkdownContent':
               await this._handleGetMarkdownContent(message.filePath);
               break;
+            case 'saveTabState':
+              await this._handleSaveTabState(message.tabId);
+              break;
             // 新しいコマンド
             case 'launchPromptFromURL':
               await this._handleLaunchPromptFromURL(message.url, message.index);
@@ -194,21 +197,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
               
               await this._handleShareImage(imageData, message.fileName);
               break;
-            case 'openRequirementsVisualizer':
-              await this._handleOpenRequirementsVisualizer();
-              break;
-            case 'openEnvironmentVariablesAssistant':
-              await this._handleOpenEnvironmentVariablesAssistant();
-              break;
+            
             case 'openMockupGallery':
               await this._handleOpenMockupGallery();
               break;
             case 'openOriginalMockupGallery':
               await this._handleOpenOriginalMockupGallery(message.filePath);
               break;
-            case 'openDebugDetective':
-              await this._handleOpenDebugDetective();
-              break;
+            
             case 'getHistory':
               await this._handleGetHistory();
               break;
@@ -243,6 +239,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'openInBrowser':
               await this._handleOpenMockupInBrowser(message.filePath);
               break;
+            // 状態同期関連のコマンドは削除されました
           }
         } catch (error) {
           Logger.error(`メッセージ処理エラー: ${message.command}`, error as Error);
@@ -367,6 +364,54 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // ファイルに書き込み
       fs.writeFileSync(claudeMdPath, claudeMdContent, 'utf8');
       fs.writeFileSync(statusFilePath, statusContent, 'utf8');
+      
+      // ProjectManagementServiceにプロジェクトを登録
+      try {
+        // ProjectManagementServiceを取得
+        const { ProjectManagementService } = require('../../services/ProjectManagementService');
+        const projectService = ProjectManagementService.getInstance();
+        
+        // 新規プロジェクトとして登録
+        const projectId = await projectService.createProject({
+          name: projectName,
+          description: description || "",
+          path: projectDir
+        });
+        
+        Logger.info(`新規作成したプロジェクトをProjectManagementServiceに登録: ID=${projectId}, 名前=${projectName}, パス=${projectDir}`);
+        
+        // プロジェクトをアクティブに設定
+        await projectService.setActiveProject(projectId);
+        Logger.info(`新規作成したプロジェクトをアクティブに設定: ID=${projectId}`);
+        
+        // プロジェクト一覧を更新
+        this._currentProjects = projectService.getAllProjects();
+        this._activeProject = projectService.getActiveProject();
+        
+        // WebViewにプロジェクト一覧も更新
+        this._panel.webview.postMessage({
+          command: 'updateProjects',
+          projects: this._currentProjects,
+          activeProject: this._activeProject
+        });
+        
+        // プロジェクト選択イベントを発行
+        try {
+          const { AppGeniusEventBus, AppGeniusEventType } = require('../../services/AppGeniusEventBus');
+          const eventBus = AppGeniusEventBus.getInstance();
+          eventBus.emit(
+            AppGeniusEventType.PROJECT_CREATED,
+            { id: projectId, path: projectDir, name: projectName },
+            'ScopeManagerPanel',
+            projectId
+          );
+          Logger.info(`プロジェクト作成イベントを発行: ${projectName}, ${projectDir}`);
+        } catch (error) {
+          Logger.warn(`イベント発行に失敗しました: ${error}`);
+        }
+      } catch (error) {
+        Logger.warn(`ProjectManagementServiceへの登録に失敗しましたが、ローカルでは続行します: ${error}`);
+      }
       
       // プロジェクトを開く
       this.setProjectPath(projectDir);
@@ -500,10 +545,73 @@ export class ScopeManagerPanel extends ProtectedPanel {
         await this._handleGetMarkdownContent(projectStatusFilePath);
       }
       
+      // ProjectManagementServiceにプロジェクトを登録 - ここが追加されたコード
+      try {
+        // ProjectManagementServiceを取得
+        const { ProjectManagementService } = require('../../services/ProjectManagementService');
+        const projectService = ProjectManagementService.getInstance();
+        
+        // 既存のプロジェクトを検索
+        const projects = projectService.getAllProjects();
+        let projectId: string | undefined;
+        let existingProject = projects.find(p => p.path === projectPath);
+        
+        if (existingProject) {
+          // 既存のプロジェクトが見つかった場合は、アクティブに設定
+          projectId = existingProject.id;
+          await projectService.updateProject(projectId, {
+            updatedAt: Date.now()
+          });
+          Logger.info(`既存プロジェクトをアクティブに更新: ID=${projectId}, 名前=${projectName}`);
+        } else {
+          // 新規プロジェクトとして登録
+          projectId = await projectService.createProject({
+            name: projectName,
+            description: "",
+            path: projectPath
+          });
+          Logger.info(`読み込んだプロジェクトを新規登録: ID=${projectId}, 名前=${projectName}, パス=${projectPath}`);
+        }
+        
+        // プロジェクトをアクティブに設定
+        if (projectId) {
+          await projectService.setActiveProject(projectId);
+          Logger.info(`読み込んだプロジェクトをアクティブに設定: ID=${projectId}`);
+        }
+        
+        // プロジェクト一覧を更新
+        this._currentProjects = projectService.getAllProjects();
+        this._activeProject = projectService.getActiveProject();
+        
+        // プロジェクト選択イベントを発行
+        try {
+          const { AppGeniusEventBus, AppGeniusEventType } = require('../../services/AppGeniusEventBus');
+          const eventBus = AppGeniusEventBus.getInstance();
+          eventBus.emit(
+            AppGeniusEventType.PROJECT_SELECTED,
+            { id: projectId, path: projectPath, name: projectName },
+            'ScopeManagerPanel',
+            projectId || projectPath
+          );
+          Logger.info(`プロジェクト選択イベントを発行: ${projectName}, ${projectPath}`);
+        } catch (error) {
+          Logger.warn(`イベント発行に失敗しました: ${error}`);
+        }
+      } catch (error) {
+        Logger.warn(`プロジェクト登録に失敗しましたが、ローカルパスのみで続行します: ${error}`);
+      }
+      
       // プロジェクト名をWebViewに送信
       this._panel.webview.postMessage({
         command: 'updateProjectName',
         projectName: projectName
+      });
+      
+      // WebViewにプロジェクト一覧も更新
+      this._panel.webview.postMessage({
+        command: 'updateProjects',
+        projects: this._currentProjects,
+        activeProject: this._activeProject
       });
       
       // 成功メッセージを表示
@@ -569,6 +677,20 @@ export class ScopeManagerPanel extends ProtectedPanel {
       statusFilePath: this._statusFilePath,
       statusFileExists: fs.existsSync(this._statusFilePath)
     });
+    
+    // ProjectManagementServiceのプロジェクト一覧を更新（ただしsetActiveProjectは呼び出さない）
+    try {
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      
+      // 最新のプロジェクト一覧を取得
+      this._currentProjects = projectService.getAllProjects();
+      this._activeProject = projectService.getActiveProject();
+      
+      Logger.debug(`プロジェクト一覧を更新しました: ${this._currentProjects.length}件, アクティブ: ${this._activeProject?.name || 'なし'}`);
+    } catch (error) {
+      Logger.warn(`プロジェクト一覧の更新に失敗しました: ${error}`);
+    }
   }
 
   /**
@@ -658,54 +780,17 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   // レガシー共有メソッドは削除されました
 
-  /**
-   * 要件定義エディタを開く
-   */
-  private async _handleOpenRequirementsVisualizer(): Promise<void> {
-    // 要件定義エディタを開くコマンドを実行
-    // 注: 要件定義エディタのコマンドが存在しない場合は一時的にチャットを開く
-    try {
-      // 要件定義エディタ用のコマンドを探す - 新しいタブで開く
-      vscode.commands.executeCommand('appgenius-ai.openSimpleChat', this._projectPath, vscode.ViewColumn.Beside);
-      Logger.info('要件定義エディタの代わりにSimpleChatを新しいタブで開きました');
-    } catch (error) {
-      Logger.error('要件定義エディタを開けませんでした', error as Error);
-      this._showError('要件定義エディタを開けませんでした');
-    }
-  }
+
 
   /**
-   * 環境変数アシスタントを開く
-   */
-  private async _handleOpenEnvironmentVariablesAssistant(): Promise<void> {
-    // 環境変数アシスタントを開くコマンドを実行
-    try {
-      // 新しいタブで開く
-      vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', this._projectPath, vscode.ViewColumn.Beside);
-      Logger.info('環境変数アシスタントを新しいタブで開きました');
-    } catch (error) {
-      Logger.error('環境変数アシスタントを開けませんでした', error as Error);
-      this._showError('環境変数アシスタントを開けませんでした');
-    }
-  }
-
-  /**
-   * モックアップギャラリーを開く
-   */
-  private async _handleOpenMockupGallery(): Promise<void> {
-    // _handleOpenOriginalMockupGalleryを呼び出すだけのシンプルな実装に変更
-    await this._handleOpenOriginalMockupGallery();
-  }
-  
-  /**
-   * 独立したモックアップギャラリーパネルを開く
+   * モックアップギャラリーを開く - 共通メソッドに統合
    * @param filePath 表示するモックアップファイルのパス（オプション）
    */
-  private async _handleOpenOriginalMockupGallery(filePath?: string): Promise<void> {
+  private async _handleOpenMockupGallery(filePath?: string): Promise<void> {
     try {
       // 別ウィンドウでモックアップギャラリーを開く
       await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
-      Logger.info(`独立したモックアップギャラリーを開きました${filePath ? ': ' + filePath : ''}`);
+      Logger.info(`モックアップギャラリーを開きました${filePath ? ': ' + filePath : ''}`);
       this._showSuccess('モックアップギャラリーを開きました');
     } catch (error) {
       Logger.error('モックアップギャラリーを開けませんでした', error as Error);
@@ -714,12 +799,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
   
   /**
-   * モックアップファイルを選択
+   * 旧メソッド名での互換性維持用
+   */
+  private async _handleOpenOriginalMockupGallery(filePath?: string): Promise<void> {
+    // 統合したメソッドを呼び出す
+    return this._handleOpenMockupGallery(filePath);
+  }
+  
+  /**
+   * モックアップファイルを選択 - 統合メソッドを呼び出す
    * @param filePath モックアップファイルのパス
    */
   private async _handleSelectMockup(filePath: string): Promise<void> {
-    // 直接別ウィンドウのモックアップギャラリーを開く
-    await this._handleOpenOriginalMockupGallery(filePath);
+    return this._handleOpenMockupGallery(filePath);
   }
   
   /**
@@ -737,20 +829,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * デバッグ探偵を開く
-   */
-  private async _handleOpenDebugDetective(): Promise<void> {
-    // デバッグ探偵を開くコマンドを実行
-    try {
-      // 新しいタブで開く
-      vscode.commands.executeCommand('appgenius-ai.openDebugDetective', this._projectPath, vscode.ViewColumn.Beside);
-      Logger.info('デバッグ探偵を新しいタブで開きました');
-    } catch (error) {
-      Logger.error('デバッグ探偵を開けませんでした', error as Error);
-      this._showError('デバッグ探偵を開けませんでした');
-    }
-  }
 
   /**
    * 共有履歴を取得してWebViewに送信
@@ -993,8 +1071,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * プロジェクト選択処理
    * @param projectName プロジェクト名
    * @param projectPath プロジェクトパス
+   * @param activeTab 現在のアクティブタブID（オプション）
    */
-  private async _handleSelectProject(projectName: string, projectPath: string): Promise<void> {
+  private async _handleSelectProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
     try {
       Logger.info(`プロジェクト選択: ${projectName}, パス: ${projectPath}`);
       
@@ -1054,8 +1133,22 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // 既存プロジェクトのIDがあれば、そのプロジェクトをアクティブに設定
       if (projectId) {
+        // プロジェクトの既存メタデータを取得
+        const existingProject = projectService.getProject(projectId);
+        
+        // アクティブタブ情報を更新
+        if (existingProject) {
+          const metadata = existingProject.metadata || {};
+          await projectService.updateProject(projectId, {
+            metadata: {
+              ...metadata,
+              activeTab: activeTab || metadata.activeTab || 'current-status'
+            }
+          });
+        }
+        
         await projectService.setActiveProject(projectId);
-        Logger.info(`既存プロジェクトをアクティブに設定: ID=${projectId}, パス=${projectPath}`);
+        Logger.info(`既存プロジェクトをアクティブに設定: ID=${projectId}, パス=${projectPath}, アクティブタブ=${activeTab || (existingProject?.metadata?.activeTab) || 'current-status'}`);
       } else {
         // プロジェクトが見つからない場合は、新規作成または更新
         try {
@@ -1066,17 +1159,24 @@ export class ScopeManagerPanel extends ProtectedPanel {
             projectId = existingProjectWithPath.id;
             await projectService.updateProject(projectId, {
               name: projectName,
-              updatedAt: Date.now()
+              updatedAt: Date.now(),
+              metadata: {
+                ...existingProjectWithPath.metadata,
+                activeTab: activeTab || existingProjectWithPath.metadata?.activeTab || 'current-status'
+              }
             });
-            Logger.info(`既存プロジェクトを更新: ID=${projectId}, 名前=${projectName}`);
+            Logger.info(`既存プロジェクトを更新: ID=${projectId}, 名前=${projectName}, アクティブタブ=${activeTab || existingProjectWithPath.metadata?.activeTab || 'current-status'}`);
           } else {
             // 新規プロジェクトとして登録
             projectId = await projectService.createProject({
               name: projectName,
               description: "",
-              path: projectPath
+              path: projectPath,
+              metadata: {
+                activeTab: activeTab || 'current-status'
+              }
             });
-            Logger.info(`新規プロジェクトを作成: ID=${projectId}, 名前=${projectName}, パス=${projectPath}`);
+            Logger.info(`新規プロジェクトを作成: ID=${projectId}, 名前=${projectName}, パス=${projectPath}, アクティブタブ=${activeTab || 'current-status'}`);
           }
           
           // 作成または更新したプロジェクトをアクティブに設定
@@ -1101,6 +1201,25 @@ export class ScopeManagerPanel extends ProtectedPanel {
         Logger.info(`プロジェクト選択イベントを発行: ${projectName}, ${projectPath}`);
       } catch (error) {
         Logger.warn(`イベント発行に失敗しました: ${error}`);
+      }
+      
+      // ProjectManagementServiceから最新のプロジェクト情報を取得して同期
+      try {
+        const projectService = ProjectManagementService.getInstance();
+        const updatedProject = projectId ? 
+          projectService.getProject(projectId) : 
+          projectService.getActiveProject();
+          
+        if (updatedProject) {
+          // WebViewにプロジェクト状態同期メッセージを送信
+          this._panel.webview.postMessage({
+            command: 'syncProjectState',
+            project: updatedProject
+          });
+          Logger.info(`プロジェクト状態同期メッセージを送信: ${updatedProject.name}`);
+        }
+      } catch (error) {
+        Logger.warn(`プロジェクト状態同期に失敗しました: ${error}`);
       }
       
       // WebViewに成功メッセージを送信
@@ -1129,6 +1248,51 @@ export class ScopeManagerPanel extends ProtectedPanel {
       command: 'showDirectoryStructure',
       structure: this._directoryStructure
     });
+  }
+
+  /**
+   * タブ状態を保存する
+   */
+  private async _handleSaveTabState(tabId: string): Promise<void> {
+    try {
+      if (!tabId || !this._activeProject || !this._activeProject.id) {
+        Logger.warn('タブ状態を保存できません: 有効なアクティブプロジェクトが存在しません');
+        return;
+      }
+      
+      Logger.info(`タブ状態を保存します: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
+      
+      // ProjectManagementServiceを取得
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      
+      // メタデータにタブ情報を追加
+      const metadata = this._activeProject.metadata || {};
+      metadata.activeTab = tabId;
+      
+      // プロジェクトを更新
+      await projectService.updateProject(this._activeProject.id, {
+        metadata: metadata
+      });
+      
+      // アクティブプロジェクトを再取得
+      this._activeProject = projectService.getProject(this._activeProject.id);
+      
+      // WebViewにプロジェクト状態同期メッセージを送信
+      // 注意: 無限ループを避けるため、タブ状態保存時には同期メッセージを送信しない
+      // syncProjectStateメッセージは状態変更の大きな変更時のみ送信する
+      // if (this._activeProject) {
+      //   this._panel.webview.postMessage({
+      //     command: 'syncProjectState',
+      //     project: this._activeProject
+      //   });
+      //   Logger.info(`プロジェクト状態同期メッセージを送信: ${this._activeProject.name}`);
+      // }
+      
+      Logger.info(`タブ状態を保存しました: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
+    } catch (error) {
+      Logger.error(`タブ状態の保存に失敗しました: ${(error as Error).message}`, error as Error);
+    }
   }
 
   /**
@@ -1247,6 +1411,48 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _update(): void {
     const webview = this._panel.webview;
     this._panel.webview.html = this._getHtmlForWebview(webview);
+    
+    // パネルが表示されたタイミングでプロジェクト情報も更新
+    try {
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      
+      // 最新のプロジェクト一覧を取得
+      this._currentProjects = projectService.getAllProjects();
+      this._activeProject = projectService.getActiveProject();
+      
+      // パネルが表示されたら常にアクティブプロジェクト情報を更新
+      // 他のパネルから戻った時にも適切に状態を復元するため、条件判定を削除
+      if (this._activeProject && this._activeProject.path) {
+        // UIが描画された後にプロジェクト情報を更新（タイミングの問題を避けるため少し遅延）
+        setTimeout(() => {
+          // プロジェクト一覧とアクティブプロジェクトをUIに通知（必ず最初に送信）
+          this._panel.webview.postMessage({
+            command: 'updateProjects',
+            projects: this._currentProjects,
+            activeProject: this._activeProject
+          });
+          
+          // プロジェクトパスを更新（パスが異なる場合のみ）
+          if (this._projectPath !== this._activeProject.path) {
+            this.setProjectPath(this._activeProject.path);
+            Logger.info(`パネル表示時にプロジェクトパスを更新: ${this._activeProject.path}`);
+          }
+          
+          // 注: タブ情報の復元はsyncProjectStateメッセージで行うため、個別のselectTabは不要になりました
+          
+          // WebViewに最新のプロジェクト状態を同期
+          this._panel.webview.postMessage({
+            command: 'syncProjectState',
+            project: this._activeProject
+          });
+          
+          Logger.info(`パネル表示時にアクティブプロジェクトを更新: ${this._activeProject.name}`);
+        }, 300);
+      }
+    } catch (error) {
+      Logger.warn(`パネル表示時のプロジェクト情報更新に失敗: ${error}`);
+    }
   }
 
   /**
@@ -1322,6 +1528,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
         .drag-effect.active {
           background-color: rgba(74, 105, 189, 0.3) !important;
           z-index: 9999999 !important;
+        }
+        
+        /* 選択中プロジェクトのスタイル */
+        .project-item.active {
+          background-color: rgba(74, 105, 189, 0.1);
+          border-left: 3px solid var(--app-primary);
         }
         
         .file-input {
@@ -1728,17 +1940,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     return text;
   }
   
-  /**
-   * HTML文字列をエスケープ
-   */
-  private _escapeHtml(html: string): string {
-    return html
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
+  // 未使用のメソッドを削除しました
 
   /**
    * リソースを解放
@@ -1777,4 +1979,72 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
+  /**
+   * 現在のアクティブプロジェクトを取得してWebViewに送信
+   * ローカルに保存されたプロジェクト情報がない場合に使用
+   */
+  private async _handleGetActiveProject(): Promise<void> {
+    try {
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      
+      // 最新のアクティブプロジェクトを取得
+      const activeProject = projectService.getActiveProject();
+      
+      if (activeProject) {
+        Logger.info(`アクティブプロジェクト情報をWebViewに送信: ${activeProject.name}`);
+        
+        // プロジェクト状態同期メッセージを送信
+        this._panel.webview.postMessage({
+          command: 'syncProjectState',
+          project: activeProject
+        });
+      } else {
+        Logger.warn('アクティブプロジェクトが見つかりません');
+        this._showError('アクティブプロジェクトが見つかりません');
+      }
+    } catch (error) {
+      Logger.error('アクティブプロジェクト情報の取得に失敗しました', error as Error);
+      this._showError('プロジェクト情報の取得に失敗しました');
+    }
+  }
+  
+  /**
+   * 指定されたプロジェクトがアクティブであることを確認し、必要に応じて選択状態を更新
+   * WebViewとバックエンドの状態を同期する目的で使用
+   */
+  private async _handleEnsureActiveProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
+    try {
+      const { ProjectManagementService } = require('../../services/ProjectManagementService');
+      const projectService = ProjectManagementService.getInstance();
+      
+      // 最新のアクティブプロジェクトを取得
+      const currentActiveProject = projectService.getActiveProject();
+      
+      // 指定されたプロジェクトが現在のアクティブプロジェクトと一致するか確認
+      if (currentActiveProject && currentActiveProject.path === projectPath) {
+        Logger.info(`既にアクティブなプロジェクトです: ${projectName}`);
+        
+        // タブ状態のみ更新
+        if (activeTab && currentActiveProject.metadata && currentActiveProject.metadata.activeTab !== activeTab) {
+          // 保存されたタブ状態と異なる場合のみ更新
+          const metadata = currentActiveProject.metadata || {};
+          await projectService.updateProject(currentActiveProject.id, {
+            metadata: {
+              ...metadata,
+              activeTab: activeTab
+            }
+          });
+          
+          Logger.info(`タブ状態を更新しました: ${activeTab}`);
+        }
+      } else {
+        // アクティブプロジェクトが一致しない場合は、指定されたプロジェクトをアクティブに設定
+        await this._handleSelectProject(projectName, projectPath, activeTab);
+        Logger.info(`プロジェクトをアクティブに設定しました: ${projectName}`);
+      }
+    } catch (error) {
+      Logger.error('プロジェクトの同期に失敗しました', error as Error);
+    }
+  }
 }

@@ -81,6 +81,10 @@ const vscode = acquireVsCodeApi();
     
     // マークダウン表示の初期化
     initializeMarkdownDisplay();
+    
+    // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
+    // ただし、初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
+    setTimeout(restoreProjectState, 100);
   });
   
   // メッセージハンドラーの設定
@@ -118,6 +122,11 @@ const vscode = acquireVsCodeApi();
         break;
       case 'updateProjects':
         updateProjects(message.projects, message.activeProject);
+        // アクティブプロジェクトのメタデータからタブ状態を復元
+        if (message.activeProject && message.activeProject.metadata && message.activeProject.metadata.activeTab) {
+          console.log('アクティブプロジェクトのメタデータからタブ状態を復元:', message.activeProject.metadata.activeTab);
+          selectTab(message.activeProject.metadata.activeTab, false);
+        }
         break;
       case 'selectTab':
         selectTab(message.tabId);
@@ -125,27 +134,90 @@ const vscode = acquireVsCodeApi();
       case 'updateToolsTab':
         updateToolsTab(message.content);
         break;
+      case 'syncProjectState':
+        // ProjectManagementServiceからのプロジェクト状態同期メッセージ
+        if (message.project) {
+          syncProjectState(message.project);
+        }
+        break;
     }
   });
   
   /**
+   * ProjectManagementServiceからのプロジェクト状態を同期
+   * @param {Object} project プロジェクト情報
+   */
+  function syncProjectState(project) {
+    console.log('ProjectManagementServiceからプロジェクト状態を同期:', project);
+    
+    if (!project) return;
+    
+    // 現在の状態を取得
+    const state = vscode.getState() || {};
+    
+    // 同じプロジェクトの同期が短時間に複数回行われるのを防止
+    const now = Date.now();
+    const lastSyncTime = state.lastProjectSyncTime || 0;
+    const lastSyncId = state.lastSyncedProjectId;
+    
+    // 最後の同期から500ms未満で、同じプロジェクトの場合はスキップ
+    if (now - lastSyncTime < 500 && lastSyncId === project.id) {
+      console.log(`プロジェクト同期をスキップ: 直近に同じプロジェクト(${project.id})の同期済み`);
+      return;
+    }
+    
+    // 同期タイムスタンプとプロジェクトIDを更新
+    state.lastProjectSyncTime = now;
+    state.lastSyncedProjectId = project.id;
+    
+    // プロジェクト名を更新
+    if (project.name) {
+      updateProjectName(project.name);
+    }
+    
+    // プロジェクトパスを更新
+    if (project.path) {
+      const data = {
+        projectPath: project.path,
+        statusFilePath: project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '',
+        statusFileExists: true
+      };
+      updateProjectPath(data);
+    }
+    
+    // メタデータからタブ状態を復元
+    if (project.metadata && project.metadata.activeTab) {
+      // 直前の保存と同じタブならスキップ（無限ループ防止）
+      if (state.lastSavedTab !== project.metadata.activeTab) {
+        selectTab(project.metadata.activeTab, false);
+      }
+    }
+    
+    // ローカルステートを更新
+    state.activeProjectName = project.name;
+    state.activeProjectPath = project.path;
+    state.activeTab = project.metadata?.activeTab || 'current-status';
+    vscode.setState(state);
+    
+    console.log(`プロジェクト状態同期完了: ${project.name}`);
+  }
+
+  /**
    * プロジェクトパスの更新
    */
   function updateProjectPath(data) {
-    const projectNameElement = document.querySelector('.project-name');
+    const projectNameElement = document.querySelector('.project-display .project-name');
     const projectPathElement = document.querySelector('.project-path-display');
     
     // プロジェクト情報の更新
-    if (projectNameElement && data.projectPath) {
+    if (data.projectPath) {
       // パスから最後のディレクトリ名を取得
       const pathParts = data.projectPath.split(/[/\\]/);
       const projectName = pathParts[pathParts.length - 1];
-      projectNameElement.textContent = projectName || 'プロジェクト';
       
-      // プロジェクト表示部分も更新（タブバーの左側に表示されるプロジェクト名）
-      const projectDisplayName = document.querySelector('.project-display .project-name');
-      if (projectDisplayName) {
-        projectDisplayName.textContent = projectName || 'プロジェクト';
+      // プロジェクト表示部分を更新
+      if (projectNameElement) {
+        projectNameElement.textContent = projectName || 'プロジェクト';
       }
     }
     
@@ -720,16 +792,25 @@ const vscode = acquireVsCodeApi();
    * プロジェクト名を更新
    */
   function updateProjectName(projectName) {
-    // プロジェクト名をヘッダーに更新
-    const projectNameElement = document.querySelector('.project-name');
-    if (projectNameElement) {
-      projectNameElement.textContent = projectName;
+    const state = vscode.getState() || {};
+    
+    // 同じプロジェクト名が既に表示されている場合は変更しない
+    if (state.currentDisplayedProject === projectName) {
+      console.log(`プロジェクト名は既に更新済み: ${projectName}`);
+      return;
     }
     
-    // プロジェクト表示部分も更新（タブバーの左側に表示されるプロジェクト名）
+    // プロジェクト名をヘッダーに更新（タブバーの左側に表示されるプロジェクト名）
     const projectDisplayName = document.querySelector('.project-display .project-name');
     if (projectDisplayName) {
+      console.log(`プロジェクト名を更新: ${projectName}`);
       projectDisplayName.textContent = projectName;
+      
+      // 現在表示中のプロジェクト名を記録
+      state.currentDisplayedProject = projectName;
+      vscode.setState(state);
+    } else {
+      console.warn('プロジェクト名表示要素が見つかりません: .project-display .project-name');
     }
     
     // プロジェクトリストのアクティブなプロジェクト名も更新（一致するもの）
@@ -750,10 +831,31 @@ const vscode = acquireVsCodeApi();
    * @param {Object} activeProject アクティブなプロジェクト
    */
   function updateProjects(projects, activeProject) {
-    console.log('プロジェクト一覧更新:', projects.length, '件');
+    console.log('プロジェクト一覧更新:', projects.length, '件', 'アクティブプロジェクト:', activeProject?.name);
+    
+    // アクティブプロジェクト情報を状態に保存（他のパネルから戻ってきた時のために）
+    if (activeProject) {
+      const state = vscode.getState() || {};
+      state.activeProjectName = activeProject.name;
+      state.activeProjectPath = activeProject.path;
+      state.activeTab = activeProject.metadata?.activeTab || 'current-status';
+      vscode.setState(state);
+    }
     
     const projectList = document.getElementById('project-list');
     if (!projectList) return;
+    
+    // 既存のアクティブプロジェクトエリアがあれば削除
+    const existingActiveArea = document.getElementById('active-project-area');
+    if (existingActiveArea) {
+      existingActiveArea.remove();
+    }
+    
+    // 既存の他のプロジェクトラベルがあれば削除
+    const existingLabel = document.getElementById('other-projects-label');
+    if (existingLabel) {
+      existingLabel.remove();
+    }
     
     // リストをクリア
     projectList.innerHTML = '';
@@ -764,11 +866,24 @@ const vscode = acquireVsCodeApi();
       return;
     }
     
-    // 各プロジェクトをリストに追加
-    projects.forEach((project) => {
+    // ソート済みのプロジェクト配列を作成（アクティブプロジェクトを先頭に）
+    let sortedProjects = [...projects];
+    
+    // プロジェクトを作成日時順にソートする（古いものから新しいものへ）
+    sortedProjects.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    
+    // プロジェクトをリストに追加
+    sortedProjects.forEach((project) => {
       const item = document.createElement('div');
       const isActive = activeProject && activeProject.id === project.id;
-      item.className = 'project-item' + (isActive ? ' active' : '');
+      
+      // すべてのプロジェクトに同じスタイルを適用
+      item.className = isActive ? 'project-item active' : 'project-item';
+      
+      // アクティブプロジェクトにはidを設定
+      if (isActive) {
+        item.id = 'active-project-item';
+      }
       
       // プロジェクト表示名はパスの最後のディレクトリ名か設定されている名前を使用
       let displayName = project.name || '';
@@ -778,10 +893,11 @@ const vscode = acquireVsCodeApi();
         displayName = pathParts[pathParts.length - 1] || 'プロジェクト';
       }
       
+      // すべてのプロジェクトで統一されたHTMLを使用
       item.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
           <div>
-            <span class="project-name">${displayName}</span>
+            <span class="project-name" ${isActive ? 'style="font-weight: 600;"' : ''}>${displayName}</span>
             <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">${project.path || 'パスなし'}</span>
           </div>
           <button class="remove-project-btn" title="プロジェクトの登録を解除" style="background: none; border: none; cursor: pointer; color: var(--app-text-secondary); opacity: 0.5; font-size: 16px;">
@@ -797,20 +913,12 @@ const vscode = acquireVsCodeApi();
         // クリックされた項目をアクティブに
         item.classList.add('active');
         
-        // プロジェクト名を取得
-        const projectName = item.querySelector('.project-name').textContent;
-        // プロジェクトタブ表示を更新
-        const projectNameTab = document.querySelector('.project-name-tab');
-        if (projectNameTab) {
-          projectNameTab.textContent = projectName;
-        }
-        
         // プロジェクト選択の進行中メッセージを表示
         const notification = document.createElement('div');
         notification.className = 'save-notification';
         notification.innerHTML = `
           <span class="material-icons" style="color: var(--app-warning);">hourglass_top</span>
-          <span class="notification-text">プロジェクト「${projectName}」を読み込み中...</span>
+          <span class="notification-text">プロジェクト「${displayName}」を読み込み中...</span>
         `;
         notification.style.display = 'flex';
         notification.style.opacity = '1';
@@ -824,11 +932,24 @@ const vscode = acquireVsCodeApi();
           document.body.appendChild(notification);
         }
         
-        // VSCodeにプロジェクト変更のメッセージを送信
+        // 現在のアクティブタブIDを取得
+        const currentActiveTab = document.querySelector('.tab.active')?.getAttribute('data-tab');
+        console.log('現在のアクティブタブ:', currentActiveTab);
+        
+        // 状態にプロジェクト情報を保存（他のパネルから戻ってきた時に復元するため）
+        const state = vscode.getState() || {};
+        state.activeProjectName = displayName;
+        state.activeProjectPath = project.path;
+        state.activeTab = currentActiveTab || 'current-status';
+        vscode.setState(state);
+        console.log('プロジェクト状態を保存しました:', state);
+        
+        // VSCodeにプロジェクト変更のメッセージを送信（アクティブタブ情報も送信）
         vscode.postMessage({
           command: 'selectProject',
-          projectName: projectName,
-          projectPath: project.path
+          projectName: displayName,
+          projectPath: project.path,
+          activeTab: currentActiveTab
         });
         
         // 3秒後に通知を削除
@@ -838,6 +959,67 @@ const vscode = acquireVsCodeApi();
           }
         }, 3000);
       };
+      
+      // リフレッシュボタンのクリックイベント（アクティブプロジェクトのみ）
+      if (isActive) {
+        const refreshBtn = item.querySelector('.refresh-project-btn');
+        if (refreshBtn) {
+          refreshBtn.addEventListener('click', (e) => {
+            // クリックイベントの伝播を停止
+            e.stopPropagation();
+            
+            // プロジェクト名を取得
+            const projectName = item.querySelector('.project-name').textContent;
+            
+            // リロード中のフィードバック
+            const notification = document.createElement('div');
+            notification.className = 'save-notification';
+            notification.innerHTML = `
+              <span class="material-icons" style="color: var(--app-primary);">refresh</span>
+              <span class="notification-text">プロジェクト「${projectName}」をリロード中...</span>
+            `;
+            notification.style.display = 'flex';
+            notification.style.opacity = '1';
+            notification.style.backgroundColor = 'rgba(74, 105, 189, 0.15)';
+            
+            // 通知領域にメッセージを表示
+            const errorContainer = document.getElementById('error-container');
+            if (errorContainer) {
+              errorContainer.parentNode.insertBefore(notification, errorContainer);
+            } else {
+              document.body.appendChild(notification);
+            }
+            
+            // 現在のアクティブタブIDを取得
+            const currentActiveTab = document.querySelector('.tab.active')?.getAttribute('data-tab');
+            console.log('リフレッシュ時の現在のアクティブタブ:', currentActiveTab);
+            
+            // VSCodeにプロジェクト選択のメッセージを送信（アクティブタブ情報も送信）
+            vscode.postMessage({
+              command: 'selectProject',
+              projectName: projectName,
+              projectPath: project.path,
+              activeTab: currentActiveTab
+            });
+            
+            // 3秒後に通知を削除
+            setTimeout(() => {
+              if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+              }
+            }, 3000);
+          });
+          
+          // ホバー効果
+          refreshBtn.addEventListener('mouseover', () => {
+            refreshBtn.style.color = 'var(--app-primary-dark)';
+          });
+          
+          refreshBtn.addEventListener('mouseout', () => {
+            refreshBtn.style.color = 'var(--app-primary)';
+          });
+        }
+      }
       
       // 削除ボタンのクリックイベント
       const removeBtn = item.querySelector('.remove-project-btn');
@@ -910,9 +1092,9 @@ const vscode = acquireVsCodeApi();
         });
       }
       
-      // 削除ボタン以外の領域のクリックで全体のクリックイベントを発火
+      // 削除ボタンとリフレッシュボタン以外の領域のクリックで全体のクリックイベントを発火
       item.addEventListener('click', (e) => {
-        if (!e.target.closest('.remove-project-btn')) {
+        if (!e.target.closest('.remove-project-btn') && !e.target.closest('.refresh-project-btn')) {
           handleProjectClick();
         }
       });
@@ -1055,6 +1237,105 @@ const vscode = acquireVsCodeApi();
    * こちらのファイルからは除去し、重複による競合を防止します
    */
   
+  /**
+   * プロジェクト選択状態を復元する
+   * 他のパネル（モックアップギャラリーなど）から戻ってきた時に、
+   * 以前選択していたプロジェクトとタブを復元する
+   */
+  function restoreProjectState() {
+    // 復元処理はUIのレンダリング完了後に行うため遅延させる
+    setTimeout(() => {
+      const currentState = vscode.getState() || {};
+      const { activeProjectName, activeProjectPath, activeTab } = currentState;
+      
+      console.log('プロジェクト状態の復元を試みます:', { activeProjectName, activeProjectPath, activeTab });
+      
+      // プロジェクト名かパスのどちらかが保存されていない場合は、バックエンドに現在のアクティブプロジェクトを問い合わせる
+      if (!activeProjectName || !activeProjectPath) {
+        console.log('ローカルにプロジェクト状態が保存されていません。バックエンドに問い合わせます。');
+        vscode.postMessage({ command: 'getActiveProject' });
+        return;
+      }
+      
+      // プロジェクト名表示部分を更新
+      const projectDisplayName = document.querySelector('.project-display .project-name');
+      if (projectDisplayName) {
+        projectDisplayName.textContent = activeProjectName;
+      }
+      
+      // プロジェクトパス表示部分を更新
+      const projectPathElement = document.querySelector('.project-path-display');
+      if (projectPathElement) {
+        projectPathElement.textContent = activeProjectPath;
+      }
+      
+      // 該当するプロジェクト要素を探す
+      const projectItems = document.querySelectorAll('.project-item');
+      let targetProject = null;
+      
+      projectItems.forEach(item => {
+        const nameElement = item.querySelector('.project-name');
+        const pathElement = item.querySelector('.project-path');
+        
+        if (nameElement && pathElement) {
+          const name = nameElement.textContent;
+          const path = pathElement.textContent;
+          
+          if (name === activeProjectName && path === activeProjectPath) {
+            targetProject = item;
+          }
+        }
+      });
+      
+      // 該当するプロジェクトが見つかったら選択状態にする
+      if (targetProject) {
+        console.log(`プロジェクト状態を復元: ${activeProjectName}`);
+        
+        // 他のプロジェクトの選択状態を解除
+        projectItems.forEach(item => item.classList.remove('active'));
+        
+        // このプロジェクトをアクティブに
+        targetProject.classList.add('active');
+      } else {
+        console.log(`対応するプロジェクト要素が見つかりません: ${activeProjectName}`);
+      }
+      
+      // タブが保存されている場合はそのタブを選択
+      if (activeTab) {
+        // タブの選択状態をUI上で復元
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabs.forEach(tab => {
+          if (tab.getAttribute('data-tab') === activeTab) {
+            tab.classList.add('active');
+          } else {
+            tab.classList.remove('active');
+          }
+        });
+        
+        tabContents.forEach(content => {
+          if (content.id === `${activeTab}-tab`) {
+            content.classList.add('active');
+          } else {
+            content.classList.remove('active');
+          }
+        });
+        
+        console.log(`タブ状態を復元: ${activeTab}`);
+      }
+      
+      // バックエンドに現在のアクティブプロジェクトとの同期を要求
+      // 注意: ProjectManagementServiceから最新のプロジェクト情報を取得するため
+      vscode.postMessage({
+        command: 'ensureActiveProject',
+        projectName: activeProjectName,
+        projectPath: activeProjectPath,
+        activeTab: activeTab || 'current-status'
+      });
+    }, 300); // UIの読み込み完了を待つため
+  }
+
   /**
    * 相対時間の取得（〇分前、など）
    * @param {Date} date 日付
@@ -1291,6 +1572,12 @@ const vscode = acquireVsCodeApi();
             content.classList.remove('active');
           }
         });
+        
+        // タブ状態をプロジェクトのメタデータに保存
+        vscode.postMessage({
+          command: 'saveTabState',
+          tabId: tabId
+        });
       });
     });
   }
@@ -1338,8 +1625,9 @@ const vscode = acquireVsCodeApi();
   /**
    * 指定したタブを選択状態にする
    * @param {string} tabId タブID
+   * @param {boolean} preserveProject プロジェクト選択状態を保持するかどうか
    */
-  function selectTab(tabId) {
+  function selectTab(tabId, preserveProject = true) {
     if (!tabId) return;
     
     const tabs = document.querySelectorAll('.tab');
@@ -1365,8 +1653,43 @@ const vscode = acquireVsCodeApi();
     
     // タブ状態を保存
     const newState = vscode.getState() || {};
+    
+    // 現在選択中のプロジェクト情報を状態に保存 (プロジェクト名、パス)
+    if (preserveProject) {
+      const activeProjectItem = document.querySelector('.project-item.active');
+      if (activeProjectItem) {
+        const projectName = activeProjectItem.querySelector('.project-name')?.textContent || '';
+        const projectPath = activeProjectItem.querySelector('.project-path')?.textContent || '';
+        
+        newState.activeProjectName = projectName;
+        newState.activeProjectPath = projectPath;
+        
+        console.log(`現在のプロジェクト状態を保存: ${projectName}, ${projectPath}`);
+      }
+    }
+    
     newState.activeTab = tabId;
     vscode.setState(newState);
+    
+    // 前回保存したタブと同じ場合は保存しない（無限ループ防止）
+    const prevState = vscode.getState() || {};
+    const previousTab = prevState.lastSavedTab;
+    
+    if (previousTab !== tabId) {
+      // 状態を更新して最後に保存したタブを記録
+      prevState.lastSavedTab = tabId;
+      vscode.setState(prevState);
+      
+      // タブ状態をプロジェクトのメタデータに保存
+      vscode.postMessage({
+        command: 'saveTabState',
+        tabId: tabId
+      });
+      
+      console.log(`タブ状態保存を送信: ${tabId} (前回: ${previousTab})`);
+    } else {
+      console.log(`タブ状態は既に保存済み: ${tabId} - 重複送信を防止`);
+    }
     
     console.log(`タブを切り替えました: ${tabId}`);
   }
