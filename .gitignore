@@ -19,3 +19,10 @@ test_script/auth_token.txt
 .env
 logs/debug/sessions/*.json
 logs/debug/archived/*.json
+
+# 証明書ファイル
+*.cer
+
+# OSが生成するファイル
+.DS_Store
+Thumbs.db
