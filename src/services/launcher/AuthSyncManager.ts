@@ -12,13 +12,14 @@ export class AuthSyncManager {
   
   /**
    * 認証サービスの初期化と取得
+   * @param context VSCode拡張機能のExtensionContext
    */
-  public async initAuthServices(): Promise<boolean> {
+  public async initAuthServices(context: vscode.ExtensionContext): Promise<boolean> {
     try {
-      // 認証同期サービスを取得
+      // 認証同期サービスを取得（ExtensionContextを渡す）
       if (!this.authSync) {
         this.authSync = await import('../ClaudeCodeAuthSync')
-          .then(module => module.ClaudeCodeAuthSync.getInstance());
+          .then(module => module.ClaudeCodeAuthSync.getInstance(context));
       }
       
       // 認証サービスを取得

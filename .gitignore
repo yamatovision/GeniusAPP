@@ -19,3 +19,5 @@ test_script/auth_token.txt
 .env
 logs/debug/sessions/*.json
 logs/debug/archived/*.json
+
+**/.claude/settings.local.json

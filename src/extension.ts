@@ -515,18 +515,77 @@ export function activate(context: vscode.ExtensionContext) {
 				AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
 				async (event) => {
 					try {
-						// 現在ログイン中のユーザーIDを取得
+						Logger.info('【デバッグ】ClaudeCode起動カウンター: イベントを受信しました');
+						Logger.info(`【デバッグ】ClaudeCode起動カウンター: イベントデータ=${JSON.stringify(event.data)}`);
+						
+						// イベントデータからユーザーIDを取得
+						let userId = null;
+						
+						// 方法1: イベントデータに直接ユーザーIDが含まれている場合
+						if (event.data && event.data.userId) {
+							userId = event.data.userId;
+							Logger.info(`【デバッグ】ClaudeCode起動カウンター: イベントデータからユーザーIDを取得: ${userId}`);
+							
+							// このユーザーIDを直接使用してカウンターを更新
+							// バックエンドAPIを呼び出してカウンターをインクリメント
+							Logger.info(`【デバッグ】ClaudeCode起動カウンター: イベントデータのユーザーIDでAPI呼び出し: ユーザーID=${userId}`);
+							const claudeCodeApiClient = ClaudeCodeApiClient.getInstance();
+							const result = await claudeCodeApiClient.incrementClaudeCodeLaunchCount(userId);
+							
+							if (result && result.success) {
+								const newCount = result.data?.claudeCodeLaunchCount || 'N/A';
+								Logger.info(`【デバッグ】ClaudeCode起動カウンター: 更新成功: 新しいカウント値 = ${newCount}`);
+								Logger.info(`ClaudeCode起動カウンターが更新されました: ユーザーID ${userId}, 新しい値=${newCount}`);
+								return; // これ以上の処理は不要なのでここで終了
+							}
+						}
+						
+						// 方法2: 通常の処理（イベントデータにユーザーIDがない場合のバックアップ）
+						// 認証サービスの状態を確認
 						const authService = SimpleAuthService.getInstance();
+						const isAuthenticated = authService.isAuthenticated();
+						Logger.info(`【デバッグ】ClaudeCode起動カウンター: 認証状態=${isAuthenticated}`);
+						
+						// 現在ログイン中のユーザーIDを取得
+						Logger.info('【デバッグ】ClaudeCode起動カウンター: ユーザー情報を取得します');
 						const userData = await authService.getCurrentUser();
 						
-						if (userData && userData.id) {
-							// バックエンドAPIを呼び出してカウンターをインクリメント
-							const claudeCodeApiClient = ClaudeCodeApiClient.getInstance();
-							await claudeCodeApiClient.incrementClaudeCodeLaunchCount(userData.id);
-							Logger.info(`ClaudeCode起動カウンターが更新されました: ユーザーID ${userData.id}`);
+						if (userData) {
+							Logger.info(`【デバッグ】ClaudeCode起動カウンター: ユーザー情報取得成功`);
+							Logger.info(`【デバッグ】ClaudeCode起動カウンター: ユーザー名=${userData.name || 'なし'}, メール=${userData.email || 'なし'}`);
+							Logger.info(`【デバッグ】ClaudeCode起動カウンター: ユーザーID=${userData.id || 'なし'}, _id=${userData._id || 'なし'}`);
+							
+							// idプロパティがない場合は_idを使用する
+							const userId = userData.id || userData._id;
+							
+							if (userId) {
+								Logger.info(`【デバッグ】ClaudeCode起動カウンター: 有効なユーザーID=${userId}`);
+								// バックエンドAPIを呼び出してカウンターをインクリメント
+								Logger.info(`【デバッグ】ClaudeCode起動カウンター: APIクライアントを初期化します`);
+								const claudeCodeApiClient = ClaudeCodeApiClient.getInstance();
+								
+								Logger.info(`【デバッグ】ClaudeCode起動カウンター: カウンター更新APIを呼び出します: ユーザーID=${userId}`);
+								const result = await claudeCodeApiClient.incrementClaudeCodeLaunchCount(userId);
+								
+								if (result && result.success) {
+									const newCount = result.data?.claudeCodeLaunchCount || 'N/A';
+									Logger.info(`【デバッグ】ClaudeCode起動カウンター: 更新成功: 新しいカウント値 = ${newCount}`);
+									Logger.info(`ClaudeCode起動カウンターが更新されました: ユーザーID ${userId}, 新しい値=${newCount}`);
+								} else {
+									Logger.warn(`【デバッグ】ClaudeCode起動カウンター: API呼び出しは成功しましたが、レスポンスが期待と異なります:`, result);
+								}
+							} else {
+								Logger.warn('【デバッグ】ClaudeCode起動カウンター: ユーザー情報にIDが含まれていません');
+							}
+						} else {
+							Logger.warn('【デバッグ】ClaudeCode起動カウンター: ユーザー情報が取得できませんでした');
 						}
 					} catch (error) {
-						Logger.error('ClaudeCode起動カウンター更新エラー:', error as Error);
+						Logger.error('【デバッグ】ClaudeCode起動カウンター更新エラー:', error as Error);
+						// エラーのスタックトレースも出力
+						if (error instanceof Error) {
+							Logger.error(`【デバッグ】ClaudeCode起動カウンター: エラースタック=${error.stack}`);
+						}
 					}
 				}
 			);
@@ -548,4 +607,20 @@ export function activate(context: vscode.ExtensionContext) {
 // this method is called when your extension is deactivated
 export function deactivate() {
 	Logger.info('AppGenius AI を終了しました');
+}
+
+// ClaudeCode起動カウントイベントリスナーを登録
+try {
+	// イベントリスナーの登録を外部化（既存のリスナーとは別に登録）
+	import('../claude_code_counter_event_listener').then(({ registerClaudeCodeLaunchCountEventListener }) => {
+		const context = (global as any).__extensionContext;
+		if (context) {
+			registerClaudeCodeLaunchCountEventListener(context);
+			Logger.info('ClaudeCode起動カウントイベントリスナーが追加登録されました');
+		}
+	}).catch(error => {
+		Logger.error('ClaudeCode起動カウントイベントリスナーのインポートに失敗しました:', error as Error);
+	});
+} catch (error) {
+	Logger.error('ClaudeCode起動カウントイベントリスナーの追加登録中にエラーが発生しました:', error as Error);
 }

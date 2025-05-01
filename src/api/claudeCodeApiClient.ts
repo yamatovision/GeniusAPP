@@ -530,14 +530,41 @@ export class ClaudeCodeApiClient {
   public async incrementClaudeCodeLaunchCount(userId: string): Promise<any> {
     try {
       Logger.info(`【API連携】ClaudeCode起動カウンターを更新します: ユーザーID ${userId}`);
+      Logger.info(`【デバッグ】API呼び出し準備: ユーザーID=${userId}, APIベースURL=${this._baseUrl}`);
       
+      // API設定を取得して詳細をログに出力
       const config = await this._getApiConfig();
-      const url = `${this._baseUrl}/simple/users/${userId}/increment-claude-code-launch`;
+      const hasAuthHeader = config?.headers && (config.headers['Authorization'] || config.headers['authorization'] || config.headers['x-api-key']);
+      Logger.info(`【デバッグ】API認証ヘッダー: ${hasAuthHeader ? '存在します' : '存在しません'}`);
       
+      if (hasAuthHeader && config.headers) {
+        // ヘッダーの種類と先頭部分を出力（セキュリティのため全体は出力しない）
+        if (config.headers['Authorization']) {
+          Logger.info(`【デバッグ】Authorization ヘッダー: ${config.headers['Authorization'].substring(0, 15)}...`);
+        } else if (config.headers['authorization']) {
+          Logger.info(`【デバッグ】authorization ヘッダー: ${config.headers['authorization'].substring(0, 15)}...`);
+        } else if (config.headers['x-api-key']) {
+          Logger.info(`【デバッグ】x-api-key ヘッダー: ${config.headers['x-api-key'].substring(0, 10)}...`);
+        }
+      }
+      
+      // APIエンドポイントURL
+      const url = `${this._baseUrl}/simple/users/${userId}/increment-claude-code-launch`;
+      Logger.info(`【デバッグ】API呼び出しURL: ${url}`);
+      
+      // APIリクエスト送信
+      Logger.info(`【デバッグ】API呼び出し開始: POST ${url}`);
       const response = await axios.post(url, {}, config);
       
+      // レスポンス分析
+      Logger.info(`【デバッグ】API呼び出しステータス: ${response.status} ${response.statusText}`);
+      Logger.info(`【デバッグ】APIレスポンス: ${JSON.stringify(response.data)}`);
+      
       if (response.status === 200) {
-        Logger.info(`【API連携】ClaudeCode起動カウンター更新成功: ${response.data?.data?.claudeCodeLaunchCount || 'N/A'}`);
+        // 詳細なレスポンス情報をログ出力
+        const newCount = response.data?.data?.claudeCodeLaunchCount || 'N/A';
+        const isSuccess = response.data?.success === true;
+        Logger.info(`【API連携】ClaudeCode起動カウンター更新成功: 新しい値=${newCount}, 成功フラグ=${isSuccess}`);
         return response.data;
       }
       
@@ -545,6 +572,23 @@ export class ClaudeCodeApiClient {
       return null;
     } catch (error) {
       Logger.error('【API連携】ClaudeCode起動カウンター更新エラー:', error);
+      
+      // エラーの詳細を分析
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          Logger.error(`【デバッグ】APIエラー: ステータス=${error.response.status}, データ=${JSON.stringify(error.response.data)}`);
+        } else if (error.request) {
+          Logger.error(`【デバッグ】APIエラー: リクエストは送信されましたがレスポンスがありません`);
+        } else {
+          Logger.error(`【デバッグ】APIエラー: リクエスト設定中にエラーが発生しました: ${error.message}`);
+        }
+        
+        // URL情報
+        if (error.config?.url) {
+          Logger.error(`【デバッグ】APIエラー: URL=${error.config.url}`);
+        }
+      }
+      
       this._handleApiError(error);
       return null;
     }

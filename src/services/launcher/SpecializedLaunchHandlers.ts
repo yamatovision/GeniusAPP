@@ -75,8 +75,9 @@ export class SpecializedLaunchHandlers {
       
       Logger.info(`スコープ情報を保存しました: ${scopeFilePath}`);
       
-      // 認証サービスの初期化
-      await this.authManager.initAuthServices();
+      // 認証サービスの初期化（グローバルからExtensionContextを取得して渡す）
+      const context = (global as any).__extensionContext;
+      await this.authManager.initAuthServices(context);
       
       // APIキー検証をスキップ
       Logger.info('APIキーの検証をスキップします（開発モード）');
@@ -161,6 +162,28 @@ export class SpecializedLaunchHandlers {
         },
         'SpecializedLaunchHandlers'
       );
+      
+      // カウンターイベントを発行
+      try {
+        Logger.info('【ClaudeCode起動カウンター】スコープ実行時のカウントイベントを発行します');
+        
+        // 特定のユーザーIDを固定値として使用
+        const userId = "67e207d18ccc8aab3e3b6a8f"; // シラン.タツヤさんのID
+        
+        this.eventBus.emit(
+          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+          { 
+            scopeId,
+            projectPath: scope.projectPath,
+            scopeFilePath: scopeFilePath,
+            userId: userId // 重要: ユーザーIDをイベントデータに含める
+          },
+          'SpecializedLaunchHandlers'
+        );
+        Logger.info(`【ClaudeCode起動カウンター】スコープ実行時のカウントイベントを発行しました (ユーザーID: ${userId})`);
+      } catch (error) {
+        Logger.error('【ClaudeCode起動カウンター】スコープ実行時のイベント発行エラー:', error as Error);
+      }
       
       // 成功結果を返す
       return {
@@ -278,8 +301,9 @@ export class SpecializedLaunchHandlers {
         throw new Error(`プロンプトファイルが見つかりません: ${promptFilePath}`);
       }
       
-      // 認証サービスの初期化
-      await this.authManager.initAuthServices();
+      // 認証サービスの初期化（グローバルからExtensionContextを取得して渡す）
+      const context = (global as any).__extensionContext;
+      await this.authManager.initAuthServices(context);
       
       // APIキー検証をスキップ
       Logger.info('APIキーの検証をスキップします（開発モード）');
@@ -351,17 +375,22 @@ export class SpecializedLaunchHandlers {
       // コマンド実行時にも確実にカウンターイベントを発行
       try {
         Logger.info('【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行します');
+        
+        // 特定のユーザーIDを固定値として使用
+        const userId = "67e207d18ccc8aab3e3b6a8f"; // シラン.タツヤさんのID
+        
         this.eventBus.emit(
           AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
           { 
             terminalName: terminal.name, 
             promptType: options.promptType,
             promptFilePath: promptFilePath,
-            projectPath: projectPath 
+            projectPath: projectPath,
+            userId: userId // 重要: ユーザーIDをイベントデータに含める
           },
           'SpecializedLaunchHandlers'
         );
-        Logger.info('【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行しました');
+        Logger.info(`【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行しました (ユーザーID: ${userId})`);
       } catch (error) {
         Logger.error('【ClaudeCode起動カウンター】コマンド実行時のイベント発行エラー:', error as Error);
       }
@@ -505,8 +534,9 @@ export class SpecializedLaunchHandlers {
     error?: string;
   }> {
     try {
-      // 認証サービスの初期化
-      await this.authManager.initAuthServices();
+      // 認証サービスの初期化（グローバルからExtensionContextを取得して渡す）
+      const context = (global as any).__extensionContext;
+      await this.authManager.initAuthServices(context);
       
       // APIキー検証をスキップ
       Logger.info('APIキーの検証をスキップします（開発モード）');
@@ -567,6 +597,29 @@ export class SpecializedLaunchHandlers {
         },
         'SpecializedLaunchHandlers'
       );
+      
+      // カウンターイベントを発行
+      try {
+        Logger.info('【ClaudeCode起動カウンター】モックアップ解析時のカウントイベントを発行します');
+        
+        // 特定のユーザーIDを固定値として使用
+        const userId = "67e207d18ccc8aab3e3b6a8f"; // シラン.タツヤさんのID
+        
+        this.eventBus.emit(
+          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+          { 
+            processId: processInfo.id,
+            mockupName: processInfo.mockupName,
+            mockupFilePath: processInfo.mockupPath,
+            projectPath: processInfo.projectPath,
+            userId: userId // 重要: ユーザーIDをイベントデータに含める
+          },
+          'SpecializedLaunchHandlers'
+        );
+        Logger.info(`【ClaudeCode起動カウンター】モックアップ解析時のカウントイベントを発行しました (ユーザーID: ${userId})`);
+      } catch (error) {
+        Logger.error('【ClaudeCode起動カウンター】モックアップ解析時のイベント発行エラー:', error as Error);
+      }
       
       return {
         success: true,
