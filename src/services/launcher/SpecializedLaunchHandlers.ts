@@ -284,12 +284,30 @@ export class SpecializedLaunchHandlers {
       // APIキー検証をスキップ
       Logger.info('APIキーの検証をスキップします（開発モード）');
       
+      // デバッグ: 全オプションを出力
+      Logger.debug(`launchWithPrompt全オプション: ${JSON.stringify(options)}`);
+      
+      // プロンプトタイプが指定されている場合はログに出力
+      if (options.promptType) {
+        Logger.info(`プロンプトタイプが指定されています: ${options.promptType}`);
+      } else {
+        Logger.warn('プロンプトタイプが指定されていません。デフォルトのタイトル「ClaudeCode」を使用します。');
+      }
+      
       // ターミナルの作成
+      Logger.debug(`渡されたterminalOptions: ${JSON.stringify(terminalOptions)}`);
+      
+      // terminalOptionsはoptions内の...terminalOptionsスプレッド構文で渡されたプロパティのみを含む
+      // titleとcwdはterminalOptionsとは別途明示的に指定する必要がある
+      // terminalTitleはTerminalProvisionServiceで自動生成されるので、
+      // title自体を渡す必要はない（promptTypeが正しく渡されていれば十分）
       const terminal = this.terminalService.createConfiguredTerminal({
-        title: terminalOptions.title || 'ClaudeCode',
         cwd: projectPath,
         ...terminalOptions
       });
+      
+      // 作成後のターミナル情報を確認
+      Logger.debug(`作成されたターミナル: ${terminal.name || 'name未設定'}`);
       
       // AppGenius専用の認証情報を保存・同期
       try {
@@ -329,6 +347,24 @@ export class SpecializedLaunchHandlers {
       terminal.sendText(command);
       
       Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: ${command}`);
+      
+      // コマンド実行時にも確実にカウンターイベントを発行
+      try {
+        Logger.info('【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行します');
+        this.eventBus.emit(
+          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+          { 
+            terminalName: terminal.name, 
+            promptType: options.promptType,
+            promptFilePath: promptFilePath,
+            projectPath: projectPath 
+          },
+          'SpecializedLaunchHandlers'
+        );
+        Logger.info('【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行しました');
+      } catch (error) {
+        Logger.error('【ClaudeCode起動カウンター】コマンド実行時のイベント発行エラー:', error as Error);
+      }
       
       // プロンプトファイルを即時削除（セキュリティ対策）
       if (deletePromptFile) {

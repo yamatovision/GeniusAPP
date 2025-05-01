@@ -97,7 +97,8 @@ export class ClaudeCodeLauncherService {
       additionalParams?: string, 
       deletePromptFile?: boolean,
       splitView?: boolean,
-      location?: vscode.ViewColumn
+      location?: vscode.ViewColumn,
+      promptType?: string // プロンプトタイプ（要件定義、システムアーキテクチャなど）
     }
   ): Promise<boolean> {
     // 起動前にカウンターイベントを発行
@@ -114,7 +115,8 @@ export class ClaudeCodeLauncherService {
       additionalParams: options?.additionalParams,
       deletePromptFile: options?.deletePromptFile,
       splitView: options?.splitView,
-      location: options?.location
+      location: options?.location,
+      promptType: options?.promptType // プロンプトタイプを渡す
     });
   }
   

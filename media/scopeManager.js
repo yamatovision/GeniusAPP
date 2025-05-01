@@ -488,7 +488,8 @@ const vscode = acquireVsCodeApi();
         vscode.postMessage({
           command: 'launchPromptFromURL',
           url: url,
-          name: info.name
+          name: info.name,
+          index: index
         });
       });
       
@@ -1653,7 +1654,8 @@ const vscode = acquireVsCodeApi();
           vscode.postMessage({
             command: 'launchPromptFromURL',
             url: url,
-            index: prompt.id
+            index: prompt.id,
+            name: prompt.name  // プロンプト名を追加
           });
         }
       });

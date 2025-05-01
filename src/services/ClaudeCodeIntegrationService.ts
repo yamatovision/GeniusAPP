@@ -416,11 +416,19 @@ export class ClaudeCodeIntegrationService {
         'vscode-extension'
       );
       
-      // ClaudeCodeを起動
+      // プロンプトタイプとタイトルを組み合わせたターミナルタイトルを生成
+      const terminalTitle = prompt.type 
+        ? `${prompt.type} - ${prompt.title}` 
+        : `ClaudeCode - ${prompt.title}`;
+        
+      // ClaudeCodeを起動（プロンプトタイプも渡す）
       return await this._launcher.launchClaudeCodeWithPrompt(
         projectPath,
         promptFilePath,
-        { title: `ClaudeCode - ${prompt.title}` }
+        { 
+          title: terminalTitle,
+          promptType: prompt.type || undefined
+        }
       );
     } catch (error) {
       Logger.error('プロンプト指定のClaudeCode起動に失敗しました', error as Error);

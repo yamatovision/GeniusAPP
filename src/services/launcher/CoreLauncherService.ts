@@ -73,6 +73,15 @@ export class CoreLauncherService {
    */
   public async launchClaudeCode(options: ScopeExecutionOptions): Promise<boolean> {
     try {
+      // 起動カウンターイベントを発行
+      Logger.info('【ClaudeCode起動カウンター】スコープベース起動のカウントイベントを発行します');
+      this.eventBus.emit(
+        AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+        { scope: options.scope },
+        'CoreLauncherService'
+      );
+      Logger.info('【ClaudeCode起動カウンター】スコープベース起動のカウントイベントを発行しました');
+      
       // 前回の状態がRUNNINGのまま残っている可能性があるため、再確認を提案
       if (this.status === ClaudeCodeExecutionStatus.RUNNING) {
         const choice = await vscode.window.showWarningMessage(
@@ -128,6 +137,15 @@ export class CoreLauncherService {
    */
   public async launchClaudeCodeWithMockup(options: MockupAnalysisOptions): Promise<boolean> {
     try {
+      // 起動カウンターイベントを発行
+      Logger.info('【ClaudeCode起動カウンター】モックアップ解析起動のカウントイベントを発行します');
+      this.eventBus.emit(
+        AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+        { mockupFilePath: options.mockupFilePath, projectPath: options.projectPath },
+        'CoreLauncherService'
+      );
+      Logger.info('【ClaudeCode起動カウンター】モックアップ解析起動のカウントイベントを発行しました');
+      
       const { mockupFilePath, projectPath, source } = options;
       
       // モックアップ解析プロセスの準備と起動
@@ -163,6 +181,15 @@ export class CoreLauncherService {
    */
   public async launchClaudeCodeWithPrompt(options: PromptExecutionOptions): Promise<boolean> {
     try {
+      // 起動カウンターイベントを発行
+      Logger.info('【ClaudeCode起動カウンター】プロンプト使用起動のカウントイベントを発行します');
+      this.eventBus.emit(
+        AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+        { projectPath: options.projectPath, promptFilePath: options.promptFilePath },
+        'CoreLauncherService'
+      );
+      Logger.info('【ClaudeCode起動カウンター】プロンプト使用起動のカウントイベントを発行しました');
+      
       // プロンプトファイルを使用してClaudeCodeを起動
       const result = await this.specializedHandlers.launchWithPrompt(options);
       

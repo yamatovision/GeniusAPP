@@ -1,187 +1,113 @@
 /**
- * ClaudeCode起動カウンター機能のテストスクリプト
+ * ClaudeCode起動カウンターのテスト
  * 
- * 使い方:
- * 1. バックエンドとフロントエンドの変更を適用した後、このスクリプトを実行する
- * 2. MongoDB接続文字列を.envファイルまたは環境変数に設定する
- * 3. `node test_claudecode_counter.js <userId>`
+ * このスクリプトは、ClaudeCode起動カウンターの動作を検証します。
+ * 1. 現在のユーザーの起動カウント値を取得
+ * 2. カウンターをインクリメント
+ * 3. 更新後のカウント値を取得して変化を確認
  */
 
 const axios = require('axios');
-const mongoose = require('mongoose');
-require('dotenv').config();
+const readline = require('readline');
 
-// MongoDB接続設定
-const MONGO_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/appgenius';
+// ベースURL設定
+const BASE_URL = 'http://localhost:3000/api';
 
-// APIエンドポイント
-const API_ENDPOINT = process.env.API_ENDPOINT || 'http://localhost:3000/api';
+// ユーザー入力を受け付ける関数
+const getUserInput = async (question) => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
 
-// 以下のSimpleUserスキーマを持つモデルの定義
-// 実際のプロジェクトのモデルと同じ構造を持つ必要がある
-const SimpleUserSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  role: {
-    type: String,
-    enum: ['SuperAdmin', 'Admin', 'User'],
-    default: 'User'
-  },
-  organizationId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'SimpleOrganization'
-  },
-  apiKeyId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'AnthropicApiKey'
-  },
-  apiKeyValue: {
-    type: String
-  },
-  claudeCodeLaunchCount: {
-    type: Number,
-    default: 0
-  }
-});
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer);
+    });
+  });
+};
 
-// モデルの登録
-const SimpleUser = mongoose.model('SimpleUser', SimpleUserSchema);
-
-/**
- * 指定されたユーザーのClaudeCode起動カウンターをインクリメントするテスト
- * @param {string} userId - ユーザーID
- */
-async function testIncrementClaudeCodeLaunchCount(userId) {
+// APIを呼び出す関数
+const callApi = async (method, endpoint, data = null, token = null) => {
   try {
-    console.log(`=== ClaudeCode起動カウンターテスト - ユーザーID: ${userId} ===`);
-    
-    // MongoDB接続
-    await mongoose.connect(MONGO_URI);
-    console.log('MongoDB接続成功');
-    
-    // 現在のユーザー情報を取得
-    const user = await SimpleUser.findById(userId);
-    
-    if (!user) {
-      console.error(`ユーザーが見つかりません: ${userId}`);
-      process.exit(1);
+    const config = {
+      headers: {}
+    };
+
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
-    
-    console.log(`テスト前のユーザー情報:`);
-    console.log(`- 名前: ${user.name}`);
-    console.log(`- メール: ${user.email}`);
-    console.log(`- 役割: ${user.role}`);
-    console.log(`- ClaudeCode起動回数: ${user.claudeCodeLaunchCount || 0}`);
-    
-    // SimuateClaudeCodeLaunch: カウンターを手動で更新
-    console.log(`\nClaudeCode起動をシミュレート中...`);
-    
-    // 方法1: Mongooseモデルを使用して直接更新
-    user.claudeCodeLaunchCount = (user.claudeCodeLaunchCount || 0) + 1;
-    await user.save();
-    console.log(`Mongooseモデルを使用してカウンターを更新: ${user.claudeCodeLaunchCount}`);
-    
-    // 更新後のユーザー情報を取得
-    const updatedUser = await SimpleUser.findById(userId);
-    
-    console.log(`\nテスト後のユーザー情報:`);
-    console.log(`- 名前: ${updatedUser.name}`);
-    console.log(`- メール: ${updatedUser.email}`);
-    console.log(`- 役割: ${updatedUser.role}`);
-    console.log(`- ClaudeCode起動回数: ${updatedUser.claudeCodeLaunchCount || 0}`);
-    
-    console.log(`\n=== テスト完了 ===`);
-    
-  } catch (error) {
-    console.error('テスト実行中にエラーが発生しました:', error);
-  } finally {
-    // MongoDB接続を閉じる
-    await mongoose.disconnect();
-    console.log('MongoDB接続を閉じました');
-  }
-}
 
-/**
- * APIエンドポイントを使用してカウンターをインクリメントするテスト
- * (APIが実装されている場合に使用)
- * @param {string} userId - ユーザーID
- * @param {string} token - 認証トークン
- */
-async function testApiIncrementClaudeCodeLaunchCount(userId, token) {
+    let response;
+    if (method === 'get') {
+      response = await axios.get(`${BASE_URL}${endpoint}`, config);
+    } else if (method === 'post') {
+      response = await axios.post(`${BASE_URL}${endpoint}`, data, config);
+    }
+
+    return response.data;
+  } catch (error) {
+    console.error('API呼び出しエラー:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// メイン処理
+const main = async () => {
   try {
-    console.log(`\n=== API経由でClaudeCode起動カウンターテスト - ユーザーID: ${userId} ===`);
+    // アクセストークンの入力を受け付ける
+    const token = await getUserInput('アクセストークンを入力してください: ');
     
     // ユーザー情報を取得
-    const getUserResponse = await axios.get(`${API_ENDPOINT}/simple/users/${userId}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+    console.log('現在のユーザー情報を取得中...');
+    const userResponse = await callApi('get', '/simple/auth/users/me', null, token);
     
-    console.log(`API経由で取得したテスト前のユーザー情報:`);
-    console.log(`- 名前: ${getUserResponse.data.name}`);
-    console.log(`- メール: ${getUserResponse.data.email}`);
-    console.log(`- ClaudeCode起動回数: ${getUserResponse.data.claudeCodeLaunchCount || 0}`);
+    if (!userResponse.success) {
+      throw new Error('ユーザー情報の取得に失敗しました');
+    }
     
-    // APIを使用してカウンターをインクリメント
-    console.log(`\nAPI経由でClaudeCode起動をシミュレート中...`);
-    const incrementResponse = await axios.post(
-      `${API_ENDPOINT}/simple/users/${userId}/increment-claude-code-launch`,
-      {},
-      {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      }
-    );
+    const user = userResponse.data.user;
+    console.log(`ユーザー情報取得成功: ${user.name} (ID: ${user._id})`);
+    console.log(`現在のClaudeCode起動カウント: ${user.claudeCodeLaunchCount || 0}`);
     
-    console.log(`API応答:`, incrementResponse.data);
+    // カウンターをインクリメント
+    console.log('ClaudeCode起動カウンターをインクリメント中...');
+    const incrementResponse = await callApi('post', `/simple/users/${user._id}/increment-claude-code-launch`, {}, token);
+    
+    if (!incrementResponse.success) {
+      throw new Error('カウンターのインクリメントに失敗しました');
+    }
+    
+    console.log(`カウンターインクリメント成功: 新しい値は ${incrementResponse.data.claudeCodeLaunchCount}`);
     
     // 更新後のユーザー情報を再取得
-    const updatedUserResponse = await axios.get(`${API_ENDPOINT}/simple/users/${userId}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
+    console.log('更新後のユーザー情報を取得中...');
+    const updatedUserResponse = await callApi('get', '/simple/auth/users/me', null, token);
     
-    console.log(`\nAPI経由で取得したテスト後のユーザー情報:`);
-    console.log(`- 名前: ${updatedUserResponse.data.name}`);
-    console.log(`- メール: ${updatedUserResponse.data.email}`);
-    console.log(`- ClaudeCode起動回数: ${updatedUserResponse.data.claudeCodeLaunchCount || 0}`);
+    if (!updatedUserResponse.success) {
+      throw new Error('更新後のユーザー情報の取得に失敗しました');
+    }
     
-    console.log(`\n=== APIテスト完了 ===`);
+    const updatedUser = updatedUserResponse.data.user;
+    console.log(`更新後のClaudeCode起動カウント: ${updatedUser.claudeCodeLaunchCount || 0}`);
+    
+    // 変化を確認
+    const initialCount = user.claudeCodeLaunchCount || 0;
+    const updatedCount = updatedUser.claudeCodeLaunchCount || 0;
+    
+    console.log(`\n結果: カウンターは ${initialCount} から ${updatedCount} に更新されました (差分: ${updatedCount - initialCount})`);
+    
+    if (updatedCount > initialCount) {
+      console.log('✅ テスト成功: カウンターは正常にインクリメントされました');
+    } else {
+      console.log('❌ テスト失敗: カウンターの値が更新されていません');
+    }
     
   } catch (error) {
-    console.error('APIテスト実行中にエラーが発生しました:', error.response ? error.response.data : error);
+    console.error('テスト実行エラー:', error.message);
   }
-}
+};
 
-// メイン実行
-async function main() {
-  const userId = process.argv[2];
-  
-  if (!userId) {
-    console.error('使用方法: node test_claudecode_counter.js <userId>');
-    process.exit(1);
-  }
-  
-  // Mongooseモデルを使用したテスト
-  await testIncrementClaudeCodeLaunchCount(userId);
-  
-  // 以下はAPIテストが必要な場合のみアンコメント
-  // const token = 'YOUR_AUTH_TOKEN'; // 有効なトークンが必要
-  // await testApiIncrementClaudeCodeLaunchCount(userId, token);
-}
-
-main().catch(console.error);
+// スクリプト実行
+main();

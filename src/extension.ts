@@ -173,7 +173,7 @@ export function activate(context: vscode.ExtensionContext) {
 				Logger.info('AppGenius AI起動時: 未認証のためログイン画面を表示します');
 				// ログイン画面を表示（LoginWebviewPanelを使用）
 				const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
-				LoginWebviewPanel.createOrShow(extensionUri);
+				LoginWebviewPanel.createOrShow(context.extensionUri);
 			} else if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
 				// 認証済みかつ権限がある場合のみスコープマネージャーを開く
 				vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);

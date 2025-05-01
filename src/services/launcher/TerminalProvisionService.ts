@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { Logger } from '../../utils/logger';
 import { PlatformManager } from '../../utils/PlatformManager';
 import { TerminalOptions } from './LauncherTypes';
+import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
 
 /**
  * ターミナル作成と環境変数設定を担当するサービス
@@ -20,21 +21,40 @@ export class TerminalProvisionService {
    * @param options ターミナル設定オプション
    */
   public createConfiguredTerminal(options: TerminalOptions): vscode.Terminal {
+    // 受け取ったオプション全体をログ出力
+    Logger.debug(`TerminalProvisionService: 受け取った生のオプション: ${JSON.stringify(options)}`);
+    
+    // デフォルト値の設定（titleプロパティがundefinedの場合のみ'ClaudeCode'を使用）
+    // promptTypeがあればそれを優先的にタイトルとして使用
     const {
-      title = 'ClaudeCode',
+      title: rawTitle = 'ClaudeCode',
+      promptType,
       cwd,
       iconPath: customIconPath
     } = options;
     
+    // promptTypeが指定されていれば、それをそのまま利用
+    const title = promptType || rawTitle;
+    
+    // 受け取ったオプションのログを出力（デバッグ）
+    Logger.debug(`TerminalProvisionService: 解析後のオプション: ${JSON.stringify({
+      title,
+      cwd: cwd ? cwd.substring(0, 30) + '...' : undefined,
+      hasIconPath: !!customIconPath
+    })}`);
+    
     // アイコンURIを取得
     const iconPath = customIconPath || this.getDefaultIconPath();
     
-    // ターミナルの作成
+    // ターミナルの作成（VSCodeではnameがterminalのタイトルになる）
     const terminalOptions: vscode.TerminalOptions = {
-      name: title,
+      name: title, // VSCodeのTerminalタブに表示されるのはnameプロパティ
       cwd: cwd,
       iconPath: this.validateIconPath(iconPath)
     };
+    
+    // ターミナル作成前のパラメータログ
+    Logger.debug(`ターミナル作成パラメータ: name=${terminalOptions.name}`);
     
     // ターミナルオブジェクトを作成（常に新しいタブとして作成）
     const terminal = vscode.window.createTerminal(terminalOptions);
@@ -43,6 +63,20 @@ export class TerminalProvisionService {
     terminal.show(true);
     
     Logger.info(`新しいターミナルタブを作成しました: ${terminalOptions.name || 'unnamed'}`);
+    
+    // ClaudeCode起動カウンターイベントを発行（ターミナル作成時に必ず発行）
+    try {
+      Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行します');
+      const eventBus = AppGeniusEventBus.getInstance();
+      eventBus.emit(
+        AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+        { terminalName: terminalOptions.name, promptType, cwd },
+        'TerminalProvisionService'
+      );
+      Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行しました');
+    } catch (error) {
+      Logger.error('【ClaudeCode起動カウンター】イベント発行中にエラーが発生しました:', error as Error);
+    }
     
     // 環境設定を適用
     this.setupTerminalEnvironment(terminal, cwd);

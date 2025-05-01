@@ -221,7 +221,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             // 新しいコマンド
             case 'launchPromptFromURL':
-              await this._handleLaunchPromptFromURL(message.url, message.index);
+              await this._handleLaunchPromptFromURL(message.url, message.index, message.name);
               break;
             case 'shareText':
               await this._handleShareText(message.text, message.suggestedFilename);
@@ -794,7 +794,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * プロンプトURLからClaudeCodeを起動する
    */
-  private async _handleLaunchPromptFromURL(url: string, index: number): Promise<void> {
+  private async _handleLaunchPromptFromURL(url: string, index: number, name?: string): Promise<void> {
     try {
       Logger.info(`プロンプトを取得中: ${url}`);
       
@@ -809,7 +809,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
         promptFilePath,
         {
           deletePromptFile: true, // 使用後に一時ファイルを削除
-          splitView: true // 分割ビューで表示
+          splitView: true, // 分割ビューで表示
+          promptType: name // プロンプト名をターミナルタイトルに反映
         }
       );
       

@@ -37,6 +37,7 @@ export interface TerminalOptions {
   splitView?: boolean;
   location?: vscode.ViewColumn;
   iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | undefined;
+  promptType?: string; // プロンプトの種類（要件定義、リファクタリングなど）
 }
 
 /**
