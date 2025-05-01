@@ -36,15 +36,13 @@ export class TerminalProvisionService {
       iconPath: this.validateIconPath(iconPath)
     };
     
-    // 分割表示の場合は、適切な位置を設定（VSCode APIの制約に注意）
-    if (options.splitView && options.location) {
-      // 1.68未満のVSCodeでは直接の設定はできないため、位置はVSCode自体にゆだねる
-    }
-    
+    // ターミナルオブジェクトを作成（常に新しいタブとして作成）
     const terminal = vscode.window.createTerminal(terminalOptions);
     
-    // ターミナルの表示（true を渡してフォーカスする）
+    // ターミナルを表示（必ず新しいタブとして表示）
     terminal.show(true);
+    
+    Logger.info(`新しいターミナルタブを作成しました: ${terminalOptions.name || 'unnamed'}`);
     
     // 環境設定を適用
     this.setupTerminalEnvironment(terminal, cwd);
@@ -110,8 +108,8 @@ export class TerminalProvisionService {
     // 追加のコマンドラインパラメータがあればクリーンアップして追加
     const params = additionalParams ? ` ${additionalParams.trim()}` : '';
     
-    // Echo と パイプを使った自動応答コマンドを構築
-    return `echo "日本語で対応してください。指定されたファイルを読み込むところから始めてください。" | ${baseCommand} ${fileArg}${params}`;
+    // 日本語プロンプトとファイル読み込み要求を含むコマンドを生成
+    return `${baseCommand} "${fileArg}日本語で対応してください。${fileArg}これをReadツールを使って読み込む許可をもらうところから始めてください${params}"`;
   }
   
   /**

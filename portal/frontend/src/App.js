@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { 
   AppBar, 
   Toolbar, 
@@ -41,8 +41,9 @@ import UsageLimits from './components/admin/UsageLimits';
 // シンプルモード
 import SimpleApp from './components/simple/SimpleApp';
 
-// 認証コンテキスト
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+// 新しい認証システム
+import { AuthProvider, useAuth } from './auth/AuthContext';
+import AuthGuard, { LoginGuard } from './auth/AuthGuard';
 
 // テーマの設定
 const theme = createTheme({
@@ -64,41 +65,29 @@ const theme = createTheme({
   },
 });
 
-// 認証状態確認用のプライベートルート - 認証コンテキスト対応版
-const PrivateRoute = ({ children }) => {
-  // 認証コンテキストの使用
-  const { isAuthenticated, loading } = useAuth();
-  
-  // 認証処理中の場合はローディング表示
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <Typography variant="h6">読み込み中...</Typography>
-      </Box>
-    );
-  }
-  
-  // 未認証の場合はログインページにリダイレクト
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  // 認証済みの場合は子コンポーネントを表示
-  return children;
-};
+// 注: AuthGuardコンポーネントを使用するため、PrivateRouteは不要になりました
 
 // AuthContextを内部で使用するメインアプリコンポーネント
 const MainApp = () => {
   const { user, isAuthenticated, loading, logout } = useAuth();
   const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
+  const navigate = useNavigate();
 
   // シンプルモードへのリダイレクト
   const isSimplePath = window.location.pathname.startsWith('/simple');
 
-  // ログアウト処理
-  const handleLogout = () => {
-    logout();
-    showNotification('ログアウトしました', 'success');
+  // ログアウト処理 - window.locationではなくnavigateを使用
+  const handleLogout = async () => {
+    try {
+      // ログアウト処理
+      await logout();
+      // 成功したらログインページへリダイレクト
+      navigate('/login', { replace: true });
+      showNotification('ログアウトしました', 'success');
+    } catch (error) {
+      console.error('ログアウトエラー:', error);
+      showNotification('ログアウトに失敗しました', 'error');
+    }
   };
 
   // 通知表示
@@ -125,22 +114,28 @@ const MainApp = () => {
     return currentPath !== '/login';
   };
 
-  // シンプルモードの場合は別のコンポーネントをレンダリング
+  // シンプルパスはメインダッシュボードにリダイレクト
   if (isSimplePath) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Router>
-          <SimpleApp />
-        </Router>
-      </ThemeProvider>
-    );
+    // /simple/loginと/simple/registerは例外
+    const currentPath = window.location.pathname;
+    if (currentPath === '/simple/login' || currentPath === '/simple/register') {
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <Router>
+            <SimpleApp />
+          </Router>
+        </ThemeProvider>
+      );
+    } else {
+      // それ以外は標準ダッシュボードにリダイレクト
+      window.location.href = '/dashboard';
+      return null;
+    }
   }
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Router>
+    <>
         {(isAuthenticated || (!isAuthenticated && shouldShowHeader())) && (
           <AppBar position="sticky">
             <Toolbar>
@@ -149,7 +144,7 @@ const MainApp = () => {
                 color="inherit"
                 aria-label="home"
                 sx={{ mr: 2 }}
-                onClick={() => window.location.href = isAuthenticated ? '/dashboard' : '/login'}
+                onClick={() => navigate(isAuthenticated ? '/dashboard' : '/login', { replace: true })}
                 title={isAuthenticated ? "ダッシュボードへ" : "ログインへ"}
               >
                 {isAuthenticated ? <DashboardIcon /> : <HomeIcon />}
@@ -202,7 +197,7 @@ const MainApp = () => {
                     <Tooltip title="ダッシュボード" arrow>
                       <IconButton
                         color="inherit"
-                        onClick={() => window.location.href = '/dashboard'}
+                        onClick={() => navigate('/dashboard', { replace: true })}
                         size="large"
                         sx={{ 
                           backgroundColor: window.location.pathname === '/dashboard' ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
@@ -217,7 +212,7 @@ const MainApp = () => {
                     <Tooltip title="プロンプト管理" arrow>
                       <IconButton
                         color="inherit"
-                        onClick={() => window.location.href = '/prompts'}
+                        onClick={() => navigate('/prompts', { replace: true })}
                         size="large"
                         sx={{ 
                           backgroundColor: window.location.pathname.startsWith('/prompts') ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
@@ -233,7 +228,7 @@ const MainApp = () => {
                       <Tooltip title="ユーザー管理" arrow>
                         <IconButton
                           color="inherit"
-                          onClick={() => window.location.href = '/users'}
+                          onClick={() => navigate('/users', { replace: true })}
                           size="large"
                           sx={{ 
                             backgroundColor: window.location.pathname.startsWith('/users') ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
@@ -250,7 +245,7 @@ const MainApp = () => {
                       <Tooltip title="管理者画面" arrow>
                         <IconButton
                           color="inherit"
-                          onClick={() => window.location.href = '/admin'}
+                          onClick={() => navigate('/admin', { replace: true })}
                           size="large"
                           sx={{ 
                             backgroundColor: window.location.pathname.startsWith('/admin') ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
@@ -280,7 +275,7 @@ const MainApp = () => {
                 <Tooltip title="ログイン" arrow>
                   <IconButton
                     color="inherit"
-                    onClick={() => window.location.href = '/login'}
+                    onClick={() => navigate('/login', { replace: true })}
                     size="large"
                   >
                     <LogoutIcon />
@@ -294,60 +289,59 @@ const MainApp = () => {
         <Container>
           <Routes>
             <Route path="/login" element={
-              // 認証コンテキストを使用した判定
-              isAuthenticated ? (
-                <Navigate to="/dashboard" replace />
-              ) : <Login />
+              <LoginGuard>
+                <Login />
+              </LoginGuard>
             } />
             
             <Route path="/dashboard" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <Dashboard />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             {/* プロンプト管理ルート */}
             <Route path="/prompts" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <PromptList />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             <Route path="/prompts/create" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <PromptForm />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             <Route path="/prompts/edit/:id" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <PromptForm />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             <Route path="/prompts/:id" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <PromptDetail />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             {/* ユーザー管理ルート */}
             <Route path="/users" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <UserList />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             <Route path="/users/new" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <UserDetail />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             <Route path="/users/:id" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <UserDetail />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             
@@ -357,15 +351,15 @@ const MainApp = () => {
             
             {/* 管理者ダッシュボード */}
             <Route path="/admin" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <AdminDashboard />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             <Route path="/admin/usage-limits" element={
-              <PrivateRoute>
+              <AuthGuard>
                 <UsageLimits />
-              </PrivateRoute>
+              </AuthGuard>
             } />
             
             {/* シンプルモードへのリダイレクト - SimpleAppコンポーネントで処理 */}
@@ -387,7 +381,7 @@ const MainApp = () => {
                   <Button
                     variant="contained"
                     color="primary"
-                    onClick={() => window.location.href = '/'}
+                    onClick={() => navigate('/', { replace: true })}
                   >
                     ホームに戻る
                   </Button>
@@ -411,8 +405,7 @@ const MainApp = () => {
             {notification.message}
           </Alert>
         </Snackbar>
-      </Router>
-    </ThemeProvider>
+    </>
   );
 };
 
@@ -421,24 +414,34 @@ const App = () => {
   // シンプルモードへのリダイレクト
   const isSimplePath = window.location.pathname.startsWith('/simple');
 
-  // シンプルモードの場合
+  // シンプルモードの場合は標準ダッシュボードにリダイレクト
   if (isSimplePath) {
-    return (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Router>
-          <SimpleApp />
-        </Router>
-      </ThemeProvider>
-    );
+    // /simple/loginと/simple/registerは例外
+    const currentPath = window.location.pathname;
+    if (currentPath === '/simple/login' || currentPath === '/simple/register') {
+      return (
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <Router>
+            <SimpleApp />
+          </Router>
+        </ThemeProvider>
+      );
+    } else {
+      // それ以外は標準ダッシュボードにリダイレクト
+      window.location.href = '/dashboard';
+      return null;
+    }
   }
 
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <AuthProvider>
-        <MainApp />
-      </AuthProvider>
+      <Router>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
+      </Router>
     </ThemeProvider>
   );
 };

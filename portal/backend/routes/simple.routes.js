@@ -54,6 +54,8 @@ router.post('/users', simpleAuthMiddleware.verifySimpleToken, simpleAuthMiddlewa
 router.put('/users/:id', simpleAuthMiddleware.verifySimpleToken, simpleUserController.updateUser);
 router.delete('/users/:id', simpleAuthMiddleware.verifySimpleToken, simpleAuthMiddleware.isSimpleAdmin, simpleUserController.deleteUser);
 router.put('/users/change-password', simpleAuthMiddleware.verifySimpleToken, simpleUserController.changePassword);
+// ClaudeCode起動カウンターインクリメント
+router.post('/users/:id/increment-claude-code-launch', simpleAuthMiddleware.verifySimpleToken, simpleUserController.incrementClaudeCodeLaunchCount);
 
 // ===== 組織系エンドポイント =====
 router.get('/organizations', simpleAuthMiddleware.verifySimpleToken, simpleOrganizationController.getOrganizations);

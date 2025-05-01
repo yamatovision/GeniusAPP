@@ -16,6 +16,7 @@ export class LoginWebviewPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private readonly _authService: AuthenticationService;
+  private readonly _simpleAuthService: SimpleAuthService; // SimpleAuthServiceを追加
   private _disposables: vscode.Disposable[] = [];
 
   /**
@@ -57,6 +58,7 @@ export class LoginWebviewPanel {
     this._panel = panel;
     this._extensionUri = extensionUri;
     this._authService = AuthenticationService.getInstance();
+    this._simpleAuthService = SimpleAuthService.getInstance(); // SimpleAuthServiceを初期化
 
     // コンテンツの設定
     this._update();
@@ -506,9 +508,48 @@ export class LoginWebviewPanel {
    */
   private async _handleLogin(email: string, password: string): Promise<void> {
     try {
-      const success = await this._authService.login(email, password);
+      Logger.info('LoginWebviewPanel: SimpleAuthServiceを使用してログイン処理を開始します');
       
-      if (success) {
+      // SimpleAuthServiceでログイン処理を実行
+      try {
+        // ログイン処理を実行
+        await this._simpleAuthService.login(email, password);
+        
+        // 認証状態を確認
+        const isAuthenticated = this._simpleAuthService.isAuthenticated();
+        
+        if (isAuthenticated) {
+          // ログイン成功メッセージ
+          this._panel.webview.postMessage({
+            type: 'login-result',
+            success: true
+          });
+          
+          // 成功通知
+          vscode.window.showInformationMessage('AppGeniusにログインしました');
+          
+          // APIキー表示は不要なので削除
+          // setTimeout(async () => {
+          //   await this._showApiKeyAfterLogin();
+          // }, 1000);
+          
+          // 少し待ってからパネルを閉じる
+          setTimeout(() => {
+            this._panel.dispose();
+          }, 1500);
+          
+          return;
+        }
+      } catch (simpleAuthError) {
+        Logger.error('SimpleAuthServiceログイン処理エラー:', simpleAuthError as Error);
+        // エラーが発生した場合は、後続の処理でメッセージを表示
+      }
+      
+      // SimpleAuthServiceが失敗した場合や成功しなかった場合、レガシーのAuthenticationServiceでのログインを試行
+      Logger.info('SimpleAuthServiceログイン失敗、レガシー認証を試行します');
+      const legacySuccess = await this._authService.login(email, password);
+      
+      if (legacySuccess) {
         // ログイン成功メッセージ
         this._panel.webview.postMessage({
           type: 'login-result',
@@ -516,12 +557,12 @@ export class LoginWebviewPanel {
         });
         
         // 成功通知
-        vscode.window.showInformationMessage('AppGeniusにログインしました');
+        vscode.window.showInformationMessage('AppGeniusにログインしました（レガシー認証）');
         
-        // APIキー表示 (遅延を入れて確実にAPIキーを取得するため)
-        setTimeout(async () => {
-          await this._showApiKeyAfterLogin();
-        }, 1000);
+        // APIキー表示は不要なので削除
+        // setTimeout(async () => {
+        //   await this._showApiKeyAfterLogin();
+        // }, 1000);
         
         // 少し待ってからパネルを閉じる
         setTimeout(() => {
@@ -567,6 +608,7 @@ export class LoginWebviewPanel {
       }
     } catch (error) {
       console.error('ログイン処理中にエラーが発生しました:', error);
+      Logger.error('ログイン処理中にエラーが発生しました:', error as Error);
       
       // エラーメッセージ
       this._panel.webview.postMessage({
@@ -599,13 +641,14 @@ export class LoginWebviewPanel {
   }
 
   /**
-   * ログイン後にAPIキーを表示
+   * ログイン後にAPIキーを表示 (不要なので削除)
+   * この機能は不要になったためコメントアウト
    */
+  /*
   private async _showApiKeyAfterLogin(): Promise<void> {
     try {
-      // SimpleAuthServiceからAPIキーを取得
-      const authService = SimpleAuthService.getInstance();
-      const apiKey = await authService.getApiKey();
+      // 直接インスタンス変数のSimpleAuthServiceからAPIキーを取得
+      const apiKey = await this._simpleAuthService.getApiKey();
       
       if (!apiKey) {
         Logger.warn('ログイン後のAPIキー表示: APIキーが見つかりません');
@@ -627,7 +670,7 @@ export class LoginWebviewPanel {
       const maskedApiKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
       
       // ユーザー情報を取得
-      const userData = authService.getCurrentUser();
+      const userData = this._simpleAuthService.getCurrentUser();
       const userName = userData?.name || 'ユーザー';
       
       // APIキー情報をメッセージボックスで表示
@@ -645,6 +688,7 @@ export class LoginWebviewPanel {
       );
     }
   }
+  */
 
   /**
    * リソースの解放

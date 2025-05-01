@@ -785,3 +785,48 @@ exports.changePassword = async (req, res) => {
     });
   }
 };
+
+/**
+ * ClaudeCode起動カウンターをインクリメント
+ * @route POST /api/simple/users/:id/increment-claude-code-launch
+ */
+exports.incrementClaudeCodeLaunchCount = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    
+    // ユーザー情報を取得
+    const user = await SimpleUser.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'ユーザーが見つかりません'
+      });
+    }
+    
+    // カウンターをインクリメント
+    if (typeof user.claudeCodeLaunchCount !== 'number') {
+      user.claudeCodeLaunchCount = 1;
+    } else {
+      user.claudeCodeLaunchCount++;
+    }
+    
+    // 保存
+    await user.save();
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        userId: user._id,
+        claudeCodeLaunchCount: user.claudeCodeLaunchCount
+      }
+    });
+  } catch (error) {
+    console.error('ClaudeCode起動カウンター更新エラー:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'ClaudeCode起動カウンターの更新中にエラーが発生しました',
+      error: error.message
+    });
+  }
+};

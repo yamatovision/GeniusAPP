@@ -48,6 +48,13 @@ export class ClaudeCodeLauncherService {
    * @param scope スコープ情報（CLAUDE.md内のスコープIDでも対応可能）
    */
   public async launchClaudeCode(scope: ImplementationScope): Promise<boolean> {
+    // 起動前にカウンターイベントを発行
+    this.eventBus.emit(
+      AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+      { scope },
+      'ClaudeCodeLauncherService'
+    );
+    
     return this.coreLauncher.launchClaudeCode({ scope });
   }
   
@@ -62,6 +69,13 @@ export class ClaudeCodeLauncherService {
     projectPath: string, 
     options?: { source?: string }
   ): Promise<boolean> {
+    // 起動前にカウンターイベントを発行
+    this.eventBus.emit(
+      AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+      { mockupFilePath, projectPath },
+      'ClaudeCodeLauncherService'
+    );
+    
     return this.coreLauncher.launchClaudeCodeWithMockup({
       mockupFilePath,
       projectPath,
@@ -86,6 +100,13 @@ export class ClaudeCodeLauncherService {
       location?: vscode.ViewColumn
     }
   ): Promise<boolean> {
+    // 起動前にカウンターイベントを発行
+    this.eventBus.emit(
+      AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+      { projectPath, promptFilePath },
+      'ClaudeCodeLauncherService'
+    );
+    
     return this.coreLauncher.launchClaudeCodeWithPrompt({
       projectPath,
       promptFilePath,

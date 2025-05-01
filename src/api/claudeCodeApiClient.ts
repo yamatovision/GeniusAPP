@@ -522,4 +522,31 @@ export class ClaudeCodeApiClient {
     Logger.debug(`【API連携】トークン使用履歴記録は無効化されています (${modelId}, ${context || 'no-context'})`);
     return true;
   }
+
+  /**
+   * ClaudeCode起動カウンターをインクリメント
+   * @param userId ユーザーID
+   */
+  public async incrementClaudeCodeLaunchCount(userId: string): Promise<any> {
+    try {
+      Logger.info(`【API連携】ClaudeCode起動カウンターを更新します: ユーザーID ${userId}`);
+      
+      const config = await this._getApiConfig();
+      const url = `${this._baseUrl}/simple/users/${userId}/increment-claude-code-launch`;
+      
+      const response = await axios.post(url, {}, config);
+      
+      if (response.status === 200) {
+        Logger.info(`【API連携】ClaudeCode起動カウンター更新成功: ${response.data?.data?.claudeCodeLaunchCount || 'N/A'}`);
+        return response.data;
+      }
+      
+      Logger.warn(`【API連携】ClaudeCode起動カウンター更新：予期しないレスポンス (${response.status})`);
+      return null;
+    } catch (error) {
+      Logger.error('【API連携】ClaudeCode起動カウンター更新エラー:', error);
+      this._handleApiError(error);
+      return null;
+    }
+  }
 }

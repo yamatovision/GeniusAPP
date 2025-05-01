@@ -28,7 +28,8 @@ export enum AppGeniusEventType {
   CLAUDE_CODE_PROGRESS = 'claude-code-progress',
   CLAUDE_CODE_COMPLETED = 'claude-code-completed',
   CLAUDE_CODE_ERROR = 'claude-code-error',
-  CLAUDE_CODE_STOPPED = 'claude-code-stopped'
+  CLAUDE_CODE_STOPPED = 'claude-code-stopped',
+  CLAUDE_CODE_LAUNCH_COUNTED = 'claude-code-launch-counted'
 }
 
 /**

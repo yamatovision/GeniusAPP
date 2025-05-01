@@ -13,7 +13,7 @@ import {
   FormControlLabel
 } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../auth/AuthContext';
 
 // VSCode環境からのログインかを判定する関数
 const isVSCodeClient = () => {

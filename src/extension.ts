@@ -28,6 +28,8 @@ import { FileOperationManager } from './utils/fileOperationManager';
 import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
 import { SimpleChatPanel } from './ui/simpleChat';
 import { DashboardPanel } from './ui/dashboard/DashboardPanel';
+import { AppGeniusEventBus, AppGeniusEventType } from './services/AppGeniusEventBus';
+import { ClaudeCodeApiClient } from './api/claudeCodeApiClient';
 import { ClaudeMdEditorPanel } from './ui/claudeMd/ClaudeMdEditorPanel';
 import { ProjectManagementService } from './services/ProjectManagementService';
 import { PlatformManager } from './utils/PlatformManager';
@@ -155,9 +157,9 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 	
-	// 初回インストール時または自動起動が有効な場合にスコープマネージャーを表示
+	// 初回インストール時または自動起動が有効な場合にアプリケーションを起動
 	if (autoStartDashboard) {
-		// 少し遅延させてVSCodeの起動が完了してから表示
+		// 少し遅延させてVSCodeの起動が完了してから処理
 		setTimeout(() => {
 			// プロジェクトパスを取得
 			let projectPath: string | undefined;
@@ -165,9 +167,22 @@ export function activate(context: vscode.ExtensionContext) {
 				projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
 			}
 			
-			// スコープマネージャーを開く
-			vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
-			Logger.info('AppGenius AIスコープマネージャーを自動起動しました');
+			// まず認証状態をチェック
+			if (!AuthGuard.checkLoggedIn()) {
+				// 未認証の場合はログイン画面を表示
+				Logger.info('AppGenius AI起動時: 未認証のためログイン画面を表示します');
+				// ログイン画面を表示（LoginWebviewPanelを使用）
+				const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
+				LoginWebviewPanel.createOrShow(extensionUri);
+			} else if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+				// 認証済みかつ権限がある場合のみスコープマネージャーを開く
+				vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
+				Logger.info('AppGenius AIスコープマネージャーを自動起動しました');
+			} else {
+				// 認証済みだが権限がない場合
+				Logger.warn('AppGenius AI起動時: 権限不足のためスコープマネージャーを表示しません');
+				vscode.window.showWarningMessage('スコープマネージャーへのアクセス権限がありません。');
+			}
 		}, 2000);
 	}
 	
@@ -226,6 +241,24 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.commands.registerCommand('appgenius-ai.openScopeManager', (projectPath: string) => {
 				try {
 					Logger.info(`スコープマネージャーを開くコマンドが実行されました: ${projectPath}`);
+					
+					// 認証状態を確認
+					if (!AuthGuard.checkLoggedIn()) {
+						Logger.info('スコープマネージャー: 未認証のためログイン画面に誘導します');
+						// ログイン画面を表示（LoginWebviewPanelを使用）
+						const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
+						LoginWebviewPanel.createOrShow(context.extensionUri);
+						return;
+					}
+					
+					// 権限チェック
+					if (!AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+						Logger.warn('スコープマネージャー: 権限不足のためアクセスを拒否します');
+						vscode.window.showWarningMessage('スコープマネージャーへのアクセス権限がありません。');
+						return;
+					}
+					
+					// 認証済みの場合のみパネルを表示
 					ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
 				} catch (error) {
 					Logger.error('スコープマネージャーを開く際にエラーが発生しました', error as Error);
@@ -476,6 +509,31 @@ export function activate(context: vscode.ExtensionContext) {
 		import('./commands/claudeCodeCommands').then(({ registerClaudeCodeCommands }) => {
 			registerClaudeCodeCommands(context);
 			Logger.info('ClaudeCode commands registered successfully');
+			
+			// ClaudeCode起動カウントイベントを監視してバックエンドに通知
+			const claudeCodeLaunchCountListener = AppGeniusEventBus.getInstance().onEventType(
+				AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+				async (event) => {
+					try {
+						// 現在ログイン中のユーザーIDを取得
+						const authService = SimpleAuthService.getInstance();
+						const userData = await authService.getCurrentUser();
+						
+						if (userData && userData.id) {
+							// バックエンドAPIを呼び出してカウンターをインクリメント
+							const claudeCodeApiClient = ClaudeCodeApiClient.getInstance();
+							await claudeCodeApiClient.incrementClaudeCodeLaunchCount(userData.id);
+							Logger.info(`ClaudeCode起動カウンターが更新されました: ユーザーID ${userData.id}`);
+						}
+					} catch (error) {
+						Logger.error('ClaudeCode起動カウンター更新エラー:', error as Error);
+					}
+				}
+			);
+			
+			// コンテキストに登録して適切に破棄できるようにする
+			context.subscriptions.push(claudeCodeLaunchCountListener);
+			Logger.info('ClaudeCode起動カウントイベントリスナーが登録されました');
 		}).catch(error => {
 			Logger.error(`ClaudeCode commands registration failed: ${(error as Error).message}`);
 		});

@@ -3,573 +3,635 @@ import {
   Container, 
   Box, 
   Typography, 
-  Grid, 
-  Paper, 
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  Divider,
-  Card,
-  CardContent,
-  Skeleton,
-  Alert,
-  CircularProgress,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Button,
-  Tab,
-  Tabs,
-  Chip
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Alert,
+  CircularProgress
 } from '@mui/material';
-import { Link } from 'react-router-dom';
+import './dashboard-user.css';
+import { getCurrentUser } from '../../services/simple/simpleAuth.service';
 import { 
-  PersonOutline as PersonIcon,
-  VpnKey as ApiKeyIcon,
-  Key as KeyIcon,
-  Description as PromptIcon,
-  BarChart as UsageIcon,
-  DashboardCustomize as DashboardIcon,
-  AdminPanelSettings as AdminIcon,
-  Business as BusinessIcon,
-  WorkspacePremium as WorkspaceIcon,
-  People as PeopleIcon
-} from '@mui/icons-material';
-// シンプル認証サービスを使用
-import * as simpleAuthService from '../../services/simple/simpleAuth.service';
-import OrganizationCards from './OrganizationCards';
-import ApiKeyManager from './ApiKeyManager';
-import WorkspaceManager from './WorkspaceManager';
-import UserManager from './UserManager';
+  getUsers, 
+  createUser, 
+  updateUser, 
+  deleteUser, 
+  updateUserRole 
+} from '../../services/simple/simpleUser.service';
 
 const Dashboard = () => {
-  console.log('Dashboardコンポーネントがレンダリングされました');
-  
-  const [user, setUser] = useState(null);
+  const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [currentTab, setCurrentTab] = useState(0);
-  const [selectedOrgId, setSelectedOrgId] = useState(null);
-  const [organizations, setOrganizations] = useState([]);
-  const [selectedOrgName, setSelectedOrgName] = useState('');
-  const [debugInfo, setDebugInfo] = useState({ 
-    renderCount: 0, 
-    errors: [], 
-    events: [] 
+  const [user, setUser] = useState(null);
+  
+  // ユーザー追加用の状態
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [newUser, setNewUser] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'User'
   });
+  
+  // ユーザー編集用の状態
+  const [openEditDialog, setOpenEditDialog] = useState(false);
+  const [editUser, setEditUser] = useState(null);
+  const [showPasswordField, setShowPasswordField] = useState(false);
+  
+  // ユーザー削除用の状態
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [deleteUserId, setDeleteUserId] = useState(null);
 
-  // デバッグ情報を記録する関数
-  const logDebugEvent = (event, data) => {
-    console.log(`DEBUG [${new Date().toISOString()}] ${event}`, data);
-    setDebugInfo(prev => ({
-      ...prev,
-      renderCount: prev.renderCount + 1,
-      events: [...prev.events, { timestamp: new Date().toISOString(), event, data }].slice(-10) // 最新10件保持
-    }));
-  };
-  
-  // コンポーネントマウント時にデバッグ情報を記録
+  // コンポーネントマウント時に現在のユーザーとユーザー一覧を取得
   useEffect(() => {
-    logDebugEvent('COMPONENT_MOUNTED', { 
-      localStorage: {
-        accessToken: localStorage.getItem('accessToken') ? 'present' : 'missing',
-        refreshToken: localStorage.getItem('refreshToken') ? 'present' : 'missing',
-        user: localStorage.getItem('user') ? 'present' : 'missing'
-      },
-      url: window.location.href
-    });
-    
-    // アンマウント時のクリーンアップ
-    return () => {
-      logDebugEvent('COMPONENT_UNMOUNTED', {});
-    };
-  }, []);
-  
-  useEffect(() => {
-    // 現在のユーザー情報を取得（リトライロジック強化版）
-    const fetchUserData = async () => {
-      logDebugEvent('FETCH_USER_DATA_STARTED', {});
+    const fetchData = async () => {
       try {
         setLoading(true);
-        console.log('ダッシュボード: ユーザー情報取得開始');
+        setError('');
         
-        // 1. まず、各種ストレージからユーザー情報を確認（信頼性向上のため複数ソース確認）
-        const simpleUserRaw = localStorage.getItem('simpleUser');
-        const storedUser = localStorage.getItem('user');
-        const accessToken = localStorage.getItem('accessToken');
-        
-        // ローカルストレージのデータをログに記録
-        logDebugEvent('LOCAL_STORAGE_CHECK', { 
-          hasSimpleUser: !!simpleUserRaw, 
-          hasUser: !!storedUser,
-          hasToken: !!accessToken
-        });
-        
-        // simpleUser（主要な認証情報）を優先的に処理
-        if (simpleUserRaw) {
-          try {
-            const simpleUser = JSON.parse(simpleUserRaw);
-            console.log('ダッシュボード: simpleUserからユーザー情報を取得:', simpleUser);
-            
-            // simpleUserからの情報をセット（即時表示のため）
-            if (simpleUser.user) {
-              setUser(simpleUser.user);
-            } else {
-              // ユーザー情報を含むオブジェクト全体を表示用に使用
-              const { accessToken, refreshToken, ...userDisplay } = simpleUser;
-              setUser(userDisplay);
-            }
-          } catch (parseError) {
-            console.error('ダッシュボード: simpleUser解析エラー:', parseError);
-          }
-        } 
-        // バックアップとして標準ユーザー情報を使用
-        else if (storedUser) {
-          try {
-            const parsedUser = JSON.parse(storedUser);
-            console.log('ダッシュボード: バックアップからユーザー情報を取得:', parsedUser);
-            setUser(parsedUser);
-          } catch (parseError) {
-            console.error('ダッシュボード: バックアップ情報解析エラー:', parseError);
-          }
+        // 現在のユーザー情報を取得
+        const currentUser = await getCurrentUser();
+        if (currentUser && currentUser.data && currentUser.data.user) {
+          setUser(currentUser.data.user);
         }
         
-        // 2. サーバーからの情報取得のためのリトライ機能を実装
-        let retryCount = 0;
-        const MAX_RETRIES = 2;
-        
-        // リトライ込みの情報取得関数
-        const getServerUserData = async (forceRefresh = false, retry = 0) => {
-          try {
-            // サーバーから最新情報を取得（改善版simpleAuthService使用）
-            console.log(`ダッシュボード: サーバーからのユーザー情報取得 (試行 ${retry + 1}/${MAX_RETRIES + 1})`);
-            
-            // retry > 0の場合はforceRefreshを使用
-            const response = await simpleAuthService.getCurrentUser(retry > 0 ? true : forceRefresh);
-            console.log('ダッシュボード: サーバーからユーザー情報取得成功:', response);
-            
-            // レスポンス形式に応じて処理
-            const userData = response.data || response;
-            logDebugEvent('USER_DATA_FETCHED', { userData, retry });
-            
-            if (userData && userData.user) {
-              // data.userの形式の場合
-              setUser(userData.user);
-              setError(''); // エラーをクリア
-              logDebugEvent('USER_SET_FROM_RESPONSE_USER', { user: userData.user });
-            } else if (userData) {
-              // dataオブジェクト自体がユーザー情報の場合
-              setUser(userData);
-              setError(''); // エラーをクリア
-              logDebugEvent('USER_SET_FROM_DIRECT_RESPONSE', { user: userData });
-            } else {
-              logDebugEvent('USER_DATA_EMPTY', { userData });
-            }
-            
-            return true;
-          } catch (err) {
-            logDebugEvent('SERVER_FETCH_ERROR', { retry, message: err.message });
-            console.error(`ダッシュボード: サーバー取得エラー (試行 ${retry + 1}):`, err);
-            
-            // リトライ可能な場合
-            if (retry < MAX_RETRIES) {
-              // トークンリフレッシュを試行
-              try {
-                console.log('ダッシュボード: トークンリフレッシュを試行します');
-                await simpleAuthService.refreshToken();
-                console.log('ダッシュボード: トークンリフレッシュ成功、再試行します');
-              } catch (refreshError) {
-                console.error('ダッシュボード: トークンリフレッシュ失敗:', refreshError);
-              }
-              
-              // 少し待機してから再試行
-              await new Promise(resolve => setTimeout(resolve, 1000));
-              return getServerUserData(true, retry + 1);
-            }
-            
-            // 最大リトライ回数を超えた場合はエラー表示
-            setError('ユーザー情報の取得に失敗しました。ネットワーク接続を確認してください。');
-            
-            // エラー情報を保存
-            setDebugInfo(prev => ({
-              ...prev,
-              errors: [...prev.errors, { 
-                timestamp: new Date().toISOString(), 
-                type: 'MAX_RETRY_ERROR',
-                details: {
-                  message: err.message,
-                  response: err.response?.status,
-                  data: err.response?.data
-                }
-              }].slice(-5) // 最新5件保持
-            }));
-            
-            return false;
-          }
-        };
-        
-        // サーバーからのデータ取得を実行（キャッシュを優先）
-        await getServerUserData(false, 0);
+        // ユーザー一覧を取得
+        const usersResponse = await getUsers();
+        if (usersResponse && usersResponse.data) {
+          setUsers(usersResponse.data);
+        }
+      } catch (err) {
+        console.error('データ取得エラー:', err);
+        setError('ユーザー情報の取得に失敗しました');
       } finally {
         setLoading(false);
       }
     };
-
-    fetchUserData();
+    
+    fetchData();
   }, []);
 
-
-  // 現在の日時を取得
-  const currentDate = new Date().toLocaleDateString('ja-JP', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-
-  // デバッグモードの切り替え
-  const [showDebug, setShowDebug] = useState(false);
-  const toggleDebug = () => setShowDebug(!showDebug);
+  // ユーザー追加ダイアログの開閉
+  const handleOpenAddDialog = () => {
+    setNewUser({
+      name: '',
+      email: '',
+      password: '',
+      role: 'User'
+    });
+    setOpenAddDialog(true);
+  };
   
-  // レンダリング前にデバッグ情報をログに記録
-  useEffect(() => {
-    if (!loading) {
-      logDebugEvent('RENDER_PREPARING', { 
-        user: user ? 'present' : 'null',
-        error: error ? error : 'none'
-      });
+  const handleCloseAddDialog = () => {
+    setOpenAddDialog(false);
+  };
+
+  // 新規ユーザー情報の変更ハンドラ
+  const handleNewUserChange = (e) => {
+    const { name, value } = e.target;
+    setNewUser({
+      ...newUser,
+      [name]: value
+    });
+  };
+
+  // ユーザー追加処理
+  const handleAddUser = async () => {
+    try {
+      setLoading(true);
+      
+      // 必須フィールドの検証
+      if (!newUser.name || !newUser.email || !newUser.password) {
+        setError('名前、メールアドレス、パスワードは必須です');
+        setLoading(false);
+        return;
+      }
+      
+      // パスワードの長さ検証
+      if (newUser.password.length < 8) {
+        setError('パスワードは8文字以上である必要があります');
+        setLoading(false);
+        return;
+      }
+      
+      // メールアドレスの形式検証
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newUser.email)) {
+        setError('有効なメールアドレスを入力してください');
+        setLoading(false);
+        return;
+      }
+      
+      // ユーザー追加APIの呼び出し
+      const response = await createUser(
+        newUser.name,
+        newUser.email,
+        newUser.password,
+        newUser.role,
+        user.organizationId || null
+      );
+      
+      if (response && response.success) {
+        // ユーザー一覧を更新
+        const updatedUsersResponse = await getUsers();
+        if (updatedUsersResponse && updatedUsersResponse.data) {
+          setUsers(updatedUsersResponse.data);
+        }
+        
+        // ダイアログを閉じてフォームをリセット
+        setOpenAddDialog(false);
+        setNewUser({
+          name: '',
+          email: '',
+          password: '',
+          role: 'User'
+        });
+        setError('');
+      } else {
+        setError(response?.message || 'ユーザーの追加に失敗しました');
+      }
+    } catch (err) {
+      console.error('ユーザー追加エラー:', err);
+      setError(err?.message || 'ユーザーの追加中にエラーが発生しました');
+    } finally {
+      setLoading(false);
     }
-  }, [loading, user, error]);
+  };
+
+  // ユーザー編集ダイアログの開閉
+  const handleOpenEditDialog = (userData) => {
+    setEditUser({
+      ...userData,
+      password: ''
+    });
+    setShowPasswordField(false);
+    setOpenEditDialog(true);
+  };
+  
+  const handleCloseEditDialog = () => {
+    setOpenEditDialog(false);
+    setEditUser(null);
+  };
+
+  // 編集ユーザー情報の変更ハンドラ
+  const handleEditUserChange = (e) => {
+    const { name, value } = e.target;
+    setEditUser({
+      ...editUser,
+      [name]: value
+    });
+  };
+
+  // ユーザー編集処理
+  const handleUpdateUser = async () => {
+    try {
+      setLoading(true);
+      
+      // 必須フィールドの検証
+      if (!editUser.name || !editUser.email) {
+        setError('名前とメールアドレスは必須です');
+        setLoading(false);
+        return;
+      }
+      
+      // メールアドレスの形式検証
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(editUser.email)) {
+        setError('有効なメールアドレスを入力してください');
+        setLoading(false);
+        return;
+      }
+      
+      // パスワードが入力されている場合は長さ検証
+      if (showPasswordField && editUser.password) {
+        if (editUser.password.length < 8) {
+          setError('パスワードは8文字以上である必要があります');
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // パスワードが入力されていない場合はnullにする
+      const passwordToUpdate = showPasswordField && editUser.password ? editUser.password : null;
+      
+      // ユーザー更新APIの呼び出し
+      const response = await updateUser(
+        editUser._id,
+        editUser.name,
+        editUser.email,
+        passwordToUpdate,
+        null  // APIキーIDは使用しない
+      );
+      
+      if (response && response.success) {
+        // ユーザー一覧を更新
+        const updatedUsersResponse = await getUsers();
+        if (updatedUsersResponse && updatedUsersResponse.data) {
+          setUsers(updatedUsersResponse.data);
+        }
+        
+        // ダイアログを閉じる
+        setOpenEditDialog(false);
+        setEditUser(null);
+        setError('');
+      } else {
+        setError(response?.message || 'ユーザーの更新に失敗しました');
+      }
+    } catch (err) {
+      console.error('ユーザー更新エラー:', err);
+      setError(err?.message || 'ユーザーの更新中にエラーが発生しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ユーザー削除ダイアログの開閉
+  const handleOpenDeleteDialog = (userId) => {
+    setDeleteUserId(userId);
+    setOpenDeleteDialog(true);
+  };
+  
+  const handleCloseDeleteDialog = () => {
+    setOpenDeleteDialog(false);
+    setDeleteUserId(null);
+  };
+
+  // ユーザー削除処理
+  const handleDeleteUser = async () => {
+    try {
+      setLoading(true);
+      
+      if (!deleteUserId) {
+        setError('削除するユーザーが指定されていません');
+        setLoading(false);
+        return;
+      }
+      
+      // ユーザー自身を削除しようとした場合
+      if (deleteUserId === user._id) {
+        setError('自分自身を削除することはできません');
+        setLoading(false);
+        setOpenDeleteDialog(false);
+        return;
+      }
+      
+      // ユーザー削除APIの呼び出し
+      const response = await deleteUser(deleteUserId);
+      
+      if (response && response.success) {
+        // ユーザー一覧を更新
+        const updatedUsersResponse = await getUsers();
+        if (updatedUsersResponse && updatedUsersResponse.data) {
+          setUsers(updatedUsersResponse.data);
+        }
+        
+        // ダイアログを閉じる
+        setOpenDeleteDialog(false);
+        setDeleteUserId(null);
+        setError('');
+      } else {
+        setError(response?.message || 'ユーザーの削除に失敗しました');
+        setOpenDeleteDialog(false);
+      }
+    } catch (err) {
+      console.error('ユーザー削除エラー:', err);
+      setError(err?.message || 'ユーザーの削除中にエラーが発生しました');
+      setOpenDeleteDialog(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ユーザーの役割変更処理
+  const handleRoleChange = async (userId, newRole) => {
+    try {
+      setLoading(true);
+      
+      // 組織IDの取得
+      const organizationId = user?.organizationId;
+      
+      // 役割更新APIの呼び出し
+      const response = await updateUserRole(organizationId, userId, newRole);
+      
+      if (response && response.success) {
+        // ユーザー一覧を更新
+        const updatedUsersResponse = await getUsers();
+        if (updatedUsersResponse && updatedUsersResponse.data) {
+          setUsers(updatedUsersResponse.data);
+        }
+        setError('');
+      } else {
+        setError(response?.message || 'ユーザーの役割更新に失敗しました');
+      }
+    } catch (err) {
+      console.error('役割更新エラー:', err);
+      setError(err?.message || 'ユーザーの役割更新中にエラーが発生しました');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 権限判定ヘルパー
+  const isSuperAdmin = user?.role === 'SuperAdmin';
+  const isAdmin = user?.role === 'Admin' || user?.role === 'SuperAdmin';
 
   // ローディング表示
-  if (loading) {
+  if (loading && !user) {
     return (
-      <Container maxWidth="lg">
-        <Box my={4}>
-          {/* デバッグ情報表示ボタン（ローディング中も表示） */}
-          <Box position="fixed" right="20px" top="70px" zIndex="tooltip">
-            <Button 
-              variant="outlined" 
-              size="small" 
-              onClick={toggleDebug}
-              sx={{ opacity: 0.7 }}
-            >
-              {showDebug ? 'デバッグ非表示' : 'デバッグ表示'}
-            </Button>
-          </Box>
-          
-          {/* デバッグ情報 */}
-          {showDebug && (
-            <Paper elevation={3} sx={{ p: 2, mb: 3, maxHeight: '300px', overflow: 'auto' }}>
-              <Typography variant="h6" gutterBottom>デバッグ情報 (ローディング中)</Typography>
-              <Box mb={2}>
-                <Typography variant="subtitle2">基本情報:</Typography>
-                <Box component="pre" fontSize="0.8rem">
-                  {JSON.stringify({
-                    renderCount: debugInfo.renderCount,
-                    loading: true,
-                    url: window.location.href,
-                    localStorage: {
-                      accessToken: localStorage.getItem('accessToken') ? 'present' : 'missing',
-                      refreshToken: localStorage.getItem('refreshToken') ? 'present' : 'missing',
-                      user: localStorage.getItem('user') ? 'present' : 'missing'
-                    }
-                  }, null, 2)}
-                </Box>
-              </Box>
-              
-              <Typography variant="subtitle2">最近のイベント:</Typography>
-              <Box component="pre" fontSize="0.8rem" sx={{ maxHeight: '150px', overflow: 'auto' }}>
-                {JSON.stringify(debugInfo.events, null, 2)}
-              </Box>
-            </Paper>
-          )}
-          
-          <Skeleton variant="rectangular" height={200} />
-          <Box mt={4}>
-            <Grid container spacing={3}>
-              <Grid item xs={12} md={4}>
-                <Skeleton variant="rectangular" height={240} />
-              </Grid>
-              <Grid item xs={12} md={8}>
-                <Skeleton variant="rectangular" height={240} />
-              </Grid>
-            </Grid>
-          </Box>
+      <Container>
+        <Box my={4} display="flex" justifyContent="center">
+          <CircularProgress />
         </Box>
       </Container>
     );
   }
-  
+
   return (
     <Container maxWidth="lg">
       <Box my={4}>
-        {/* デバッグ情報表示ボタン - 開発時のみ表示 */}
-        <Box position="fixed" right="20px" top="70px" zIndex="tooltip">
-          <Button 
-            variant="outlined" 
-            size="small" 
-            onClick={toggleDebug}
-            sx={{ opacity: 0.7 }}
-          >
-            {showDebug ? 'デバッグ非表示' : 'デバッグ表示'}
-          </Button>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            ユーザー管理
+          </Typography>
+          
+          {isAdmin && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleOpenAddDialog}
+            >
+              ユーザー追加
+            </Button>
+          )}
         </Box>
-        
-        {/* デバッグ情報 */}
-        {showDebug && (
-          <Paper elevation={3} sx={{ p: 2, mb: 3, maxHeight: '300px', overflow: 'auto' }}>
-            <Typography variant="h6" gutterBottom>デバッグ情報</Typography>
-            <Box mb={2}>
-              <Typography variant="subtitle2">基本情報:</Typography>
-              <Box component="pre" fontSize="0.8rem">
-                {JSON.stringify({
-                  renderCount: debugInfo.renderCount,
-                  user: user ? `${user.name} (${user.email})` : 'null',
-                  error: error || 'none',
-                  loading,
-                  url: window.location.href,
-                  localStorage: {
-                    accessToken: localStorage.getItem('accessToken') ? 'present' : 'missing',
-                    refreshToken: localStorage.getItem('refreshToken') ? 'present' : 'missing',
-                    user: localStorage.getItem('user') ? 'present' : 'missing'
-                  }
-                }, null, 2)}
-              </Box>
-            </Box>
-            
-            <Typography variant="subtitle2">最近のイベント:</Typography>
-            <Box component="pre" fontSize="0.8rem" sx={{ maxHeight: '150px', overflow: 'auto' }}>
-              {JSON.stringify(debugInfo.events, null, 2)}
-            </Box>
-            
-            {debugInfo.errors.length > 0 && (
-              <Box mt={2}>
-                <Typography variant="subtitle2" color="error">エラー履歴:</Typography>
-                <Box component="pre" fontSize="0.8rem" sx={{ maxHeight: '150px', overflow: 'auto' }}>
-                  {JSON.stringify(debugInfo.errors, null, 2)}
-                </Box>
-              </Box>
-            )}
-          </Paper>
-        )}
         
         {error && (
           <Alert severity="error" sx={{ mb: 3 }}>
             {error}
           </Alert>
         )}
-
-{/* ヘッダーはアプリケーションバーに統合したため削除 */}
-
-        <Grid container spacing={3}>
-          <Grid item xs={12}>
-            {/* 統合ダッシュボードセクション */}
-            <Paper elevation={3} sx={{ p: 0, overflow: 'hidden', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)' }}>
-              <Box sx={{ 
-                borderBottom: 2, 
-                borderColor: 'divider', 
-                backgroundColor: '#f8fafd', 
-                px: 3, 
-                pt: 2,
-                pb: 1
-              }}>
-                {/* 選択中の組織情報 */}
-                {selectedOrgId && currentTab > 0 && (
-                  <Box sx={{ mb: 1, display: 'flex', alignItems: 'center' }}>
-                    <Chip 
-                      icon={<BusinessIcon />}
-                      label={`選択中の組織: ${organizations?.find(org => org._id === selectedOrgId)?.name || '未選択'}`}
-                      variant="outlined"
-                      color="primary"
-                      sx={{ mr: 2 }}
-                    />
-                    <Button 
-                      size="small" 
-                      variant="outlined" 
-                      onClick={() => {
-                        setCurrentTab(0);
-                        // 組織選択をクリアするだけで、ユーザーの所属は変更しない
-                      }}
-                    >
-                      組織選択へ戻る
-                    </Button>
-                  </Box>
-                )}
-                
-                <Tabs 
-                  value={currentTab} 
-                  onChange={(e, newValue) => setCurrentTab(newValue)}
-                  aria-label="dashboard tabs"
-                  indicatorColor="primary"
-                  textColor="primary"
-                  variant="scrollable"
-                  scrollButtons="auto"
-                  sx={{
-                    '& .MuiTab-root': {
-                      fontSize: '1rem',
-                      fontWeight: 500,
-                      py: 2,
-                      minHeight: '60px',
-                      transition: 'all 0.2s',
-                      '&:hover': {
-                        backgroundColor: 'rgba(74, 110, 255, 0.05)'
-                      }
-                    },
-                    '& .Mui-selected': {
-                      fontWeight: 'bold',
-                      color: 'primary.main'
-                    },
-                    '& .MuiTabs-indicator': {
-                      height: 3
-                    }
-                  }}
-                >
-                  <Tab 
-                    icon={<BusinessIcon sx={{ mr: 1, fontSize: '24px' }} />} 
-                    label="組織管理" 
-                    id="tab-0" 
-                    aria-controls="tabpanel-0"
-                    iconPosition="start"
-                  />
-                  <Tab 
-                    icon={<WorkspaceIcon sx={{ mr: 1, fontSize: '24px' }} />} 
-                    label="ワークスペース" 
-                    id="tab-1" 
-                    aria-controls="tabpanel-1"
-                    disabled={!selectedOrgId}
-                    iconPosition="start"
-                  />
-                  <Tab 
-                    icon={<ApiKeyIcon sx={{ mr: 1, fontSize: '24px' }} />} 
-                    label="APIキー管理" 
-                    id="tab-2" 
-                    aria-controls="tabpanel-2"
-                    disabled={!selectedOrgId}
-                    iconPosition="start"
-                  />
-                  <Tab 
-                    icon={<PeopleIcon sx={{ mr: 1, fontSize: '24px' }} />} 
-                    label="ユーザー管理" 
-                    id="tab-3" 
-                    aria-controls="tabpanel-3"
-                    disabled={!selectedOrgId}
-                    iconPosition="start"
-                  />
-                </Tabs>
-              </Box>
-              
-              {/* 組織カード一覧パネル */}
-              <Box
-                role="tabpanel"
-                hidden={currentTab !== 0}
-                id="tabpanel-0"
-                aria-labelledby="tab-0"
-                sx={{ p: 4 }}
-              >
-                {currentTab === 0 && (
-                  <OrganizationCards 
-                    onSelectOrganization={(orgId) => {
-                      // 組織の選択時に組織一覧から名前を取得して保持
-                      const selectedOrg = organizations.find(org => org._id === orgId);
-                      setSelectedOrgId(orgId);
-                      setSelectedOrgName(selectedOrg?.name || '');
-                      setCurrentTab(1); // 組織選択時に自動的にワークスペースタブに切り替え
-                      logDebugEvent('ORGANIZATION_SELECTED', { organizationId: orgId, name: selectedOrg?.name });
-                    }}
-                    onOpenUserManagement={(orgId) => {
-                      // ユーザー管理は組織選択のみを行い、実際のユーザーの所属は変更しない
-                      const selectedOrg = organizations.find(org => org._id === orgId);
-                      setSelectedOrgId(orgId);
-                      setSelectedOrgName(selectedOrg?.name || '');
-                      setCurrentTab(3); // ユーザーボタンクリック時にユーザー管理タブに切り替え
-                      logDebugEvent('USER_MANAGEMENT_OPENED', { organizationId: orgId, name: selectedOrg?.name });
-                    }}
-                    onOpenWorkspaceManager={(orgId) => {
-                      // APIキー管理は組織選択のみを行う
-                      const selectedOrg = organizations.find(org => org._id === orgId);
-                      setSelectedOrgId(orgId);
-                      setSelectedOrgName(selectedOrg?.name || '');
-                      setCurrentTab(2); // APIキー管理タブ（インデックス2）に切り替え
-                      logDebugEvent('API_KEY_MANAGEMENT_OPENED', { organizationId: orgId, name: selectedOrg?.name });
-                    }}
-                    onOrganizationsLoaded={(orgs) => {
-                      // 組織一覧が読み込まれたらstateに保存
-                      setOrganizations(orgs);
-                      logDebugEvent('ORGANIZATIONS_LOADED', { count: orgs.length });
-                    }}
-                  />
-                )}
-              </Box>
-              
-              {/* ワークスペース管理パネル */}
-              <Box
-                role="tabpanel"
-                hidden={currentTab !== 1}
-                id="tabpanel-1"
-                aria-labelledby="tab-1"
-                sx={{ p: 4 }}
-              >
-                {currentTab === 1 && selectedOrgId && (
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3, display: 'flex', alignItems: 'center' }}>
-                      <WorkspaceIcon sx={{ mr: 1, fontSize: '24px', color: 'primary.main' }} />
-                      {selectedOrgName} - ワークスペース管理
-                    </Typography>
-                    <WorkspaceManager 
-                      organizationId={selectedOrgId}
-                      onWorkspaceUpdate={() => {
-                        // ワークスペース更新時のイベント処理
-                      }}
-                    />
-                  </Box>
-                )}
-              </Box>
-              
-              {/* APIキー管理パネル */}
-              <Box
-                role="tabpanel"
-                hidden={currentTab !== 2}
-                id="tabpanel-2"
-                aria-labelledby="tab-2"
-                sx={{ p: 4 }}
-              >
-                {currentTab === 2 && selectedOrgId && (
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3, display: 'flex', alignItems: 'center' }}>
-                      <KeyIcon sx={{ mr: 1, fontSize: '24px', color: 'primary.main' }} />
-                      {selectedOrgName} - APIキー管理
-                    </Typography>
-                    <ApiKeyManager organizationId={selectedOrgId} />
-                  </Box>
-                )}
-              </Box>
-              
-              {/* ユーザー管理パネル */}
-              <Box
-                role="tabpanel"
-                hidden={currentTab !== 3}
-                id="tabpanel-3"
-                aria-labelledby="tab-3"
-                sx={{ p: 4 }}
-              >
-                {currentTab === 3 && selectedOrgId && (
-                  <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 'bold', mb: 3, display: 'flex', alignItems: 'center' }}>
-                      <PeopleIcon sx={{ mr: 1, fontSize: '24px', color: 'primary.main' }} />
-                      {selectedOrgName} - ユーザー管理
-                    </Typography>
-                    <UserManager 
-                      organizationId={selectedOrgId}
-                      onUserUpdate={() => {
-                        // ユーザー更新時のイベント処理
-                        logDebugEvent('USER_UPDATED', { organizationId: selectedOrgId });
-                      }}
-                    />
-                  </Box>
-                )}
-              </Box>
-            </Paper>
-          </Grid>
-        </Grid>
+        
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <Box mb={2}>
+            <Typography variant="h5" component="h2" gutterBottom>
+              ユーザー一覧
+            </Typography>
+          </Box>
+          
+          {users.length === 0 ? (
+            <Typography variant="body1">
+              ユーザーが見つかりません
+            </Typography>
+          ) : (
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>名前</TableCell>
+                    <TableCell>メールアドレス</TableCell>
+                    <TableCell>役割</TableCell>
+                    <TableCell>ClaudeCode起動回数</TableCell>
+                    <TableCell>操作</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {users.map((userData) => (
+                    <TableRow key={userData._id}>
+                      <TableCell>{userData.name}</TableCell>
+                      <TableCell>{userData.email}</TableCell>
+                      <TableCell>
+                        {userData._id === user?._id ? (
+                          // 自分自身の場合は役割を編集不可
+                          userData.role === 'SuperAdmin' ? 'スーパー管理者' : 
+                          userData.role === 'Admin' ? '管理者' : 'ユーザー'
+                        ) : (
+                          // 他のユーザーの場合は権限があれば役割を編集可能
+                          isAdmin ? (
+                            <FormControl variant="outlined" size="small" fullWidth>
+                              <Select
+                                value={userData.role}
+                                onChange={(e) => handleRoleChange(userData._id, e.target.value)}
+                                disabled={!isSuperAdmin && userData.role === 'SuperAdmin'}
+                              >
+                                <MenuItem value="User">ユーザー</MenuItem>
+                                <MenuItem value="Admin">管理者</MenuItem>
+                                {isSuperAdmin && (
+                                  <MenuItem value="SuperAdmin">スーパー管理者</MenuItem>
+                                )}
+                              </Select>
+                            </FormControl>
+                          ) : (
+                            userData.role === 'SuperAdmin' ? 'スーパー管理者' : 
+                            userData.role === 'Admin' ? '管理者' : 'ユーザー'
+                          )
+                        )}
+                      </TableCell>
+                      <TableCell>{userData.claudeCodeLaunchCount || 0}</TableCell>
+                      <TableCell>
+                        <Box display="flex" gap={1}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => handleOpenEditDialog(userData)}
+                          >
+                            編集
+                          </Button>
+                          
+                          {isAdmin && userData._id !== user?._id && (
+                            <Button
+                              variant="outlined"
+                              color="error"
+                              size="small"
+                              onClick={() => handleOpenDeleteDialog(userData._id)}
+                            >
+                              削除
+                            </Button>
+                          )}
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </Paper>
       </Box>
+      
+      {/* ユーザー追加ダイアログ */}
+      <Dialog open={openAddDialog} onClose={handleCloseAddDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>新規ユーザー追加</DialogTitle>
+        <DialogContent>
+          <Box mt={2}>
+            <TextField
+              autoFocus
+              margin="dense"
+              id="name"
+              name="name"
+              label="名前"
+              type="text"
+              fullWidth
+              variant="outlined"
+              value={newUser.name}
+              onChange={handleNewUserChange}
+              required
+            />
+            <TextField
+              margin="dense"
+              id="email"
+              name="email"
+              label="メールアドレス"
+              type="email"
+              fullWidth
+              variant="outlined"
+              value={newUser.email}
+              onChange={handleNewUserChange}
+              required
+            />
+            <TextField
+              margin="dense"
+              id="password"
+              name="password"
+              label="パスワード (8文字以上)"
+              type="password"
+              fullWidth
+              variant="outlined"
+              value={newUser.password}
+              onChange={handleNewUserChange}
+              required
+              helperText="8文字以上のパスワードを設定してください"
+            />
+            <FormControl fullWidth margin="dense">
+              <InputLabel id="role-label">役割</InputLabel>
+              <Select
+                labelId="role-label"
+                id="role"
+                name="role"
+                value={newUser.role}
+                onChange={handleNewUserChange}
+                label="役割"
+              >
+                <MenuItem value="User">ユーザー</MenuItem>
+                <MenuItem value="Admin">管理者</MenuItem>
+                {isSuperAdmin && (
+                  <MenuItem value="SuperAdmin">スーパー管理者</MenuItem>
+                )}
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseAddDialog} color="primary">
+            キャンセル
+          </Button>
+          <Button onClick={handleAddUser} color="primary" variant="contained" disabled={loading}>
+            {loading ? '処理中...' : '追加'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* ユーザー編集ダイアログ */}
+      <Dialog open={openEditDialog} onClose={handleCloseEditDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>ユーザー情報編集</DialogTitle>
+        <DialogContent>
+          {editUser && (
+            <Box mt={2}>
+              <TextField
+                autoFocus
+                margin="dense"
+                id="edit-name"
+                name="name"
+                label="名前"
+                type="text"
+                fullWidth
+                variant="outlined"
+                value={editUser.name}
+                onChange={handleEditUserChange}
+                required
+              />
+              <TextField
+                margin="dense"
+                id="edit-email"
+                name="email"
+                label="メールアドレス"
+                type="email"
+                fullWidth
+                variant="outlined"
+                value={editUser.email}
+                onChange={handleEditUserChange}
+                required
+              />
+              
+              <Box mt={2} mb={1}>
+                <Button 
+                  variant="outlined" 
+                  size="small"
+                  onClick={() => setShowPasswordField(!showPasswordField)}
+                >
+                  {showPasswordField ? 'パスワード変更をキャンセル' : 'パスワードを変更'}
+                </Button>
+              </Box>
+              
+              {showPasswordField && (
+                <TextField
+                  margin="dense"
+                  id="edit-password"
+                  name="password"
+                  label="新しいパスワード (8文字以上)"
+                  type="password"
+                  fullWidth
+                  variant="outlined"
+                  value={editUser.password}
+                  onChange={handleEditUserChange}
+                  helperText="変更する場合のみ入力してください"
+                />
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseEditDialog} color="primary">
+            キャンセル
+          </Button>
+          <Button onClick={handleUpdateUser} color="primary" variant="contained" disabled={loading}>
+            {loading ? '処理中...' : '保存'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* ユーザー削除確認ダイアログ */}
+      <Dialog open={openDeleteDialog} onClose={handleCloseDeleteDialog}>
+        <DialogTitle>ユーザー削除の確認</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            このユーザーを削除してもよろしいですか？この操作は元に戻せません。
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleCloseDeleteDialog} color="primary">
+            キャンセル
+          </Button>
+          <Button onClick={handleDeleteUser} color="error" variant="contained" disabled={loading}>
+            {loading ? '処理中...' : '削除'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

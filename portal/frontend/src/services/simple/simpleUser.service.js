@@ -9,6 +9,22 @@ const API_SIMPLE_URL = '/simple';
  * シンプル版のユーザー関連サービス
  */
 
+// ユーザー一覧を取得（全ユーザー）
+export const getUsers = async () => {
+  try {
+    const response = await axios.get(
+      `${API_SIMPLE_URL}/users`, 
+      { headers: simpleAuthHeader() }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      throw error.response.data;
+    }
+    throw new Error('接続エラーが発生しました');
+  }
+};
+
 // 組織のユーザー一覧を取得
 export const getSimpleOrganizationUsers = async (organizationId) => {
   try {
@@ -21,7 +37,24 @@ export const getSimpleOrganizationUsers = async (organizationId) => {
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
+  }
+};
+
+// 新規ユーザーを作成
+export const createUser = async (name, email, password, role, organizationId = null) => {
+  try {
+    const response = await axios.post(
+      `${API_SIMPLE_URL}/users`, 
+      { name, email, password, role, organizationId }, 
+      { headers: simpleAuthHeader() }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      throw error.response.data;
+    }
+    throw new Error('接続エラーが発生しました');
   }
 };
 
@@ -38,7 +71,23 @@ export const addSimpleOrganizationUser = async (organizationId, name, email, pas
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
+  }
+};
+
+// ユーザーを削除
+export const deleteUser = async (userId) => {
+  try {
+    const response = await axios.delete(
+      `${API_SIMPLE_URL}/users/${userId}`, 
+      { headers: simpleAuthHeader() }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      throw error.response.data;
+    }
+    throw new Error('接続エラーが発生しました');
   }
 };
 
@@ -54,7 +103,7 @@ export const removeSimpleOrganizationUser = async (organizationId, userId) => {
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
   }
 };
 
@@ -70,12 +119,12 @@ export const getSimpleUser = async (userId) => {
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
   }
 };
 
 // ユーザー情報を更新
-export const updateSimpleUser = async (userId, name, email, password = null, apiKeyId = null) => {
+export const updateUser = async (userId, name, email, password = null, apiKeyId = null) => {
   try {
     const data = { name, email };
     
@@ -99,9 +148,12 @@ export const updateSimpleUser = async (userId, name, email, password = null, api
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
   }
 };
+
+// 後方互換性のためのエイリアス - updateSimpleUser
+export const updateSimpleUser = updateUser;
 
 // ユーザーのパスワードを変更
 export const changeSimpleUserPassword = async (userId, currentPassword, newPassword) => {
@@ -116,12 +168,12 @@ export const changeSimpleUserPassword = async (userId, currentPassword, newPassw
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
   }
 };
 
 // ユーザーの役割を更新
-export const updateSimpleUserRole = async (organizationId, userId, role) => {
+export const updateUserRole = async (organizationId, userId, role) => {
   try {
     const response = await axios.put(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users/${userId}/role`, 
@@ -133,6 +185,26 @@ export const updateSimpleUserRole = async (organizationId, userId, role) => {
     if (error.response) {
       throw error.response.data;
     }
-    throw { success: false, message: '接続エラーが発生しました' };
+    throw new Error('接続エラーが発生しました');
+  }
+};
+
+// 後方互換性のためのエイリアス - updateSimpleUserRole
+export const updateSimpleUserRole = updateUserRole;
+
+// ClaudeCode起動カウンターをインクリメント
+export const incrementClaudeCodeLaunchCount = async (userId) => {
+  try {
+    const response = await axios.post(
+      `${API_SIMPLE_URL}/users/${userId}/increment-claude-code-launch`, 
+      {}, 
+      { headers: simpleAuthHeader() }
+    );
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      throw error.response.data;
+    }
+    throw new Error('接続エラーが発生しました');
   }
 };

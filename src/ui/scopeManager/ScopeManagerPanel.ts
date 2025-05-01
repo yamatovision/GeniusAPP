@@ -15,6 +15,8 @@ import { ClaudeCodeApiClient } from '../../api/claudeCodeApiClient';
 import { PromptServiceClient } from '../../services/PromptServiceClient';
 import { ClaudeCodeSharingService } from '../../services/ClaudeCodeSharingService';
 import { SharedFile, FileSaveOptions } from '../../types/SharingTypes';
+import { AuthGuard } from '../auth/AuthGuard';
+import { SimpleAuthManager } from '../../core/auth/SimpleAuthManager';
 
 /**
  * スコープマネージャーパネルクラス
@@ -57,7 +59,23 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 実際のパネル作成・表示ロジック
    * ProtectedPanelから呼び出される
    */
-  public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string): ScopeManagerPanel {
+  public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string): ScopeManagerPanel | undefined {
+    // 認証チェックを追加：ログインしていない場合はログイン画面に直接遷移
+    if (!AuthGuard.checkLoggedIn()) {
+      Logger.info('スコープマネージャー: 未認証のためログイン画面に誘導します');
+      // ログイン画面を表示（LoginWebviewPanelを使用）
+      const { LoginWebviewPanel } = require('../auth/LoginWebviewPanel');
+      LoginWebviewPanel.createOrShow(extensionUri);
+      return undefined;
+    }
+
+    // 権限チェック：SCOPE_MANAGERの権限がない場合はアクセスを拒否
+    if (!ProtectedPanel.checkPermissionForFeature(ScopeManagerPanel._feature, 'ScopeManagerPanel')) {
+      Logger.warn('スコープマネージャー: 権限不足のためアクセスを拒否します');
+      vscode.window.showWarningMessage('スコープマネージャーへのアクセス権限がありません。');
+      return undefined;
+    }
+
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -115,6 +133,34 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
+    
+    // 認証状態の監視を設定 (1分ごとにチェック)
+    this._setupTokenExpirationMonitor();
+    
+    // SimpleAuthServiceの認証状態変更イベントを直接監視
+    try {
+      const simpleAuthService = SimpleAuthManager.getInstance().getAuthService();
+      const authStateChangedDisposable = simpleAuthService.onStateChanged(state => {
+        // 認証状態が未認証になった、または権限がなくなった場合
+        if (!state.isAuthenticated || !AuthGuard.checkAccess(ScopeManagerPanel._feature)) {
+          Logger.info('スコープマネージャー: 認証状態が変更されたため、パネルを閉じます');
+          // パネルを閉じる
+          this.dispose();
+          
+          if (!state.isAuthenticated) {
+            // ログイン画面に誘導
+            const { LoginWebviewPanel } = require('../auth/LoginWebviewPanel');
+            LoginWebviewPanel.createOrShow(this._extensionUri);
+          }
+        }
+      });
+      
+      // Disposableリストに追加
+      this._disposables.push(authStateChangedDisposable);
+      Logger.info('スコープマネージャー: 認証状態変更イベントの監視を開始しました');
+    } catch (error) {
+      Logger.error('認証状態変更イベントの監視設定中にエラーが発生しました', error as Error);
+    }
     
     // ProjectManagementServiceからプロジェクト一覧を取得
     try {
@@ -2015,6 +2061,48 @@ export class ScopeManagerPanel extends ProtectedPanel {
       }
     } catch (error) {
       Logger.error('プロジェクトの同期に失敗しました', error as Error);
+    }
+  }
+
+  /**
+   * 認証状態の監視を設定
+   * 1分ごとに認証状態をチェックし、無効になった場合はパネルを閉じてログイン画面に誘導
+   */
+  private _setupTokenExpirationMonitor() {
+    try {
+      // 1分ごとに認証状態をチェック
+      const interval = setInterval(() => {
+        try {
+          // ログイン状態をチェック
+          if (!AuthGuard.checkLoggedIn()) {
+            Logger.info('スコープマネージャー: 認証状態が無効になったため、パネルを閉じます');
+            // パネルを閉じる
+            this.dispose();
+            // ログイン画面に直接遷移
+            const { LoginWebviewPanel } = require('../auth/LoginWebviewPanel');
+            LoginWebviewPanel.createOrShow(this._extensionUri);
+            return;
+          }
+
+          // 権限チェック
+          if (!ProtectedPanel.checkPermissionForFeature(ScopeManagerPanel._feature, 'ScopeManagerPanel')) {
+            Logger.warn('スコープマネージャー: 権限が失効したため、パネルを閉じます');
+            // パネルを閉じる
+            this.dispose();
+            vscode.window.showWarningMessage('スコープマネージャーへのアクセス権限がなくなりました。');
+            return;
+          }
+        } catch (checkError) {
+          Logger.error('認証状態チェック中にエラーが発生しました', checkError as Error);
+        }
+      }, 60000); // 1分ごとにチェック
+      
+      // パネル破棄時にインターバルをクリア
+      this._disposables.push({ dispose: () => clearInterval(interval) });
+      
+      Logger.info('スコープマネージャー: 認証状態監視を開始しました');
+    } catch (error) {
+      Logger.error('認証状態監視の設定中にエラーが発生しました', error as Error);
     }
   }
 }

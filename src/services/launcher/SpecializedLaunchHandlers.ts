@@ -341,8 +341,7 @@ export class SpecializedLaunchHandlers {
         { 
           projectPath: projectPath,
           promptFilePath: promptFilePath,
-          additionalParams: additionalParams,
-          splitView: terminalOptions.splitView
+          additionalParams: additionalParams
         },
         'SpecializedLaunchHandlers'
       );

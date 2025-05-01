@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useNavigate, Link } from 'react-router-dom';
 import { isLoggedIn, getCurrentUser, getCurrentUserFromStorage, logout } from '../../services/simple/simpleAuth.service';
 import SimpleLogin from './SimpleLogin';
 import SimpleRegister from './SimpleRegister';
-import SimpleDashboard from './SimpleDashboard';
+// SimpleDashboardは使用しなくなったためインポートから削除
 import SimpleOrganizationForm from './SimpleOrganizationForm';
 import SimpleOrganizationDetail from './SimpleOrganizationDetail';
 import SimpleUserManagement from './SimpleUserManagement';
@@ -165,11 +165,11 @@ const SimpleApp = () => {
         <header className="simple-header">
           <div className="simple-header-container">
             <div className="simple-logo">
-              <Link to="/simple/dashboard">AppGenius Simple</Link>
+              <Link to="/dashboard">AppGenius</Link>
             </div>
             
             <nav className="simple-nav">
-              <Link to="/simple/dashboard">ダッシュボード</Link>
+              <Link to="/dashboard">ダッシュボード</Link>
             </nav>
             
             <div className="simple-user-menu">
@@ -217,11 +217,14 @@ const SimpleApp = () => {
             ) : <SimpleRegister />
           } />
           
-          {/* 認証必須ルート */}
+          {/* 認証必須ルート - すべて標準ダッシュボードにリダイレクト */}
           <Route path="/simple/dashboard" element={
-            <SimplePrivateRoute>
-              <SimpleDashboard />
-            </SimplePrivateRoute>
+            <div>
+              <script dangerouslySetInnerHTML={{
+                __html: `window.location.href = '/dashboard';`
+              }} />
+              標準ダッシュボードにリダイレクト中...
+            </div>
           } />
           
           <Route path="/simple/organizations/new" element={
@@ -252,7 +255,7 @@ const SimpleApp = () => {
           <Route path="/simple" element={
             <div>
               <script dangerouslySetInnerHTML={{
-                __html: `window.location.href = '/simple/dashboard';`
+                __html: `window.location.href = '/dashboard';`
               }} />
               リダイレクト中...
             </div>
@@ -262,7 +265,7 @@ const SimpleApp = () => {
           <Route path="*" element={
             <div className="simple-not-found">
               <h1>404 - ページが見つかりません</h1>
-              <Link to="/simple/dashboard" className="simple-button secondary">
+              <Link to="/dashboard" className="simple-button secondary">
                 ダッシュボードに戻る
               </Link>
             </div>

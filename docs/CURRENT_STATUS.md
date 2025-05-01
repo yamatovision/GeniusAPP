@@ -1,4 +1,14 @@
-# プロジェクト名 - 開発状況 (2025/04/15更新)
+# AppGenius - 開発状況 (2025/04/19更新)
+
+## 開発ブランチと最新状態
+
+現在の開発は `scope-manager-optimization` ブランチで進めています。このブランチは以下のコミットから作成されました:
+- コミット: `21c8519` (2025/04/18) - "ScopeManagerPanel状態管理の最適化と余分なコードの削除"
+
+このブランチは、最新の `main` ブランチから2つ前のコミットに戻り、そこから新たに作成したものです。
+`main` ブランチの最新コミットには以下の変更が含まれていましたが、それらは現在のブランチには含まれていません:
+- `359fb49` (2025/04/19) - "chore: .DS_Storeの更新を追加"
+- `4e18056` (2025/04/19) - "chore: .gitignoreを更新して証明書ファイルと.DS_Storeを除外"
 
 ## AppGenius開発ガイド
 
@@ -43,15 +53,30 @@
 
 ## 全体進捗
 
-- 完成予定ファイル数: 0
-- 作成済みファイル数: 0
-- 進捗率: 0%
-- 最終更新日: 2025/04/15
+- 完成予定ファイル数: 14
+- 作成済みファイル数: 3
+- 進捗率: 21%
+- 最終更新日: 2025/04/19
+
+## 引き継ぎ事項
+
+認証システム改善のシンプル化リファクタリングを開始しました。コアとなる以下のファイルを作成済みです：
+1. 新しい認証サービス: `portal/frontend/src/auth/AuthService.js`
+2. 認証コンテキスト: `portal/frontend/src/auth/AuthContext.js` 
+3. 認証保護コンポーネント: `portal/frontend/src/auth/AuthGuard.js`
+
+また、`App.js`ファイルを修正し、リダイレクト処理を適切に統一しました。今後は以下のタスクに取り組む必要があります：
+- VS Code拡張側の認証連携
+- LogoutNotificationの改善
+- SimpleAppコンポーネントの修正
+- simpleAuth.service.jsの削除
+
+シンプル化アプローチの詳細については`docs/scopes/auth-system-improvements-scope.md`を参照してください。
 
 ## スコープ状況
 
 ### 進行中スコープ
-（まだスコープがありません）
+- [ ] 認証システム改善 (21%) - 認証関連の複数の問題を解決
 
 ### 未着手スコープ
 - [ ] 基本機能実装 (0%) - プロジェクトの基本機能を実装
@@ -61,19 +86,86 @@
 
 ## 最終的なディレクトリ構造(予測)
 ```
-プロジェクト名/
-└── （これから定義します）
+AppGenius/
+├── src/
+│   ├── core/
+│   │   └── auth/
+│   ├── services/
+│   └── ui/
+│       └── auth/
+└── portal/
+    ├── frontend/
+    │   └── src/
+    │       ├── components/
+    │       │   └── auth/
+    │       └── services/
+    └── backend/
+        └── services/
 ```
 
 ## 現在のディレクトリ構造
 ```
-プロジェクト名/
+AppGenius/
 ├── CLAUDE.md
 ├── CURRENT_STATUS.md
 ├── docs/
-│   └── CURRENT_STATUS.md
-└── mockups/
+│   ├── CURRENT_STATUS.md
+│   └── scopes/
+│       └── auth-system-improvements-scope.md
+├── src/
+│   └── core/
+│       └── auth/
+└── portal/
+    ├── frontend/
+    │   └── src/
+    │       └── services/
+    └── backend/
+        └── services/
 ```
+
+## 認証システム改善 - シンプル化リファクタリング
+- [ ] portal/frontend/src/auth/AuthService.js
+- [ ] portal/frontend/src/auth/AuthContext.js
+- [ ] portal/frontend/src/auth/AuthGuard.js
+- [ ] portal/frontend/src/App.js
+- [ ] portal/frontend/src/components/Login.js
+- [ ] portal/frontend/src/components/simple/SimpleApp.js
+- [ ] portal/frontend/src/deep-link-handler.js
+- [ ] src/core/auth/SimpleAuthService.ts
+- [ ] src/services/ClaudeCodeAuthSync.ts
+- [ ] src/ui/auth/LogoutNotification.ts
+
+**実装メモ**
+- 認証システムを「単一の信頼できる情報源」原則に基づき完全にリファクタリングします
+- シンプル化アプローチで以下の主要な問題に対処します：
+  1. 認証情報キャッシュの管理不備：AuthServiceで一元的なキャッシュ管理を実装
+  2. ログアウト時の無限ループ：ログアウトとリダイレクトを明確に分離
+  3. タブ間のセッション同期問題：カスタムイベントを使用した状態同期
+  4. URL重複とセッション早期期限切れ：適切なURL処理とシンプルな認証検証サイクル
+
+**実装計画タスク**
+1. **認証コアサービスの作成**
+   - 認証関連のロジックを一つのサービスに集約
+   - キャッシュ管理とストレージの一元化
+   - シンプルな認証APIのみを提供
+
+2. **冗長なコードの削除**
+   - 複数の場所で行われている認証管理を削除
+   - 重複したリフレッシュサイクルの排除
+   - URLパラメータ処理の重複を削除
+
+3. **シンプルな保護コンポーネントの実装**
+   - リダイレクト処理を一貫性のある方法で実装
+   - React Routerの適切な使用
+   - シンプルなAuthGuardの実装
+
+4. **VS Code拡張側の認証連携**
+   - 新しい認証システムとVS Code拡張の連携
+   - LogoutNotificationの簡素化
+   - ClaudeCodeAuthSyncの最適化
+
+### 参考資料
+- 詳細スコープ: docs/scopes/auth-system-improvements-scope.md
 
 ## 基本機能実装
 - [ ] （まだ実装ファイルが定義されていません）

@@ -69,6 +69,12 @@ const SimpleUserSchema = new mongoose.Schema({
     default: null
   },
   
+  // ClaudeCode起動回数カウンター
+  claudeCodeLaunchCount: {
+    type: Number,
+    default: 0
+  },
+  
   // ===== 認証情報 =====
   
   // リフレッシュトークン
