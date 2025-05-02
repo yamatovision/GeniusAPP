@@ -494,7 +494,8 @@ export class ProjectService implements IProjectService {
       // プロジェクトが見つからない場合、パスが存在するか確認
       if (!project) {
         // 相対パスをフルパスに変換して試行
-        const fullPath = path.resolve(path);
+        const pathModule = require('path');
+        const fullPath = pathModule.resolve(path);
         project = projects.find((p: any) => p.path === fullPath);
         
         if (project) {

@@ -17,6 +17,7 @@ import { IFileSystemService, FileSystemService } from './services/FileSystemServ
 import { IProjectService, ProjectService } from './services/ProjectService';
 import { ISharingService, SharingService } from './services/SharingService';
 import { IAuthenticationHandler, AuthenticationHandler } from './services/AuthenticationHandler';
+import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
  * スコープマネージャーパネルクラス
@@ -41,17 +42,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _statusFilePath: string = '';
   private _directoryStructure: string = '';
   private _fileWatcher: vscode.Disposable | null = null;
-  private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
-  // 準備モードは廃止されました
-  private _sharingService: ISharingService; // 共有サービス
-  
-  // 準備モード関連のメソッドは廃止されました
-  
-  // 一時ファイル保存ディレクトリの設定
-  
-  // 一時ファイル保存ディレクトリ (隠しフォルダ方式)
+  private _docsDirWatcher: fs.FSWatcher | null = null; // フォルダ監視用のウォッチャー
   private _tempShareDir: string = '';
   private _promptServiceClient: PromptServiceClient;
+  private _sharingService: ISharingService; // 共有サービス
+  private _activeProject: IProjectInfo | null = null; // 現在選択中のプロジェクト
   private _fileSystemService: IFileSystemService; // FileSystemServiceのインスタンス
   private _projectService: IProjectService; // ProjectServiceのインスタンス
   private _authHandler: IAuthenticationHandler; // AuthenticationHandlerのインスタンス
@@ -175,22 +170,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
       Logger.error('認証状態変更イベントの監視設定中にエラーが発生しました', error as Error);
     }
     
-    // ProjectManagementServiceからプロジェクト一覧を取得
-    try {
-      const { ProjectManagementService } = require('../../services/ProjectManagementService');
-      const projectService = ProjectManagementService.getInstance();
-      this._currentProjects = projectService.getAllProjects();
-      this._activeProject = projectService.getActiveProject();
+    // アクティブプロジェクトを取得
+    const activeProject = this._projectService.getActiveProject();
       
-      Logger.info(`プロジェクト一覧を取得しました: ${this._currentProjects.length}件`);
-      
-      // アクティブプロジェクトが指定されていない場合は、引数または現在のアクティブプロジェクトを使用
-      if (!projectPath && this._activeProject && this._activeProject.path) {
-        projectPath = this._activeProject.path;
-        Logger.info(`アクティブプロジェクトパスを使用: ${projectPath}`);
-      }
-    } catch (error) {
-      Logger.warn(`プロジェクト一覧の取得に失敗しました: ${error}`);
+    // アクティブプロジェクトが指定されていない場合は、引数または現在のアクティブプロジェクトを使用
+    if (!projectPath && activeProject && activeProject.path) {
+      projectPath = activeProject.path;
+      Logger.info(`アクティブプロジェクトパスを使用: ${projectPath}`);
     }
     
     // プロジェクトパスが指定されている場合は設定
@@ -370,8 +356,25 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       Logger.info('既存プロジェクト読み込み処理を開始');
       
+      // プロジェクトパスを選択するダイアログを表示
+      const folderUri = await vscode.window.showOpenDialog({
+        canSelectFolders: true,
+        canSelectFiles: false,
+        canSelectMany: false,
+        openLabel: 'プロジェクトフォルダを選択',
+        title: '既存プロジェクトの選択'
+      });
+      
+      if (!folderUri || folderUri.length === 0) {
+        Logger.info('プロジェクト読み込みがキャンセルされました: フォルダが選択されていません');
+        return;
+      }
+      
+      // 選択されたプロジェクトパスを使用
+      const projectPath = folderUri[0].fsPath;
+      
       // ProjectServiceを使用して既存プロジェクトを読み込む
-      const projectInfo = await this._projectService.loadExistingProject();
+      const projectInfo = await this._projectService.loadExistingProject(projectPath);
       
       // プロジェクトパスを更新
       if (projectInfo && projectInfo.path) {
@@ -381,6 +384,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
         // プロジェクトの最新情報を取得
         const activeProject = this._projectService.getActiveProject();
         const allProjects = this._projectService.getAllProjects();
+        
+        // アクティブプロジェクトを保存
+        this._activeProject = activeProject;
         
         // WebViewにプロジェクト一覧を更新
         this._panel.webview.postMessage({
@@ -416,8 +422,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
   
   /**
-   * プロジェクトパスを設定
-   * ProjectServiceに委譲
+   * プロジェクトパスを設定 - 各サービスに委譲
    */
   public async setProjectPath(projectPath: string): Promise<void> {
     try {
@@ -429,22 +434,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // ステータスファイルパスをProjectServiceから取得
       this._statusFilePath = this._projectService.getStatusFilePath();
       
-      Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
-      Logger.info(`ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
-      
       // 既存のファイルウォッチャーを破棄
       if (this._fileWatcher) {
         this._fileWatcher.dispose();
         this._fileWatcher = null;
       }
       
-      // Node.jsのファイルシステムウォッチャーも破棄
-      if (this._docsDirWatcher) {
-        this._docsDirWatcher.close();
-        this._docsDirWatcher = null;
-      }
-      
-      // プロジェクト直下に一時ディレクトリを作成
+      // 一時ディレクトリを設定
       this._tempShareDir = path.join(projectPath, '.appgenius_temp');
       await this._fileSystemService.ensureDirectoryExists(this._tempShareDir);
       
@@ -464,7 +460,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         statusFileExists: fs.existsSync(this._statusFilePath)
       });
       
-      // WebViewにプロジェクト一覧を更新
+      // プロジェクト一覧を更新
       const allProjects = this._projectService.getAllProjects();
       const activeProject = this._projectService.getActiveProject();
       
@@ -473,8 +469,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
         projects: allProjects,
         activeProject: activeProject
       });
-      
-      Logger.debug(`プロジェクト一覧を更新しました: ${allProjects.length}件, アクティブ: ${activeProject?.name || 'なし'}`);
     } catch (error) {
       Logger.error(`プロジェクトパスの設定に失敗しました: ${error}`);
       throw error;
@@ -509,19 +503,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _refreshProjects(): Promise<void> {
     try {
       // ProjectServiceからプロジェクト一覧を取得
-      this._currentProjects = this._projectService.getAllProjects();
-      this._activeProject = this._projectService.getActiveProject();
+      const allProjects = this._projectService.getAllProjects();
+      const activeProject = this._projectService.getActiveProject();
       
-      Logger.info(`プロジェクト一覧を更新しました: ${this._currentProjects.length}件`);
+      Logger.info(`プロジェクト一覧を更新しました: ${allProjects.length}件`);
       
       // WebViewにプロジェクト一覧を送信
       this._panel.webview.postMessage({
         command: 'updateProjects',
-        projects: this._currentProjects,
-        activeProject: this._activeProject ? {
-          id: this._activeProject.id,
-          name: this._activeProject.name,
-          path: this._activeProject.path
+        projects: allProjects,
+        activeProject: activeProject ? {
+          id: activeProject.id,
+          name: activeProject.name,
+          path: activeProject.path
         } : null
       });
     } catch (error) {
@@ -634,16 +628,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * テキストを共有サービスで共有
+   * テキストを共有サービスで共有 - SharingServiceに委譲
    */
   private async _handleShareText(text: string, suggestedFilename?: string): Promise<void> {
     try {
-      Logger.info('テキスト共有を開始します', { 
-        textLength: text.length, 
-        hasSuggestedFilename: !!suggestedFilename 
-      });
-      
-      // ファイル名のヒントを設定
+      // 共有オプションを設定
       const options: FileSaveOptions = {
         type: 'text',
         expirationHours: 24  // デフォルト有効期限
@@ -655,23 +644,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
         options.metadata = { suggestedFilename };
       }
       
-      // 共有サービスを使ってテキストを共有
+      // SharingServiceを使ってテキストを共有
       const file = await this._sharingService.shareText(text, options);
-      
-      Logger.info('テキスト共有成功', { 
-        fileName: file.fileName,
-        originalName: file.originalName,
-        title: file.title
-      });
       
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
       
-      // 履歴を確実に更新（先に実行）
+      // 履歴を取得
       await this._handleGetHistory();
       
-      // 短い遅延後、成功メッセージを送信
-      // これにより、UIの更新がスムーズになります
+      // 結果をUIに通知
       setTimeout(() => {
         this._panel.webview.postMessage({
           command: 'showShareResult',
@@ -684,7 +666,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
           }
         });
         
-        // 保存後に確実に履歴が最新になっていることを確認するための二重チェック
+        // 履歴更新
         setTimeout(() => this._handleGetHistory(), 500);
       }, 100);
       
@@ -695,28 +677,27 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * 画像を共有サービスで共有
+   * 画像を共有サービスで共有 - SharingServiceに委譲
    */
   private async _handleShareImage(imageData: string, fileName: string): Promise<void> {
     try {
-      // 共有サービスを使って画像を共有
+      // SharingServiceを使って画像を共有
       const file = await this._sharingService.shareImage(imageData, fileName);
       
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
       
-      // 履歴を確実に更新（先に実行）
+      // 履歴を更新
       await this._handleGetHistory();
       
-      // 画像アップロードエリアをクリアするためのメッセージ
-      // 確実に処理されるよう明示的に指定
+      // UIをリセット
       this._panel.webview.postMessage({
         command: 'resetDropZone',
         force: true,
         timestamp: new Date().getTime()
       });
       
-      // 念のため少し遅延させて再度リセットコマンドを送信
+      // 念のため再度リセット
       setTimeout(() => {
         this._panel.webview.postMessage({
           command: 'resetDropZone',
@@ -725,7 +706,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         });
       }, 100);
       
-      // 短い遅延後、成功メッセージを送信
+      // 結果をUIに通知
       setTimeout(() => {
         this._panel.webview.postMessage({
           command: 'showShareResult',
@@ -736,7 +717,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
           }
         });
         
-        // 保存後に確実に履歴が最新になっていることを確認するための二重チェック
+        // 履歴更新
         setTimeout(() => this._handleGetHistory(), 500);
       }, 100);
       
@@ -862,6 +843,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // プロジェクトの最新情報を取得
       const activeProject = this._projectService.getActiveProject();
+      this._activeProject = activeProject; // インスタンス変数にも保存
       const allProjects = this._projectService.getAllProjects();
       
       // WebViewにプロジェクト状態同期メッセージを送信
@@ -1060,40 +1042,34 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // パネルが表示されたタイミングでプロジェクト情報も更新
     try {
-      const { ProjectManagementService } = require('../../services/ProjectManagementService');
-      const projectService = ProjectManagementService.getInstance();
-      
       // 最新のプロジェクト一覧を取得
-      this._currentProjects = projectService.getAllProjects();
-      this._activeProject = projectService.getActiveProject();
+      const allProjects = this._projectService.getAllProjects();
+      const activeProject = this._projectService.getActiveProject();
       
       // パネルが表示されたら常にアクティブプロジェクト情報を更新
-      // 他のパネルから戻った時にも適切に状態を復元するため、条件判定を削除
-      if (this._activeProject && this._activeProject.path) {
+      if (activeProject && activeProject.path) {
         // UIが描画された後にプロジェクト情報を更新（タイミングの問題を避けるため少し遅延）
         setTimeout(() => {
           // プロジェクト一覧とアクティブプロジェクトをUIに通知（必ず最初に送信）
           this._panel.webview.postMessage({
             command: 'updateProjects',
-            projects: this._currentProjects,
-            activeProject: this._activeProject
+            projects: allProjects,
+            activeProject: activeProject
           });
           
           // プロジェクトパスを更新（パスが異なる場合のみ）
-          if (this._projectPath !== this._activeProject.path) {
-            this.setProjectPath(this._activeProject.path);
-            Logger.info(`パネル表示時にプロジェクトパスを更新: ${this._activeProject.path}`);
+          if (this._projectPath !== activeProject.path) {
+            this.setProjectPath(activeProject.path);
+            Logger.info(`パネル表示時にプロジェクトパスを更新: ${activeProject.path}`);
           }
-          
-          // 注: タブ情報の復元はsyncProjectStateメッセージで行うため、個別のselectTabは不要になりました
           
           // WebViewに最新のプロジェクト状態を同期
           this._panel.webview.postMessage({
             command: 'syncProjectState',
-            project: this._activeProject
+            project: activeProject
           });
           
-          Logger.info(`パネル表示時にアクティブプロジェクトを更新: ${this._activeProject.name}`);
+          Logger.info(`パネル表示時にアクティブプロジェクトを更新: ${activeProject.name}`);
         }, 300);
       }
     } catch (error) {
@@ -1372,8 +1348,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * ステータスファイルを読み込む
-   * FileSystemServiceの機能を利用
+   * ステータスファイルを読み込む - FileSystemServiceに委譲
    */
   private async _loadStatusFile(): Promise<void> {
     try {
@@ -1381,26 +1356,21 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
 
-      // FileSystemServiceを使用してdocsディレクトリの存在を確認・作成
+      // ステータスファイルのディレクトリを確保
       const docsDir = path.join(this._projectPath, 'docs');
       await this._fileSystemService.ensureDirectoryExists(docsDir);
 
-      // FileSystemServiceを使用してステータスファイルの存在を確認
+      // ステータスファイルの存在を確認
       const fileExists = await this._fileSystemService.fileExists(this._statusFilePath);
 
       // ステータスファイルが存在しない場合はテンプレートを作成
       if (!fileExists) {
-        Logger.info('CURRENT_STATUS.mdファイルが存在しないため、テンプレートを作成します');
-        
-        // プロジェクト名をディレクトリ名から取得
         const projectName = path.basename(this._projectPath);
-        
-        // FileSystemServiceを使用してプロジェクトのデフォルトステータスファイルを作成
         await this._fileSystemService.createDefaultStatusFile(this._projectPath, projectName);
-        Logger.info(`CURRENT_STATUS.mdファイルを作成しました: ${this._statusFilePath}`);
+        Logger.info(`ステータスファイルを作成しました: ${this._statusFilePath}`);
       }
 
-      // マークダウン表示を更新するためにファイルを読み込み
+      // マークダウン表示を更新
       await this._handleGetMarkdownContent(this._statusFilePath);
     } catch (error) {
       Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error as Error);
@@ -1410,7 +1380,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
 
   /**
-   * ディレクトリ構造を更新する
+   * ディレクトリ構造を更新する - FileSystemServiceに委譲
    */
   private async _updateDirectoryStructure(): Promise<void> {
     if (!this._projectPath) {
@@ -1420,7 +1390,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       // FileSystemServiceを使用してディレクトリ構造を取得
       this._directoryStructure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
-      Logger.info(`FileSystemServiceを使用してディレクトリ構造を取得しました: ${this._projectPath}`);
+      Logger.info(`ディレクトリ構造を取得しました: ${this._projectPath}`);
     } catch (error) {
       Logger.error('ディレクトリ構造の取得中にエラーが発生しました', error as Error);
       this._directoryStructure = 'ディレクトリ構造の取得に失敗しました。';
@@ -1639,6 +1609,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       // 現在のアクティブプロジェクトを取得
       const activeProject = this._projectService.getActiveProject();
+      this._activeProject = activeProject; // インスタンス変数にも保存
       
       // 指定されたプロジェクトが現在のアクティブプロジェクトと一致するか確認
       if (activeProject && activeProject.path === projectPath) {

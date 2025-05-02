@@ -30,4 +30,7 @@ export interface AuthState {
     email: string;
     roles?: string[];
   };
+  
+  // 追加の適合プロパティ
+  [key: string]: any;
 }
