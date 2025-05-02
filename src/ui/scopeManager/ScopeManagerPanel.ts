@@ -17,6 +17,7 @@ import { ClaudeCodeSharingService } from '../../services/ClaudeCodeSharingServic
 import { SharedFile, FileSaveOptions } from '../../types/SharingTypes';
 import { AuthGuard } from '../auth/AuthGuard';
 import { SimpleAuthManager } from '../../core/auth/SimpleAuthManager';
+import { IFileSystemService, FileSystemService } from './services/FileSystemService';
 
 /**
  * スコープマネージャーパネルクラス
@@ -40,7 +41,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _fileManager: FileOperationManager;
   private _statusFilePath: string = '';
   private _directoryStructure: string = '';
-  private _fileWatcher: vscode.FileSystemWatcher | null = null;
+  private _fileWatcher: vscode.Disposable | null = null;
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   // 準備モードは廃止されました
   private _sharingService: ClaudeCodeSharingService | undefined; // ClaudeCode共有サービス
@@ -54,6 +55,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   // 一時ファイル保存ディレクトリ (隠しフォルダ方式)
   private _tempShareDir: string = '';
   private _promptServiceClient: PromptServiceClient;
+  private _fileSystemService: IFileSystemService; // FileSystemServiceのインスタンス
 
   /**
    * 実際のパネル作成・表示ロジック
@@ -127,6 +129,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
     this._extensionPath = context.extensionPath; // 拡張機能のファイルシステムパスを保存
     this._fileManager = FileOperationManager.getInstance();
     this._promptServiceClient = PromptServiceClient.getInstance();
+    
+    // FileSystemServiceのインスタンスを取得
+    this._fileSystemService = FileSystemService.getInstance();
     
     // ClaudeCode共有サービスを初期化
     this._sharingService = new ClaudeCodeSharingService(context);
@@ -398,12 +403,53 @@ export class ScopeManagerPanel extends ProtectedPanel {
           Logger.info(`CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
         } else {
           // テンプレートが見つからない場合はデフォルトテンプレートを使用
-          statusContent = this._getDefaultTemplate();
+          // FileSystemServiceを使用してプロジェクトのデフォルトステータスファイルを作成
+          const projectName = path.basename(projectPath);
+          // 直接ファイルを作成せず、内容だけを取得
+          const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+          statusContent = `# ${projectName} - 進行状況 (${today}更新)
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+- [ ] 基本機能の実装 (0%)
+  - 説明: プロジェクトの基本機能を実装します
+  - ステータス: 未着手
+  - スコープID: scope-${Date.now()}
+  - 関連ファイル:
+    - (ファイルはまだ定義されていません)
+`;
           Logger.warn(`CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
         }
       } catch (error) {
         // エラーが発生した場合はデフォルトテンプレートを使用
-        statusContent = this._getDefaultTemplate();
+        // 直接ファイルを作成せず、内容だけを取得
+        const projectName = path.basename(projectPath);
+        const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+        statusContent = `# ${projectName} - 進行状況 (${today}更新)
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+- [ ] 基本機能の実装 (0%)
+  - 説明: プロジェクトの基本機能を実装します
+  - ステータス: 未着手
+  - スコープID: scope-${Date.now()}
+  - 関連ファイル:
+    - (ファイルはまだ定義されていません)
+`;
         Logger.error(`CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
       }
       
@@ -557,12 +603,52 @@ export class ScopeManagerPanel extends ProtectedPanel {
               Logger.info(`CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
             } else {
               // テンプレートが見つからない場合はデフォルトテンプレートを使用
-              statusContent = this._getDefaultTemplate();
+              // 直接ファイルを作成せず、内容だけを取得
+              const projectNameForTemplate = path.basename(projectPath);
+              const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+              statusContent = `# ${projectNameForTemplate} - 進行状況 (${today}更新)
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+- [ ] 基本機能の実装 (0%)
+  - 説明: プロジェクトの基本機能を実装します
+  - ステータス: 未着手
+  - スコープID: scope-${Date.now()}
+  - 関連ファイル:
+    - (ファイルはまだ定義されていません)
+`;
               Logger.warn(`CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
             }
           } catch (error) {
             // エラーが発生した場合はデフォルトテンプレートを使用
-            statusContent = this._getDefaultTemplate();
+            // 直接ファイルを作成せず、内容だけを取得
+            const projectNameForTemplate = path.basename(projectPath);
+            const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
+            statusContent = `# ${projectNameForTemplate} - 進行状況 (${today}更新)
+
+## スコープ状況
+
+### 完了済みスコープ
+（完了したスコープはまだありません）
+
+### 進行中スコープ
+（実装中のスコープはまだありません）
+
+### 未着手スコープ
+- [ ] 基本機能の実装 (0%)
+  - 説明: プロジェクトの基本機能を実装します
+  - ステータス: 未着手
+  - スコープID: scope-${Date.now()}
+  - 関連ファイル:
+    - (ファイルはまだ定義されていません)
+`;
             Logger.error(`CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
           }
           
@@ -681,6 +767,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
     this._statusFilePath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
     
     Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
+    
+    const fs = require('fs');
     Logger.info(`ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
 
     // 既存のファイルウォッチャーを破棄
@@ -697,10 +785,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // プロジェクト直下に一時ディレクトリを作成
     this._tempShareDir = path.join(projectPath, '.appgenius_temp');
-    if (!fs.existsSync(this._tempShareDir)) {
-      fs.mkdirSync(this._tempShareDir, { recursive: true });
-      Logger.info(`プロジェクト直下に一時ディレクトリを作成しました: ${this._tempShareDir}`);
-    }
+    
+    // FileSystemServiceを使用してディレクトリの存在を確認・作成
+    this._fileSystemService.ensureDirectoryExists(this._tempShareDir)
+      .then(() => {
+        Logger.info(`プロジェクト直下に一時ディレクトリを確認/作成しました: ${this._tempShareDir}`);
+      })
+      .catch(error => {
+        Logger.error(`一時ディレクトリの作成に失敗しました: ${error}`);
+      });
     
     // PromptServiceClientにもプロジェクトパスを設定
     this._promptServiceClient.setProjectPath(projectPath);
@@ -710,7 +803,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._sharingService.setProjectBasePath(projectPath);
     }
     
-    // ファイルウォッチャーを設定
+    // FileSystemServiceを使用してファイルウォッチャーを設定
     this._setupFileWatcher();
 
     // パスが設定されたらステータスファイルを読み込む
@@ -1347,22 +1440,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleGetMarkdownContent(filePath: string): Promise<void> {
     try {
-      // ファイルが存在するか確認
-      if (!fs.existsSync(filePath)) {
-        this._showError(`ファイルが見つかりません: ${filePath}`);
-        return;
-      }
+      // FileSystemServiceを使用してマークダウンファイルを読み込む
+      const content = await this._fileSystemService.readMarkdownFile(filePath);
       
-      // ファイルの内容を読み込む
-      const content = await this._fileManager.readFileAsString(filePath);
-      
-      // WebViewにマークダウン内容を送信
+      // WebViewにマークダウン内容を送信 - 優先度高で即時処理を要求
       this._panel.webview.postMessage({
         command: 'updateMarkdownContent',
-        content: content
+        content: content,
+        timestamp: Date.now(), // タイムスタンプを追加して新しい更新を識別できるように
+        priority: 'high'       // 優先度の高い更新であることを示す
       });
       
-      Logger.info(`マークダウンコンテンツを読み込みました: ${filePath}`);
+      Logger.info(`FileSystemServiceを使用してマークダウンコンテンツを読み込みました: ${filePath}`);
     } catch (error) {
       Logger.error(`マークダウンコンテンツの読み込みに失敗しました: ${filePath}`, error as Error);
       this._showError(`マークダウンファイルの読み込みに失敗しました: ${(error as Error).message}`);
@@ -1781,45 +1870,28 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
 
-      // docs ディレクトリが存在しない場合は作成
+      // FileSystemServiceを使用してdocsディレクトリの存在を確認・作成
       const docsDir = path.join(this._projectPath, 'docs');
-      if (!fs.existsSync(docsDir)) {
-        fs.mkdirSync(docsDir, { recursive: true });
-      }
+      await this._fileSystemService.ensureDirectoryExists(docsDir);
+
+      const fs = require('fs');
+      // ステータスファイルが存在するか確認
+      const fileExists = await new Promise<boolean>((resolve) => {
+        fs.access(this._statusFilePath, fs.constants.F_OK, (err: any) => {
+          resolve(!err);
+        });
+      });
 
       // ステータスファイルが存在しない場合はテンプレートを作成
-      if (!fs.existsSync(this._statusFilePath)) {
+      if (!fileExists) {
         Logger.info('CURRENT_STATUS.mdファイルが存在しないため、テンプレートを作成します');
         
-        // CURRENT_STATUSTEMPLATEからコンテンツを読み込む
-        let templateContent = '';
-        // 拡張機能のパスを使用して正確なテンプレートファイルを参照
-        const statusTemplatePath = path.join(this._extensionPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
+        // FileSystemServiceを使用してプロジェクトのデフォルトステータスファイルを作成
+        // プロジェクト名をディレクトリ名から取得
+        const projectName = path.basename(this._projectPath);
         
-        try {
-          if (fs.existsSync(statusTemplatePath)) {
-            // テンプレートファイルを読み込む
-            templateContent = fs.readFileSync(statusTemplatePath, 'utf8');
-            // プロジェクト名を取得（フォルダ名から）
-            const projectName = path.basename(this._projectPath);
-            // プロジェクト名と日付を置換
-            templateContent = templateContent
-              .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${projectName} - スコープマネージャー使用ガイド`)
-              .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
-              
-            Logger.info(`CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
-          } else {
-            // テンプレートが見つからない場合はデフォルトテンプレートを使用
-            templateContent = this._getDefaultTemplate();
-            Logger.warn(`CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
-          }
-        } catch (error) {
-          // エラーが発生した場合はデフォルトテンプレートを使用
-          templateContent = this._getDefaultTemplate();
-          Logger.error(`CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
-        }
-        
-        await fs.promises.writeFile(this._statusFilePath, templateContent, 'utf8');
+        await this._fileSystemService.createDefaultStatusFile(this._projectPath, projectName);
+        Logger.info(`FileSystemServiceを使用してCURRENT_STATUS.mdファイルを作成しました: ${this._statusFilePath}`);
       }
 
       // マークダウン表示を更新するためにファイルを読み込み
@@ -1840,17 +1912,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
     
     try {
-      // ディレクトリツールを利用してプロジェクト構造を取得
-      const { execSync } = require('child_process');
-      
-      // コマンドを実行
-      const command = process.platform === 'win32'
-        ? `cmd /c cd "${this._projectPath}" && tree /F /A`
-        : `find "${this._projectPath}" -type f | grep -v "node_modules" | grep -v ".git" | sort`;
-      
-      const output = execSync(command, { maxBuffer: 10 * 1024 * 1024 }).toString();
-      
-      this._directoryStructure = output;
+      // FileSystemServiceを使用してディレクトリ構造を取得
+      this._directoryStructure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
+      Logger.info(`FileSystemServiceを使用してディレクトリ構造を取得しました: ${this._projectPath}`);
     } catch (error) {
       Logger.error('ディレクトリ構造の取得中にエラーが発生しました', error as Error);
       this._directoryStructure = 'ディレクトリ構造の取得に失敗しました。';
@@ -1877,45 +1941,35 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
       
-      // docs ディレクトリが存在しない場合は作成
+      // FileSystemServiceを使用してdocsディレクトリの存在を確認・作成
       const docsDir = path.join(this._projectPath, 'docs');
-      if (!fs.existsSync(docsDir)) {
-        fs.mkdirSync(docsDir, { recursive: true });
-      }
-      
-      // VSCodeのFileSystemWatcherを使用してCURRENT_STATUS.mdファイルの変更を直接監視
-      const watchStatusPath = path.join(docsDir, 'CURRENT_STATUS.md');
-      if (fs.existsSync(watchStatusPath)) {
-        // ファイルが存在する場合はそのファイルのみを監視
-        this._fileWatcher = vscode.workspace.createFileSystemWatcher(watchStatusPath);
-        
-        // ファイル変更時にマークダウンコンテンツを更新
-        this._fileWatcher.onDidChange(async (uri) => {
-          Logger.info(`CURRENT_STATUS.mdファイルの変更を検出: ${uri.fsPath}`);
-          // マークダウンコンテンツのみを更新
-          await this._handleGetMarkdownContent(uri.fsPath);
+      this._fileSystemService.ensureDirectoryExists(docsDir)
+        .then(() => {
+          Logger.info(`docsディレクトリを確認/作成しました: ${docsDir}`);
+          
+          // FileSystemServiceを使用してファイル監視を設定
+          this._fileWatcher = this._fileSystemService.setupFileWatcher(
+            this._statusFilePath,
+            async (filePath) => {
+              // ファイル変更時にマークダウンコンテンツを更新（即時性を高める処理）
+              Logger.info(`【ファイル変更検出】ScopeManagerPanel: 変更通知を受信: ${filePath}`);
+              
+              // 即時反映のため1回目の読み込み（遅延なしで実行）
+              await this._handleGetMarkdownContent(filePath);
+              
+              // バッファリング対策として少し遅らせて2回目の読み込み（ファイル書き込みが完全に終わった後）
+              setTimeout(async () => {
+                Logger.info(`【遅延読み込み】ScopeManagerPanel: 2回目の読み込みを実行: ${filePath}`);
+                await this._handleGetMarkdownContent(filePath);
+              }, 100);
+            }
+          );
+          
+          Logger.info(`FileSystemServiceを使用してファイル監視を設定しました: ${this._statusFilePath}`);
+        })
+        .catch(error => {
+          Logger.error(`docsディレクトリの確認/作成に失敗しました: ${error}`);
         });
-        
-        Logger.info(`CURRENT_STATUS.mdファイルの監視を設定: ${watchStatusPath}`);
-      } else {
-        // ファイルが存在しない場合はdocsディレクトリ内のマークダウンファイルを監視
-        const pattern = new vscode.RelativePattern(docsDir, '*CURRENT_STATUS.md');
-        this._fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
-        
-        // ファイル作成時にマークダウンコンテンツを更新
-        this._fileWatcher.onDidCreate(async (uri) => {
-          Logger.info(`CURRENT_STATUS.mdファイルが作成されました: ${uri.fsPath}`);
-          await this._handleGetMarkdownContent(uri.fsPath);
-        });
-        
-        // ファイル変更時にマークダウンコンテンツを更新
-        this._fileWatcher.onDidChange(async (uri) => {
-          Logger.info(`CURRENT_STATUS.mdファイルの変更を検出: ${uri.fsPath}`);
-          await this._handleGetMarkdownContent(uri.fsPath);
-        });
-        
-        Logger.info(`docsディレクトリ内のCURRENT_STATUS.mdファイルの監視を設定: ${docsDir}`);
-      }
       
       // イベントバスからのCURRENT_STATUS_UPDATEDイベントをリッスン
       const eventBus = AppGeniusEventBus.getInstance();
@@ -1936,14 +1990,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
           Logger.info('他のコンポーネントからのCURRENT_STATUS更新イベントを受信しました');
           
           // ステータスファイルが存在する場合はその内容を読み込み
-          const eventStatusPath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
-          if (fs.existsSync(eventStatusPath)) {
-            await this._handleGetMarkdownContent(eventStatusPath);
+          if (this._statusFilePath) {
+            await this._handleGetMarkdownContent(this._statusFilePath);
           }
         })
       );
       
-      Logger.info('ScopeManagerPanel: ファイル監視設定完了 - VSCodeFileSystemWatcherとイベントリスナーを使用');
+      Logger.info('ScopeManagerPanel: ファイル監視設定完了 - FileSystemServiceとイベントリスナーを使用');
     } catch (error) {
       Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
     }
@@ -1952,28 +2005,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * デフォルトテンプレートを取得
    */
-  private _getDefaultTemplate(): string {
-    const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
-    
-    return `# プロジェクト開発 - 進行状況 (${today}更新)
-
-## スコープ状況
-
-### 完了済みスコープ
-（完了したスコープはまだありません）
-
-### 進行中スコープ
-（実装中のスコープはまだありません）
-
-### 未着手スコープ
-- [ ] 基本機能の実装 (0%)
-  - 説明: プロジェクトの基本機能を実装します
-  - ステータス: 未着手
-  - スコープID: scope-${Date.now()}
-  - 関連ファイル:
-    - (ファイルはまだ定義されていません)
-`;
-  }
+  // _getDefaultTemplateメソッドはFileSystemServiceに移動したため削除
 
   /**
    * nonce値を生成
@@ -2010,6 +2042,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
     if (this._docsDirWatcher) {
       this._docsDirWatcher.close();
       this._docsDirWatcher = null;
+    }
+    
+    // FileSystemServiceのリソースを解放
+    if (this._fileSystemService) {
+      this._fileSystemService.dispose();
     }
     
     // 共有サービスの一時ファイルクリーンアップを実行
