@@ -46,8 +46,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   // 準備モードは廃止されました
   private _sharingService: ClaudeCodeSharingService | undefined; // ClaudeCode共有サービス
-  private _currentProjects: any[] = []; // プロジェクト一覧
-  private _activeProject: any = null; // アクティブなプロジェクト
   
   // 準備モード関連のメソッドは廃止されました
   
@@ -416,76 +414,71 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
   
   /**
-   * プロジェクトパスを設定する
-   * ProjectServiceと連携して実装
+   * プロジェクトパスを設定
+   * ProjectServiceに委譲
    */
-  public setProjectPath(projectPath: string): void {
-    this._projectPath = projectPath;
-    
-    // ProjectServiceにプロジェクトパスを設定
-    this._projectService.setProjectPath(projectPath)
-      .then(() => {
-        // ステータスファイルパスをProjectServiceから取得
-        this._statusFilePath = this._projectService.getStatusFilePath();
-        
-        Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
-        Logger.info(`ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
-        
-        // 既存のファイルウォッチャーを破棄
-        if (this._fileWatcher) {
-          this._fileWatcher.dispose();
-          this._fileWatcher = null;
-        }
-        
-        // Node.jsのファイルシステムウォッチャーも破棄
-        if (this._docsDirWatcher) {
-          this._docsDirWatcher.close();
-          this._docsDirWatcher = null;
-        }
-        
-        // プロジェクト直下に一時ディレクトリを作成
-        this._tempShareDir = path.join(projectPath, '.appgenius_temp');
-        
-        // FileSystemServiceを使用してディレクトリの存在を確認・作成
-        this._fileSystemService.ensureDirectoryExists(this._tempShareDir)
-          .then(() => {
-            Logger.info(`プロジェクト直下に一時ディレクトリを確認/作成しました: ${this._tempShareDir}`);
-          })
-          .catch(error => {
-            Logger.error(`一時ディレクトリの作成に失敗しました: ${error}`);
-          });
-        
-        // PromptServiceClientにもプロジェクトパスを設定
-        this._promptServiceClient.setProjectPath(projectPath);
-        
-        // 共有サービスにもプロジェクトパスを設定
-        if (this._sharingService) {
-          this._sharingService.setProjectBasePath(projectPath);
-        }
-        
-        // FileSystemServiceを使用してファイルウォッチャーを設定
-        this._setupFileWatcher();
-    
-        // パスが設定されたらステータスファイルを読み込む
-        this._loadStatusFile();
-        
-        // WebViewにもプロジェクトパス情報を送信
-        this._panel.webview.postMessage({
-          command: 'updateProjectPath',
-          projectPath: this._projectPath,
-          statusFilePath: this._statusFilePath,
-          statusFileExists: fs.existsSync(this._statusFilePath)
-        });
-        
-        // ProjectServiceから最新のプロジェクト情報を取得
-        this._currentProjects = this._projectService.getAllProjects();
-        this._activeProject = this._projectService.getActiveProject();
-        
-        Logger.debug(`プロジェクト一覧を更新しました: ${this._currentProjects.length}件, アクティブ: ${this._activeProject?.name || 'なし'}`);
-      })
-      .catch(error => {
-        Logger.error(`プロジェクトパスの設定に失敗しました: ${error}`);
+  public async setProjectPath(projectPath: string): Promise<void> {
+    try {
+      this._projectPath = projectPath;
+      
+      // ProjectServiceにプロジェクトパスを設定
+      await this._projectService.setProjectPath(projectPath);
+      
+      // ステータスファイルパスをProjectServiceから取得
+      this._statusFilePath = this._projectService.getStatusFilePath();
+      
+      Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
+      Logger.info(`ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
+      
+      // 既存のファイルウォッチャーを破棄
+      if (this._fileWatcher) {
+        this._fileWatcher.dispose();
+        this._fileWatcher = null;
+      }
+      
+      // Node.jsのファイルシステムウォッチャーも破棄
+      if (this._docsDirWatcher) {
+        this._docsDirWatcher.close();
+        this._docsDirWatcher = null;
+      }
+      
+      // プロジェクト直下に一時ディレクトリを作成
+      this._tempShareDir = path.join(projectPath, '.appgenius_temp');
+      await this._fileSystemService.ensureDirectoryExists(this._tempShareDir);
+      
+      // 関連サービスにプロジェクトパスを設定
+      this._promptServiceClient.setProjectPath(projectPath);
+      if (this._sharingService) {
+        this._sharingService.setProjectBasePath(projectPath);
+      }
+      
+      // ファイルウォッチャーとステータスファイルを設定
+      this._setupFileWatcher();
+      this._loadStatusFile();
+      
+      // WebViewにプロジェクト情報を送信
+      this._panel.webview.postMessage({
+        command: 'updateProjectPath',
+        projectPath: this._projectPath,
+        statusFilePath: this._statusFilePath,
+        statusFileExists: fs.existsSync(this._statusFilePath)
       });
+      
+      // WebViewにプロジェクト一覧を更新
+      const allProjects = this._projectService.getAllProjects();
+      const activeProject = this._projectService.getActiveProject();
+      
+      this._panel.webview.postMessage({
+        command: 'updateProjects',
+        projects: allProjects,
+        activeProject: activeProject
+      });
+      
+      Logger.debug(`プロジェクト一覧を更新しました: ${allProjects.length}件, アクティブ: ${activeProject?.name || 'なし'}`);
+    } catch (error) {
+      Logger.error(`プロジェクトパスの設定に失敗しました: ${error}`);
+      throw error;
+    }
   }
 
   /**

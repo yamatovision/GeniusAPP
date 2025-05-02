@@ -5,6 +5,7 @@ import { IProjectInfo } from '../types/ScopeManagerTypes';
 import { Logger } from '../../../utils/logger';
 import { FileSystemService, IFileSystemService } from './FileSystemService';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../../services/AppGeniusEventBus';
+import { ProjectManagementService } from '../../../services/ProjectManagementService';
 
 /**
  * プロジェクトサービスインターフェース
@@ -61,6 +62,7 @@ export class ProjectService implements IProjectService {
   private _activeProject: IProjectInfo | null = null;
   private _extensionPath: string;
   private _fileSystemService: IFileSystemService;
+  private _projectManagementService: ProjectManagementService;
   
   // シングルトンインスタンス
   private static _instance: ProjectService;
@@ -77,6 +79,9 @@ export class ProjectService implements IProjectService {
     // 拡張機能のパスを取得
     this._extensionPath = vscode.extensions.getExtension('mikoto.appgenius-ai')?.extensionPath || '';
     
+    // ProjectManagementServiceのインスタンスを取得
+    this._projectManagementService = ProjectManagementService.getInstance();
+    
     // プロジェクト情報を初期化
     this._initializeProjects();
     
@@ -90,9 +95,8 @@ export class ProjectService implements IProjectService {
   private _initializeProjects(): void {
     try {
       // ProjectManagementServiceからプロジェクト一覧を取得
-      const projectService = this._getProjectManagementService();
-      this._currentProjects = projectService.getAllProjects();
-      this._activeProject = projectService.getActiveProject();
+      this._currentProjects = this._projectManagementService.getAllProjects();
+      this._activeProject = this._projectManagementService.getActiveProject();
       
       Logger.info(`ProjectService: プロジェクト一覧を取得しました: ${this._currentProjects.length}件`);
     } catch (error) {
@@ -167,12 +171,13 @@ export class ProjectService implements IProjectService {
   }
   
   /**
-   * ProjectManagementServiceを取得
+   * このメソッドは削除されました
+   * @deprecated このメソッドは削除されました。直接 this._projectManagementService を使用してください
+   * @private
    */
-  private _getProjectManagementService(): any {
-    const { ProjectManagementService } = require('../../../services/ProjectManagementService');
-    return ProjectManagementService.getInstance();
-  }
+  // private _getProjectManagementService(): any {
+  //   return this._projectManagementService;
+  // }
   
   /**
    * 新規プロジェクト作成
@@ -262,11 +267,8 @@ export class ProjectService implements IProjectService {
       
       // ProjectManagementServiceにプロジェクトを登録
       try {
-        // ProjectManagementServiceを取得
-        const projectService = this._getProjectManagementService();
-        
         // 新規プロジェクトとして登録
-        const projectId = await projectService.createProject({
+        const projectId = await this._projectManagementService.createProject({
           name: name,
           description: description || "",
           path: projectDir
@@ -275,12 +277,12 @@ export class ProjectService implements IProjectService {
         Logger.info(`ProjectService: 新規作成したプロジェクトをProjectManagementServiceに登録: ID=${projectId}, 名前=${name}, パス=${projectDir}`);
         
         // プロジェクトをアクティブに設定
-        await projectService.setActiveProject(projectId);
+        await this._projectManagementService.setActiveProject(projectId);
         Logger.info(`ProjectService: 新規作成したプロジェクトをアクティブに設定: ID=${projectId}`);
         
         // プロジェクト一覧を更新
-        this._currentProjects = projectService.getAllProjects();
-        this._activeProject = projectService.getActiveProject();
+        this._currentProjects = this._projectManagementService.getAllProjects();
+        this._activeProject = this._projectManagementService.getActiveProject();
         
         // プロジェクト選択イベントを発行
         try {
@@ -392,26 +394,23 @@ export class ProjectService implements IProjectService {
       // プロジェクト名を取得（フォルダ名から）
       const projectName = path.basename(projectPath);
       
-      // ProjectManagementServiceにプロジェクトを登録 - ここが追加されたコード
+      // ProjectManagementServiceにプロジェクトを登録
       try {
-        // ProjectManagementServiceを取得
-        const projectService = this._getProjectManagementService();
-        
         // 既存のプロジェクトを検索
-        const projects = projectService.getAllProjects();
+        const projects = this._projectManagementService.getAllProjects();
         let projectId: string | undefined;
         let existingProject = projects.find((p: any) => p.path === projectPath);
         
         if (existingProject) {
           // 既存のプロジェクトが見つかった場合は、アクティブに設定
           projectId = existingProject.id;
-          await projectService.updateProject(projectId, {
+          await this._projectManagementService.updateProject(projectId, {
             updatedAt: Date.now()
           });
           Logger.info(`ProjectService: 既存プロジェクトをアクティブに更新: ID=${projectId}, 名前=${projectName}`);
         } else {
           // 新規プロジェクトとして登録
-          projectId = await projectService.createProject({
+          projectId = await this._projectManagementService.createProject({
             name: projectName,
             description: "",
             path: projectPath
@@ -421,13 +420,13 @@ export class ProjectService implements IProjectService {
         
         // プロジェクトをアクティブに設定
         if (projectId) {
-          await projectService.setActiveProject(projectId);
+          await this._projectManagementService.setActiveProject(projectId);
           Logger.info(`ProjectService: 読み込んだプロジェクトをアクティブに設定: ID=${projectId}`);
         }
         
         // プロジェクト一覧を更新
-        this._currentProjects = projectService.getAllProjects();
-        this._activeProject = projectService.getActiveProject();
+        this._currentProjects = this._projectManagementService.getAllProjects();
+        this._activeProject = this._projectManagementService.getActiveProject();
         
         // プロジェクト選択イベントを発行
         try {
@@ -487,11 +486,8 @@ export class ProjectService implements IProjectService {
     try {
       Logger.info(`ProjectService: プロジェクト選択: ${name}, パス: ${path}`);
       
-      // ProjectManagementServiceを取得
-      const projectService = this._getProjectManagementService();
-      
       // 既存のプロジェクトを検索
-      const projects = projectService.getAllProjects();
+      const projects = this._projectManagementService.getAllProjects();
       let projectId: string | undefined;
       let project = projects.find((p: any) => p.path === path);
       
@@ -543,12 +539,12 @@ export class ProjectService implements IProjectService {
       // 既存プロジェクトのIDがあれば、そのプロジェクトをアクティブに設定
       if (projectId) {
         // プロジェクトの既存メタデータを取得
-        const existingProject = projectService.getProject(projectId);
+        const existingProject = this._projectManagementService.getProject(projectId);
         
         // アクティブタブ情報を更新
         if (existingProject) {
           const metadata = existingProject.metadata || {};
-          await projectService.updateProject(projectId, {
+          await this._projectManagementService.updateProject(projectId, {
             metadata: {
               ...metadata,
               activeTab: activeTab || metadata.activeTab || 'current-status'
@@ -556,7 +552,7 @@ export class ProjectService implements IProjectService {
           });
         }
         
-        await projectService.setActiveProject(projectId);
+        await this._projectManagementService.setActiveProject(projectId);
         Logger.info(`ProjectService: 既存プロジェクトをアクティブに設定: ID=${projectId}, パス=${path}, アクティブタブ=${activeTab || (existingProject?.metadata?.activeTab) || 'current-status'}`);
       } else {
         // プロジェクトが見つからない場合は、新規作成または更新
@@ -566,7 +562,7 @@ export class ProjectService implements IProjectService {
           if (existingProjectWithPath) {
             // パスが同じプロジェクトが見つかった場合は更新
             projectId = existingProjectWithPath.id;
-            await projectService.updateProject(projectId, {
+            await this._projectManagementService.updateProject(projectId, {
               name: name,
               updatedAt: Date.now(),
               metadata: {
@@ -577,7 +573,7 @@ export class ProjectService implements IProjectService {
             Logger.info(`ProjectService: 既存プロジェクトを更新: ID=${projectId}, 名前=${name}, アクティブタブ=${activeTab || existingProjectWithPath.metadata?.activeTab || 'current-status'}`);
           } else {
             // 新規プロジェクトとして登録
-            projectId = await projectService.createProject({
+            projectId = await this._projectManagementService.createProject({
               name: name,
               description: "",
               path: path,
@@ -590,7 +586,7 @@ export class ProjectService implements IProjectService {
           
           // 作成または更新したプロジェクトをアクティブに設定
           if (projectId) {
-            await projectService.setActiveProject(projectId);
+            await this._projectManagementService.setActiveProject(projectId);
           }
         } catch (error) {
           Logger.warn(`ProjectService: プロジェクト登録に失敗しましたが、ローカルパスのみで続行します: ${error}`);
@@ -614,11 +610,11 @@ export class ProjectService implements IProjectService {
       // ProjectManagementServiceから最新のプロジェクト情報を取得して同期
       try {
         const updatedProject = projectId ? 
-          projectService.getProject(projectId) : 
-          projectService.getActiveProject();
+          this._projectManagementService.getProject(projectId) : 
+          this._projectManagementService.getActiveProject();
         
         // プロジェクト一覧を更新
-        this._currentProjects = projectService.getAllProjects();
+        this._currentProjects = this._projectManagementService.getAllProjects();
         this._activeProject = updatedProject;
         
         // イベントを発火
@@ -650,23 +646,21 @@ export class ProjectService implements IProjectService {
       
       // ProjectManagementServiceを使用してプロジェクトを登録解除
       try {
-        const projectService = this._getProjectManagementService();
-        
         // IDが指定されている場合はそれを使用、なければパスで検索
         let removed = false;
         
         if (id) {
-          removed = await projectService.removeProjectById(id);
+          removed = await this._projectManagementService.removeProjectById(id);
         } else {
-          removed = await projectService.removeProjectByPath(path);
+          removed = await this._projectManagementService.removeProjectByPath(path);
         }
         
         if (removed) {
           Logger.info(`ProjectService: プロジェクト「${name}」の登録解除に成功しました`);
           
           // プロジェクト一覧を更新
-          this._currentProjects = projectService.getAllProjects();
-          this._activeProject = projectService.getActiveProject();
+          this._currentProjects = this._projectManagementService.getAllProjects();
+          this._activeProject = this._projectManagementService.getActiveProject();
           
           // イベントを発行
           this._onProjectRemoved.fire({
@@ -754,11 +748,8 @@ export class ProjectService implements IProjectService {
       
       Logger.info(`ProjectService: タブ状態を保存します: プロジェクトID=${projectId}, タブID=${tabId}`);
       
-      // ProjectManagementServiceを取得
-      const projectService = this._getProjectManagementService();
-      
       // プロジェクト情報を取得
-      const project = projectService.getProject(projectId);
+      const project = this._projectManagementService.getProject(projectId);
       if (!project) {
         throw new Error(`プロジェクトが見つかりません: ${projectId}`);
       }
@@ -768,12 +759,12 @@ export class ProjectService implements IProjectService {
       metadata.activeTab = tabId;
       
       // プロジェクトを更新
-      await projectService.updateProject(projectId, {
+      await this._projectManagementService.updateProject(projectId, {
         metadata: metadata
       });
       
       // アクティブプロジェクトを再取得
-      this._activeProject = projectService.getProject(projectId);
+      this._activeProject = this._projectManagementService.getProject(projectId);
       
       Logger.info(`ProjectService: タブ状態を保存しました: プロジェクト=${project.name}, タブID=${tabId}`);
     } catch (error) {
