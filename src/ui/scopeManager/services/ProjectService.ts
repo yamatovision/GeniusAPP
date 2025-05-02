@@ -14,7 +14,7 @@ import { ProjectManagementService } from '../../../services/ProjectManagementSer
 export interface IProjectService {
   // プロジェクト操作
   createProject(name: string, description: string): Promise<string>;
-  loadExistingProject(projectPath: string): Promise<IProjectInfo>;
+  loadExistingProject(projectPath?: string): Promise<IProjectInfo>;
   selectProject(name: string, path: string, activeTab?: string): Promise<void>;
   removeProject(name: string, path: string, id?: string): Promise<boolean>;
   
@@ -29,11 +29,32 @@ export interface IProjectService {
   // タブ状態管理
   saveTabState(projectId: string, tabId: string): Promise<void>;
   
+  // 新規メソッド
+  // プロジェクト管理の拡張機能
+  ensureActiveProject(name: string, path: string, activeTab?: string): Promise<boolean>;
+  refreshProjectsList(): Promise<IProjectInfo[]>;
+  
+  // UI状態管理サポート
+  syncProjectUIState(projectPath: string): Promise<{ 
+    allProjects: IProjectInfo[];
+    activeProject: IProjectInfo | null;
+    statusFilePath: string;
+    statusFileExists: boolean;
+  }>;
+  
   // イベント
   onProjectSelected: vscode.Event<IProjectInfo>;
   onProjectCreated: vscode.Event<IProjectInfo>;
   onProjectRemoved: vscode.Event<IProjectInfo>;
   onProjectsUpdated: vscode.Event<IProjectInfo[]>;
+  
+  // 新規イベント
+  onProjectUIStateUpdated: vscode.Event<{
+    allProjects: IProjectInfo[];
+    activeProject: IProjectInfo | null;
+    statusFilePath: string;
+    statusFileExists: boolean;
+  }>;
   
   // リソース解放
   dispose(): void;
@@ -54,6 +75,15 @@ export class ProjectService implements IProjectService {
   
   private _onProjectsUpdated = new vscode.EventEmitter<IProjectInfo[]>();
   public readonly onProjectsUpdated = this._onProjectsUpdated.event;
+  
+  // 新規イベントエミッター
+  private _onProjectUIStateUpdated = new vscode.EventEmitter<{
+    allProjects: IProjectInfo[];
+    activeProject: IProjectInfo | null;
+    statusFilePath: string;
+    statusFileExists: boolean;
+  }>();
+  public readonly onProjectUIStateUpdated = this._onProjectUIStateUpdated.event;
   
   private _disposables: vscode.Disposable[] = [];
   private _projectPath: string = '';
@@ -796,6 +826,121 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
   }
   
   /**
+   * プロジェクト一覧を更新して取得
+   * @returns 更新されたプロジェクト一覧
+   */
+  public async refreshProjectsList(): Promise<IProjectInfo[]> {
+    try {
+      // ProjectManagementServiceからプロジェクト一覧を再取得
+      this._currentProjects = this._projectManagementService.getAllProjects();
+      this._activeProject = this._projectManagementService.getActiveProject();
+      
+      Logger.info(`ProjectService: プロジェクト一覧を更新しました: ${this._currentProjects.length}件`);
+      
+      // 現在のプロジェクト状態を通知
+      if (this._activeProject && this._activeProject.path) {
+        const statusFilePath = this.getStatusFilePath();
+        
+        this._onProjectUIStateUpdated.fire({
+          allProjects: this._currentProjects,
+          activeProject: this._activeProject,
+          statusFilePath: statusFilePath,
+          statusFileExists: fs.existsSync(statusFilePath)
+        });
+      }
+      
+      return this._currentProjects;
+    } catch (error) {
+      Logger.error(`ProjectService: プロジェクト一覧の更新に失敗しました`, error as Error);
+      return this._currentProjects;
+    }
+  }
+
+  /**
+   * プロジェクトUI状態を同期
+   * UI更新に必要な情報を一度に取得
+   * @param projectPath 対象プロジェクトパス
+   * @returns UI更新に必要な情報
+   */
+  public async syncProjectUIState(projectPath: string): Promise<{
+    allProjects: IProjectInfo[];
+    activeProject: IProjectInfo | null;
+    statusFilePath: string;
+    statusFileExists: boolean;
+  }> {
+    try {
+      // プロジェクトパスが指定されている場合は、パスを更新
+      if (projectPath && projectPath !== this._projectPath) {
+        await this.setProjectPath(projectPath);
+      }
+      
+      // 最新のプロジェクト一覧を取得
+      const allProjects = this.getAllProjects();
+      const activeProject = this.getActiveProject();
+      const statusFilePath = this.getStatusFilePath();
+      
+      // 結果をまとめて返す
+      const result = {
+        allProjects: allProjects,
+        activeProject: activeProject,
+        statusFilePath: statusFilePath,
+        statusFileExists: fs.existsSync(statusFilePath)
+      };
+      
+      // イベントも発火
+      this._onProjectUIStateUpdated.fire(result);
+      
+      return result;
+    } catch (error) {
+      Logger.error(`ProjectService: プロジェクトUI状態の同期に失敗しました`, error as Error);
+      
+      // エラー時も最低限の情報を返す
+      return {
+        allProjects: this._currentProjects,
+        activeProject: this._activeProject,
+        statusFilePath: this._statusFilePath,
+        statusFileExists: false
+      };
+    }
+  }
+
+  /**
+   * 指定されたプロジェクトがアクティブであることを確認し、必要に応じて選択状態を更新
+   * @param name プロジェクト名
+   * @param path プロジェクトパス
+   * @param activeTab アクティブタブID（オプション）
+   * @returns 処理が成功したかどうか
+   */
+  public async ensureActiveProject(name: string, path: string, activeTab?: string): Promise<boolean> {
+    try {
+      // 現在のアクティブプロジェクトを取得
+      const activeProject = this.getActiveProject();
+      
+      // 指定されたプロジェクトが現在のアクティブプロジェクトと一致するか確認
+      if (activeProject && activeProject.path === path) {
+        Logger.info(`ProjectService: 既にアクティブなプロジェクトです: ${name}`);
+        
+        // タブ状態を更新する場合は、タブ状態を保存
+        if (activeTab && activeProject.id) {
+          await this.saveTabState(activeProject.id, activeTab);
+          Logger.info(`ProjectService: タブ状態を更新しました: ${activeTab}`);
+        }
+        
+        return true;
+      } else {
+        // アクティブプロジェクトが一致しない場合は、指定されたプロジェクトをアクティブに設定
+        await this.selectProject(name, path, activeTab);
+        Logger.info(`ProjectService: プロジェクトをアクティブに設定しました: ${name}`);
+        
+        return true;
+      }
+    } catch (error) {
+      Logger.error('ProjectService: プロジェクトの同期に失敗しました', error as Error);
+      return false;
+    }
+  }
+  
+  /**
    * リソースを解放
    */
   public dispose(): void {
@@ -803,6 +948,7 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
     this._onProjectCreated.dispose();
     this._onProjectRemoved.dispose();
     this._onProjectsUpdated.dispose();
+    this._onProjectUIStateUpdated.dispose(); // 新規イベントエミッターの解放
     
     while (this._disposables.length) {
       const disposable = this._disposables.pop();

@@ -513,8 +513,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _refreshProjects(): Promise<void> {
     try {
-      // ProjectServiceからプロジェクト一覧を取得
-      const allProjects = this._projectService.getAllProjects();
+      // ProjectServiceの新しいrefreshProjectsListメソッドを使用
+      const allProjects = await this._projectService.refreshProjectsList();
       const activeProject = this._projectService.getActiveProject();
       
       Logger.info(`プロジェクト一覧を更新しました: ${allProjects.length}件`);
@@ -1510,6 +1510,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
         })
       );
       
+      // プロジェクトのUI状態更新イベント
+      this._disposables.push(
+        this._projectService.onProjectUIStateUpdated((uiState) => {
+          Logger.info(`ProjectServiceからプロジェクトUI状態更新イベントを受信`);
+          
+          // WebViewにプロジェクトUI状態を通知
+          this._panel.webview.postMessage({
+            command: 'updateProjectUIState',
+            uiState: uiState
+          });
+        })
+      );
+      
       Logger.info('ProjectServiceのイベントリスナー設定完了');
     } catch (error) {
       Logger.error('ProjectServiceのイベントリスナー設定中にエラーが発生しました', error as Error);
@@ -1569,30 +1582,26 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * 指定されたプロジェクトがアクティブであることを確認し、必要に応じて選択状態を更新
    * WebViewとバックエンドの状態を同期する目的で使用
-   * ProjectServiceを使用して実装
+   * ProjectServiceの新しいensureActiveProjectメソッドを使用して実装
    */
   private async _handleEnsureActiveProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
     try {
-      // 現在のアクティブプロジェクトを取得
-      const activeProject = this._projectService.getActiveProject();
-      this._activeProject = activeProject; // インスタンス変数にも保存
+      Logger.info(`プロジェクト同期確認: ${projectName}, パス: ${projectPath}${activeTab ? ', タブ: ' + activeTab : ''}`);
       
-      // 指定されたプロジェクトが現在のアクティブプロジェクトと一致するか確認
-      if (activeProject && activeProject.path === projectPath) {
-        Logger.info(`既にアクティブなプロジェクトです: ${projectName}`);
-        
-        // タブ状態を更新する場合は、ProjectServiceを介してsaveTabStateを呼び出す
-        if (activeTab && activeProject.id) {
-          await this._projectService.saveTabState(activeProject.id, activeTab);
-          Logger.info(`タブ状態を更新しました: ${activeTab}`);
-        }
+      // ProjectServiceの新しいensureActiveProjectメソッドを使用
+      const success = await this._projectService.ensureActiveProject(projectName, projectPath, activeTab);
+      
+      if (success) {
+        // 成功した場合は、最新のアクティブプロジェクト情報を取得して保存
+        this._activeProject = this._projectService.getActiveProject();
+        Logger.info(`プロジェクト同期が完了しました: ${projectName}`);
       } else {
-        // アクティブプロジェクトが一致しない場合は、指定されたプロジェクトをアクティブに設定
-        await this._handleSelectProject(projectName, projectPath, activeTab);
-        Logger.info(`プロジェクトをアクティブに設定しました: ${projectName}`);
+        Logger.warn(`プロジェクト同期に失敗しました: ${projectName}`);
+        this._showError(`プロジェクト「${projectName}」の同期に失敗しました`);
       }
     } catch (error) {
       Logger.error('プロジェクトの同期に失敗しました', error as Error);
+      this._showError(`プロジェクトの同期中にエラーが発生しました: ${(error as Error).message}`);
     }
   }
 
