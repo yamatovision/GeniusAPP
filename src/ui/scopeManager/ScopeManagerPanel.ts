@@ -216,6 +216,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
     this._panel.webview.onDidReceiveMessage(
       async message => {
         try {
+          // デバッグログ：受信したメッセージの内容を詳細に記録
+          if (message.command === 'launchPromptFromURL') {
+            Logger.info(`【WebViewメッセージ】コマンド=${message.command}, URL=${message.url}, index=${message.index}, name=${message.name}`);
+            Logger.info(`【WebViewメッセージ詳細】splitTerminal=${message.splitTerminal} (型: ${typeof message.splitTerminal})`);
+            Logger.info(`【WebViewメッセージJSON】${JSON.stringify(message)}`);
+          }
+          
           switch (message.command) {
             case 'initialize':
               await this._handleInitialize();
@@ -231,7 +238,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             // 新しいコマンド
             case 'launchPromptFromURL':
-              await this._handleLaunchPromptFromURL(message.url, message.index, message.name);
+              // splitTerminalパラメータを明示的に処理
+              const splitTerminalValue = message.splitTerminal === true ? true : false;
+              Logger.info(`【メッセージ変換】splitTerminal: ${message.splitTerminal} => ${splitTerminalValue}`);
+              await this._handleLaunchPromptFromURL(message.url, message.index, message.name, splitTerminalValue);
               break;
             case 'shareText':
               await this._handleShareText(message.text, message.suggestedFilename);
@@ -537,10 +547,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   /**
    * プロンプトURLからClaudeCodeを起動する
+   * @param url プロンプトのURL
+   * @param index プロンプトのインデックス
+   * @param name プロンプト名（ターミナルタイトルに使用）
+   * @param splitTerminal ターミナル分割モードを使用するかどうか
    */
-  private async _handleLaunchPromptFromURL(url: string, index: number, name?: string): Promise<void> {
+  private async _handleLaunchPromptFromURL(url: string, index: number, name?: string, splitTerminal?: boolean): Promise<void> {
     try {
-      Logger.info(`プロンプトを取得中: ${url}`);
+      // 受信したメッセージ全体をログ出力（デバッグ用）
+      Logger.info(`プロンプト起動パラメータを受信: URL=${url}, index=${index}, name=${name}, splitTerminal=${splitTerminal}`);
       
       // フロントエンドから送信されたURLとインデックスをそのまま使用
       // プロンプトの内容を取得して一時ファイルに保存（プロジェクトパスを指定）
@@ -548,18 +563,37 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // ClaudeCodeを起動
       const launcher = ClaudeCodeLauncherService.getInstance();
+      
+      // UIからsplitTerminalパラメータを受け取り、未指定の場合はfalseをデフォルト値とする
+      // 明示的なブール値変換を行い、受け取ったsplitTerminalの型も出力
+      const useSplitTerminal = splitTerminal === true;
+      Logger.info(`【詳細ログ】受け取ったsplitTerminalの値: ${splitTerminal} (型: ${typeof splitTerminal})`);
+      Logger.info(`【詳細ログ】変換後のsplitTerminal値: ${useSplitTerminal} (型: ${typeof useSplitTerminal})`);
+      
+      // 分割モードの最終状態をログ出力
+      Logger.info(`ターミナル分割モード: ${useSplitTerminal ? '有効' : '無効'}`);
+      
+      // UIのダイアログで「分割ターミナルで表示」が選択された場合のみtrueになる
       const success = await launcher.launchClaudeCodeWithPrompt(
         this._projectPath,
         promptFilePath,
         {
           deletePromptFile: true, // 使用後に一時ファイルを削除
-          splitView: true, // 分割ビューで表示
+          splitTerminal: useSplitTerminal, // UIから指定された分割モードを使用
           promptType: name // プロンプト名をターミナルタイトルに反映
         }
       );
       
       if (success) {
-        Logger.info(`ClaudeCode起動成功: ${promptFilePath}`);
+        Logger.info(`ClaudeCode起動成功: ${promptFilePath}, 分割モード: ${useSplitTerminal ? '有効' : '無効'}`);
+        
+        // 成功通知をUIに送信（デバッグ用）
+        this._panel.webview.postMessage({
+          command: 'launchResult',
+          success: true,
+          splitTerminal: useSplitTerminal,
+          message: `ClaudeCodeを起動しました (${useSplitTerminal ? '分割ターミナル' : '新しいタブ'})`
+        });
       } else {
         this._showError('ClaudeCodeの起動に失敗しました');
       }

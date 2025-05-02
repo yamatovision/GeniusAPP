@@ -490,7 +490,7 @@ export class ClaudeCodeIntegrationService {
    * @param promptUrl 公開プロンプトURL
    * @param projectPath プロジェクトパス
    * @param additionalContent 追加コンテンツ（オプション）
-   * @param splitView 分割表示を使用するかどうか（オプション）
+   * @param splitTerminal ターミナル分割表示を使用するかどうか（オプション）
    * @param location ターミナルの表示位置（オプション）
    * @returns 起動成功したかどうか
    */
@@ -498,7 +498,7 @@ export class ClaudeCodeIntegrationService {
     promptUrl: string, 
     projectPath: string, 
     additionalContent?: string,
-    splitView?: boolean,
+    splitTerminal?: boolean,
     location?: vscode.ViewColumn
   ): Promise<boolean> {
     try {

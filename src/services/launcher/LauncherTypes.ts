@@ -34,10 +34,16 @@ export interface TerminalOptions {
   cwd?: string;
   additionalParams?: string;
   deletePromptFile?: boolean;
-  splitView?: boolean;
   location?: vscode.ViewColumn;
   iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | undefined;
   promptType?: string; // プロンプトの種類（要件定義、リファクタリングなど）
+  
+  /**
+   * アクティブなターミナルを分割してClaudeCodeを起動するかどうか
+   * trueの場合、既存のアクティブなターミナルを分割して新しいターミナルを作成
+   * falseの場合は通常通り新しいタブとしてターミナルを作成（デフォルト）
+   */
+  splitTerminal?: boolean;
 }
 
 /**

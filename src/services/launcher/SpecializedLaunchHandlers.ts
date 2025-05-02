@@ -83,7 +83,7 @@ export class SpecializedLaunchHandlers {
       Logger.info('APIキーの検証をスキップします（開発モード）');
       
       // ターミナルの作成
-      const terminal = this.terminalService.createConfiguredTerminal({
+      const terminal = await this.terminalService.createConfiguredTerminal({
         title: 'ClaudeCode',
         cwd: scope.projectPath
       });
@@ -317,6 +317,11 @@ export class SpecializedLaunchHandlers {
       } else {
         Logger.warn('プロンプトタイプが指定されていません。デフォルトのタイトル「ClaudeCode」を使用します。');
       }
+
+      // ターミナル分割オプションが指定されているかをログに出力
+      if (options.splitTerminal) {
+        Logger.info(`ターミナル分割オプションが有効です: ${options.splitTerminal}`);
+      }
       
       // ターミナルの作成
       Logger.debug(`渡されたterminalOptions: ${JSON.stringify(terminalOptions)}`);
@@ -325,7 +330,7 @@ export class SpecializedLaunchHandlers {
       // titleとcwdはterminalOptionsとは別途明示的に指定する必要がある
       // terminalTitleはTerminalProvisionServiceで自動生成されるので、
       // title自体を渡す必要はない（promptTypeが正しく渡されていれば十分）
-      const terminal = this.terminalService.createConfiguredTerminal({
+      const terminal = await this.terminalService.createConfiguredTerminal({
         cwd: projectPath,
         ...terminalOptions
       });
@@ -386,7 +391,8 @@ export class SpecializedLaunchHandlers {
             promptType: options.promptType,
             promptFilePath: promptFilePath,
             projectPath: projectPath,
-            userId: userId // 重要: ユーザーIDをイベントデータに含める
+            userId: userId, // 重要: ユーザーIDをイベントデータに含める
+            splitTerminal: options.splitTerminal // 分割ターミナル情報も追加
           },
           'SpecializedLaunchHandlers'
         );
@@ -406,7 +412,8 @@ export class SpecializedLaunchHandlers {
         { 
           projectPath: projectPath,
           promptFilePath: promptFilePath,
-          additionalParams: additionalParams
+          additionalParams: additionalParams,
+          splitTerminal: options.splitTerminal
         },
         'SpecializedLaunchHandlers'
       );
@@ -542,7 +549,7 @@ export class SpecializedLaunchHandlers {
       Logger.info('APIキーの検証をスキップします（開発モード）');
       
       // ターミナルの作成
-      const terminal = this.terminalService.createConfiguredTerminal({
+      const terminal = await this.terminalService.createConfiguredTerminal({
         title: `ClaudeCode - ${processInfo.mockupName}の解析`,
         cwd: processInfo.projectPath
       });

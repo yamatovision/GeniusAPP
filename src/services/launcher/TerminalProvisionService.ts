@@ -20,7 +20,7 @@ export class TerminalProvisionService {
    * 新しいターミナルを作成し、基本的な環境を設定
    * @param options ターミナル設定オプション
    */
-  public createConfiguredTerminal(options: TerminalOptions): vscode.Terminal {
+  public async createConfiguredTerminal(options: TerminalOptions): Promise<vscode.Terminal> {
     // 受け取ったオプション全体をログ出力
     Logger.debug(`TerminalProvisionService: 受け取った生のオプション: ${JSON.stringify(options)}`);
     
@@ -30,7 +30,8 @@ export class TerminalProvisionService {
       title: rawTitle = 'ClaudeCode',
       promptType,
       cwd,
-      iconPath: customIconPath
+      iconPath: customIconPath,
+      splitTerminal = false // 分割ターミナルオプション（デフォルトはfalse）
     } = options;
     
     // promptTypeが指定されていれば、それをそのまま利用
@@ -40,7 +41,8 @@ export class TerminalProvisionService {
     Logger.debug(`TerminalProvisionService: 解析後のオプション: ${JSON.stringify({
       title,
       cwd: cwd ? cwd.substring(0, 30) + '...' : undefined,
-      hasIconPath: !!customIconPath
+      hasIconPath: !!customIconPath,
+      splitTerminal
     })}`);
     
     // アイコンURIを取得
@@ -54,15 +56,49 @@ export class TerminalProvisionService {
     };
     
     // ターミナル作成前のパラメータログ
-    Logger.debug(`ターミナル作成パラメータ: name=${terminalOptions.name}`);
+    Logger.debug(`ターミナル作成パラメータ: name=${terminalOptions.name}, splitTerminal=${splitTerminal}`);
     
-    // ターミナルオブジェクトを作成（常に新しいタブとして作成）
-    const terminal = vscode.window.createTerminal(terminalOptions);
+    // ターミナルオブジェクトを作成
+    let terminal: vscode.Terminal;
     
-    // ターミナルを表示（必ず新しいタブとして表示）
-    terminal.show(true);
+    if (splitTerminal && vscode.window.activeTerminal) {
+      // アクティブなターミナルがある場合は、分割ターミナルを作成
+      try {
+        Logger.info('アクティブなターミナルを分割して新しいターミナルを作成します');
+        
+        // 既存のアクティブターミナルがフォーカスされた状態にする
+        vscode.window.activeTerminal.show(true);
+        
+        // 分割コマンドを実行
+        await vscode.commands.executeCommand('workbench.action.terminal.split');
+        
+        // 分割後のターミナルは自動的にアクティブになるため、それを使用
+        terminal = vscode.window.activeTerminal;
+        
+        // 少し遅延してから操作（初期化時間を考慮）
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // 確実に分割されたターミナルが表示されるようにする
+        terminal.show(true);
+        
+        Logger.info('ターミナル分割に成功しました');
+      } catch (error) {
+        Logger.error('ターミナル分割中にエラーが発生しました', error as Error);
+        // エラーが発生した場合は通常のターミナルを作成
+        terminal = vscode.window.createTerminal(terminalOptions);
+        terminal.show(true);
+      }
+    } else {
+      // アクティブなターミナルがない場合は通常のターミナルを作成
+      terminal = vscode.window.createTerminal(terminalOptions);
+      terminal.show(true);
+    }
     
-    Logger.info(`新しいターミナルタブを作成しました: ${terminalOptions.name || 'unnamed'}`);
+    if (splitTerminal && vscode.window.activeTerminal) {
+      Logger.info(`アクティブなターミナルを分割して新しいターミナルを作成しました: ${terminalOptions.name || 'unnamed'}`);
+    } else {
+      Logger.info(`新しいターミナルタブを作成しました: ${terminalOptions.name || 'unnamed'}`);
+    }
     
     // ClaudeCode起動カウンターイベントを発行（ターミナル作成時に必ず発行）
     try {
@@ -82,7 +118,8 @@ export class TerminalProvisionService {
           terminalName: terminalOptions.name, 
           promptType, 
           cwd,
-          userId: userId // 重要: ユーザーIDをイベントデータに含める
+          userId: userId, // 重要: ユーザーIDをイベントデータに含める
+          splitTerminal // 分割ターミナル情報も追加
         },
         'TerminalProvisionService'
       );
@@ -92,7 +129,14 @@ export class TerminalProvisionService {
     }
     
     // 環境設定を適用
-    this.setupTerminalEnvironment(terminal, cwd);
+    // 分割ターミナルの場合は少し遅延を入れて環境設定を適用（初期化の時間を考慮）
+    if (splitTerminal && vscode.window.activeTerminal) {
+      // 分割ターミナルの場合は少し長めの遅延を入れる
+      await new Promise(resolve => setTimeout(resolve, 500));
+      this.setupTerminalEnvironment(terminal, cwd);
+    } else {
+      this.setupTerminalEnvironment(terminal, cwd);
+    }
     
     return terminal;
   }

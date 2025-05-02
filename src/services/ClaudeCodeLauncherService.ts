@@ -96,7 +96,7 @@ export class ClaudeCodeLauncherService {
       title?: string, 
       additionalParams?: string, 
       deletePromptFile?: boolean,
-      splitView?: boolean,
+      splitTerminal?: boolean, // ターミナル分割パラメータ
       location?: vscode.ViewColumn,
       promptType?: string // プロンプトタイプ（要件定義、システムアーキテクチャなど）
     }
@@ -104,7 +104,7 @@ export class ClaudeCodeLauncherService {
     // 起動前にカウンターイベントを発行
     this.eventBus.emit(
       AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-      { projectPath, promptFilePath },
+      { projectPath, promptFilePath, splitTerminal: options?.splitTerminal },
       'ClaudeCodeLauncherService'
     );
     
@@ -114,9 +114,9 @@ export class ClaudeCodeLauncherService {
       title: options?.title,
       additionalParams: options?.additionalParams,
       deletePromptFile: options?.deletePromptFile,
-      splitView: options?.splitView,
       location: options?.location,
-      promptType: options?.promptType // プロンプトタイプを渡す
+      promptType: options?.promptType, // プロンプトタイプを渡す
+      splitTerminal: options?.splitTerminal // ターミナル分割パラメータを渡す
     });
   }
   
