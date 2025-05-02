@@ -121,12 +121,9 @@ const vscode = acquireVsCodeApi();
         displayMarkdownContent(message.content);
         break;
       case 'updateProjects':
+        // プロジェクト一覧を更新するだけで、ここではタブ選択は行わない
+        // （selectTabコマンドが別途送信される）
         updateProjects(message.projects, message.activeProject);
-        // アクティブプロジェクトのメタデータからタブ状態を復元
-        if (message.activeProject && message.activeProject.metadata && message.activeProject.metadata.activeTab) {
-          console.log('アクティブプロジェクトのメタデータからタブ状態を復元:', message.activeProject.metadata.activeTab);
-          selectTab(message.activeProject.metadata.activeTab, false);
-        }
         break;
       case 'selectTab':
         selectTab(message.tabId);
@@ -148,58 +145,81 @@ const vscode = acquireVsCodeApi();
    * @param {Object} project プロジェクト情報
    */
   function syncProjectState(project) {
-    console.log('ProjectManagementServiceからプロジェクト状態を同期:', project);
-    
-    if (!project) return;
-    
-    // 現在の状態を取得
-    const state = vscode.getState() || {};
-    
-    // 同じプロジェクトの同期が短時間に複数回行われるのを防止
-    const now = Date.now();
-    const lastSyncTime = state.lastProjectSyncTime || 0;
-    const lastSyncId = state.lastSyncedProjectId;
-    
-    // 最後の同期から500ms未満で、同じプロジェクトの場合はスキップ
-    if (now - lastSyncTime < 500 && lastSyncId === project.id) {
-      console.log(`プロジェクト同期をスキップ: 直近に同じプロジェクト(${project.id})の同期済み`);
-      return;
-    }
-    
-    // 同期タイムスタンプとプロジェクトIDを更新
-    state.lastProjectSyncTime = now;
-    state.lastSyncedProjectId = project.id;
-    
-    // プロジェクト名を更新
-    if (project.name) {
-      updateProjectName(project.name);
-    }
-    
-    // プロジェクトパスを更新
-    if (project.path) {
-      const data = {
-        projectPath: project.path,
-        statusFilePath: project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '',
-        statusFileExists: true
-      };
-      updateProjectPath(data);
-    }
-    
-    // メタデータからタブ状態を復元
-    if (project.metadata && project.metadata.activeTab) {
-      // 直前の保存と同じタブならスキップ（無限ループ防止）
-      if (state.lastSavedTab !== project.metadata.activeTab) {
-        selectTab(project.metadata.activeTab, false);
+    try {
+      if (!project) {
+        console.warn('プロジェクト情報が空のため同期をスキップします');
+        return;
       }
+      
+      console.log('ProjectManagementServiceからプロジェクト状態を同期:', project);
+      
+      // 現在の状態を取得
+      const state = vscode.getState() || {};
+      
+      // 連続同期対策 - 短時間での重複同期を防止
+      const now = Date.now();
+      const lastSyncTime = state.lastProjectSyncTime || 0;
+      const lastSyncId = state.lastSyncedProjectId;
+      const syncThreshold = 300; // 300ms以内の同期はスキップ
+      
+      // 同じプロジェクトの頻繁すぎる同期はスキップ
+      if (now - lastSyncTime < syncThreshold && lastSyncId === project.id) {
+        console.log(`プロジェクト同期をスキップ: 直近(${now - lastSyncTime}ms前)に同期済み`);
+        return;
+      }
+      
+      // 同期状態を更新
+      state.lastProjectSyncTime = now;
+      state.lastSyncedProjectId = project.id;
+      
+      // 1. プロジェクト基本情報の更新
+      if (project.name) {
+        updateProjectName(project.name);
+      }
+      
+      if (project.path) {
+        const data = {
+          projectPath: project.path,
+          statusFilePath: project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '',
+          statusFileExists: true
+        };
+        updateProjectPath(data);
+      }
+      
+      // 2. タブ状態の同期
+      if (project.metadata && project.metadata.activeTab) {
+        const activeTabFromMetadata = project.metadata.activeTab;
+        
+        // タブが存在するか確認
+        const tabExists = Array.from(document.querySelectorAll('.tab'))
+          .some(tab => tab.getAttribute('data-tab') === activeTabFromMetadata);
+        
+        const tabToSelect = tabExists ? activeTabFromMetadata : 'current-status';
+        
+        // TabStateManagerを使用して一貫した方法でタブを選択
+        // フラグをfalseにして無限ループを防止（サーバーに再通知しない）
+        selectTab(tabToSelect, false);
+        
+        console.log(`タブ状態同期: ${tabToSelect}`);
+      }
+      
+      // 3. ローカルステートの更新（プロジェクト情報を保存）
+      state.activeProjectName = project.name;
+      state.activeProjectPath = project.path;
+      
+      if (project.metadata && project.metadata.activeTab) {
+        state.activeTab = project.metadata.activeTab;
+      } else if (!state.activeTab) {
+        state.activeTab = 'current-status';
+      }
+      
+      // 状態を保存
+      vscode.setState(state);
+      
+      console.log(`プロジェクト状態同期完了: ${project.name}`);
+    } catch (error) {
+      console.error('プロジェクト状態の同期中にエラーが発生しました:', error);
     }
-    
-    // ローカルステートを更新
-    state.activeProjectName = project.name;
-    state.activeProjectPath = project.path;
-    state.activeTab = project.metadata?.activeTab || 'current-status';
-    vscode.setState(state);
-    
-    console.log(`プロジェクト状態同期完了: ${project.name}`);
   }
 
   /**
@@ -1302,47 +1322,42 @@ const vscode = acquireVsCodeApi();
    * 以前選択していたプロジェクトとタブを復元する
    */
   function restoreProjectState() {
-    // 復元処理はUIのレンダリング完了後に行うため遅延させる
+    // 復元処理はUIのレンダリング完了後に適切なタイミングで行う
+    // 遅延を少し長めにして確実にDOM要素が生成されたタイミングで実行
     setTimeout(() => {
-      const currentState = vscode.getState() || {};
-      const { activeProjectName, activeProjectPath, activeTab } = currentState;
-      
-      console.log('プロジェクト状態の復元を試みます:', { activeProjectName, activeProjectPath, activeTab });
-      
-      // 状態がローカルに保存されていない場合は、バックエンドから直接同期される
-      if (!activeProjectName || !activeProjectPath) {
-        console.log('ローカルにプロジェクト状態が保存されていません。バックエンドから同期を待ちます。');
-        // 自動で同期されるため何もしない
-        return;
-      }
-      
-      // タブが保存されている場合はそのタブを選択
-      if (activeTab) {
-        // タブの選択状態をUI上で復元
-        const tabs = document.querySelectorAll('.tab');
-        const tabContents = document.querySelectorAll('.tab-content');
+      try {
+        const currentState = vscode.getState() || {};
+        const { activeProjectName, activeProjectPath, activeTab } = currentState;
         
-        tabs.forEach(tab => {
-          if (tab.getAttribute('data-tab') === activeTab) {
-            tab.classList.add('active');
-          } else {
-            tab.classList.remove('active');
-          }
+        console.log('プロジェクト状態の復元を試みます:', { 
+          activeProjectName, 
+          activeProjectPath, 
+          activeTab
         });
         
-        tabContents.forEach(content => {
-          if (content.id === `${activeTab}-tab`) {
-            content.classList.add('active');
-          } else {
-            content.classList.remove('active');
-          }
-        });
+        // 状態がローカルに保存されていない場合はバックエンドから同期されるのを待つ
+        if (!activeProjectName || !activeProjectPath) {
+          console.log('ローカルにプロジェクト状態が保存されていません。バックエンドから同期を待ちます。');
+          return;
+        }
         
-        console.log(`タブ状態を復元: ${activeTab}`);
+        // タブ状態の復元を行う
+        if (activeTab) {
+          // タブが存在するか確認する（存在しない場合はデフォルトタブにフォールバック）
+          const tabExists = Array.from(document.querySelectorAll('.tab'))
+            .some(tab => tab.getAttribute('data-tab') === activeTab);
+          
+          const tabToSelect = tabExists ? activeTab : 'current-status';
+          
+          // TabStateManagerを使って確実にタブ状態を選択・保存
+          TabStateManager.save('scopeManager', tabToSelect);
+          
+          console.log(`復元完了: タブ ${tabToSelect} を選択しました`);
+        }
+      } catch (error) {
+        console.error('プロジェクト状態の復元中にエラーが発生しました:', error);
       }
-      
-      // すべての状態はバックエンドのProjectManagementServiceから同期される
-    }, 300); // UIの読み込み完了を待つため
+    }, 200); // 少し長めの遅延でDOM構築完了を確実に待つ
   }
 
   /**
@@ -1522,14 +1537,32 @@ const vscode = acquireVsCodeApi();
    * タブ機能の初期化
    */
   function initializeTabs() {
+    console.log('タブ機能の初期化を開始します');
+    
     const tabs = document.querySelectorAll('.tab');
     const tabContents = document.querySelectorAll('.tab-content');
     
-    // 保存されたアクティブタブがあれば、それを選択状態にする
-    const state = vscode.getState();
-    if (state && state.activeTab) {
+    // 現在の状態を取得
+    const state = vscode.getState() || {};
+    const savedActiveTab = state.activeTab;
+    
+    console.log(`タブ初期化: 保存されたアクティブタブ=${savedActiveTab || 'なし'}`);
+    
+    // 初期状態のUI設定（デフォルトタブまたは保存されたタブ）
+    if (savedActiveTab) {
+      // 保存されたタブが存在するか確認
+      const tabExists = Array.from(tabs)
+        .some(tab => tab.getAttribute('data-tab') === savedActiveTab);
+      
+      // 存在する場合はそのタブを選択し、存在しない場合はデフォルトタブを使用
+      const initialTabId = tabExists ? savedActiveTab : 'current-status';
+      
+      console.log(`初期タブ選択: ${initialTabId} (保存値の存在: ${tabExists ? '有効' : '無効'})`);
+      
+      // UIの初期状態を設定
       tabs.forEach(tab => {
-        if (tab.getAttribute('data-tab') === state.activeTab) {
+        const tabId = tab.getAttribute('data-tab');
+        if (tabId === initialTabId) {
           tab.classList.add('active');
         } else {
           tab.classList.remove('active');
@@ -1537,58 +1570,49 @@ const vscode = acquireVsCodeApi();
       });
       
       tabContents.forEach(content => {
-        if (content.id === `${state.activeTab}-tab`) {
+        if (content.id === `${initialTabId}-tab`) {
           content.classList.add('active');
         } else {
           content.classList.remove('active');
         }
       });
+      
+      // 状態を更新（初期化時に送信はしない）
+      if (state.activeTab !== initialTabId) {
+        state.activeTab = initialTabId;
+        vscode.setState(state);
+      }
     }
     
-    // タブクリックイベントの設定
+    // タブクリックイベントの設定（一貫したフローで処理）
     tabs.forEach(tab => {
       tab.addEventListener('click', (event) => {
         const tabId = tab.getAttribute('data-tab');
         
-        // 「モックアップギャラリー」タブの場合、イベントをキャンセルして別ウィンドウだけ開く
+        // 「モックアップギャラリー」タブの特別処理
         if (tabId === 'tools') {
           // デフォルトのタブ切り替え動作を防止
           event.preventDefault();
           event.stopPropagation();
           
-          // 単にモックアップギャラリーを別ウィンドウで開くだけ
+          // モックアップギャラリーを別ウィンドウで開く
           vscode.postMessage({ command: 'openOriginalMockupGallery' });
           
-          // 現在アクティブなタブはそのまま維持（タブ切り替えを行わない）
+          // 現在アクティブなタブはそのまま維持
           return;
         }
         
-        // 他のタブの場合は通常の動作
-        // アクティブなタブの状態を保存
-        const newState = vscode.getState() || {};
-        newState.activeTab = tabId;
-        vscode.setState(newState);
+        // TabStateManagerを使って一貫した方法でタブ状態を処理
+        TabStateManager.save('scopeManager', tabId);
         
-        // タブの見た目を更新
-        tabs.forEach(t => t.classList.remove('active'));
-        tab.classList.add('active');
+        // UIの更新も一貫した関数で行う
+        selectTab(tabId, true);
         
-        // タブコンテンツを更新
-        tabContents.forEach(content => {
-          if (content.id === `${tabId}-tab`) {
-            content.classList.add('active');
-          } else {
-            content.classList.remove('active');
-          }
-        });
-        
-        // タブ状態をプロジェクトのメタデータに保存
-        vscode.postMessage({
-          command: 'saveTabState',
-          tabId: tabId
-        });
+        console.log(`ユーザーによるタブ選択: ${tabId}`);
       });
     });
+    
+    console.log('タブ機能の初期化が完了しました');
   }
   
   // 中間ページ関連のコードは不要になりました
@@ -1632,17 +1656,65 @@ const vscode = acquireVsCodeApi();
   }
   
   /**
+   * タブ状態管理機能 - 単一責任の原則に基づいたシンプルな実装
+   */
+  const TabStateManager = {
+    getKey: (panelId) => `tab_state_${panelId || 'scopeManager'}`,
+    
+    save: (panelId, tabId) => {
+      // ローカルストレージと状態オブジェクトの両方に保存
+      const state = vscode.getState() || {};
+      const key = TabStateManager.getKey(panelId);
+      
+      // 状態を更新
+      state.activeTab = tabId;
+      state.lastSavedTab = tabId;
+      
+      // VSCode状態を更新
+      vscode.setState(state);
+      
+      // バックエンドにも通知
+      vscode.postMessage({
+        command: 'saveTabState',
+        tabId: tabId
+      });
+      
+      console.log(`タブ状態を保存: ${tabId}, キー: ${key}`);
+      return true;
+    },
+    
+    restore: (panelId, defaultTab = 'current-status') => {
+      const state = vscode.getState() || {};
+      const savedTab = state.activeTab;
+      return savedTab || defaultTab;
+    }
+  };
+  
+  /**
    * 指定したタブを選択状態にする (シンプル化版)
    * @param {string} tabId タブID
-   * @param {boolean} preserveProject プロジェクト選択状態を保持するかどうか
+   * @param {boolean} saveToServer サーバーにタブ状態を保存するかどうか（デフォルトはtrue）
    */
-  function selectTab(tabId, preserveProject = true) {
+  function selectTab(tabId, saveToServer = true) {
     if (!tabId) return;
+    
+    console.log(`タブ選択: ${tabId}, サーバー保存: ${saveToServer}`);
+    
+    // 現在の状態を取得
+    const state = vscode.getState() || {};
+    const currentTab = state.activeTab;
+    const previouslySavedTab = state.lastSavedTab;
+    
+    // 既に同じタブがアクティブな場合は早期リターン（無駄な更新を防止）
+    if (currentTab === tabId && document.querySelector(`.tab[data-tab="${tabId}"].active`)) {
+      console.log(`既に同じタブ(${tabId})がアクティブのため処理をスキップ`);
+      return;
+    }
     
     const tabs = document.querySelectorAll('.tab');
     const tabContents = document.querySelectorAll('.tab-content');
     
-    // タブの選択状態を更新
+    // UI: タブの選択状態を更新
     tabs.forEach(tab => {
       if (tab.getAttribute('data-tab') === tabId) {
         tab.classList.add('active');
@@ -1651,7 +1723,7 @@ const vscode = acquireVsCodeApi();
       }
     });
     
-    // タブコンテンツの表示状態を更新
+    // UI: タブコンテンツの表示状態を更新
     tabContents.forEach(content => {
       if (content.id === `${tabId}-tab`) {
         content.classList.add('active');
@@ -1660,22 +1732,15 @@ const vscode = acquireVsCodeApi();
       }
     });
     
-    // 前回保存したタブと同じ場合は保存しない（無限ループ防止）
-    const prevState = vscode.getState() || {};
-    const previousTab = prevState.lastSavedTab;
-    
-    if (previousTab !== tabId) {
-      // 状態を保存
-      const newState = vscode.getState() || {};
-      newState.activeTab = tabId;
-      newState.lastSavedTab = tabId;
-      vscode.setState(newState);
-      
-      // タブ状態をプロジェクトのメタデータに保存
-      vscode.postMessage({
-        command: 'saveTabState',
-        tabId: tabId
-      });
+    // データ永続化: 条件に基づいてサーバーに保存
+    if (saveToServer && previouslySavedTab !== tabId) {
+      // TabStateManagerを使ってタブ状態を保存
+      TabStateManager.save('scopeManager', tabId);
+    } else {
+      // ローカルのみに保存（サーバー保存なし）
+      state.activeTab = tabId;
+      vscode.setState(state);
+      console.log(`ローカルのみに保存: ${tabId} (サーバー保存: ${saveToServer}, 前回の保存: ${previouslySavedTab || 'なし'})`);
     }
   }
   

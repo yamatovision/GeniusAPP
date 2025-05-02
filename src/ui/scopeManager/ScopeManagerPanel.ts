@@ -1071,56 +1071,89 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private _update(): void {
     try {
-      // 先に最新のプロジェクト情報を取得
+      // 処理開始ログ
+      Logger.info('ScopeManagerPanel: _update処理を開始します');
+      
+      // 最新のプロジェクト情報を取得
       const allProjects = this._projectService.getAllProjects();
       const activeProject = this._projectService.getActiveProject();
       
       // アクティブプロジェクト情報をクラスのプロパティに保存
       this._activeProject = activeProject;
       
-      // パスの更新が必要な場合はすぐに更新（HTMLレンダリング前）
+      // アクティブタブ情報を取得（重要な部分）
+      let activeTabId = 'current-status'; // デフォルト値
+      
+      if (activeProject && activeProject.metadata) {
+        // 1. メタデータからタブ情報を正確に抽出
+        if (activeProject.metadata.activeTab) {
+          activeTabId = activeProject.metadata.activeTab;
+          Logger.info(`ScopeManagerPanel: メタデータからアクティブタブを復元: ${activeTabId}`);
+        } else {
+          Logger.info('ScopeManagerPanel: メタデータにアクティブタブ情報がないためデフォルトを使用');
+        }
+      } else {
+        Logger.info('ScopeManagerPanel: プロジェクトメタデータがないためデフォルトタブを使用');
+      }
+      
+      // 2. プロジェクトパスの更新（HTMLレンダリング前）
       if (activeProject && activeProject.path && this._projectPath !== activeProject.path) {
         this.setProjectPath(activeProject.path);
-        Logger.info(`パネル表示時にプロジェクトパスを更新: ${activeProject.path}`);
+        Logger.info(`ScopeManagerPanel: パネル表示時にプロジェクトパスを更新: ${activeProject.path}`);
       }
       
-      // アクティブタブ情報を取得（これが重要）
-      let activeTabId = 'current-status'; // デフォルトタブ
-      if (activeProject && activeProject.metadata && activeProject.metadata.activeTab) {
-        // 保存されたタブID（プロジェクトのメタデータから取得）
-        activeTabId = activeProject.metadata.activeTab;
-        Logger.info(`アクティブタブ情報を復元: ${activeTabId}`);
-      }
-      
-      // 最新情報を取得してからHTMLをレンダリング（アクティブタブ情報を渡す）
+      // 3. HTMLコンテンツを生成（アクティブタブ情報を明示的に渡す）
       const webview = this._panel.webview;
       this._panel.webview.html = this._getHtmlForWebview(webview, activeTabId);
+      Logger.info(`ScopeManagerPanel: WebView HTMLを生成: アクティブタブID=${activeTabId}`);
       
-      // HTMLレンダリング後にUI更新メッセージを送信（遅延なし）
-      if (activeProject) {
-        // プロジェクト一覧とアクティブプロジェクトをUIに通知
+      // 4. メッセージ送信の順序を最適化（先にタブ状態を同期）
+      // WebViewの初期化完了を待ってからメッセージを送信
+      // タイミングの問題を回避するため、2段階の遅延処理を使用
+      setTimeout(() => {
+        if (!activeProject) {
+          Logger.warn('ScopeManagerPanel: アクティブプロジェクトがないため同期をスキップします');
+          return;
+        }
+        
+        // 第1段階: 基本同期（タブ選択コマンドを最初に送信）
+        Logger.info(`ScopeManagerPanel: 基本同期メッセージを送信: タブID=${activeTabId}`);
+        
+        // a. まずタブ選択コマンドを送信
+        this._panel.webview.postMessage({
+          command: 'selectTab',
+          tabId: activeTabId
+        });
+        
+        // b. 次にプロジェクト状態を同期（上書きされないようにタブ選択後）
+        this._panel.webview.postMessage({
+          command: 'syncProjectState',
+          project: activeProject
+        });
+        
+        // c. プロジェクト一覧を更新
         this._panel.webview.postMessage({
           command: 'updateProjects',
           projects: allProjects,
           activeProject: activeProject
         });
         
-        // 明示的にタブを選択するコマンドを送信
-        this._panel.webview.postMessage({
-          command: 'selectTab',
-          tabId: activeTabId
-        });
+        // 第2段階: 遅延処理でタブ状態を確実に反映（UIの描画完了後）
+        // DOMが完全に構築された後にタブ選択を再確認
+        setTimeout(() => {
+          // 最後にもう一度タブ選択コマンドを送信（確実な適用のため）
+          this._panel.webview.postMessage({
+            command: 'selectTab',
+            tabId: activeTabId
+          });
+          
+          Logger.info(`ScopeManagerPanel: 最終確認のタブ選択メッセージを送信: アクティブタブ=${activeTabId}`);
+        }, 200); // UIの描画完了を確実に待つ
         
-        // WebViewに最新のプロジェクト状態を同期
-        this._panel.webview.postMessage({
-          command: 'syncProjectState',
-          project: activeProject
-        });
-        
-        Logger.info(`パネル表示時にアクティブプロジェクト情報を更新: ${activeProject.name}, アクティブタブ: ${activeTabId}`);
-      }
+        Logger.info(`ScopeManagerPanel: プロジェクト情報の同期が完了: ${activeProject.name}`);
+      }, 100); // WebViewの初期化を待つ最小の遅延
     } catch (error) {
-      Logger.warn(`パネル表示時のプロジェクト情報更新に失敗: ${error}`);
+      Logger.warn(`ScopeManagerPanel: パネル表示時のプロジェクト情報更新に失敗: ${error}`);
     }
   }
 

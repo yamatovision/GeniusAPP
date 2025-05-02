@@ -769,33 +769,70 @@ export class ProjectService implements IProjectService {
   
   /**
    * タブ状態を保存
+   * プロジェクトのメタデータにアクティブタブ情報を永続化
+   * @param projectId 保存対象のプロジェクトID
+   * @param tabId 保存するタブID
    */
   public async saveTabState(projectId: string, tabId: string): Promise<void> {
     try {
+      // 入力パラメータの検証
       if (!projectId || !tabId) {
         Logger.warn('ProjectService: タブ状態を保存できません: プロジェクトIDまたはタブIDが指定されていません');
         throw new Error('プロジェクトIDまたはタブIDが指定されていません');
       }
       
+      // 現在の状態をログ出力
       Logger.info(`ProjectService: タブ状態を保存します: プロジェクトID=${projectId}, タブID=${tabId}`);
       
-      // プロジェクト情報を取得
+      // 1. プロジェクト情報を取得
       const project = this._projectManagementService.getProject(projectId);
       if (!project) {
         throw new Error(`プロジェクトが見つかりません: ${projectId}`);
       }
       
-      // メタデータにタブ情報を追加
+      // 2. 現在のメタデータを取得
       const metadata = project.metadata || {};
-      metadata.activeTab = tabId;
       
-      // プロジェクトを更新
+      // 3. 前回のアクティブタブと比較
+      const previousTab = metadata.activeTab;
+      if (previousTab === tabId) {
+        // 同じタブの場合は処理をスキップ（不要な更新を防止）
+        Logger.info(`ProjectService: 同じタブID(${tabId})が既に保存されているため、更新をスキップします`);
+        return;
+      }
+      
+      // 4. メタデータにタブ情報を保存
+      metadata.activeTab = tabId;
+      metadata.lastTabUpdateTime = Date.now(); // 最終更新時間も記録
+      
+      // 5. プロジェクトを更新
       await this._projectManagementService.updateProject(projectId, {
-        metadata: metadata
+        metadata: metadata,
+        updatedAt: Date.now() // プロジェクト自体の更新時間も更新
       });
       
-      // アクティブプロジェクトを再取得
+      // 6. アクティブプロジェクトを再取得して内部状態を更新
       this._activeProject = this._projectManagementService.getProject(projectId);
+      
+      // 7. イベントバスにも通知（タブ状態変更を他のコンポーネントに伝達）
+      try {
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_UPDATED,
+          { 
+            id: projectId, 
+            path: project.path, 
+            name: project.name,
+            metadata: metadata
+          },
+          'ProjectService',
+          projectId
+        );
+        Logger.debug(`ProjectService: タブ状態変更イベントを発信: ${tabId}`);
+      } catch (error) {
+        // イベントバスエラーは無視（コア機能には影響しない）
+        Logger.debug(`ProjectService: イベント発信に失敗しましたが処理を継続します: ${(error as Error).message}`);
+      }
       
       Logger.info(`ProjectService: タブ状態を保存しました: プロジェクト=${project.name}, タブID=${tabId}`);
     } catch (error) {
