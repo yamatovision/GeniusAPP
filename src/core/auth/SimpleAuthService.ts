@@ -20,7 +20,7 @@ export class SimpleAuthService {
   private _needApiKeyRefresh: boolean = false; // APIキーのリフレッシュが必要かのフラグ
   
   // APIベースURL
-  private readonly API_BASE_URL = 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/simple';
+  private readonly API_BASE_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/simple';
   
   // ストレージキー
   private readonly ACCESS_TOKEN_KEY = 'appgenius.simple.accessToken';

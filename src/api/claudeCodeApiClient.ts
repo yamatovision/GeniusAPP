@@ -36,7 +36,7 @@ export class ClaudeCodeApiClient {
     
     this._errorHandler = ErrorHandler.getInstance();
     // API URLを環境変数から取得、またはデフォルト値を使用
-    this._baseUrl = process.env.PORTAL_API_URL || 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api';
+    this._baseUrl = process.env.PORTAL_API_URL || 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
     Logger.info('ClaudeCodeApiClient initialized with baseUrl: ' + this._baseUrl);
   }
 

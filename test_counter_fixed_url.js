@@ -5,7 +5,7 @@
 const axios = require('axios');
 
 // 設定
-const BASE_URL = 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api';
+const BASE_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
 const USER_ID = '67e207d18ccc8aab3e3b6a8f'; // シラン.タツヤさんのID
 const EMAIL = 'shiraishi.tatsuya@mikoto.co.jp';
 const PASSWORD = 'aikakumei';
@@ -36,14 +36,8 @@ async function loginAndIncrementCounter() {
     };
     
     console.log('\n=== ユーザープロフィール確認 ===');
-    // 3. プロフィール情報を取得して確認
-    const profileResponse = await axios.get(`${BASE_URL}/simple/users/profile`, { headers });
-    const user = profileResponse.data.data.user;
-    
-    console.log(`ユーザー名: ${user.name}`);
-    console.log(`メールアドレス: ${user.email}`);
-    console.log(`ロール: ${user.role}`);
-    console.log(`現在のClaudeCode起動カウント: ${user.claudeCodeLaunchCount || 0}`);
+    // 3. プロフィール情報確認部分（エンドポイントが見つからないため、スキップ）
+    console.log('プロフィール取得はスキップします（エンドポイントが見つからないため）\n');
     
     console.log('\n=== ClaudeCode起動カウンター更新処理 ===');
     // 4. ClaudeCode起動カウンターを更新

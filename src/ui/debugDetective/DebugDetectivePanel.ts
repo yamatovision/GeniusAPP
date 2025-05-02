@@ -247,7 +247,7 @@ export class DebugDetectivePanel extends ProtectedPanel {
       }
       
       // 中央サーバーのデバッグ探偵プロンプトURLをチェック
-      Logger.info(`中央サーバーのデバッグ探偵プロンプトURLを使用します: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09`);
+      Logger.info(`中央サーバーのデバッグ探偵プロンプトURLを使用します: https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09`);
       
       
       Logger.info(`デバッグ探偵を初期化しました。プロジェクトパス: ${this._projectPath}`);
@@ -374,7 +374,7 @@ export class DebugDetectivePanel extends ProtectedPanel {
       );
       
       // プロンプトURL
-      const debugDetectivePromptUrl = 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09';
+      const debugDetectivePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/942ec5f5b316b3fb11e2fd2b597bfb09';
       
       // ClaudeCodeIntegrationServiceを使用して公開URL経由で起動
       try {

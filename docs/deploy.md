@@ -730,7 +730,28 @@ MongoDB Atlasで自動バックアップを設定:
 - 適切なCORS設定
 - 本番環境ではデバッグ情報を制限
 
-## 8. 今後の改善点
+## 8. バックエンドURL標準化
+
+### 使用するバックエンドURL
+プロジェクト全体で以下のURLを標準として使用します：
+```
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+```
+
+### 標準化の対象ファイル
+以下のファイルではバックエンドURLへの参照を確認し、必ず上記の標準URLを使用してください：
+- `src/core/auth/SimpleAuthService.ts`
+- `src/api/claudeCodeApiClient.ts` 
+- `src/ui/mockupGallery/MockupGalleryPanel.ts`
+- `src/ui/debugDetective/DebugDetectivePanel.ts`
+- テストスクリプト（`test_counter_fixed_url.js`など）
+
+### 注意事項
+- 新しいURLが生成されても、元のURLを標準として使用します
+- デプロイ時に必ずすべてのURL参照をチェックして標準化してください
+- `https://appgenius-portal-test-6clpzmy5pa-an.a.run.app` や `https://appgenius-portal-backend-235426778039.asia-northeast1.run.app` は使用しないでください
+
+## 9. 今後の改善点
 
 ### 短期的改善
 - VSCode拡張のMarketplace公開準備

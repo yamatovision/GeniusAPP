@@ -663,7 +663,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
       const integrationService = ClaudeCodeIntegrationService.getInstance();
       
       // 中央ポータルURL
-      const portalUrl = 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+      const portalUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
       
       try {
         Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
@@ -744,8 +744,8 @@ export class MockupGalleryPanel extends ProtectedPanel {
         
         // セキュリティガイドライン付きで起動
         Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
-        const guidancePromptUrl = 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-        const featurePromptUrl = 'https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+        const guidancePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+        const featurePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
         
         // テンプレートの内容を追加コンテンツとして渡す
         await integrationService.launchWithSecurityBoundary(
