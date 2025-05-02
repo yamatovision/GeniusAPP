@@ -953,32 +953,20 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       Logger.info(`タブ状態を保存します: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
       
-      // ProjectManagementServiceを取得
-      const { ProjectManagementService } = require('../../services/ProjectManagementService');
-      const projectService = ProjectManagementService.getInstance();
+      // ProjectServiceのsaveTabStateメソッドを使用して保存
+      await this._projectService.saveTabState(this._activeProject.id, tabId);
       
-      // メタデータにタブ情報を追加
-      const metadata = this._activeProject.metadata || {};
-      metadata.activeTab = tabId;
+      // アクティブプロジェクトを再取得して内部状態を更新
+      this._activeProject = this._projectService.getActiveProject();
       
-      // プロジェクトを更新
-      await projectService.updateProject(this._activeProject.id, {
-        metadata: metadata
-      });
-      
-      // アクティブプロジェクトを再取得
-      this._activeProject = projectService.getProject(this._activeProject.id);
-      
-      // WebViewにプロジェクト状態同期メッセージを送信
-      // 注意: 無限ループを避けるため、タブ状態保存時には同期メッセージを送信しない
-      // syncProjectStateメッセージは状態変更の大きな変更時のみ送信する
-      // if (this._activeProject) {
-      //   this._panel.webview.postMessage({
-      //     command: 'syncProjectState',
-      //     project: this._activeProject
-      //   });
-      //   Logger.info(`プロジェクト状態同期メッセージを送信: ${this._activeProject.name}`);
-      // }
+      // WebViewにプロジェクト状態同期メッセージを送信（タブ状態も含める）
+      if (this._activeProject) {
+        this._panel.webview.postMessage({
+          command: 'syncProjectState',
+          project: this._activeProject
+        });
+        Logger.info(`プロジェクト状態同期メッセージを送信: ${this._activeProject.name}, タブID=${tabId}`);
+      }
       
       Logger.info(`タブ状態を保存しました: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
     } catch (error) {
@@ -1082,40 +1070,54 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * WebViewを更新
    */
   private _update(): void {
-    const webview = this._panel.webview;
-    this._panel.webview.html = this._getHtmlForWebview(webview);
-    
-    // パネルが表示されたタイミングでプロジェクト情報も更新
     try {
-      // 最新のプロジェクト一覧を取得
+      // 先に最新のプロジェクト情報を取得
       const allProjects = this._projectService.getAllProjects();
       const activeProject = this._projectService.getActiveProject();
       
-      // パネルが表示されたら常にアクティブプロジェクト情報を更新
-      if (activeProject && activeProject.path) {
-        // UIが描画された後にプロジェクト情報を更新（タイミングの問題を避けるため少し遅延）
-        setTimeout(() => {
-          // プロジェクト一覧とアクティブプロジェクトをUIに通知（必ず最初に送信）
-          this._panel.webview.postMessage({
-            command: 'updateProjects',
-            projects: allProjects,
-            activeProject: activeProject
-          });
-          
-          // プロジェクトパスを更新（パスが異なる場合のみ）
-          if (this._projectPath !== activeProject.path) {
-            this.setProjectPath(activeProject.path);
-            Logger.info(`パネル表示時にプロジェクトパスを更新: ${activeProject.path}`);
-          }
-          
-          // WebViewに最新のプロジェクト状態を同期
-          this._panel.webview.postMessage({
-            command: 'syncProjectState',
-            project: activeProject
-          });
-          
-          Logger.info(`パネル表示時にアクティブプロジェクトを更新: ${activeProject.name}`);
-        }, 300);
+      // アクティブプロジェクト情報をクラスのプロパティに保存
+      this._activeProject = activeProject;
+      
+      // パスの更新が必要な場合はすぐに更新（HTMLレンダリング前）
+      if (activeProject && activeProject.path && this._projectPath !== activeProject.path) {
+        this.setProjectPath(activeProject.path);
+        Logger.info(`パネル表示時にプロジェクトパスを更新: ${activeProject.path}`);
+      }
+      
+      // アクティブタブ情報を取得（これが重要）
+      let activeTabId = 'current-status'; // デフォルトタブ
+      if (activeProject && activeProject.metadata && activeProject.metadata.activeTab) {
+        // 保存されたタブID（プロジェクトのメタデータから取得）
+        activeTabId = activeProject.metadata.activeTab;
+        Logger.info(`アクティブタブ情報を復元: ${activeTabId}`);
+      }
+      
+      // 最新情報を取得してからHTMLをレンダリング（アクティブタブ情報を渡す）
+      const webview = this._panel.webview;
+      this._panel.webview.html = this._getHtmlForWebview(webview, activeTabId);
+      
+      // HTMLレンダリング後にUI更新メッセージを送信（遅延なし）
+      if (activeProject) {
+        // プロジェクト一覧とアクティブプロジェクトをUIに通知
+        this._panel.webview.postMessage({
+          command: 'updateProjects',
+          projects: allProjects,
+          activeProject: activeProject
+        });
+        
+        // 明示的にタブを選択するコマンドを送信
+        this._panel.webview.postMessage({
+          command: 'selectTab',
+          tabId: activeTabId
+        });
+        
+        // WebViewに最新のプロジェクト状態を同期
+        this._panel.webview.postMessage({
+          command: 'syncProjectState',
+          project: activeProject
+        });
+        
+        Logger.info(`パネル表示時にアクティブプロジェクト情報を更新: ${activeProject.name}, アクティブタブ: ${activeTabId}`);
       }
     } catch (error) {
       Logger.warn(`パネル表示時のプロジェクト情報更新に失敗: ${error}`);
@@ -1124,8 +1126,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   /**
    * WebViewのHTMLを生成
+   * @param webview VSCodeのWebviewインスタンス
+   * @param activeTabId アクティブなタブID（デフォルトは'current-status'）
    */
-  private _getHtmlForWebview(webview: vscode.Webview): string {
+  private _getHtmlForWebview(webview: vscode.Webview, activeTabId: string = 'current-status'): string {
     // スタイルシートやスクリプトのURIを取得
     const styleResetUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
@@ -1157,6 +1161,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
       img-src ${webview.cspSource} data:;
       connect-src ${webview.cspSource};
     `;
+    
+    // アクティブプロジェクト情報を取得（初期値はクラス変数から）
+    const projectName = this._activeProject?.name || '選択なし';
+    const projectPath = this._activeProject?.path || '';
     
     // HTMLを生成
     return `<!DOCTYPE html>
@@ -1290,18 +1298,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
             <div class="card">
               <div class="tabs">
                 <div class="project-display">
-                  <span class="project-name">AppGenius</span>
-                  <span class="project-path-display">/path/to/project</span>
+                  <span class="project-name">${projectName}</span>
+                  <span class="project-path-display">${projectPath}</span>
                 </div>
                 <div class="tabs-container">
-                  <div class="tab active" data-tab="current-status">プロジェクト状況</div>
-                  <div class="tab" data-tab="claude-code">ClaudeCode連携</div>
-                  <div class="tab" data-tab="tools">モックアップギャラリー</div>
+                  <div class="tab ${activeTabId === 'current-status' ? 'active' : ''}" data-tab="current-status">プロジェクト状況</div>
+                  <div class="tab ${activeTabId === 'claude-code' ? 'active' : ''}" data-tab="claude-code">ClaudeCode連携</div>
+                  <div class="tab ${activeTabId === 'tools' ? 'active' : ''}" data-tab="tools">モックアップギャラリー</div>
                 </div>
               </div>
               
               <!-- プロジェクト状況タブコンテンツ -->
-              <div id="current-status-tab" class="tab-content active">
+              <div id="current-status-tab" class="tab-content ${activeTabId === 'current-status' ? 'active' : ''}">
                 <div class="card-body">
                   <div class="markdown-content">
                     <!-- ここにCURRENT_STATUS.mdの内容がマークダウン表示される -->
@@ -1311,7 +1319,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
               </div>
 
               <!-- ClaudeCode連携タブコンテンツ -->
-              <div id="claude-code-tab" class="tab-content">
+              <div id="claude-code-tab" class="tab-content ${activeTabId === 'claude-code' ? 'active' : ''}">
                 <div class="claude-share-container">
                   <!-- 左側：テキスト入力エリア -->
                   <div class="text-input-area">
@@ -1351,7 +1359,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
               </div>
               
               <!-- 開発ツールタブコンテンツ (モックアップギャラリー表示用のプレースホルダ) -->
-              <div id="tools-tab" class="tab-content">
+              <div id="tools-tab" class="tab-content ${activeTabId === 'tools' ? 'active' : ''}">
                 <!-- モックアップギャラリーを表示するための空のコンテナ -->
               </div>
             </div>

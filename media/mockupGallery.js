@@ -609,6 +609,35 @@
         }
         break;
         
+      case 'clearMockupFrame':
+        // フレームを一時的にクリア (古いコンテンツがちらつくのを防止)
+        const mockupFrame = document.getElementById('mockup-frame');
+        if (mockupFrame) {
+          try {
+            const doc = mockupFrame.contentDocument || (mockupFrame.contentWindow && mockupFrame.contentWindow.document);
+            if (doc) {
+              doc.open();
+              doc.write(message.loadingMessage || '<div style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; color: #666;">読み込み中...</div>');
+              doc.close();
+            }
+          } catch (error) {
+            console.error('Error clearing mockup frame:', error);
+          }
+        }
+        break;
+        
+      case 'projectChanged':
+        // プロジェクトが変更された - フレームをクリアして通知表示
+        showNotification(`プロジェクトを切り替えました: ${message.projectName || path.basename(message.projectPath)}`);
+        currentMockupId = null; // 現在のモックアップID選択状態をリセット
+        
+        // モックアップが選択されなくなったので削除ボタンを無効化
+        const deleteMockupButton = document.getElementById('delete-mockup-button');
+        if (deleteMockupButton) {
+          deleteMockupButton.disabled = true;
+        }
+        break;
+        
       case 'displayDirectHtml':
         // HTMLを直接表示（IDなしで表示）
         if (message.html) {
