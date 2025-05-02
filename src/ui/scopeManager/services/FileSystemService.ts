@@ -25,8 +25,14 @@ export interface IFileSystemService {
   setupStatusFileEventListener(projectPath: string, statusFilePath: string, onStatusUpdate: (filePath: string) => void): vscode.Disposable;
   dispose(): void;
   
+  // 新規メソッド
+  loadStatusFile(projectPath: string, outputCallback?: (content: string) => void): Promise<string>;
+  updateDirectoryStructure(projectPath: string): Promise<string>;
+  setupProjectFileWatcher(projectPath: string, outputCallback: (filePath: string) => void): vscode.Disposable;
+  
   // イベント
   onStatusFileChanged: vscode.Event<string>;
+  onDirectoryStructureUpdated: vscode.Event<string>;
 }
 
 /**
@@ -35,6 +41,9 @@ export interface IFileSystemService {
 export class FileSystemService implements IFileSystemService {
   private _onStatusFileChanged = new vscode.EventEmitter<string>();
   public readonly onStatusFileChanged = this._onStatusFileChanged.event;
+  
+  private _onDirectoryStructureUpdated = new vscode.EventEmitter<string>();
+  public readonly onDirectoryStructureUpdated = this._onDirectoryStructureUpdated.event;
   
   private _disposables: vscode.Disposable[] = [];
   private _fileManager: FileOperationManager;
@@ -517,11 +526,135 @@ export class FileSystemService implements IFileSystemService {
   }
   
   /**
+   * ステータスファイルを読み込み、必要に応じて作成する
+   * @param projectPath プロジェクトパス
+   * @param outputCallback 出力コールバック - ファイル内容が変更された時に呼び出される
+   * @returns ステータスファイルの内容
+   */
+  public async loadStatusFile(projectPath: string, outputCallback?: (content: string) => void): Promise<string> {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+
+      // ステータスファイルの存在確認とパス生成
+      const docsDir = path.join(projectPath, 'docs');
+      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
+      
+      // ディレクトリを確保
+      await this.ensureDirectoryExists(docsDir);
+
+      // ファイルの存在確認
+      const fileExists = await this.fileExists(statusFilePath);
+
+      // ステータスファイルが存在しない場合はテンプレートを作成
+      if (!fileExists) {
+        const projectName = path.basename(projectPath);
+        await this.createDefaultStatusFile(projectPath, projectName);
+        Logger.info(`ステータスファイルを作成しました: ${statusFilePath}`);
+      }
+
+      // ファイルを読み込む
+      const content = await this.readMarkdownFile(statusFilePath);
+      
+      // コールバックがあれば呼び出す
+      if (outputCallback) {
+        outputCallback(content);
+      }
+      
+      return content;
+    } catch (error) {
+      Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * プロジェクトのディレクトリ構造を更新
+   * @param projectPath プロジェクトパス
+   * @returns ディレクトリ構造を表す文字列
+   */
+  public async updateDirectoryStructure(projectPath: string): Promise<string> {
+    if (!projectPath) {
+      return '';
+    }
+    
+    try {
+      // 既存のgetDirectoryStructureメソッドを使用
+      const structure = await this.getDirectoryStructure(projectPath);
+      
+      // イベントを発火
+      this._onDirectoryStructureUpdated.fire(structure);
+      
+      return structure;
+    } catch (error) {
+      Logger.error('ディレクトリ構造の更新中にエラーが発生しました', error as Error);
+      return 'ディレクトリ構造の取得に失敗しました。';
+    }
+  }
+
+  /**
+   * プロジェクト用のファイル監視設定
+   * docs/CURRENT_STATUS.mdファイルの変更を監視し、イベントとコールバックで通知
+   * @param projectPath プロジェクトのルートパス
+   * @param outputCallback ファイル変更時のコールバック
+   * @returns Disposable - 監視を停止するためのオブジェクト
+   */
+  public setupProjectFileWatcher(projectPath: string, outputCallback: (filePath: string) => void): vscode.Disposable {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+      
+      // ステータスファイルのパスを構築
+      const docsDir = path.join(projectPath, 'docs');
+      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
+      
+      // ディレクトリを確保
+      this.ensureDirectoryExists(docsDir);
+      
+      // 拡張ファイル監視を設定（遅延読み込みオプション付き）
+      const watcher = this.setupEnhancedFileWatcher(
+        statusFilePath,
+        async (filePath) => {
+          // ファイル変更を検出したらコールバックを呼び出す
+          Logger.info(`FileSystemService: ファイル変更を検出: ${filePath}`);
+          outputCallback(filePath);
+        },
+        { delayedReadTime: 100 } // 100ms後に2回目の読み込みを実行
+      );
+      
+      // イベントリスナーも設定
+      const eventListener = this.setupStatusFileEventListener(
+        projectPath,
+        statusFilePath,
+        async (filePath) => {
+          // イベントバス経由の通知を受けた場合もコールバックを呼び出す
+          Logger.info(`FileSystemService: イベントバス経由でファイル更新を検出: ${filePath}`);
+          outputCallback(filePath);
+        }
+      );
+      
+      // 複合Disposableを返す
+      return {
+        dispose: () => {
+          watcher.dispose();
+          eventListener.dispose();
+        }
+      };
+    } catch (error) {
+      Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
+      throw error;
+    }
+  }
+
+  /**
    * リソースを解放
    */
   public dispose(): void {
     // イベントエミッターを解放
     this._onStatusFileChanged.dispose();
+    this._onDirectoryStructureUpdated.dispose();
     
     // ファイルウォッチャーを破棄
     if (this._fileWatcher) {

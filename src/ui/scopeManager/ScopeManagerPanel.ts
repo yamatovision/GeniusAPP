@@ -42,7 +42,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _statusFilePath: string = '';
   private _directoryStructure: string = '';
   private _fileWatcher: vscode.Disposable | null = null;
-  private _docsDirWatcher: fs.FSWatcher | null = null; // フォルダ監視用のウォッチャー
   private _tempShareDir: string = '';
   private _promptServiceClient: PromptServiceClient;
   private _sharingService: ISharingService; // 共有サービス
@@ -169,6 +168,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
     } catch (error) {
       Logger.error('認証状態変更イベントの監視設定中にエラーが発生しました', error as Error);
     }
+    
+    // FileSystemServiceのイベントリスナーを設定
+    this._disposables.push(
+      this._fileSystemService.onDirectoryStructureUpdated((structure) => {
+        this._directoryStructure = structure;
+        // ディレクトリ構造が表示されている場合は更新
+        this._panel.webview.postMessage({
+          command: 'updateDirectoryStructure',
+          structure: structure
+        });
+      })
+    );
     
     // アクティブプロジェクトを取得
     const activeProject = this._projectService.getActiveProject();
@@ -1352,26 +1363,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _loadStatusFile(): Promise<void> {
     try {
-      if (!this._statusFilePath || !this._projectPath) {
+      if (!this._projectPath) {
         return;
       }
 
-      // ステータスファイルのディレクトリを確保
-      const docsDir = path.join(this._projectPath, 'docs');
-      await this._fileSystemService.ensureDirectoryExists(docsDir);
-
-      // ステータスファイルの存在を確認
-      const fileExists = await this._fileSystemService.fileExists(this._statusFilePath);
-
-      // ステータスファイルが存在しない場合はテンプレートを作成
-      if (!fileExists) {
-        const projectName = path.basename(this._projectPath);
-        await this._fileSystemService.createDefaultStatusFile(this._projectPath, projectName);
-        Logger.info(`ステータスファイルを作成しました: ${this._statusFilePath}`);
-      }
-
-      // マークダウン表示を更新
-      await this._handleGetMarkdownContent(this._statusFilePath);
+      // FileSystemServiceの新しいメソッドを呼び出す
+      await this._fileSystemService.loadStatusFile(this._projectPath, async (content) => {
+        // マークダウン表示を更新
+        await this._handleGetMarkdownContent(this._statusFilePath);
+      });
     } catch (error) {
       Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error as Error);
       this._showError(`ステータスファイルの読み込みに失敗しました: ${(error as Error).message}`);
@@ -1388,9 +1388,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
     
     try {
-      // FileSystemServiceを使用してディレクトリ構造を取得
-      this._directoryStructure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
-      Logger.info(`ディレクトリ構造を取得しました: ${this._projectPath}`);
+      // FileSystemServiceの新しいメソッドを呼び出す
+      this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
     } catch (error) {
       Logger.error('ディレクトリ構造の取得中にエラーが発生しました', error as Error);
       this._directoryStructure = 'ディレクトリ構造の取得に失敗しました。';
@@ -1409,54 +1408,27 @@ export class ScopeManagerPanel extends ProtectedPanel {
         this._fileWatcher = null;
       }
       
-      if (this._docsDirWatcher) {
-        this._docsDirWatcher.close();
-        this._docsDirWatcher = null;
-      }
-      
-      if (!this._projectPath || !this._statusFilePath) {
+      if (!this._projectPath) {
         return;
       }
       
-      // docsディレクトリの存在確認
-      const docsDir = path.join(this._projectPath, 'docs');
-      await this._fileSystemService.ensureDirectoryExists(docsDir);
-      
-      // 拡張されたファイル監視機能を使用して監視を設定
-      this._fileWatcher = this._fileSystemService.setupEnhancedFileWatcher(
-        this._statusFilePath,
+      // FileSystemServiceの新しいメソッドを呼び出す
+      this._fileWatcher = this._fileSystemService.setupProjectFileWatcher(
+        this._projectPath,
         async (filePath) => {
           // ファイル変更を検出したらマークダウンを更新
           Logger.info(`ScopeManagerPanel: ファイル変更を検出して内容を更新: ${filePath}`);
           await this._handleGetMarkdownContent(filePath);
-        },
-        { delayedReadTime: 100 } // 100ms後に2回目の読み込みを実行
-      );
-      
-      // イベントリスナーも設定
-      const eventListener = this._fileSystemService.setupStatusFileEventListener(
-        this._projectPath,
-        this._statusFilePath,
-        async (filePath) => {
-          // イベントバス経由の通知を受けた場合もマークダウンを更新
-          Logger.info(`ScopeManagerPanel: イベントバス経由でファイル更新を検出: ${filePath}`);
-          await this._handleGetMarkdownContent(filePath);
         }
       );
       
-      // イベントリスナーをdisposablesに追加
-      this._disposables.push(eventListener);
-      
-      Logger.info('ScopeManagerPanel: ファイル監視設定完了 - 拡張FileSystemServiceを使用');
+      Logger.info('ScopeManagerPanel: ファイル監視設定完了');
     } catch (error) {
       Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
     }
   }
 
-  /**
-   * デフォルトテンプレートを取得
-   */
-  // _getDefaultTemplateメソッドはFileSystemServiceに移動したため削除
+  // FileSystemServiceに移動したメソッド
   
   /**
    * ProjectServiceのイベントリスナーを設定
@@ -1573,12 +1545,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
     if (this._fileWatcher) {
       this._fileWatcher.dispose();
       this._fileWatcher = null;
-    }
-    
-    // Node.jsのファイルシステムウォッチャーも破棄
-    if (this._docsDirWatcher) {
-      this._docsDirWatcher.close();
-      this._docsDirWatcher = null;
     }
     
     // FileSystemServiceのリソースを解放
