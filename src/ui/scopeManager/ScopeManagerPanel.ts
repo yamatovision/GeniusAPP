@@ -13,12 +13,12 @@ import { Feature } from '../../core/auth/roles';
 import { AuthenticationService } from '../../core/auth/AuthenticationService';
 import { ClaudeCodeApiClient } from '../../api/claudeCodeApiClient';
 import { PromptServiceClient } from '../../services/PromptServiceClient';
-import { ClaudeCodeSharingService } from '../../services/ClaudeCodeSharingService';
 import { SharedFile, FileSaveOptions } from '../../types/SharingTypes';
 import { AuthGuard } from '../auth/AuthGuard';
 import { SimpleAuthManager } from '../../core/auth/SimpleAuthManager';
 import { IFileSystemService, FileSystemService } from './services/FileSystemService';
 import { IProjectService, ProjectService } from './services/ProjectService';
+import { ISharingService, SharingService } from './services/SharingService';
 
 /**
  * スコープマネージャーパネルクラス
@@ -45,7 +45,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _fileWatcher: vscode.Disposable | null = null;
   private _docsDirWatcher: fs.FSWatcher | null = null; // Node.jsのファイルシステムウォッチャー
   // 準備モードは廃止されました
-  private _sharingService: ClaudeCodeSharingService | undefined; // ClaudeCode共有サービス
+  private _sharingService: ISharingService; // 共有サービス
   
   // 準備モード関連のメソッドは廃止されました
   
@@ -139,8 +139,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // ProjectServiceのイベントリスナーを設定
     this._setupProjectServiceEventListeners();
     
-    // ClaudeCode共有サービスを初期化
-    this._sharingService = new ClaudeCodeSharingService(context);
+    // 共有サービスを初期化
+    this._sharingService = SharingService.getInstance(context);
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -448,9 +448,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       // 関連サービスにプロジェクトパスを設定
       this._promptServiceClient.setProjectPath(projectPath);
-      if (this._sharingService) {
-        this._sharingService.setProjectBasePath(projectPath);
-      }
+      this._sharingService.setProjectBasePath(projectPath);
       
       // ファイルウォッチャーとステータスファイルを設定
       this._setupFileWatcher();
@@ -494,9 +492,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     await this._updateDirectoryStructure();
     
     // 共有履歴を初期化
-    if (this._sharingService) {
-      await this._handleGetHistory();
-    }
+    await this._handleGetHistory();
     
     // CURRENT_STATUS.mdの内容を読み込む
     if (this._statusFilePath && fs.existsSync(this._statusFilePath)) {
@@ -622,26 +618,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 共有履歴を取得してWebViewに送信
    */
   private async _handleGetHistory(): Promise<void> {
-    if (!this._sharingService) {
-      console.log('警告: 共有サービスが初期化されていません');
-      return;
-    }
-    
     try {
       const history = this._sharingService.getHistory();
-      console.log('履歴取得:', history);
-      
-      // 履歴が空の場合は空の配列を送信
-      if (!history || history.length === 0) {
-        console.log('履歴が空です');
-      }
+      Logger.debug('共有履歴を取得しました', { count: history.length });
       
       this._panel.webview.postMessage({
         command: 'updateSharingHistory',
         history: history || []
       });
     } catch (error) {
-      console.error('履歴取得エラー:', error);
+      Logger.error('履歴取得エラー', error as Error);
     }
   }
 
@@ -650,11 +636,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleShareText(text: string, suggestedFilename?: string): Promise<void> {
     try {
-      if (!this._sharingService) {
-        this._showError('共有サービスが初期化されていません');
-        return;
-      }
-      
       Logger.info('テキスト共有を開始します', { 
         textLength: text.length, 
         hasSuggestedFilename: !!suggestedFilename 
@@ -716,13 +697,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleShareImage(imageData: string, fileName: string): Promise<void> {
     try {
-      if (!this._sharingService) {
-        this._showError('共有サービスが初期化されていません');
-        return;
-      }
-      
       // 共有サービスを使って画像を共有
-      const file = await this._sharingService.shareBase64Image(imageData, fileName);
+      const file = await this._sharingService.shareImage(imageData, fileName);
       
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
@@ -771,13 +747,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 履歴からアイテムを削除
    */
   private async _handleDeleteFromHistory(fileId: string): Promise<void> {
-    if (!this._sharingService) return;
-    
     const success = this._sharingService.deleteFromHistory(fileId);
     
     if (success) {
+      Logger.info(`共有履歴から項目を削除しました: ${fileId}`);
       // 履歴を更新して送信
       await this._handleGetHistory();
+    } else {
+      Logger.warn(`共有履歴からの項目削除に失敗しました: ${fileId}`);
     }
   }
 
@@ -785,8 +762,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * ファイルのコマンドをクリップボードにコピー
    */
   private async _handleCopyCommand(fileId: string): Promise<void> {
-    if (!this._sharingService) return;
-    
     try {
       // ファイルを履歴から検索
       const history = this._sharingService.getHistory();
@@ -811,6 +786,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
         
         // VSCodeの通知も表示（オプション）
         vscode.window.showInformationMessage(`コマンド "${command}" をコピーしました！`);
+        
+        Logger.info(`コマンドをコピーしました: ${fileId}, ファイル: ${file.fileName}`);
+      } else {
+        Logger.warn(`コピー対象のファイルが見つかりません: ${fileId}`);
       }
     } catch (error) {
       Logger.error(`コピーコマンド実行中にエラーが発生しました: ${fileId}`, error as Error);
@@ -830,28 +809,35 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 履歴アイテムを再利用
    */
   private async _handleReuseHistoryItem(fileId: string): Promise<void> {
-    if (!this._sharingService) return;
-    
-    // ファイルを履歴から検索
-    const history = this._sharingService.getHistory();
-    const file = history.find(item => item.id === fileId);
-    
-    if (file) {
-      // コマンドを生成
-      const command = this._sharingService.generateCommand(file);
+    try {
+      // ファイルを履歴から検索
+      const history = this._sharingService.getHistory();
+      const file = history.find(item => item.id === fileId);
       
-      // アクセスカウントを増やす
-      this._sharingService.recordAccess(fileId);
-      
-      // 結果を表示
-      this._panel.webview.postMessage({
-        command: 'showShareResult',
-        data: {
-          filePath: file.path,
-          command: command,
-          type: file.type
-        }
-      });
+      if (file) {
+        // コマンドを生成
+        const command = this._sharingService.generateCommand(file);
+        
+        // アクセスカウントを増やす
+        this._sharingService.recordAccess(fileId);
+        
+        // 結果を表示
+        this._panel.webview.postMessage({
+          command: 'showShareResult',
+          data: {
+            filePath: file.path,
+            command: command,
+            type: file.type
+          }
+        });
+        
+        Logger.info(`履歴アイテムを再利用しました: ${fileId}, ファイル: ${file.fileName}`);
+      } else {
+        Logger.warn(`再利用対象のファイルが見つかりません: ${fileId}`);
+      }
+    } catch (error) {
+      Logger.error(`履歴アイテム再利用中にエラーが発生しました: ${fileId}`, error as Error);
+      this._showError(`履歴アイテムの再利用に失敗しました: ${(error as Error).message}`);
     }
   }
   
@@ -1628,10 +1614,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._fileSystemService.dispose();
     }
     
-    // 共有サービスの一時ファイルクリーンアップを実行
-    if (this._sharingService) {
-      this._sharingService.cleanupExpiredFiles();
-    }
+    // 共有サービスのリソースを解放
+    this._sharingService.dispose();
 
     // disposable なオブジェクトを破棄
     while (this._disposables.length) {

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>プロジェクト選択</title>
+  <style>
+    .no-project-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      text-align: center;
+      padding: 2rem;
+    }
+    
+    .no-project-icon {
+      font-size: 64px;
+      color: var(--app-primary);
+      margin-bottom: 1.5rem;
+    }
+    
+    .no-project-title {
+      font-size: 24px;
+      font-weight: 500;
+      margin-bottom: 1rem;
+      color: var(--app-heading-color);
+    }
+    
+    .no-project-text {
+      font-size: 16px;
+      line-height: 1.5;
+      margin-bottom: 2rem;
+      color: var(--app-text-secondary);
+      max-width: 600px;
+    }
+    
+    .project-actions {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    
+    .project-button {
+      display: flex;
+      align-items: center;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    
+    .project-button-icon {
+      margin-right: 0.5rem;
+      font-size: 18px;
+    }
+    
+    .primary-button {
+      background-color: var(--app-primary);
+      color: white;
+    }
+    
+    .primary-button:hover {
+      background-color: var(--app-primary-dark);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    .secondary-button {
+      background-color: var(--app-gray-200);
+      color: var(--app-text);
+    }
+    
+    .secondary-button:hover {
+      background-color: var(--app-gray-300);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="no-project-container">
+    <span class="material-icons no-project-icon">folder_open</span>
+    <h2 class="no-project-title">プロジェクトが選択されていません</h2>
+    <p class="no-project-text">
+      AppGenius AIのスコープマネージャーを使うには、プロジェクトを選択するか新しいプロジェクトを作成してください。
+      プロジェクトを選択すると、開発状況の管理や各種AIプロンプトを利用できるようになります。
+    </p>
+    <div class="project-actions">
+      <button class="project-button primary-button" id="create-new-project">
+        <span class="material-icons project-button-icon">add</span>
+        新規プロジェクト作成
+      </button>
+      <button class="project-button secondary-button" id="load-existing-project">
+        <span class="material-icons project-button-icon">folder</span>
+        既存プロジェクトを読み込む
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // プロジェクト作成ボタンのイベントハンドラー
+    document.getElementById('create-new-project').addEventListener('click', () => {
+      // 親のscopeManager.jsとやり取りするためのメッセージ
+      window.parent.postMessage({ command: 'createNewProject' }, '*');
+    });
+
+    // プロジェクト読み込みボタンのイベントハンドラー
+    document.getElementById('load-existing-project').addEventListener('click', () => {
+      // 親のscopeManager.jsとやり取りするためのメッセージ
+      window.parent.postMessage({ command: 'loadExistingProject' }, '*');
+    });
+  </script>
+</body>
+</html>
