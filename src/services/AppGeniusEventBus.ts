@@ -14,6 +14,7 @@ export enum AppGeniusEventType {
   PROJECT_CREATED = 'project-created',
   PROJECT_SELECTED = 'project-selected',
   PROJECT_DELETED = 'project-deleted',
+  PROJECT_REMOVED = 'project-removed', // PROJECT_DELETEDと同等の機能だがProjectServiceとの互換性のため追加
   PROJECT_UPDATED = 'project-updated',
   PROJECT_PATH_UPDATED = 'project-path-updated', // 追加: プロジェクトパス更新イベント
   PHASE_COMPLETED = 'phase-completed',
