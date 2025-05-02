@@ -200,7 +200,7 @@ export class TerminalProvisionService {
     const params = additionalParams ? ` ${additionalParams.trim()}` : '';
     
     // 日本語プロンプトとファイル読み込み要求を含むコマンドを生成
-    return `${baseCommand} "${fileArg}日本語で対応してください。${fileArg}これをReadツールを使って読み込む許可をもらうところから始めてください${params}"`;
+    return `${baseCommand} "${fileArg}日本語で対応してください。${fileArg}これをReadツールを使って読み込むところから始めてください${params}"`;
   }
   
   /**
