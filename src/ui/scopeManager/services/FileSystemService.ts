@@ -13,6 +13,7 @@ export interface IFileSystemService {
   // ファイル操作
   readMarkdownFile(filePath: string): Promise<string>;
   createDefaultStatusFile(projectPath: string, projectName?: string): Promise<void>;
+  fileExists(filePath: string): Promise<boolean>;
   
   // ディレクトリ操作
   getDirectoryStructure(projectPath: string): Promise<string>;
@@ -20,6 +21,8 @@ export interface IFileSystemService {
   
   // ファイル監視
   setupFileWatcher(statusFilePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable;
+  setupEnhancedFileWatcher(statusFilePath: string, onFileChanged: (filePath: string) => void, options?: { delayedReadTime?: number }): vscode.Disposable;
+  setupStatusFileEventListener(projectPath: string, statusFilePath: string, onStatusUpdate: (filePath: string) => void): vscode.Disposable;
   dispose(): void;
   
   // イベント
@@ -384,6 +387,133 @@ export class FileSystemService implements IFileSystemService {
   - 関連ファイル:
     - (ファイルはまだ定義されていません)
 `;
+  }
+  
+  /**
+   * ファイルが存在するか確認する
+   * @param filePath ファイルパス
+   * @returns ファイルが存在する場合はtrue、それ以外はfalse
+   */
+  public async fileExists(filePath: string): Promise<boolean> {
+    try {
+      if (!filePath) {
+        return false;
+      }
+      
+      return new Promise<boolean>((resolve) => {
+        fs.access(filePath, fs.constants.F_OK, (err) => {
+          resolve(!err);
+        });
+      });
+    } catch (error) {
+      Logger.error(`FileSystemService: ファイル存在確認に失敗しました: ${filePath}`, error as Error);
+      return false;
+    }
+  }
+  
+  /**
+   * 拡張されたファイル監視機能
+   * ファイル変更時の遅延読み込みオプションなど追加機能を提供
+   * @param statusFilePath 監視対象のステータスファイルパス
+   * @param onFileChanged ファイル変更時のコールバック
+   * @param options オプション設定（遅延読み込み時間など）
+   */
+  public setupEnhancedFileWatcher(
+    statusFilePath: string, 
+    onFileChanged: (filePath: string) => void,
+    options?: { delayedReadTime?: number }
+  ): vscode.Disposable {
+    try {
+      // 基本的なファイル監視を設定
+      const baseWatcher = this.setupFileWatcher(statusFilePath, async (filePath) => {
+        // ファイル変更時に即時通知
+        Logger.info(`FileSystemService(Enhanced): ファイル変更検出: ${filePath}`);
+        
+        try {
+          // 即時読み込みと通知
+          await this.readMarkdownFile(filePath);
+          onFileChanged(filePath);
+          
+          // 遅延読み込みオプションが有効な場合は2回目の読み込みを実行
+          const delayTime = options?.delayedReadTime || 100;
+          if (delayTime > 0) {
+            setTimeout(async () => {
+              Logger.info(`FileSystemService(Enhanced): 遅延読み込み(${delayTime}ms後): ${filePath}`);
+              
+              try {
+                await this.readMarkdownFile(filePath);
+                onFileChanged(filePath);
+              } catch (delayedError) {
+                Logger.warn(`FileSystemService(Enhanced): 遅延読み込み中にエラー: ${filePath}`, delayedError as Error);
+              }
+            }, delayTime);
+          }
+        } catch (error) {
+          Logger.error(`FileSystemService(Enhanced): ファイル読み込み中にエラー: ${filePath}`, error as Error);
+          // エラーがあっても通知だけは行う
+          onFileChanged(filePath);
+        }
+      });
+      
+      // 基本的なウォッチャーを返す
+      return baseWatcher;
+    } catch (error) {
+      Logger.error(`FileSystemService(Enhanced): ファイル監視の設定に失敗: ${statusFilePath}`, error as Error);
+      // 空のdisposableを返す
+      return { dispose: () => {} };
+    }
+  }
+  
+  /**
+   * ステータスファイル用のイベントリスナーを設定
+   * AppGeniusEventBusからのCURRENT_STATUS_UPDATEDイベントをリッスン
+   * @param projectPath プロジェクトパス
+   * @param statusFilePath ステータスファイルパス
+   * @param onStatusUpdate ステータス更新時のコールバック
+   */
+  public setupStatusFileEventListener(
+    projectPath: string,
+    statusFilePath: string,
+    onStatusUpdate: (filePath: string) => void
+  ): vscode.Disposable {
+    try {
+      // イベントバスからのCURRENT_STATUS_UPDATEDイベントをリッスン
+      const eventBus = AppGeniusEventBus.getInstance();
+      const listener = eventBus.onEventType(AppGeniusEventType.CURRENT_STATUS_UPDATED, async (event) => {
+        // 自分自身が送信したイベントは無視（循環を防ぐ）
+        if (event.source === 'FileSystemService') {
+          return;
+        }
+        
+        // プロジェクトIDが一致しない場合は無視
+        if (!projectPath || !event.projectId || 
+            !projectPath.includes(event.projectId)) {
+          return;
+        }
+        
+        Logger.info(`FileSystemService: 他のコンポーネントからのCURRENT_STATUS更新イベントを受信: projectPath=${projectPath}`);
+        
+        // ステータスファイルが存在する場合はその内容を読み込み
+        if (await this.fileExists(statusFilePath)) {
+          try {
+            await this.readMarkdownFile(statusFilePath);
+            onStatusUpdate(statusFilePath);
+          } catch (error) {
+            Logger.error(`FileSystemService: ステータスファイル読み込みに失敗: ${statusFilePath}`, error as Error);
+            // エラーがあっても通知だけは行う
+            onStatusUpdate(statusFilePath);
+          }
+        } else {
+          Logger.warn(`FileSystemService: ステータスファイルが存在しません: ${statusFilePath}`);
+        }
+      });
+      
+      return listener;
+    } catch (error) {
+      Logger.error(`FileSystemService: イベントリスナーの設定に失敗: ${projectPath}`, error as Error);
+      // 空のdisposableを返す
+      return { dispose: () => {} };
+    }
   }
   
   /**

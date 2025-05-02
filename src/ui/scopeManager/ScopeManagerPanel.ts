@@ -1385,6 +1385,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   /**
    * ステータスファイルを読み込む
+   * FileSystemServiceの機能を利用
    */
   private async _loadStatusFile(): Promise<void> {
     try {
@@ -1396,24 +1397,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
       const docsDir = path.join(this._projectPath, 'docs');
       await this._fileSystemService.ensureDirectoryExists(docsDir);
 
-      const fs = require('fs');
-      // ステータスファイルが存在するか確認
-      const fileExists = await new Promise<boolean>((resolve) => {
-        fs.access(this._statusFilePath, fs.constants.F_OK, (err: any) => {
-          resolve(!err);
-        });
-      });
+      // FileSystemServiceを使用してステータスファイルの存在を確認
+      const fileExists = await this._fileSystemService.fileExists(this._statusFilePath);
 
       // ステータスファイルが存在しない場合はテンプレートを作成
       if (!fileExists) {
         Logger.info('CURRENT_STATUS.mdファイルが存在しないため、テンプレートを作成します');
         
-        // FileSystemServiceを使用してプロジェクトのデフォルトステータスファイルを作成
         // プロジェクト名をディレクトリ名から取得
         const projectName = path.basename(this._projectPath);
         
+        // FileSystemServiceを使用してプロジェクトのデフォルトステータスファイルを作成
         await this._fileSystemService.createDefaultStatusFile(this._projectPath, projectName);
-        Logger.info(`FileSystemServiceを使用してCURRENT_STATUS.mdファイルを作成しました: ${this._statusFilePath}`);
+        Logger.info(`CURRENT_STATUS.mdファイルを作成しました: ${this._statusFilePath}`);
       }
 
       // マークダウン表示を更新するためにファイルを読み込み
@@ -1444,9 +1440,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * ファイル変更の監視を設定
+   * ファイル監視を設定する
+   * FileSystemServiceの拡張機能を利用
    */
-  private _setupFileWatcher(): void {
+  private async _setupFileWatcher(): Promise<void> {
     try {
       // 既存の監視があれば破棄
       if (this._fileWatcher) {
@@ -1459,66 +1456,40 @@ export class ScopeManagerPanel extends ProtectedPanel {
         this._docsDirWatcher = null;
       }
       
-      if (!this._projectPath) {
+      if (!this._projectPath || !this._statusFilePath) {
         return;
       }
       
-      // FileSystemServiceを使用してdocsディレクトリの存在を確認・作成
+      // docsディレクトリの存在確認
       const docsDir = path.join(this._projectPath, 'docs');
-      this._fileSystemService.ensureDirectoryExists(docsDir)
-        .then(() => {
-          Logger.info(`docsディレクトリを確認/作成しました: ${docsDir}`);
-          
-          // FileSystemServiceを使用してファイル監視を設定
-          this._fileWatcher = this._fileSystemService.setupFileWatcher(
-            this._statusFilePath,
-            async (filePath) => {
-              // ファイル変更時にマークダウンコンテンツを更新（即時性を高める処理）
-              Logger.info(`【ファイル変更検出】ScopeManagerPanel: 変更通知を受信: ${filePath}`);
-              
-              // 即時反映のため1回目の読み込み（遅延なしで実行）
-              await this._handleGetMarkdownContent(filePath);
-              
-              // バッファリング対策として少し遅らせて2回目の読み込み（ファイル書き込みが完全に終わった後）
-              setTimeout(async () => {
-                Logger.info(`【遅延読み込み】ScopeManagerPanel: 2回目の読み込みを実行: ${filePath}`);
-                await this._handleGetMarkdownContent(filePath);
-              }, 100);
-            }
-          );
-          
-          Logger.info(`FileSystemServiceを使用してファイル監視を設定しました: ${this._statusFilePath}`);
-        })
-        .catch(error => {
-          Logger.error(`docsディレクトリの確認/作成に失敗しました: ${error}`);
-        });
+      await this._fileSystemService.ensureDirectoryExists(docsDir);
       
-      // イベントバスからのCURRENT_STATUS_UPDATEDイベントをリッスン
-      const eventBus = AppGeniusEventBus.getInstance();
-      this._disposables.push(
-        eventBus.onEventType(AppGeniusEventType.CURRENT_STATUS_UPDATED, async (event) => {
-          // 自分自身が送信したイベントは無視（循環を防ぐ）
-          if (event.source === 'scopeManager') {
-            return;
-          }
-          
-          // 自分が対象のプロジェクトIDを持っていない場合や
-          // プロジェクトIDが一致しない場合は無視
-          if (!this._projectPath || !event.projectId || 
-              !this._projectPath.includes(event.projectId)) {
-            return;
-          }
-          
-          Logger.info('他のコンポーネントからのCURRENT_STATUS更新イベントを受信しました');
-          
-          // ステータスファイルが存在する場合はその内容を読み込み
-          if (this._statusFilePath) {
-            await this._handleGetMarkdownContent(this._statusFilePath);
-          }
-        })
+      // 拡張されたファイル監視機能を使用して監視を設定
+      this._fileWatcher = this._fileSystemService.setupEnhancedFileWatcher(
+        this._statusFilePath,
+        async (filePath) => {
+          // ファイル変更を検出したらマークダウンを更新
+          Logger.info(`ScopeManagerPanel: ファイル変更を検出して内容を更新: ${filePath}`);
+          await this._handleGetMarkdownContent(filePath);
+        },
+        { delayedReadTime: 100 } // 100ms後に2回目の読み込みを実行
       );
       
-      Logger.info('ScopeManagerPanel: ファイル監視設定完了 - FileSystemServiceとイベントリスナーを使用');
+      // イベントリスナーも設定
+      const eventListener = this._fileSystemService.setupStatusFileEventListener(
+        this._projectPath,
+        this._statusFilePath,
+        async (filePath) => {
+          // イベントバス経由の通知を受けた場合もマークダウンを更新
+          Logger.info(`ScopeManagerPanel: イベントバス経由でファイル更新を検出: ${filePath}`);
+          await this._handleGetMarkdownContent(filePath);
+        }
+      );
+      
+      // イベントリスナーをdisposablesに追加
+      this._disposables.push(eventListener);
+      
+      Logger.info('ScopeManagerPanel: ファイル監視設定完了 - 拡張FileSystemServiceを使用');
     } catch (error) {
       Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
     }
