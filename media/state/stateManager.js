@@ -1,8 +1,34 @@
 // @ts-check
 
+// VSCode APIを安全に取得
+let vscodeInstance;
+try {
+  // グローバル変数として既に存在するか確認
+  if (typeof window.vsCodeApi !== 'undefined') {
+    vscodeInstance = window.vsCodeApi;
+    console.log('stateManager: 既存のVSCode APIを使用します');
+  } else {
+    // 新規取得
+    vscodeInstance = acquireVsCodeApi();
+    console.log('stateManager: VSCode APIを新規取得しました');
+    // グローバル変数として保存して他のスクリプトでも使えるように
+    window.vsCodeApi = vscodeInstance;
+  }
+} catch (e) {
+  console.error('stateManager: VSCode API取得エラー:', e);
+  // エラー時のフォールバック
+  vscodeInstance = {
+    postMessage: function(msg) { 
+      console.log('ダミーvscode.postMessage (stateManager):', msg); 
+    },
+    getState: function() { return {}; },
+    setState: function() {}
+  };
+}
+
 class StateManager {
-  constructor(vscode) {
-    this.vscode = vscode;
+  constructor() {
+    this.vscode = vscodeInstance;
     this.listeners = new Map();
     this.state = this.vscode.getState() || this._getDefaultState();
   }
@@ -63,5 +89,5 @@ class StateManager {
 }
 
 // シングルトンインスタンス
-const stateManager = new StateManager(acquireVsCodeApi());
+const stateManager = new StateManager();
 export default stateManager;

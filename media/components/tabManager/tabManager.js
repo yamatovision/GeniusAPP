@@ -6,6 +6,8 @@ class TabManager {
     this.tabs = document.querySelectorAll('.tab');
     this.tabContents = document.querySelectorAll('.tab-content');
     this.activeTab = null;
+    this.isInitialized = false;
+    this.pendingTabId = null;
     this.initialize();
   }
 
@@ -21,6 +23,17 @@ class TabManager {
     
     // 初期タブを選択
     this.selectTab(savedTab, false);
+    
+    // 初期化完了のフラグを設定
+    this.isInitialized = true;
+    
+    // 保留中のタブ選択があれば実行
+    if (this.pendingTabId) {
+      setTimeout(() => {
+        this.selectTab(this.pendingTabId, true);
+        this.pendingTabId = null;
+      }, 50);
+    }
     
     console.log('TabManager initialized with tab:', savedTab);
   }
@@ -43,7 +56,20 @@ class TabManager {
   selectTab(tabId, saveToServer = true) {
     if (!tabId) return;
     
+    // 初期化前の呼び出しは保留する
+    if (!this.isInitialized) {
+      this.pendingTabId = tabId;
+      console.log(`TabManager: 初期化前のタブ選択を保留: ${tabId}`);
+      return;
+    }
+    
     console.log(`TabManager: selectTab(${tabId}, saveToServer=${saveToServer})`);
+    
+    // 既に選択中のタブなら何もしない（冗長な処理を防止）
+    if (this.activeTab === tabId) {
+      console.log(`TabManager: タブ ${tabId} は既に選択中です`);
+      return;
+    }
     
     // UIの更新
     this.tabs.forEach(tab => {
