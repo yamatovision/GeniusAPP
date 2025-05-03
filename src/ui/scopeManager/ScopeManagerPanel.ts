@@ -1425,10 +1425,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
       <div id="error-container" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: var(--app-danger); color: white; padding: 10px; border-radius: 4px;"></div>
       
       <!-- メインスクリプト -->
-      <script nonce="${nonce}" src="${scriptUri}"></script>
+      <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
       
       <!-- 共有パネルコンポーネント専用スクリプト -->
-      <script nonce="${nonce}" src="${sharingPanelScriptUri}"></script>
+      <script type="module" nonce="${nonce}" src="${sharingPanelScriptUri}"></script>
     </body>
     </html>`;
   }
