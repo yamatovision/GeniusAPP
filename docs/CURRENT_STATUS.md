@@ -108,10 +108,11 @@ media/
    - 確認ポイント: プロジェクトパスが正しく更新され、マークダウン取得が機能すること
    - **完了状況**: ✅ 2025-05-03 移行完了。VSCode APIとのインタラクションを保持しつつコンポーネント化。
 
-10. [ ] **タスク4.3: `updateProjects(projects, activeProject)` [行番号 569] の移行**
+10. [x] **タスク4.3: `updateProjects(projects, activeProject)` [行番号 569] の移行**
     - 移行先: `media/components/projectNavigation/projectNavigation.js`
     - 内容: プロジェクト一覧更新機能を移行
     - 確認ポイント: プロジェクト一覧が正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-03 移行完了。大規模な機能をイベントベースの通信に変更し、プロジェクト操作の全責任をコンポーネントに委譲。
 
 11. [ ] **タスク4.4: `initializeProjectNav()` [行番号 845] の移行**
     - 移行先: `media/components/projectNavigation/projectNavigation.js`

@@ -55,6 +55,11 @@ class ProjectNavigation {
       this.updateProjectPath(event.detail);
     });
     
+    // プロジェクト一覧更新イベントリスナーを設定
+    document.addEventListener('projects-updated', (event) => {
+      this.updateProjects(event.detail.projects, event.detail.activeProject);
+    });
+    
     console.log('ProjectNavigation initialized');
   }
   
@@ -64,41 +69,218 @@ class ProjectNavigation {
    * @param {Object} activeProject アクティブプロジェクト
    */
   updateProjects(projects, activeProject) {
+    console.log('projectNavigation: プロジェクト一覧更新:', projects?.length, '件', 'アクティブプロジェクト:', activeProject?.name);
+    
     if (!this.projectList) return;
+    
+    // アクティブプロジェクト情報を状態に保存（他のパネルから戻ってきた時のために）
+    if (activeProject) {
+      const state = stateManager.getState();
+      state.activeProjectName = activeProject.name;
+      state.activeProjectPath = activeProject.path;
+      state.activeTab = activeProject.metadata?.activeTab || 'current-status';
+      stateManager.setState(state);
+    }
+    
+    // 既存のアクティブプロジェクトエリアがあれば削除
+    const existingActiveArea = document.getElementById('active-project-area');
+    if (existingActiveArea) {
+      existingActiveArea.remove();
+    }
+    
+    // 既存の他のプロジェクトラベルがあれば削除
+    const existingLabel = document.getElementById('other-projects-label');
+    if (existingLabel) {
+      existingLabel.remove();
+    }
     
     // リストをクリア
     this.projectList.innerHTML = '';
     
+    // プロジェクトがない場合の表示
     if (!projects || projects.length === 0) {
       this.projectList.innerHTML = '<div class="project-item">プロジェクトがありません</div>';
       return;
     }
     
-    // 各プロジェクトをリストに追加
-    projects.forEach(project => {
-      const projectItem = document.createElement('div');
-      projectItem.className = 'project-item';
-      if (activeProject && project.id === activeProject.id) {
-        projectItem.classList.add('active');
+    // ソート済みのプロジェクト配列を作成（アクティブプロジェクトを先頭に）
+    let sortedProjects = [...projects];
+    
+    // プロジェクトを作成日時順にソートする（古いものから新しいものへ）
+    sortedProjects.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    
+    // プロジェクトをリストに追加
+    sortedProjects.forEach((project) => {
+      const item = document.createElement('div');
+      const isActive = activeProject && activeProject.id === project.id;
+      
+      // すべてのプロジェクトに同じスタイルを適用
+      item.className = isActive ? 'project-item active' : 'project-item';
+      
+      // アクティブプロジェクトにはidを設定
+      if (isActive) {
+        item.id = 'active-project-item';
       }
       
-      projectItem.innerHTML = `
-        <div class="project-item-name">${project.name}</div>
-        <div class="project-item-path">${project.path}</div>
+      // プロジェクト表示名はパスの最後のディレクトリ名か設定されている名前を使用
+      let displayName = project.name || '';
+      if (!displayName && project.path) {
+        // パスから抽出
+        const pathParts = project.path.split(/[/\\]/);
+        displayName = pathParts[pathParts.length - 1] || 'プロジェクト';
+      }
+      
+      // すべてのプロジェクトで統一されたHTMLを使用
+      item.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+          <div>
+            <span class="project-name" ${isActive ? 'style="font-weight: 600;"' : ''}>${displayName}</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">${project.path || 'パスなし'}</span>
+          </div>
+          <button class="remove-project-btn" title="プロジェクトの登録を解除" style="background: none; border: none; cursor: pointer; color: var(--app-text-secondary); opacity: 0.5; font-size: 16px;">
+            <span class="material-icons" style="font-size: 16px;">close</span>
+          </button>
+        </div>
       `;
       
-      // クリックイベント
-      projectItem.addEventListener('click', () => {
-        this.selectProject(project);
+      // 全体のクリックイベント
+      const handleProjectClick = () => {
+        // アクティブクラスを削除
+        document.querySelectorAll('.project-item').forEach(pi => pi.classList.remove('active'));
+        // クリックされた項目をアクティブに
+        item.classList.add('active');
+        
+        // プロジェクト選択の進行中メッセージを表示
+        const notification = document.createElement('div');
+        notification.className = 'save-notification';
+        notification.innerHTML = `
+          <span class="material-icons" style="color: var(--app-warning);">hourglass_top</span>
+          <span class="notification-text">プロジェクト「${displayName}」を読み込み中...</span>
+        `;
+        notification.style.display = 'flex';
+        notification.style.opacity = '1';
+        notification.style.backgroundColor = 'rgba(253, 203, 110, 0.15)';
+        
+        // 通知領域にメッセージを表示
+        const errorContainer = document.getElementById('error-container');
+        if (errorContainer) {
+          errorContainer.parentNode.insertBefore(notification, errorContainer);
+        } else {
+          document.body.appendChild(notification);
+        }
+        
+        // 現在のアクティブタブIDを取得
+        const currentActiveTab = document.querySelector('.tab.active')?.getAttribute('data-tab');
+        console.log('projectNavigation: 現在のアクティブタブ:', currentActiveTab);
+        
+        // 状態にプロジェクト情報を保存（他のパネルから戻ってきた時に復元するため）
+        const state = stateManager.getState();
+        state.activeProjectName = displayName;
+        state.activeProjectPath = project.path;
+        state.activeTab = currentActiveTab || 'current-status';
+        
+        // 手動でCURRENT_STATUS.mdのパスを設定して初期化信号を送信
+        const statusFilePath = project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '';
+        state.statusFilePath = statusFilePath;
+        
+        stateManager.setState(state);
+        
+        // VSCodeにプロジェクト変更のメッセージを送信（アクティブタブ情報も送信）
+        this.vscode.postMessage({
+          command: 'selectProject',
+          projectName: displayName,
+          projectPath: project.path,
+          activeTab: currentActiveTab,
+          forceRefresh: true // 強制的にコンテンツをリロード
+        });
+        
+        // 3秒後に通知を削除
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 3000);
+      };
+      
+      // 削除ボタンのクリックイベント
+      const removeBtn = item.querySelector('.remove-project-btn');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+          // クリックイベントの伝播を停止
+          e.stopPropagation();
+          
+          // 確認ダイアログ
+          const projectName = item.querySelector('.project-name').textContent;
+          
+          // シンプルな確認ダイアログを作成
+          const overlay = document.createElement('div');
+          overlay.className = 'dialog-overlay';
+          overlay.style.zIndex = '10000';
+          
+          const dialog = document.createElement('div');
+          dialog.className = 'dialog';
+          dialog.innerHTML = `
+            <div class="dialog-title">プロジェクト登録解除の確認</div>
+            <div style="margin: 20px 0;">
+              <p>プロジェクト「${projectName}」の登録を解除しますか？</p>
+              <p style="color: var(--app-text-secondary); font-size: 0.9em; margin-top: 10px;">
+                注意: この操作はプロジェクトファイルを削除するものではなく、
+                AppGeniusからの登録を解除するだけです。
+              </p>
+            </div>
+            <div class="dialog-footer">
+              <button class="button button-secondary" id="cancel-remove">キャンセル</button>
+              <button class="button" id="confirm-remove" style="background-color: var(--app-danger);">登録解除</button>
+            </div>
+          `;
+          
+          overlay.appendChild(dialog);
+          document.body.appendChild(overlay);
+          
+          // キャンセルボタン
+          document.getElementById('cancel-remove')?.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+          });
+          
+          // 確認ボタン
+          document.getElementById('confirm-remove')?.addEventListener('click', () => {
+            // VSCodeにプロジェクト削除のメッセージを送信
+            this.vscode.postMessage({
+              command: 'removeProject',
+              projectName: projectName,
+              projectPath: project.path,
+              projectId: project.id
+            });
+            
+            // ダイアログを閉じる
+            document.body.removeChild(overlay);
+            
+            // 削除中のフィードバック
+            item.style.opacity = '0.5';
+            item.style.pointerEvents = 'none';
+          });
+        });
+        
+        // ホバー効果
+        removeBtn.addEventListener('mouseover', () => {
+          removeBtn.style.opacity = '0.8';
+          removeBtn.style.color = 'var(--app-text)';
+        });
+        
+        removeBtn.addEventListener('mouseout', () => {
+          removeBtn.style.opacity = '0.5';
+          removeBtn.style.color = 'var(--app-text-secondary)';
+        });
+      }
+      
+      // 削除ボタン以外の領域のクリックで全体のクリックイベントを発火
+      item.addEventListener('click', (e) => {
+        if (!e.target.closest('.remove-project-btn')) {
+          handleProjectClick();
+        }
       });
       
-      // コンテキストメニュー
-      projectItem.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        this.showProjectContextMenu(e, project);
-      });
-      
-      this.projectList.appendChild(projectItem);
+      this.projectList.appendChild(item);
     });
   }
   
