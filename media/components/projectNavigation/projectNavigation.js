@@ -9,6 +9,10 @@ class ProjectNavigation {
     this.newProjectBtn = document.getElementById('new-project-btn');
     this.loadProjectBtn = document.getElementById('load-project-btn');
     this.searchInput = document.querySelector('.search-input');
+    this.projectDisplayName = document.querySelector('.project-display .project-name');
+    
+    // VSCode APIを取得
+    this.vscode = window.vsCodeApi;
     
     this.initialize();
   }
@@ -39,6 +43,11 @@ class ProjectNavigation {
     if (state.isNavCollapsed) {
       this.collapseNavigation();
     }
+    
+    // プロジェクト名更新イベントリスナーを設定
+    document.addEventListener('project-name-updated', (event) => {
+      this.updateProjectName(event.detail.name);
+    });
     
     console.log('ProjectNavigation initialized');
   }
@@ -247,6 +256,35 @@ class ProjectNavigation {
         item.classList.remove('active');
       }
     });
+  }
+  
+  /**
+   * プロジェクト名を更新
+   * @param {string} projectName プロジェクト名
+   */
+  updateProjectName(projectName) {
+    console.log(`projectNavigation: プロジェクト名を更新: ${projectName}`);
+    
+    // 状態保存のため、現在表示中のプロジェクト名を記録
+    const state = stateManager.getState();
+    
+    // 同じプロジェクト名が既に表示されている場合は変更しない
+    if (state.currentDisplayedProject === projectName) {
+      console.log(`projectNavigation: プロジェクト名は既に更新済み: ${projectName}`);
+      return;
+    }
+    
+    // プロジェクト名をヘッダーに更新
+    if (this.projectDisplayName) {
+      console.log(`projectNavigation: プロジェクト名要素を更新: ${projectName}`);
+      this.projectDisplayName.textContent = projectName;
+      
+      // 現在表示中のプロジェクト名を記録
+      state.currentDisplayedProject = projectName;
+      stateManager.setState(state);
+    } else {
+      console.warn('projectNavigation: プロジェクト名表示要素が見つかりません: .project-display .project-name');
+    }
   }
 }
 

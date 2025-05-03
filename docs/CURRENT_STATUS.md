@@ -96,10 +96,11 @@ media/
 
 ### フェーズ4: プロジェクトナビゲーション関連の移行
 
-8. [ ] **タスク4.1: `updateProjectName(projectName)` [行番号 541] の移行**
+8. [x] **タスク4.1: `updateProjectName(projectName)` [行番号 541] の移行**
    - 移行先: `media/components/projectNavigation/projectNavigation.js`
    - 内容: プロジェクト名更新機能を移行
    - 確認ポイント: プロジェクト名が正しく更新されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。イベントベースの通信で機能を保持しつつ責任を分離。
 
 9. [ ] **タスク4.2: `updateProjectPath(data)` [行番号 254] の移行**
    - 移行先: `media/components/projectNavigation/projectNavigation.js`

@@ -6,6 +6,7 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
 import tabManager from './components/tabManager/tabManager.js';
 import stateManager from './state/stateManager.js';
 import markdownViewer from './components/markdownViewer/markdownViewer.js';
+import projectNavigation from './components/projectNavigation/projectNavigation.js';
 
 // VSCode APIを安全に取得
 let vscode;
@@ -125,9 +126,8 @@ try {
    */
   function setupStateManagerEvents() {
     // プロジェクト名が更新されたときのイベントを購読
-    document.addEventListener('project-name-updated', (event) => {
-      updateProjectName(event.detail.name);
-    });
+    // 注: projectNavigation.jsが既にこのイベントをリッスンして処理するので、
+    // ここでの処理は不要（二重にイベントを発行しない）
     
     // プロジェクトパスが更新されたときのイベントを購読
     document.addEventListener('project-path-updated', (event) => {
@@ -141,7 +141,8 @@ try {
     
     // マークダウンが更新されたときのイベントを購読
     document.addEventListener('markdown-updated', (event) => {
-      displayMarkdownContent(event.detail.content);
+      // markdownViewerに直接処理を委譲
+      markdownViewer.updateContent(event.detail.content);
     });
     
     console.log('StateManagerのイベントリスナーを設定しました');
@@ -174,10 +175,15 @@ try {
         updateProjectPath(message);
         break;
       case 'updateProjectName':
-        updateProjectName(message.projectName);
+        // 直接Custom Eventを発行
+        const event = new CustomEvent('project-name-updated', {
+          detail: { name: message.projectName }
+        });
+        document.dispatchEvent(event);
         break;
       case 'updateMarkdownContent':
-        displayMarkdownContent(message.content);
+        // 直接markdownViewerに処理を委譲
+        markdownViewer.updateContent(message.content);
         break;
       case 'updateProjects':
         // プロジェクト一覧を更新するだけで、ここではタブ選択は行わない
@@ -276,17 +282,7 @@ try {
     stateManager.handleUpdateState(data);
   }
   
-  /**
-   * マークダウンコンテンツを表示
-   * @deprecated markdownViewer.updateContentに移行しました
-   */
-  function displayMarkdownContent(markdownContent) {
-    // マークダウン更新イベントを発火（新しいmarkdownViewerが処理）
-    const event = new CustomEvent('markdown-updated', {
-      detail: { content: markdownContent }
-    });
-    document.dispatchEvent(event);
-  }
+  // マークダウン表示機能はmarkdownViewer.jsに移行しました
   
   // スタイリングとイベントリスナー関数は外部モジュールから提供される
   // enhanceSpecialElements, setupCheckboxes 関数は./utils/markdownConverter.jsに移動
@@ -474,31 +470,7 @@ try {
   
   // showSuccess関数はuiHelpers.jsにエクスポートした関数を使用
   
-  /**
-   * プロジェクト名を更新
-   */
-  function updateProjectName(projectName) {
-    const state = vscode.getState() || {};
-    
-    // 同じプロジェクト名が既に表示されている場合は変更しない
-    if (state.currentDisplayedProject === projectName) {
-      console.log(`プロジェクト名は既に更新済み: ${projectName}`);
-      return;
-    }
-    
-    // プロジェクト名をヘッダーに更新（タブバーの左側に表示されるプロジェクト名）
-    const projectDisplayName = document.querySelector('.project-display .project-name');
-    if (projectDisplayName) {
-      console.log(`プロジェクト名を更新: ${projectName}`);
-      projectDisplayName.textContent = projectName;
-      
-      // 現在表示中のプロジェクト名を記録
-      state.currentDisplayedProject = projectName;
-      vscode.setState(state);
-    } else {
-      console.warn('プロジェクト名表示要素が見つかりません: .project-display .project-name');
-    }
-  }
+  // プロジェクト名更新機能はprojectNavigation.jsに移行しました
   
   /**
    * プロジェクト一覧を更新
