@@ -131,7 +131,8 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
         selectTab(message.tabId);
         break;
       case 'updateToolsTab':
-        updateToolsTab(message.content);
+        // 削除されたupdateToolsTab関数への参照
+        console.log('ツールタブ更新コマンドを受信しましたが、この機能は使用されていません');
         break;
       case 'syncProjectState':
         // ProjectManagementServiceからのプロジェクト状態同期メッセージ
@@ -468,61 +469,9 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
       promptGrid.appendChild(card);
     });
     
-    // ツールタブのコンテンツも作成
-    const toolsTab = document.getElementById('tools-tab');
-    if (toolsTab) {
-      const toolsGrid = document.createElement('div');
-      toolsGrid.className = 'prompt-grid';
-      
-      // 開発ツールカードを追加
-      const toolsData = [
-        { 
-          name: "要件定義エディタ", 
-          icon: "fact_check", 
-          command: "openRequirementsVisualizer", 
-          description: "要件定義書の編集と管理" 
-        },
-        { 
-          name: "環境変数アシスタント", 
-          icon: "emoji_objects", 
-          command: "openEnvironmentVariablesAssistant", 
-          description: "環境変数の設定と管理" 
-        },
-        { 
-          name: "モックアップギャラリー", 
-          icon: "dashboard", 
-          command: "openMockupGallery", 
-          description: "UIモックアップの表示と管理" 
-        },
-        { 
-          name: "デバッグ探偵", 
-          icon: "bug_report", 
-          command: "openDebugDetective", 
-          description: "エラー解析とデバッグ支援" 
-        }
-      ];
-      
-      toolsData.forEach(tool => {
-        const card = document.createElement('div');
-        card.className = 'prompt-card';
-        card.innerHTML = `
-          <span class="material-icons prompt-icon">${tool.icon}</span>
-          <h3 class="prompt-title">${tool.name}</h3>
-          <p class="prompt-description">${tool.description}</p>
-        `;
-        
-        // クリックイベント
-        card.addEventListener('click', () => {
-          vscode.postMessage({
-            command: tool.command
-          });
-        });
-        
-        toolsGrid.appendChild(card);
-      });
-      
-      toolsTab.appendChild(toolsGrid);
-    }
+    // ツールタブのコンテンツ作成処理は削除されました
+    // 「tools」タブはクリック時に openOriginalMockupGallery コマンドが実行されるため
+    // タブ内のコンテンツは表示されません
     
     // プロンプトタブにグリッドを追加
     promptsTab.appendChild(promptGrid);
@@ -1338,27 +1287,8 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
     }
   }
   
-  /**
-   * ツールタブの内容を更新
-   * @param {string} content HTMLコンテンツ
-   */
-  function updateToolsTab(content) {
-    const toolsTab = document.getElementById('tools-tab');
-    if (!toolsTab) {
-      console.error('tools-tabが見つかりません');
-      return;
-    }
-    
-    console.log('ツールタブの内容を更新します');
-    
-    // 既存の内容をクリア
-    toolsTab.innerHTML = '';
-    
-    // 新しい内容を設定
-    toolsTab.innerHTML = content;
-    
-    console.log('ツールタブの内容を更新しました');
-  }
+  // updateToolsTab 関数は削除されました
+  // 「tools」タブはクリック時に別ウィンドウを開くため、内容更新処理は不要
   
   
   /**
