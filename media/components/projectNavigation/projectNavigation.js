@@ -330,6 +330,40 @@ class ProjectNavigation {
   }
   
   /**
+   * プロジェクトナビゲーションの初期化
+   * 注：既にconstructorとinitialize()メソッドで実装されている基本機能に加えて、
+   * 追加の初期化処理が必要な場合に使用します
+   */
+  initializeNavigation() {
+    console.log('projectNavigation: ナビゲーションを初期化します');
+    
+    // トグルボタンのアイコン初期化
+    if (this.toggleNavBtn) {
+      const icon = this.toggleNavBtn.querySelector('.material-icons');
+      
+      if (this.projectNav && this.projectNav.classList.contains('collapsed')) {
+        if (icon) icon.textContent = 'chevron_right';
+      } else if (icon) {
+        icon.textContent = 'chevron_left';
+      }
+    }
+    
+    // プロジェクトリスト初期化（ローディングメッセージ）
+    if (this.projectList) {
+      // すでにプロジェクトが読み込まれている場合は、ローディングメッセージを表示しない
+      if (this.projectList.childElementCount === 0) {
+        this.projectList.innerHTML = '<div class="project-item loading">プロジェクト一覧を読み込み中...</div>';
+      }
+    }
+    
+    // 初期化完了イベントを発信
+    const event = new CustomEvent('project-navigation-initialized');
+    document.dispatchEvent(event);
+    
+    return this;
+  }
+  
+  /**
    * ナビゲーションを開く
    */
   expandNavigation() {
@@ -355,7 +389,121 @@ class ProjectNavigation {
    * 新規プロジェクトモーダルを表示
    */
   showNewProjectModal() {
-    stateManager.sendMessage('showNewProjectModal');
+    console.log('projectNavigation: 新規プロジェクトモーダル表示処理を開始します');
+    
+    try {
+      // 既存のモーダルを削除
+      document.querySelectorAll('#new-project-modal').forEach(m => {
+        console.log('モーダル要素を削除します:', m.id);
+        m.remove();
+      });
+      
+      // モーダルを新規作成
+      console.log('モーダルを新規作成します');
+      const modal = document.createElement('div');
+      modal.id = 'new-project-modal';
+      
+      // スタイルを詳細に設定
+      Object.assign(modal.style, {
+        position: 'fixed',
+        top: '0',
+        left: '0',
+        right: '0',
+        bottom: '0',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: '10000'
+      });
+      
+      // シンプルなモーダル内容
+      modal.innerHTML = `
+        <div style="background-color: white; border-radius: 10px; width: 400px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);">
+          <div style="padding: 20px; border-bottom: 1px solid #ddd;">
+            <h2 style="margin: 0; font-size: 18px;">新規プロジェクト作成</h2>
+          </div>
+          <div style="padding: 20px;">
+            <div style="margin-bottom: 15px;">
+              <label style="display: block; margin-bottom: 5px;">プロジェクト名 <span style="color: red;">*</span></label>
+              <input type="text" id="project-name" required placeholder="例: MyWebApp" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+          </div>
+          <div style="padding: 15px 20px; border-top: 1px solid #ddd; text-align: right;">
+            <button type="button" id="cancel-new-project" style="padding: 6px 12px; margin-right: 10px; background: #f1f1f1; border: none; border-radius: 4px; cursor: pointer;">キャンセル</button>
+            <button type="button" id="create-project-btn" style="padding: 6px 12px; background: #4a90e2; color: white; border: none; border-radius: 4px; cursor: pointer;">作成</button>
+          </div>
+        </div>
+      `;
+      
+      // ボディにモーダルを追加
+      document.body.appendChild(modal);
+      
+      // イベントリスナーを設定
+      const cancelBtn = document.getElementById('cancel-new-project');
+      if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => this.hideNewProjectModal());
+      }
+      
+      const createBtn = document.getElementById('create-project-btn');
+      if (createBtn) {
+        createBtn.addEventListener('click', () => this.createNewProject());
+      }
+      
+      // 名前フィールドにフォーカス
+      const projectNameInput = document.getElementById('project-name');
+      if (projectNameInput) {
+        projectNameInput.focus();
+      }
+      
+    } catch (e) {
+      console.error('モーダル表示処理中にエラーが発生しました', e);
+    }
+  }
+  
+  /**
+   * 新規プロジェクトモーダルを非表示
+   */
+  hideNewProjectModal() {
+    console.log('projectNavigation: モーダルを非表示にします');
+    const modal = document.getElementById('new-project-modal');
+    if (modal) {
+      modal.remove();
+    }
+  }
+  
+  /**
+   * 新規プロジェクト作成処理
+   */
+  createNewProject() {
+    console.log('projectNavigation: 新規プロジェクト作成処理を開始します');
+    const nameEl = document.getElementById('project-name');
+    
+    if (!nameEl) {
+      console.error('プロジェクト名入力フィールド(#project-name)が見つかりません');
+      return;
+    }
+    
+    const name = nameEl.value.trim();
+    console.log('入力されたプロジェクト名:', name);
+    
+    if (!name) {
+      console.warn('プロジェクト名が空です');
+      const event = new CustomEvent('show-error', {
+        detail: { message: 'プロジェクト名を入力してください' }
+      });
+      document.dispatchEvent(event);
+      return;
+    }
+    
+    console.log('VSCodeにメッセージを送信します: createProject');
+    this.vscode.postMessage({
+      command: 'createProject',
+      name,
+      description: ""
+    });
+    
+    this.hideNewProjectModal();
   }
   
   /**
