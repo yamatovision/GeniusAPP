@@ -454,35 +454,7 @@ class UIHelpers {
     }
   }
   
-  /**
-   * ディレクトリ構造ダイアログを表示
-   * @param {string} structure ディレクトリ構造テキスト
-   */
-  static showDirectoryStructure(structure) {
-    // モーダルダイアログを作成
-    const overlay = document.createElement('div');
-    overlay.className = 'dialog-overlay';
-    
-    const dialog = document.createElement('div');
-    dialog.className = 'dialog';
-    dialog.innerHTML = `
-      <div class="dialog-title">プロジェクト構造</div>
-      <div style="max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre; font-size: 12px;">
-        ${structure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-      </div>
-      <div class="dialog-footer">
-        <button class="button" id="close-dialog">閉じる</button>
-      </div>
-    `;
-    
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    
-    // 閉じるボタンのイベントリスナー
-    document.getElementById('close-dialog').addEventListener('click', () => {
-      document.body.removeChild(overlay);
-    });
-  }
+  // ディレクトリ構造表示機能は削除（UIで使用されていないため）
 }
 
 // クラス全体をexport
@@ -494,4 +466,3 @@ export const showSuccess = UIHelpers.showSuccess;
 export const getStatusClass = UIHelpers.getStatusClass;
 export const getStatusText = UIHelpers.getStatusText;
 export const getTimeAgo = UIHelpers.getTimeAgo;
-export const showDirectoryStructure = UIHelpers.showDirectoryStructure;

@@ -5,7 +5,7 @@ const vscode = acquireVsCodeApi();
 
 // 外部モジュールのインポート
 import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from './utils/markdownConverter.js';
-import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo, showDirectoryStructure } from './utils/uiHelpers.js';
+import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } from './utils/uiHelpers.js';
 
 // イベントリスナーの初期化
 (function() {
@@ -112,9 +112,7 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo, show
       case 'showSuccess':
         showSuccess(message.message);
         break;
-      case 'showDirectoryStructure':
-        showDirectoryStructure(message.structure);
-        break;
+      // 'showDirectoryStructure' ケースは削除（該当機能は廃止）
       case 'updateProjectPath':
         updateProjectPath(message);
         break;
@@ -667,13 +665,7 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo, show
       });
     }
     
-    // ディレクトリ構造ボタン
-    const directoryButton = document.getElementById('directory-structure-button');
-    if (directoryButton) {
-      directoryButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'showDirectoryStructure' });
-      });
-    }
+    // ディレクトリ構造ボタン関連の機能は削除（UIに該当要素が存在しないため）
     
     // スコープ新規作成ボタン
     const createScopeButton = document.getElementById('create-scope-button');
@@ -1330,7 +1322,7 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo, show
   
   // displayModelMockupとsetupMockupViewerHandlersは不要になったため削除
   
-  // showDirectoryStructure関数はuiHelpers.jsにエクスポートした関数を使用
+  // ディレクトリ構造表示機能は削除（UIで使用されていないため）
   
   /**
    * タブ機能の初期化
