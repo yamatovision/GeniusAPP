@@ -1,5 +1,11 @@
 // @ts-check
 
+// 外部モジュールのインポート
+import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from './utils/markdownConverter.js';
+import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } from './utils/uiHelpers.js';
+import tabManager from './components/tabManager/tabManager.js';
+import stateManager from './state/stateManager.js';
+
 // VSCode APIを安全に取得
 let vscode;
 try {
@@ -25,11 +31,6 @@ try {
     setState: function() {}
   };
 }
-
-// 外部モジュールのインポート
-import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from './utils/markdownConverter.js';
-import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } from './utils/uiHelpers.js';
-import tabManager from './components/tabManager/tabManager.js';
 
 // イベントリスナーの初期化
 (function() {
@@ -95,6 +96,9 @@ import tabManager from './components/tabManager/tabManager.js';
     // イベントリスナー設定
     setupEventListeners();
     
+    // StateManagerのイベントリスナーを設定
+    setupStateManagerEvents();
+    
     // 注：タブ初期化はtabManager.jsに移行済み 
     // (tabManagerはインポート時に自動的に初期化されます)
     
@@ -112,8 +116,35 @@ import tabManager from './components/tabManager/tabManager.js';
     
     // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
     // ただし、初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
-    setTimeout(restoreProjectState, 100);
+    setTimeout(() => stateManager.restoreProjectState(), 100);
   });
+  
+  /**
+   * StateManagerからのイベントリスナーを設定
+   */
+  function setupStateManagerEvents() {
+    // プロジェクト名が更新されたときのイベントを購読
+    document.addEventListener('project-name-updated', (event) => {
+      updateProjectName(event.detail.name);
+    });
+    
+    // プロジェクトパスが更新されたときのイベントを購読
+    document.addEventListener('project-path-updated', (event) => {
+      updateProjectPath(event.detail);
+    });
+    
+    // タブ状態が更新されたときのイベントを購読
+    document.addEventListener('tab-state-updated', (event) => {
+      tabManager.selectTab(event.detail.tabId, event.detail.saveToServer);
+    });
+    
+    // マークダウンが更新されたときのイベントを購読
+    document.addEventListener('markdown-updated', (event) => {
+      displayMarkdownContent(event.detail.content);
+    });
+    
+    console.log('StateManagerのイベントリスナーを設定しました');
+  }
   
   // メッセージハンドラーの設定
   window.addEventListener('message', event => {
@@ -128,7 +159,8 @@ import tabManager from './components/tabManager/tabManager.js';
     
     switch (message.command) {
       case 'updateState':
-        handleUpdateState(message);
+        // 新しいStateManagerに処理を委譲
+        stateManager.handleUpdateState(message);
         break;
       case 'showError':
         showError(message.message);
@@ -162,7 +194,8 @@ import tabManager from './components/tabManager/tabManager.js';
       case 'syncProjectState':
         // ProjectManagementServiceからのプロジェクト状態同期メッセージ
         if (message.project) {
-          syncProjectState(message.project);
+          // 新しいStateManagerに処理を委譲
+          stateManager.syncProjectState(message.project);
         }
         break;
     }
@@ -171,97 +204,11 @@ import tabManager from './components/tabManager/tabManager.js';
   /**
    * ProjectManagementServiceからのプロジェクト状態を同期
    * @param {Object} project プロジェクト情報
+   * @deprecated stateManager.syncProjectStateに移行しました
    */
   function syncProjectState(project) {
-    try {
-      if (!project) {
-        console.warn('プロジェクト情報が空のため同期をスキップします');
-        return;
-      }
-      
-      console.log('ProjectManagementServiceからプロジェクト状態を同期:', project);
-      
-      // 現在の状態を取得
-      const state = vscode.getState() || {};
-      
-      // 連続同期対策 - 短時間での重複同期を防止
-      const now = Date.now();
-      const lastSyncTime = state.lastProjectSyncTime || 0;
-      const lastSyncId = state.lastSyncedProjectId;
-      const syncThreshold = 300; // 300ms以内の同期はスキップ
-      
-      // 同じプロジェクトの頻繁すぎる同期はスキップ
-      if (now - lastSyncTime < syncThreshold && lastSyncId === project.id) {
-        console.log(`プロジェクト同期をスキップ: 直近(${now - lastSyncTime}ms前)に同期済み`);
-        return;
-      }
-      
-      // 同期状態を更新
-      state.lastProjectSyncTime = now;
-      state.lastSyncedProjectId = project.id;
-      
-      // 1. プロジェクト基本情報の更新
-      if (project.name) {
-        updateProjectName(project.name);
-      }
-      
-      if (project.path) {
-        // このプロジェクトへの切り替えが初めてか、明示的なリロードの場合のみforceRefreshを有効に
-        const isNewProject = state.lastSyncedProjectId !== project.id;
-        const isExplicitRefresh = !!project.forceRefresh;
-        
-        const data = {
-          projectPath: project.path,
-          statusFilePath: project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '',
-          statusFileExists: true,
-          forceRefresh: isNewProject || isExplicitRefresh // 新しいプロジェクトか明示的リフレッシュ時のみ
-        };
-        
-        console.log(`プロジェクトパス更新: ${project.path} (強制更新: ${isNewProject || isExplicitRefresh})`);
-        updateProjectPath(data);
-      }
-      
-      // 2. タブ状態の同期
-      if (project.metadata && project.metadata.activeTab) {
-        const activeTabFromMetadata = project.metadata.activeTab;
-        
-        // タブが存在するか確認
-        const tabExists = Array.from(document.querySelectorAll('.tab'))
-          .some(tab => tab.getAttribute('data-tab') === activeTabFromMetadata);
-        
-        const tabToSelect = tabExists ? activeTabFromMetadata : 'current-status';
-        
-        // タブマネージャーが初期化されているか確認
-        if (typeof tabManager.isInitialized !== 'undefined' && tabManager.isInitialized) {
-          // 通常のタブ選択（フラグをfalseにして無限ループを防止）
-          tabManager.selectTab(tabToSelect, false);
-          console.log(`タブ状態同期: ${tabToSelect}`);
-        } else {
-          // TabManagerが初期化されていない場合は、遅延処理で保留させる
-          console.log(`TabManagerが初期化されていないため、タブ状態同期を遅延実行します: ${tabToSelect}`);
-          setTimeout(() => {
-            tabManager.selectTab(tabToSelect, false);
-          }, 300);
-        }
-      }
-      
-      // 3. ローカルステートの更新（プロジェクト情報を保存）
-      state.activeProjectName = project.name;
-      state.activeProjectPath = project.path;
-      
-      if (project.metadata && project.metadata.activeTab) {
-        state.activeTab = project.metadata.activeTab;
-      } else if (!state.activeTab) {
-        state.activeTab = 'current-status';
-      }
-      
-      // 状態を保存
-      vscode.setState(state);
-      
-      console.log(`プロジェクト状態同期完了: ${project.name}`);
-    } catch (error) {
-      console.error('プロジェクト状態の同期中にエラーが発生しました:', error);
-    }
+    console.warn('非推奨警告: 古いsyncProjectState関数が呼び出されました。代わりにstateManager.syncProjectStateを使用してください');
+    stateManager.syncProjectState(project);
   }
 
   /**
@@ -320,58 +267,12 @@ import tabManager from './components/tabManager/tabManager.js';
   }
   
   /**
-   * 状態更新ハンドラー (最適化版)
+   * 状態更新ハンドラー
+   * @deprecated stateManager.handleUpdateStateに移行しました
    */
   function handleUpdateState(data) {
-    // データがない場合は処理しない
-    if (!data) {
-      console.warn('状態更新受信: データなし');
-      return;
-    }
-    
-    console.log('状態更新受信: データ処理開始');
-    
-    // 処理中フラグ（重複実行防止）
-    if (window._isProcessingStateUpdate) {
-      console.log('状態更新: 別の更新処理が進行中のため遅延実行します');
-      // 後で実行するようにキューに入れる
-      setTimeout(() => handleUpdateState(data), 100);
-      return;
-    }
-    
-    window._isProcessingStateUpdate = true;
-    
-    try {
-      // 以前の状態を保持して、本当に変更があるか確認
-      const prevState = vscode.getState() || {};
-      
-      // 新しい状態を保存（既存の値を保持しつつ、新しい値で上書き）
-      const newState = { ...prevState, ...data };
-      vscode.setState(newState);
-      
-      // CURRENT_STATUS.mdのマークダウン表示（バックエンドから受け取っている場合）
-      // 前回と同じ内容の場合は再レンダリングしない
-      if (data.currentStatusMarkdown && 
-          data.currentStatusMarkdown !== prevState.currentStatusMarkdown) {
-        displayMarkdownContent(data.currentStatusMarkdown);
-      } else if (data.statusFilePath && 
-                !data.currentStatusMarkdown && 
-                data.statusFilePath !== prevState.lastRequestedStatusFile) {
-        // マークダウンデータがない場合はファイル取得メッセージを送信
-        // 以前と同じファイルを再度リクエストするのを防止
-        console.log('マークダウンコンテンツをリクエスト:', data.statusFilePath);
-        newState.lastRequestedStatusFile = data.statusFilePath;
-        vscode.setState(newState);
-        
-        vscode.postMessage({
-          command: 'getMarkdownContent',
-          filePath: data.statusFilePath
-        });
-      }
-    } finally {
-      // 処理完了
-      window._isProcessingStateUpdate = false;
-    }
+    console.warn('非推奨警告: 古いhandleUpdateState関数が呼び出されました。代わりにstateManager.handleUpdateStateを使用してください');
+    stateManager.handleUpdateState(data);
   }
   
   /**
@@ -1034,73 +935,11 @@ import tabManager from './components/tabManager/tabManager.js';
   
   /**
    * プロジェクト選択状態を復元する
-   * 他のパネル（モックアップギャラリーなど）から戻ってきた時に、
-   * 以前選択していたプロジェクトとタブを復元する
+   * @deprecated stateManager.restoreProjectStateに移行しました
    */
   function restoreProjectState() {
-    try {
-      // 状態の取得
-      const currentState = vscode.getState() || {};
-      const { activeProjectName, activeProjectPath, activeTab } = currentState;
-      
-      // タブが存在するか確認
-      if (activeTab) {
-        const tabExists = Array.from(document.querySelectorAll('.tab'))
-          .some(tab => tab.getAttribute('data-tab') === activeTab);
-        
-        const tabToSelect = tabExists ? activeTab : 'current-status';
-        
-        // タブマネージャーが初期化されているか確認
-        if (typeof tabManager.isInitialized !== 'undefined' && tabManager.isInitialized) {
-          // 通常のタブ選択
-          tabManager.selectTab(tabToSelect, true);
-          console.log(`プロジェクト状態復元: タブ ${tabToSelect} を選択しました`);
-        } else {
-          // TabManagerが初期化されていない場合は、遅延処理で保留させる
-          console.log(`TabManagerが初期化されていないため、タブ選択を遅延実行します: ${tabToSelect}`);
-          setTimeout(() => {
-            tabManager.selectTab(tabToSelect, true);
-          }, 300);
-        }
-      }
-      
-      // 残りの復元処理は少し遅らせて実行
-      setTimeout(() => {
-        try {
-          // 最新の状態を再取得（遅延実行の間に変わっている可能性があるため）
-          const updatedState = vscode.getState() || {};
-          const { activeProjectName, activeProjectPath } = updatedState;
-          
-          console.log('プロジェクト状態の復元を試みます:', { 
-            activeProjectName, 
-            activeProjectPath
-          });
-          
-          // 状態がローカルに保存されていない場合はバックエンドから同期されるのを待つ
-          if (!activeProjectName || !activeProjectPath) {
-            console.log('ローカルにプロジェクト状態が保存されていません。バックエンドから同期を待ちます。');
-            return;
-          }
-          
-          // プロジェクト情報のみを更新（タブ選択は上で処理済み）
-          const projectNameElement = document.querySelector('.project-display .project-name');
-          const projectPathElement = document.querySelector('.project-path-display');
-          
-          if (projectNameElement) {
-            projectNameElement.textContent = activeProjectName;
-          }
-          
-          if (projectPathElement) {
-            projectPathElement.textContent = activeProjectPath;
-          }
-          
-        } catch (error) {
-          console.error('プロジェクト状態の完全復元中にエラーが発生しました:', error);
-        }
-      }, 100);
-    } catch (error) {
-      console.error('プロジェクト状態の復元中にエラーが発生しました:', error);
-    }
+    console.warn('非推奨警告: 古いrestoreProjectState関数が呼び出されました。代わりにstateManager.restoreProjectStateを使用してください');
+    stateManager.restoreProjectState();
   }
 
   // getTimeAgo関数はuiHelpers.jsにエクスポートした関数を使用
