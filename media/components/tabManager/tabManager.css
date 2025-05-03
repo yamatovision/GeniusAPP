@@ -1,0 +1,72 @@
+/* タブ管理スタイル */
+.tabs-container {
+  display: flex;
+  overflow-x: auto;
+  background-color: var(--vscode-editor-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  padding: 0;
+  margin: 0;
+}
+
+.tab {
+  padding: 8px 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  border: none;
+  background: transparent;
+  color: var(--vscode-foreground);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.tab.active {
+  color: var(--vscode-panelTitle-activeForeground);
+  font-weight: 500;
+}
+
+.tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: var(--vscode-panelTitle-activeBorder);
+}
+
+.tab-content {
+  display: none;
+  padding: 16px;
+  height: calc(100% - 36px);
+  overflow-y: auto;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+/* タブスクロール時の左右グラデーション */
+.tabs-container::before,
+.tabs-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 30px;
+  height: 36px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.tabs-container::before {
+  left: 0;
+  background: linear-gradient(to right, var(--vscode-editor-background), transparent);
+}
+
+.tabs-container::after {
+  right: 0;
+  background: linear-gradient(to left, var(--vscode-editor-background), transparent);
+}
