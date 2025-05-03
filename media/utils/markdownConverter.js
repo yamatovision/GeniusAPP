@@ -646,8 +646,36 @@ class MarkdownConverter {
    * この関数はリファクタリング前のscopeManager.jsから移行されました
    */
   setupCheckboxes() {
-    // VSCode API取得
-    const vscode = acquireVsCodeApi();
+    // VSCode APIを安全に取得
+    let vscode;
+    try {
+      // グローバル変数としてAPIが既に存在するか確認
+      if (typeof window.vsCodeApi !== 'undefined') {
+        vscode = window.vsCodeApi;
+        console.log('markdownConverter: 既存のVSCode APIを使用します');
+      } else {
+        try {
+          // 新規取得を試みる
+          vscode = acquireVsCodeApi();
+          console.log('markdownConverter: VSCode APIを新規取得しました');
+          // グローバルに保存して再利用可能に
+          window.vsCodeApi = vscode;
+        } catch (apiError) {
+          console.warn('markdownConverter: APIの新規取得中にエラーが発生しました:', apiError);
+        }
+      }
+    } catch (e) {
+      console.warn('markdownConverter: VSCode API取得エラー:', e);
+    }
+    
+    // vscodeオブジェクトが取得できなかった場合はダミーオブジェクトを作成
+    if (!vscode) {
+      vscode = {
+        postMessage: function(msg) {
+          console.log('ダミーvscode.postMessage:', msg);
+        }
+      };
+    }
     
     const checkboxes = document.querySelectorAll('.markdown-content input[type="checkbox"]');
     

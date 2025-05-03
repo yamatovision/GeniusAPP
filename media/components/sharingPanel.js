@@ -5,6 +5,30 @@
  * クライアント側のWeb UI実装
  */
 (function() {
+  // VSCodeとの通信用APIを取得（既に取得済みの場合は取得しない）
+  let vscode;
+  try {
+    // 外部から提供されるvsCodeオブジェクトをチェック（グローバル変数として存在する可能性）
+    if (typeof window.vsCodeApi !== 'undefined') {
+      vscode = window.vsCodeApi;
+      console.log('sharingPanel: 既存のVSCode APIを使用します');
+    } else {
+      // なければ取得を試みる（エラーは捕捉）
+      vscode = acquireVsCodeApi();
+      console.log('sharingPanel: VSCode APIを新規取得しました');
+      // 他のスクリプトでも使えるようにグローバル変数として保存
+      window.vsCodeApi = vscode;
+    }
+  } catch (e) {
+    console.warn('sharingPanel: VSCode API取得エラー:', e);
+    // エラー時のフォールバック（ダミー実装）
+    vscode = {
+      postMessage: function(msg) {
+        console.log('ダミーvscode.postMessage:', msg);
+      }
+    };
+  }
+  
   // ドラッグ&ドロップの適切なハンドリングのためのヘルパー関数
   function initDropZoneStyles() {
     console.log('ドロップゾーンのスタイルを初期化します');

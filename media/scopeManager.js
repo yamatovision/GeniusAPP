@@ -1,7 +1,30 @@
 // @ts-check
 
-// VSCode API取得 
-const vscode = acquireVsCodeApi();
+// VSCode APIを安全に取得
+let vscode;
+try {
+  // グローバル変数として既に存在するか確認
+  if (typeof window.vsCodeApi !== 'undefined') {
+    vscode = window.vsCodeApi;
+    console.log('scopeManager: 既存のVSCode APIを使用します');
+  } else {
+    // 新規取得
+    vscode = acquireVsCodeApi();
+    console.log('scopeManager: VSCode APIを新規取得しました');
+    // グローバル変数として保存して他のスクリプトでも使えるように
+    window.vsCodeApi = vscode;
+  }
+} catch (e) {
+  console.error('scopeManager: VSCode API取得エラー:', e);
+  // エラー時のフォールバック
+  vscode = {
+    postMessage: function(msg) { 
+      console.log('ダミーvscode.postMessage:', msg); 
+    },
+    getState: function() { return {}; },
+    setState: function() {}
+  };
+}
 
 // 外部モジュールのインポート
 import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from './utils/markdownConverter.js';
