@@ -262,46 +262,14 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
     if (data.forceRefresh) {
       console.log('プロジェクトパスが変更されました - 強制更新のためサーバーに初期化メッセージを送信します');
       
-      // 現在のスコープ情報をクリア
-      const scopeList = document.getElementById('scope-list');
-      if (scopeList) {
-        scopeList.innerHTML = '<div class="scope-item"><span>データを更新中...</span></div>';
-      }
-      
-      // ステータスバーのテキストを変更して更新中であることを示す
-      const progressText = document.getElementById('project-progress-text');
-      if (progressText) {
-        progressText.textContent = '更新中...';
-      }
-      
       // 状態を完全にリセット
       const resetState = {
-        scopes: [],
-        selectedScopeIndex: -1,
-        selectedScope: null,
         directoryStructure: ''
       };
       
       // 状態リセット
       console.log('状態を完全にリセットします:', resetState);
       vscode.setState(resetState);
-      
-      // UI要素をクリア
-      const selectedScopeTitle = document.getElementById('scope-title');
-      if (selectedScopeTitle) {
-        selectedScopeTitle.textContent = 'スコープを選択してください';
-      }
-      
-      // 選択されたスコープの詳細表示をクリア
-      const scopeDetailContent = document.getElementById('scope-detail-content');
-      if (scopeDetailContent) {
-        scopeDetailContent.style.display = 'none';
-      }
-      
-      const scopeEmptyMessage = document.getElementById('scope-empty-message');
-      if (scopeEmptyMessage) {
-        scopeEmptyMessage.style.display = 'block';
-      }
       
       // 初期化メッセージの送信（新しいプロジェクトデータを取得するためのリクエスト）
       setTimeout(() => {
@@ -317,22 +285,10 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
   function handleUpdateState(data) {
     // デバッグログ
     console.log('状態更新受信:', 
-      'スコープ数:', data.scopes ? data.scopes.length : 0, 
-      '選択中インデックス:', data.selectedScopeIndex);
+      'データ受信:', data ? '成功' : '失敗');
     
     // 初期データを保存
     vscode.setState(data);
-    
-    // スコープリスト更新
-    updateScopeList(data.scopes);
-    
-    // 選択されたスコープの表示を更新
-    if (data.selectedScopeIndex >= 0 && data.selectedScope) {
-      updateSelectedScope(data.selectedScope);
-    }
-    
-    // プロジェクト進捗の更新
-    updateProjectProgress(data.scopes);
     
     // CURRENT_STATUS.mdのマークダウン表示（バックエンドから受け取っている場合）
     if (data.currentStatusMarkdown) {
@@ -372,90 +328,9 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
   // スタイリングとイベントリスナー関数は外部モジュールから提供される
   // enhanceSpecialElements, setupCheckboxes 関数は./utils/markdownConverter.jsに移動
   
-  /**
-   * プロジェクト進捗の更新
-   */
-  function updateProjectProgress(scopes) {
-    if (!scopes || scopes.length === 0) {
-      return;
-    }
-    
-    const progressElement = document.getElementById('project-progress');
-    const progressText = document.getElementById('project-progress-text');
-    
-    // プロジェクト全体の進捗を計算
-    const totalScopes = scopes.length;
-    const completedScopes = scopes.filter(scope => scope.status === 'completed').length;
-    const inProgressScopes = scopes.filter(scope => scope.status === 'in-progress').length;
-    
-    // 進捗率の計算 (完了=100%, 進行中=50%として計算)
-    const progressPercentage = Math.round((completedScopes * 100 + inProgressScopes * 50) / totalScopes);
-    
-    // 進捗バーの更新
-    if (progressElement) {
-      progressElement.style.width = `${progressPercentage}%`;
-    }
-    
-    // 進捗テキストの更新
-    if (progressText) {
-      progressText.textContent = `${progressPercentage}% 完了`;
-    }
-  }
+  // プロジェクト進捗の更新機能は削除されました
   
-  /**
-   * スコープリストの更新
-   */
-  function updateScopeList(scopes) {
-    const scopeList = document.getElementById('scope-list');
-    if (!scopeList) return;
-    
-    // リストをクリア
-    scopeList.innerHTML = '';
-    
-    // スコープがない場合は空のメッセージを表示
-    if (!scopes || scopes.length === 0) {
-      scopeList.innerHTML = `
-        <div class="scope-item">
-          <p>スコープが定義されていません</p>
-          <p>CURRENT_STATUS.mdファイルにスコープを追加してください</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // 各スコープをリストに追加
-    scopes.forEach((scope, index) => {
-      const statusClass = getStatusClass(scope.status);
-      const progressPercentage = scope.progress || 0;
-      
-      // スコープアイテムの作成
-      const scopeItem = document.createElement('div');
-      scopeItem.className = `scope-item ${index === vscode.getState().selectedScopeIndex ? 'active' : ''}`;
-      scopeItem.innerHTML = `
-        <h3>${scope.name}</h3>
-        <div class="scope-progress">
-          <div class="scope-progress-bar ${statusClass}" style="width: ${progressPercentage}%;"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-          <span style="font-size: 0.9rem; color: var(--app-text-secondary);">${scope.files ? scope.files.length : 0}ファイル</span>
-          <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
-            ${progressPercentage}% ${getStatusText(scope.status)}
-          </span>
-        </div>
-      `;
-      
-      // クリックイベントの追加
-      scopeItem.addEventListener('click', () => {
-        // スコープが選択されたことをバックエンドに通知
-        vscode.postMessage({
-          command: 'selectScope',
-          index: index
-        });
-      });
-      
-      scopeList.appendChild(scopeItem);
-    });
-  }
+  // スコープリスト関連の機能は削除されました
   
   // タブ切り替え処理は initializeTabs に統合されたため、この関数は削除
   
@@ -678,79 +553,7 @@ import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } fro
     // タブ切り替えは initializeTabs で設定済み
   }
   
-  /**
-   * 選択されたスコープの詳細を更新
-   */
-  function updateSelectedScope(scope) {
-    const scopeTitle = document.getElementById('scope-title');
-    const scopeDescription = document.getElementById('scope-description');
-    const scopeProgressBar = document.getElementById('scope-progress-bar');
-    const scopeProgressText = document.getElementById('scope-progress');
-    const implementationFiles = document.getElementById('implementation-files');
-    
-    if (scopeTitle) {
-      scopeTitle.textContent = scope.name;
-    }
-    
-    if (scopeDescription) {
-      scopeDescription.textContent = scope.description || '説明がありません';
-    }
-    
-    const progress = scope.progress || 0;
-    
-    if (scopeProgressBar) {
-      scopeProgressBar.style.width = `${progress}%`;
-      scopeProgressBar.className = `progress-fill ${getStatusClass(scope.status)}`;
-    }
-    
-    if (scopeProgressText) {
-      scopeProgressText.textContent = `${progress}%`;
-    }
-    
-    // 実装予定ファイルのリスト更新
-    if (implementationFiles) {
-      implementationFiles.innerHTML = '';
-      
-      if (scope.files && scope.files.length > 0) {
-        scope.files.forEach(file => {
-          const fileItem = document.createElement('div');
-          fileItem.className = 'file-item';
-          fileItem.innerHTML = `
-            <input type="checkbox" class="file-checkbox" ${file.completed ? 'checked' : ''} />
-            <span>${file.path}</span>
-          `;
-          
-          // チェックボックスのイベントリスナー
-          const checkbox = fileItem.querySelector('.file-checkbox');
-          if (checkbox) {
-            checkbox.addEventListener('change', (e) => {
-              vscode.postMessage({
-                command: 'toggleFileStatus',
-                filePath: file.path,
-                completed: e.target.checked
-              });
-            });
-          }
-          
-          implementationFiles.appendChild(fileItem);
-        });
-      } else {
-        implementationFiles.innerHTML = '<div class="file-item">実装予定ファイルがありません</div>';
-      }
-    }
-    
-    // スコープ詳細カードを表示
-    const scopeDetailContent = document.getElementById('scope-detail-content');
-    if (scopeDetailContent) {
-      scopeDetailContent.style.display = 'block';
-    }
-    
-    // 空メッセージを非表示
-    const scopeEmptyMessage = document.getElementById('scope-empty-message');
-    if (scopeEmptyMessage) {
-      scopeEmptyMessage.style.display = 'none';
-    }
-  }
+  // スコープ詳細の更新機能は削除されました
   
   // getStatusClass関数はuiHelpers.jsにエクスポートした関数を使用
   

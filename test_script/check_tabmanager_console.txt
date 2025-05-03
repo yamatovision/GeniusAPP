@@ -1,0 +1,56 @@
+# タブマネージャーリファクタリングの検証コマンド
+
+これらのコマンドをブラウザのデベロッパーコンソールで実行して、tabManagerが正しく機能しているか確認できます。
+
+1. tabManagerオブジェクトが正しく読み込まれているか確認:
+```javascript
+console.log(tabManager);
+```
+
+2. 現在のアクティブタブを確認:
+```javascript
+console.log(tabManager.getActiveTabId());
+```
+
+3. タブを切り替えてみる:
+```javascript
+// 「プロジェクト状況」タブに切り替え
+tabManager.selectTab('current-status');
+
+// 「ClaudeCode連携」タブに切り替え 
+tabManager.selectTab('claude-code');
+
+// 「モックアップギャラリー」タブに切り替え
+tabManager.selectTab('tools');
+```
+
+4. タブ状態の保存と復元をテスト:
+```javascript
+// タブ状態を保存
+tabManager.saveTabState('scopeManager', 'claude-code');
+
+// 'current-status' タブを選択
+tabManager.selectTab('current-status');
+
+// 数秒後に、保存したタブ状態に復元 (claude-code) に戻るはず
+setTimeout(() => {
+  const savedTab = tabManager.restoreTabState('scopeManager');
+  console.log('保存されたタブ:', savedTab);
+  tabManager.selectTab(savedTab);
+}, 2000);
+```
+
+5. stateManagerとの連携が正しく機能しているか確認:
+```javascript
+// stateManagerを通じて状態を確認
+console.log(stateManager.getState());
+
+// tabManagerから直接状態を確認
+console.log(tabManager.getActiveTabId());
+
+// 両方の値が一致しているか確認
+console.log('stateManager経由:', stateManager.getState().activeTab);
+console.log('tabManager経由:', tabManager.getActiveTabId());
+```
+
+これらのテストで問題が発生しなければ、リファクタリングは成功していると考えられます。
