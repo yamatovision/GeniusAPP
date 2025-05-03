@@ -82,15 +82,17 @@ media/
 
 ### フェーズ3: マークダウン表示関連の移行
 
-6. [ ] **タスク3.1: `displayMarkdownContent(markdownContent)` [行番号 335] の移行**
+6. [x] **タスク3.1: `displayMarkdownContent(markdownContent)` [行番号 335] の移行**
    - 移行先: `media/components/markdownViewer/markdownViewer.js`
    - 内容: マークダウン表示の基本機能を移行
    - 確認ポイント: マークダウンが正しくHTMLに変換され表示されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。convertMarkdownToHtml関数を活用し、イベントベースの通信に移行。
 
-7. [ ] **タスク3.2: `initializeMarkdownDisplay()` [行番号 913] の移行**
+7. [x] **タスク3.2: `initializeMarkdownDisplay()` [行番号 913] の移行**
    - 移行先: `media/components/markdownViewer/markdownViewer.js`
    - 内容: マークダウン表示初期化機能を移行
    - 確認ポイント: マークダウン表示が正しく初期化されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。markdownViewerが自動初期化される形に変更し、カスタムイベントリスナーを実装。
 
 ### フェーズ4: プロジェクトナビゲーション関連の移行
 
@@ -201,14 +203,19 @@ media/
 - [x] **タスク1.1: `selectTab(tabId, saveToServer)` の移行**
 - [x] **タスク1.2: `initializeTabs()` の移行**
 - [x] タブ状態同期の初期化フラグ対応と競合状態解決
+- [x] **タスク2.1: `handleUpdateState(data)` の移行**
+- [x] **タスク2.2: `syncProjectState(project)` の移行**
+- [x] **タスク2.3: `restoreProjectState()` の移行**
+- [x] **タスク3.1: `displayMarkdownContent(markdownContent)` の移行**
+- [x] **タスク3.2: `initializeMarkdownDisplay()` の移行**
 
 ### 現在の作業中タスク
-- [ ] **タスク2.1: `handleUpdateState(data)` の移行**
-- [ ] **タスク2.2: `syncProjectState(project)` の最適化と移行準備**
+- [ ] **タスク4.1: `updateProjectName(projectName)` の移行**
+- [ ] **タスク4.2: `updateProjectPath(data)` の移行準備**
 
 ### 次に予定されているタスク
-- [ ] **タスク2.3: `restoreProjectState()` の移行**
-- [ ] **タスク3.1: `displayMarkdownContent(markdownContent)` の移行**
+- [ ] **タスク4.3: `updateProjects(projects, activeProject)` の移行**
+- [ ] **タスク4.4: `initializeProjectNav()` の移行**
 
 ## 7. リファクタリング実装における教訓と注意点
 

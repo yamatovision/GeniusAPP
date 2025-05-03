@@ -1,0 +1,107 @@
+/* プロンプトマネージャー関連のスタイル */
+
+/* プロンプトグリッド */
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+/* プロンプトカード */
+.prompt-card {
+  background-color: var(--app-card-bg, #ffffff);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  transition: all 0.2s ease;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-height: 140px;
+}
+
+.prompt-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.prompt-icon {
+  font-size: 24px;
+  color: var(--app-primary, #4a69bd);
+  margin-bottom: 8px;
+}
+
+.category-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 10px;
+  background-color: var(--app-tag-bg, rgba(74, 105, 189, 0.1));
+  color: var(--app-primary, #4a69bd);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.prompt-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 8px 0;
+}
+
+.prompt-description {
+  font-size: 12px;
+  color: var(--app-text-secondary, #666);
+  margin: 0;
+  flex-grow: 1;
+}
+
+/* モーダル内のプロンプトグリッド */
+.claude-code-share-area .prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* モーダル内のプロンプトカード */
+.claude-code-share-area .prompt-card {
+  padding: 12px;
+  min-height: 120px;
+}
+
+.claude-code-share-area .prompt-title {
+  font-size: 14px;
+  margin: 6px 0;
+}
+
+.claude-code-share-area .prompt-description {
+  font-size: 11px;
+}
+
+/* ターミナルモード選択ダイアログ */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#terminal-mode-dialog,
+#modal-terminal-mode-dialog {
+  background-color: var(--app-bg, #fff);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 400px;
+  max-width: 90%;
+}

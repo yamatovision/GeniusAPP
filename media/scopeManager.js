@@ -5,6 +5,7 @@ import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '
 import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo } from './utils/uiHelpers.js';
 import tabManager from './components/tabManager/tabManager.js';
 import stateManager from './state/stateManager.js';
+import markdownViewer from './components/markdownViewer/markdownViewer.js';
 
 // VSCode APIを安全に取得
 let vscode;
@@ -276,47 +277,15 @@ try {
   }
   
   /**
-   * マークダウンコンテンツを表示 (パフォーマンス最適化版)
+   * マークダウンコンテンツを表示
+   * @deprecated markdownViewer.updateContentに移行しました
    */
   function displayMarkdownContent(markdownContent) {
-    const markdownContainer = document.querySelector('.markdown-content');
-    if (!markdownContainer) return;
-    
-    // 既に表示済みの内容と同じ場合は更新しない
-    if (window._lastDisplayedMarkdown === markdownContent) {
-      console.log('既に同じマークダウンが表示されているため更新をスキップします');
-      return;
-    }
-    
-    // 処理中の表示
-    markdownContainer.classList.add('loading');
-    
-    // 非同期で処理して UI ブロッキングを防止
-    setTimeout(() => {
-      try {
-        // マークダウンをHTMLに変換
-        const htmlContent = convertMarkdownToHtml(markdownContent);
-        
-        // HTML内容を設定
-        markdownContainer.innerHTML = htmlContent;
-        
-        // ディレクトリツリーと表の特別なスタイリングを適用
-        enhanceSpecialElements();
-        
-        // チェックボックスのイベントリスナー設定
-        setupCheckboxes();
-        
-        // 表示内容を記録
-        window._lastDisplayedMarkdown = markdownContent;
-        
-        console.log('マークダウンコンテンツを更新しました');
-      } catch (error) {
-        console.error('マークダウン表示中にエラーが発生しました:', error);
-      } finally {
-        // 処理中表示を解除
-        markdownContainer.classList.remove('loading');
-      }
-    }, 0);
+    // マークダウン更新イベントを発火（新しいmarkdownViewerが処理）
+    const event = new CustomEvent('markdown-updated', {
+      detail: { content: markdownContent }
+    });
+    document.dispatchEvent(event);
   }
   
   // スタイリングとイベントリスナー関数は外部モジュールから提供される
@@ -911,12 +880,12 @@ try {
   
   /**
    * マークダウン表示の初期化
+   * @deprecated markdownViewerが自動的に初期化するようになりました
    */
   function initializeMarkdownDisplay() {
-    // CURRENT_STATUS.mdファイルをマークダウンとして表示する処理
-    // バックエンドから受け取ったマークダウンデータを表示
-    // この段階では何もしない、メッセージハンドラーで処理される
-    console.log('マークダウン表示の初期化完了');
+    // 新しいmarkdownViewerコンポーネントは自動的に初期化されるため、
+    // ここでは何もしません
+    console.log('マークダウン表示の初期化は新しいmarkdownViewerコンポーネントに移行しました');
   }
   
   // マークダウン変換関数は外部モジュールから提供される
