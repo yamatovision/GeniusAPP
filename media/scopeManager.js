@@ -130,9 +130,8 @@ try {
     // ここでの処理は不要（二重にイベントを発行しない）
     
     // プロジェクトパスが更新されたときのイベントを購読
-    document.addEventListener('project-path-updated', (event) => {
-      updateProjectPath(event.detail);
-    });
+    // 注: projectNavigation.jsが既にこのイベントをリッスンして処理するので、
+    // ここでの処理は不要
     
     // タブ状態が更新されたときのイベントを購読
     document.addEventListener('tab-state-updated', (event) => {
@@ -172,7 +171,11 @@ try {
         break;
       // 'showDirectoryStructure' ケースは削除（該当機能は廃止）
       case 'updateProjectPath':
-        updateProjectPath(message);
+        // 直接Custom Eventを発行
+        const pathEvent = new CustomEvent('project-path-updated', {
+          detail: message
+        });
+        document.dispatchEvent(pathEvent);
         break;
       case 'updateProjectName':
         // 直接Custom Eventを発行
@@ -218,60 +221,7 @@ try {
     stateManager.syncProjectState(project);
   }
 
-  /**
-   * プロジェクトパスの更新
-   */
-  function updateProjectPath(data) {
-    const projectNameElement = document.querySelector('.project-display .project-name');
-    const projectPathElement = document.querySelector('.project-path-display');
-    
-    // プロジェクト情報の更新
-    if (data.projectPath) {
-      // パスから最後のディレクトリ名を取得
-      const pathParts = data.projectPath.split(/[/\\]/);
-      const projectName = pathParts[pathParts.length - 1];
-      
-      // プロジェクト表示部分を更新
-      if (projectNameElement) {
-        projectNameElement.textContent = projectName || 'プロジェクト';
-      }
-    }
-    
-    if (projectPathElement) {
-      projectPathElement.textContent = data.projectPath || '/path/to/project';
-    }
-    
-    // CURRENT_STATUS.mdファイルの存在をチェック
-    if (data.statusFilePath && data.statusFileExists) {
-      console.log('CURRENT_STATUS.mdファイルが存在します:', data.statusFilePath);
-      
-      // ファイルが存在する場合はマークダウンコンテンツを取得するリクエストを送信
-      vscode.postMessage({
-        command: 'getMarkdownContent',
-        filePath: data.statusFilePath
-      });
-    }
-    
-    // forceRefreshフラグがtrueの場合は、強制的に初期化メッセージを送信
-    if (data.forceRefresh) {
-      console.log('プロジェクトパスが変更されました - 強制更新のためサーバーに初期化メッセージを送信します');
-      
-      // 状態を完全にリセット
-      const resetState = {
-        directoryStructure: ''
-      };
-      
-      // 状態リセット
-      console.log('状態を完全にリセットします:', resetState);
-      vscode.setState(resetState);
-      
-      // 初期化メッセージの送信（新しいプロジェクトデータを取得するためのリクエスト）
-      setTimeout(() => {
-        console.log('初期化メッセージを送信します');
-        vscode.postMessage({ command: 'initialize' });
-      }, 300);
-    }
-  }
+  // プロジェクトパス更新機能はprojectNavigation.jsに移行しました
   
   /**
    * 状態更新ハンドラー

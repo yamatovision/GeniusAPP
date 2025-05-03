@@ -102,10 +102,11 @@ media/
    - 確認ポイント: プロジェクト名が正しく更新されること
    - **完了状況**: ✅ 2025-05-03 移行完了。イベントベースの通信で機能を保持しつつ責任を分離。
 
-9. [ ] **タスク4.2: `updateProjectPath(data)` [行番号 254] の移行**
+9. [x] **タスク4.2: `updateProjectPath(data)` [行番号 254] の移行**
    - 移行先: `media/components/projectNavigation/projectNavigation.js`
    - 内容: プロジェクトパス更新機能を移行
    - 確認ポイント: プロジェクトパスが正しく更新され、マークダウン取得が機能すること
+   - **完了状況**: ✅ 2025-05-03 移行完了。VSCode APIとのインタラクションを保持しつつコンポーネント化。
 
 10. [ ] **タスク4.3: `updateProjects(projects, activeProject)` [行番号 569] の移行**
     - 移行先: `media/components/projectNavigation/projectNavigation.js`

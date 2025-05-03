@@ -10,6 +10,7 @@ class ProjectNavigation {
     this.loadProjectBtn = document.getElementById('load-project-btn');
     this.searchInput = document.querySelector('.search-input');
     this.projectDisplayName = document.querySelector('.project-display .project-name');
+    this.projectPathElement = document.querySelector('.project-path-display');
     
     // VSCode APIを取得
     this.vscode = window.vsCodeApi;
@@ -47,6 +48,11 @@ class ProjectNavigation {
     // プロジェクト名更新イベントリスナーを設定
     document.addEventListener('project-name-updated', (event) => {
       this.updateProjectName(event.detail.name);
+    });
+    
+    // プロジェクトパス更新イベントリスナーを設定
+    document.addEventListener('project-path-updated', (event) => {
+      this.updateProjectPath(event.detail);
     });
     
     console.log('ProjectNavigation initialized');
@@ -284,6 +290,62 @@ class ProjectNavigation {
       stateManager.setState(state);
     } else {
       console.warn('projectNavigation: プロジェクト名表示要素が見つかりません: .project-display .project-name');
+    }
+  }
+  
+  /**
+   * プロジェクトパスを更新
+   * @param {Object} data プロジェクトパス情報
+   */
+  updateProjectPath(data) {
+    console.log(`projectNavigation: プロジェクトパス更新:`, data.projectPath);
+    
+    // プロジェクト情報の更新
+    if (data.projectPath) {
+      // パスから最後のディレクトリ名を取得（プロジェクト名自動設定用）
+      const pathParts = data.projectPath.split(/[/\\]/);
+      const projectName = pathParts[pathParts.length - 1];
+      
+      // プロジェクト表示部分を更新
+      if (this.projectDisplayName && (!data.projectName || data.autoSetName)) {
+        this.updateProjectName(projectName || 'プロジェクト');
+      }
+      
+      // パス表示を更新
+      if (this.projectPathElement) {
+        this.projectPathElement.textContent = data.projectPath || '/path/to/project';
+      }
+    }
+    
+    // CURRENT_STATUS.mdファイルの存在をチェック
+    if (data.statusFilePath && data.statusFileExists) {
+      console.log('projectNavigation: CURRENT_STATUS.mdファイルが存在します:', data.statusFilePath);
+      
+      // ファイルが存在する場合はマークダウンコンテンツを取得するリクエストを送信
+      this.vscode.postMessage({
+        command: 'getMarkdownContent',
+        filePath: data.statusFilePath
+      });
+    }
+    
+    // forceRefreshフラグがtrueの場合は、強制的に初期化メッセージを送信
+    if (data.forceRefresh) {
+      console.log('projectNavigation: プロジェクトパスが変更されました - 強制更新のためサーバーに初期化メッセージを送信します');
+      
+      // 状態を完全にリセット
+      const resetState = {
+        directoryStructure: ''
+      };
+      
+      // 状態リセット
+      console.log('projectNavigation: 状態を完全にリセットします:', resetState);
+      this.vscode.setState(resetState);
+      
+      // 初期化メッセージの送信（新しいプロジェクトデータを取得するためのリクエスト）
+      setTimeout(() => {
+        console.log('projectNavigation: 初期化メッセージを送信します');
+        this.vscode.postMessage({ command: 'initialize' });
+      }, 300);
     }
   }
 }
