@@ -4,6 +4,7 @@
  * UIヘルパーユーティリティ
  * 
  * UI操作に関連するヘルパー関数を提供します。
+ * v2: リファクタリングでscopeManager.jsから移植した機能を追加
  */
 class UIHelpers {
   /**
@@ -318,7 +319,179 @@ class UIHelpers {
       }, 10);
     });
   }
+  
+  /**
+   * エラーメッセージを表示
+   * @param {string} message 表示するエラーメッセージ
+   */
+  static showError(message) {
+    console.error('エラー:', message);
+    
+    // 既存のメッセージがあれば削除
+    const existingMessages = document.querySelectorAll('.error-message, .success-message');
+    existingMessages.forEach(el => el.remove());
+    
+    // エラーメッセージの作成
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.innerHTML = `<span>⚠️</span> ${message}`;
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '20px';
+    errorDiv.style.left = '50%';
+    errorDiv.style.transform = 'translateX(-50%)';
+    errorDiv.style.backgroundColor = '#f8d7da';
+    errorDiv.style.color = '#721c24';
+    errorDiv.style.padding = '10px 20px';
+    errorDiv.style.borderRadius = '4px';
+    errorDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    errorDiv.style.zIndex = '10000';
+    
+    document.body.appendChild(errorDiv);
+    
+    // 5秒後に自動で消去
+    setTimeout(() => {
+      if (errorDiv.parentNode) {
+        errorDiv.parentNode.removeChild(errorDiv);
+      }
+    }, 5000);
+  }
+  
+  /**
+   * 成功メッセージ表示
+   * @param {string} message 表示する成功メッセージ
+   */
+  static showSuccess(message) {
+    console.log('成功:', message);
+    
+    // 既存のメッセージがあれば削除
+    const existingMessages = document.querySelectorAll('.error-message, .success-message');
+    existingMessages.forEach(el => el.remove());
+    
+    // 成功メッセージの作成
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success-message';
+    successDiv.innerHTML = `<span>✅</span> ${message}`;
+    successDiv.style.position = 'fixed';
+    successDiv.style.top = '20px';
+    successDiv.style.left = '50%';
+    successDiv.style.transform = 'translateX(-50%)';
+    successDiv.style.backgroundColor = '#d4edda';
+    successDiv.style.color = '#155724';
+    successDiv.style.padding = '10px 20px';
+    successDiv.style.borderRadius = '4px';
+    successDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+    successDiv.style.zIndex = '10000';
+    
+    document.body.appendChild(successDiv);
+    
+    // 5秒後に自動で消去
+    setTimeout(() => {
+      if (successDiv.parentNode) {
+        successDiv.parentNode.removeChild(successDiv);
+      }
+    }, 5000);
+  }
+  
+  /**
+   * ステータスに応じたCSSクラスを返す
+   * @param {string} status ステータス文字列
+   * @returns {string} 対応するCSSクラス名
+   */
+  static getStatusClass(status) {
+    switch (status) {
+      case 'completed':
+        return 'status-completed';
+      case 'in-progress':
+        return 'status-in-progress';
+      case 'blocked':
+        return 'status-blocked';
+      case 'pending':
+      default:
+        return 'status-pending';
+    }
+  }
+  
+  /**
+   * ステータスの表示テキストを返す
+   * @param {string} status ステータス文字列
+   * @returns {string} 日本語表示テキスト
+   */
+  static getStatusText(status) {
+    switch (status) {
+      case 'completed':
+        return '完了';
+      case 'in-progress':
+        return '進行中';
+      case 'blocked':
+        return '停止中';
+      case 'pending':
+      default:
+        return '未着手';
+    }
+  }
+  
+  /**
+   * 相対時間の取得（〇分前、など）
+   * @param {Date} date 日付
+   * @returns {string} 相対時間
+   */
+  static getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    
+    if (diffMin < 1) {
+      return '数秒前';
+    } else if (diffMin < 60) {
+      return `${diffMin}分前`;
+    } else if (diffHour < 24) {
+      return `${diffHour}時間前`;
+    } else {
+      // 日付のフォーマット
+      return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+  }
+  
+  /**
+   * ディレクトリ構造ダイアログを表示
+   * @param {string} structure ディレクトリ構造テキスト
+   */
+  static showDirectoryStructure(structure) {
+    // モーダルダイアログを作成
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog';
+    dialog.innerHTML = `
+      <div class="dialog-title">プロジェクト構造</div>
+      <div style="max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre; font-size: 12px;">
+        ${structure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+      </div>
+      <div class="dialog-footer">
+        <button class="button" id="close-dialog">閉じる</button>
+      </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // 閉じるボタンのイベントリスナー
+    document.getElementById('close-dialog').addEventListener('click', () => {
+      document.body.removeChild(overlay);
+    });
+  }
 }
 
-// グローバルに公開
+// クラス全体をexport
 export default UIHelpers;
+
+// 個別関数をエクスポート（scopeManager.jsから移行した関数）
+export const showError = UIHelpers.showError;
+export const showSuccess = UIHelpers.showSuccess;
+export const getStatusClass = UIHelpers.getStatusClass;
+export const getStatusText = UIHelpers.getStatusText;
+export const getTimeAgo = UIHelpers.getTimeAgo;
+export const showDirectoryStructure = UIHelpers.showDirectoryStructure;

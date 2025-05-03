@@ -5,6 +5,7 @@ const vscode = acquireVsCodeApi();
 
 // 外部モジュールのインポート
 import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from './utils/markdownConverter.js';
+import { showError, showSuccess, getStatusClass, getStatusText, getTimeAgo, showDirectoryStructure } from './utils/uiHelpers.js';
 
 // イベントリスナーの初期化
 (function() {
@@ -759,109 +760,13 @@ import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '
     }
   }
   
-  /**
-   * ステータスに応じたCSSクラスを返す
-   */
-  function getStatusClass(status) {
-    switch (status) {
-      case 'completed':
-        return 'status-completed';
-      case 'in-progress':
-        return 'status-in-progress';
-      case 'blocked':
-        return 'status-blocked';
-      case 'pending':
-      default:
-        return 'status-pending';
-    }
-  }
+  // getStatusClass関数はuiHelpers.jsにエクスポートした関数を使用
   
-  /**
-   * ステータスの表示テキストを返す
-   */
-  function getStatusText(status) {
-    switch (status) {
-      case 'completed':
-        return '完了';
-      case 'in-progress':
-        return '進行中';
-      case 'blocked':
-        return '停止中';
-      case 'pending':
-      default:
-        return '未着手';
-    }
-  }
+  // getStatusText関数はuiHelpers.jsにエクスポートした関数を使用
   
-  /**
-   * エラーメッセージを表示
-   */
-  function showError(message) {
-    console.error('エラー:', message);
-    
-    // 既存のメッセージがあれば削除
-    const existingMessages = document.querySelectorAll('.error-message, .success-message');
-    existingMessages.forEach(el => el.remove());
-    
-    // エラーメッセージの作成
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error-message';
-    errorDiv.innerHTML = `<span>⚠️</span> ${message}`;
-    errorDiv.style.position = 'fixed';
-    errorDiv.style.top = '20px';
-    errorDiv.style.left = '50%';
-    errorDiv.style.transform = 'translateX(-50%)';
-    errorDiv.style.backgroundColor = '#f8d7da';
-    errorDiv.style.color = '#721c24';
-    errorDiv.style.padding = '10px 20px';
-    errorDiv.style.borderRadius = '4px';
-    errorDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-    errorDiv.style.zIndex = '10000';
-    
-    document.body.appendChild(errorDiv);
-    
-    // 5秒後に自動で消去
-    setTimeout(() => {
-      if (errorDiv.parentNode) {
-        errorDiv.parentNode.removeChild(errorDiv);
-      }
-    }, 5000);
-  }
+  // showError関数はuiHelpers.jsにエクスポートした関数を使用
   
-  /**
-   * 成功メッセージ表示
-   */
-  function showSuccess(message) {
-    console.log('成功:', message);
-    
-    // 既存のメッセージがあれば削除
-    const existingMessages = document.querySelectorAll('.error-message, .success-message');
-    existingMessages.forEach(el => el.remove());
-    
-    // 成功メッセージの作成
-    const successDiv = document.createElement('div');
-    successDiv.className = 'success-message';
-    successDiv.innerHTML = `<span>✅</span> ${message}`;
-    successDiv.style.position = 'fixed';
-    successDiv.style.top = '20px';
-    successDiv.style.left = '50%';
-    successDiv.style.transform = 'translateX(-50%)';
-    successDiv.style.backgroundColor = '#d4edda';
-    successDiv.style.color = '#155724';
-    successDiv.style.padding = '10px 20px';
-    successDiv.style.borderRadius = '4px';
-    successDiv.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
-    successDiv.style.zIndex = '10000';
-    
-    document.body.appendChild(successDiv);
-    
-    // 5秒後に自動で消去
-    setTimeout(() => {
-      if (successDiv.parentNode) {
-        successDiv.parentNode.removeChild(successDiv);
-      }
-    }, 5000);
-  }
+  // showSuccess関数はuiHelpers.jsにエクスポートした関数を使用
   
   /**
    * プロジェクト名を更新
@@ -1303,29 +1208,7 @@ import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '
     }, 200); // 少し長めの遅延でDOM構築完了を確実に待つ
   }
 
-  /**
-   * 相対時間の取得（〇分前、など）
-   * @param {Date} date 日付
-   * @returns {string} 相対時間
-   */
-  function getTimeAgo(date) {
-    const now = new Date();
-    const diffMs = now - date;
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-    
-    if (diffMin < 1) {
-      return '数秒前';
-    } else if (diffMin < 60) {
-      return `${diffMin}分前`;
-    } else if (diffHour < 24) {
-      return `${diffHour}時間前`;
-    } else {
-      // 日付のフォーマット
-      return `${date.getMonth() + 1}/${date.getDate()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-    }
-  }
+  // getTimeAgo関数はuiHelpers.jsにエクスポートした関数を使用
   
   /**
    * 新規プロジェクト作成用モーダルを表示
@@ -1447,34 +1330,7 @@ import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '
   
   // displayModelMockupとsetupMockupViewerHandlersは不要になったため削除
   
-  /**
-   * ディレクトリ構造ダイアログを表示
-   */
-  function showDirectoryStructure(structure) {
-    // モーダルダイアログを作成
-    const overlay = document.createElement('div');
-    overlay.className = 'dialog-overlay';
-    
-    const dialog = document.createElement('div');
-    dialog.className = 'dialog';
-    dialog.innerHTML = `
-      <div class="dialog-title">プロジェクト構造</div>
-      <div style="max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre; font-size: 12px;">
-        ${structure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-      </div>
-      <div class="dialog-footer">
-        <button class="button" id="close-dialog">閉じる</button>
-      </div>
-    `;
-    
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    
-    // 閉じるボタンのイベントリスナー
-    document.getElementById('close-dialog').addEventListener('click', () => {
-      document.body.removeChild(overlay);
-    });
-  }
+  // showDirectoryStructure関数はuiHelpers.jsにエクスポートした関数を使用
   
   /**
    * タブ機能の初期化
