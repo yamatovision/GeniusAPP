@@ -9,6 +9,16 @@
   max-height: 100%;
 }
 
+/* 太字スタイルの明示的定義 - 強調を大幅に増加 */
+.markdown-content strong {
+  font-weight: 900 !important; /* 最も太いウェイト */
+  color: #ffcc00 !important; /* 目立つ黄色に変更 */
+  background-color: rgba(0, 0, 0, 0.1); /* 背景に薄い黒を追加 */
+  padding: 0 3px; /* 左右に余白を追加 */
+  border-radius: 3px; /* 角を丸くする */
+  display: inline-block; /* インラインブロック化 */
+}
+
 /* 基本行スタイル - 最小限のマージンで行を表示 */
 .markdown-content .md-line {
   display: block;
@@ -64,24 +74,55 @@
 
 .markdown-content code {
   font-family: var(--vscode-editor-font-family);
-  background-color: var(--vscode-textBlockQuote-background);
+  background-color: #1E1E1E; /* ダークな背景色 */
+  color: #FFFFFF; /* 白色のテキスト */
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-size: 0.85em;
+  border: 1px solid #3E3E3E; /* 微妙なボーダー */
 }
 
 .markdown-content pre {
-  background-color: var(--vscode-textBlockQuote-background);
+  background-color: #1E1E1E; /* ダークな背景色 */
   padding: 16px;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow-x: auto;
   margin: 1em 0;
+  border: 1px solid #3E3E3E; /* 微妙なボーダー */
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); /* 微妙な影で浮き上がり感 */
 }
 
 .markdown-content pre code {
   background-color: transparent;
   padding: 0;
   font-size: inherit;
+  color: #E0E0E0; /* やや明るめの白色 */
+  display: block;
+  line-height: 1.5;
+}
+
+/* 関数名など特定のコード要素の強調表示 */
+.markdown-content code b,
+.markdown-content code strong {
+  color: #61AFEF; /* 関数名を水色で表示 */
+  font-weight: normal; /* 太字を解除 */
+}
+
+/* 引数部分の強調表示 */
+.markdown-content code em,
+.markdown-content code i {
+  color: #E5C07B; /* 引数をオレンジ系の色で表示 */
+  font-style: normal; /* イタリックを解除 */
+}
+
+/* 文字列の強調表示 */
+.markdown-content code .string {
+  color: #98C379; /* 文字列を緑色で表示 */
+}
+
+/* キーワードの強調表示 */
+.markdown-content code .keyword {
+  color: #C678DD; /* キーワードを紫色で表示 */
 }
 
 /* リスト */
