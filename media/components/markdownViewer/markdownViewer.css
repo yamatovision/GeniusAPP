@@ -88,11 +88,23 @@
   margin: 0.4em 0;
 }
 
+/* 番号付きリスト */
+.markdown-content li.ordered {
+  display: list-item;
+  list-style-type: decimal;
+}
+
 /* チェックボックス */
 .markdown-content .checkbox-item {
   display: flex;
   align-items: center;
   margin: 0.4em 0;
+}
+
+.markdown-content .checkbox-item.numbered::before {
+  content: attr(data-number) ". ";
+  margin-right: 0.4em;
+  font-weight: normal;
 }
 
 .markdown-content input[type="checkbox"] {
@@ -152,4 +164,50 @@
 .markdown-content .enhanced-tree {
   line-height: 1.2;
   font-family: monospace;
+}
+
+/* タスク参照（行番号、タスク番号など） */
+.markdown-content .task-reference {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  background-color: var(--vscode-editor-lineHighlightBackground);
+  border-radius: 4px;
+  border-left: 3px solid var(--vscode-activityBarBadge-background);
+}
+
+.markdown-content .task-reference .task-name {
+  font-weight: bold;
+  color: var(--vscode-editor-foreground);
+}
+
+.markdown-content .task-reference .task-func {
+  font-family: var(--vscode-editor-font-family, monospace);
+  background-color: var(--vscode-textBlockQuote-background);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.markdown-content .task-reference .line-number {
+  color: var(--vscode-editorLineNumber-activeForeground);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-weight: bold;
+}
+
+.markdown-content .task-reference .task-desc {
+  color: var(--vscode-editor-foreground);
+}
+
+/* 古い番号付き参照スタイル（互換性のため残す） */
+.markdown-content .numbered-reference {
+  font-weight: bold;
+  margin: 8px 0;
+  color: var(--vscode-editor-foreground);
+  background-color: var(--vscode-editor-lineHighlightBackground);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: block;
 }

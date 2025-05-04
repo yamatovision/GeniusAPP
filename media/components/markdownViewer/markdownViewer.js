@@ -1,6 +1,6 @@
 // @ts-check
 import stateManager from '../../state/stateManager.js';
-import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '../../utils/markdownConverter.js';
+import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '../../utils/simpleMarkdownConverter.js';
 
 class MarkdownViewer {
   constructor() {
@@ -17,7 +17,7 @@ class MarkdownViewer {
     // カスタムイベントのリスナーを設定
     this._setupEventListeners();
     
-    console.log('MarkdownViewer initialized');
+    console.log('MarkdownViewer initialized with simple converter');
   }
   
   /**
@@ -51,7 +51,7 @@ class MarkdownViewer {
       // 非同期で処理して UI ブロッキングを防止
       setTimeout(() => {
         try {
-          // マークダウンをHTMLに変換（外部関数を使用）
+          // マークダウンをHTMLに変換（シンプル版を使用）
           const htmlContent = convertMarkdownToHtml(content);
           
           // HTMLコンテンツを設定
@@ -83,7 +83,7 @@ class MarkdownViewer {
   }
   
   /**
-   * テーブルのソート機能（残しておく - markdownConverter.jsにはないため）
+   * テーブルのソート機能
    */
   _sortTable(table, columnIndex) {
     const rows = Array.from(table.querySelectorAll('tbody tr'));
