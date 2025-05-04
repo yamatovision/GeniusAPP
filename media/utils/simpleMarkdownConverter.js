@@ -10,11 +10,9 @@
  * - 太字（**）
  * - チェックリスト（[x], [ ]）
  * - テーブル（|---|）
- * - 番号付きリスト（1. 2. 3.）
  */
 class SimpleMarkdownConverter {
   constructor() {
-    // エスケープ用のHTML文字列
     this.escapeMap = {
       '&': '&amp;',
       '<': '&lt;',
@@ -26,17 +24,6 @@ class SimpleMarkdownConverter {
 
   /**
    * マークダウンテキストをHTMLに変換
-   * @param {string} markdown マークダウンテキスト
-   * @returns {string} HTML
-   */
-  convertToHtml(markdown) {
-    return this.convertMarkdownToHtml(markdown);
-  }
-
-  /**
-   * マークダウンテキストをHTMLに変換
-   * @param {string} markdown マークダウンテキスト
-   * @returns {string} HTML文字列
    */
   convertMarkdownToHtml(markdown) {
     if (!markdown) return '';
@@ -46,39 +33,23 @@ class SimpleMarkdownConverter {
     const tables = [];
     
     // コードブロックを保護
-    let processedMarkdown = markdown.replace(/```([\s\S]*?)```/g, (match, code) => {
+    let html = markdown.replace(/```([\s\S]*?)```/g, (match, code) => {
       const id = `CODE_BLOCK_${codeBlocks.length}`;
       codeBlocks.push(code);
       return id;
     });
     
     // テーブルを保護
-    processedMarkdown = processedMarkdown.replace(/\|(.+)\|\s*\n\|(?:[-:]+\|)+\s*\n(\|(?:.+)\|\s*\n)+/g, (match) => {
+    html = html.replace(/\|(.+)\|\s*\n\|(?:[-:]+\|)+\s*\n(\|(?:.+)\|\s*\n)+/g, (match) => {
       const id = `TABLE_BLOCK_${tables.length}`;
       tables.push(match);
       return id;
     });
     
     // エスケープ処理
-    let html = this._escapeHtml(processedMarkdown);
+    html = this._escapeHtml(html);
     
-    // 最小限のマークダウン変換
-    html = this._convertBasicMarkdown(html);
-    
-    // 特殊要素を復元
-    html = this._restoreSpecialBlocks(html, codeBlocks, tables);
-    
-    return html;
-  }
-  
-  /**
-   * 基本的なマークダウン構文をHTMLに変換
-   * @param {string} text マークダウンテキスト
-   * @returns {string} HTML文字列
-   */
-  _convertBasicMarkdown(text) {
-    let html = text;
-    
+    // マークダウン要素の変換
     // 見出し処理
     html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
@@ -90,52 +61,37 @@ class SimpleMarkdownConverter {
     // 太字処理
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     
-    // チェックボックス処理（シンプルに統一）
-    html = html.replace(/^(\d+)\. \[x\] (.+)$/gm, '<div class="checkbox-item numbered" data-number="$1"><input type="checkbox" checked> <span>$2</span></div>');
-    html = html.replace(/^(\d+)\. \[ \] (.+)$/gm, '<div class="checkbox-item numbered" data-number="$1"><input type="checkbox"> <span>$2</span></div>');
-    html = html.replace(/^- \[x\] (.+)$/gm, '<div class="checkbox-item"><input type="checkbox" checked> <span>$1</span></div>');
-    html = html.replace(/^- \[ \] (.+)$/gm, '<div class="checkbox-item"><input type="checkbox"> <span>$1</span></div>');
+    // チェックボックス処理 - シンプルにチェックボックス部分だけを置換
+    html = html.replace(/\[x\]/g, '<input type="checkbox" checked>');
+    html = html.replace(/\[ \]/g, '<input type="checkbox">');
     
-    // 段落処理（単純化）
+    // 段落処理 - divタグを使用して間隔を調整
     const lines = html.split('\n');
     let result = '';
     for (const line of lines) {
       if (line.trim() === '') continue;
       if (line.startsWith('<')) {
-        result += line + '\n';
+        result += line + '\n';  // HTMLタグの場合はそのまま + 改行追加
       } else {
-        result += '<p>' + line + '</p>\n';
+        result += '<div class="md-line">' + line + '</div>\n';  // divタグで囲む + 改行追加
       }
     }
+    
+    // コードブロックの復元
+    result = result.replace(/CODE_BLOCK_(\d+)/g, (match, index) => {
+      return `<pre><code>${codeBlocks[Number(index)]}</code></pre>`;
+    });
+    
+    // テーブルの復元
+    result = result.replace(/TABLE_BLOCK_(\d+)/g, (match, index) => {
+      return this._renderTable(tables[Number(index)]);
+    });
     
     return result;
   }
   
   /**
-   * 特殊ブロックを復元
-   * @param {string} html HTML文字列
-   * @param {string[]} codeBlocks コードブロック配列
-   * @param {string[]} tables テーブル配列
-   * @returns {string} 特殊ブロックが復元されたHTML
-   */
-  _restoreSpecialBlocks(html, codeBlocks, tables) {
-    // コードブロックの復元
-    html = html.replace(/CODE_BLOCK_(\d+)/g, (match, index) => {
-      return `<pre><code>${codeBlocks[parseInt(index, 10)]}</code></pre>`;
-    });
-    
-    // テーブルの復元
-    html = html.replace(/TABLE_BLOCK_(\d+)/g, (match, index) => {
-      return this._renderTable(tables[parseInt(index, 10)]);
-    });
-    
-    return html;
-  }
-  
-  /**
    * マークダウンテーブルをHTMLに変換
-   * @param {string} tableText マークダウンテーブル
-   * @returns {string} HTML形式のテーブル
    */
   _renderTable(tableText) {
     try {
@@ -183,69 +139,47 @@ class SimpleMarkdownConverter {
       
       html += '</tbody>\n</table>';
       return html;
-    } catch (e) {
-      console.error('テーブル変換エラー:', e);
+    } catch {
       return tableText;
     }
   }
   
   /**
    * HTMLエスケープ
-   * @param {string} text エスケープするテキスト
-   * @returns {string} エスケープ済みテキスト
    */
   _escapeHtml(text) {
     return text.replace(/[&<>"']/g, match => this.escapeMap[match]);
   }
   
   /**
-   * 特殊要素のスタイリングを適用（最小限）
-   */
-  enhanceSpecialElements() {
-    // シンプルにログだけ出力
-    console.log('enhanceSpecialElements: 最小限のスタイリングを適用');
-  }
-  
-  /**
    * チェックボックスにイベントリスナーを設定
    */
   setupCheckboxes() {
-    // VSCode APIの取得（シンプル化）
-    let vscode;
     try {
-      vscode = window.vsCodeApi || acquireVsCodeApi();
+      const vscode = window.vsCodeApi || acquireVsCodeApi();
       window.vsCodeApi = vscode;
-    } catch (e) {
-      console.warn('VSCode API取得エラー:', e);
-      vscode = { postMessage: msg => console.log('ダミーメッセージ:', msg) };
-    }
-    
-    // チェックボックスイベントリスナー
-    document.querySelectorAll('.markdown-content input[type="checkbox"]').forEach((checkbox, index) => {
-      checkbox.addEventListener('change', e => {
-        vscode.postMessage({
-          command: 'updateMarkdownCheckbox',
-          checked: e.target.checked,
-          index: index
+      
+      document.querySelectorAll('.markdown-content input[type="checkbox"]').forEach((checkbox, index) => {
+        checkbox.addEventListener('change', e => {
+          vscode.postMessage({
+            command: 'updateMarkdownCheckbox',
+            checked: e.target.checked,
+            index
+          });
         });
       });
-    });
+    } catch (e) {
+      console.log('チェックボックス設定をスキップ');
+    }
   }
 }
 
-// シングルトンインスタンスとexport
+// シングルトンインスタンスとして公開
 const markdownConverter = new SimpleMarkdownConverter();
 export default markdownConverter;
 
-// 便利な関数としてexport
-export function convertMarkdownToHtml(markdown) {
-  return markdownConverter.convertMarkdownToHtml(markdown);
-}
-
-export function enhanceSpecialElements() {
-  return markdownConverter.enhanceSpecialElements();
-}
-
-export function setupCheckboxes() {
-  return markdownConverter.setupCheckboxes();
-}
+// 互換性のための関数
+export const convertMarkdownToHtml = markdown => markdownConverter.convertMarkdownToHtml(markdown);
+export const setupCheckboxes = () => markdownConverter.setupCheckboxes();
+// 互換性のために空関数を提供
+export const enhanceSpecialElements = () => { console.log('enhanceSpecialElements: 何もしません'); };

@@ -9,6 +9,13 @@
   max-height: 100%;
 }
 
+/* 基本行スタイル - 最小限のマージンで行を表示 */
+.markdown-content .md-line {
+  display: block;
+  margin: 0.2em 0;  /* 最小限のマージン */
+  line-height: 1.4;
+}
+
 /* タイポグラフィ */
 .markdown-content h1 {
   font-size: 2em;
