@@ -15,7 +15,7 @@
   align-items: center;
   padding: 12px 16px;
   margin-bottom: 10px;
-  border-radius: 4px;
+  border-radius: 8px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   transform: translateX(120%);
   transition: transform 0.3s ease, opacity 0.3s ease;
@@ -92,12 +92,13 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
   animation: fadeIn 0.2s ease;
+  backdrop-filter: blur(2px);
 }
 
 @keyframes fadeIn {
@@ -107,17 +108,19 @@
 
 /* ダイアログ */
 .dialog {
-  background-color: var(--vscode-editor-background);
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  width: 400px;
+  background-color: var(--vscode-editor-background, #fff);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  width: 440px;
   max-width: 90%;
   animation: scaleIn 0.2s ease;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border, rgba(0,0,0,0.1));
 }
 
 @keyframes scaleIn {
-  from { transform: scale(0.9); }
-  to { transform: scale(1); }
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 
 /* ダイアログヘッダー */
@@ -125,77 +128,191 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  padding: 16px 20px;
+  background-color: var(--vscode-sideBar-background, #f5f5f5);
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(0,0,0,0.1));
 }
 
 .dialog-title {
-  font-weight: 500;
-  font-size: 16px;
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--vscode-foreground, #333);
 }
 
 .dialog-close {
   background: none;
   border: none;
-  color: var(--vscode-foreground);
-  font-size: 16px;
+  color: var(--vscode-foreground, #666);
+  font-size: 18px;
   cursor: pointer;
   opacity: 0.7;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
 }
 
 .dialog-close:hover {
   opacity: 1;
+  background-color: rgba(0, 0, 0, 0.05);
 }
 
 /* ダイアログコンテンツ */
 .dialog-content {
-  padding: 16px;
+  padding: 24px 20px;
+  color: var(--vscode-foreground, #444);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.dialog-content p {
+  margin: 0 0 16px 0;
+}
+
+/* プロジェクト情報表示スタイル */
+.project-info {
+  margin: 8px 0 16px;
+  padding: 10px;
+  background-color: var(--vscode-editor-inactiveSelectionBackground, rgba(0, 0, 0, 0.05));
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+  width: 100%;
+}
+
+.current-project-name {
+  font-weight: bold;
+  color: var(--vscode-badge-foreground, #0078d4);
 }
 
 .dialog-input {
   width: 100%;
-  padding: 8px 10px;
-  margin-top: 10px;
-  border: 1px solid var(--vscode-input-border);
-  background-color: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border-radius: 4px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  border: 1px solid var(--vscode-input-border, #ccc);
+  background-color: var(--vscode-input-background, #fff);
+  color: var(--vscode-input-foreground, #333);
+  border-radius: 6px;
   outline: none;
+  font-size: 14px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .dialog-input:focus {
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder, #0078d4);
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.1);
 }
 
 /* ダイアログフッター */
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 16px;
-  border-top: 1px solid var(--vscode-panel-border);
+  padding: 16px 20px;
+  background-color: var(--vscode-sideBar-background, #f9f9f9);
+  border-top: 1px solid var(--vscode-panel-border, rgba(0,0,0,0.1));
 }
 
 .dialog-button {
-  padding: 6px 12px;
-  margin-left: 8px;
-  border-radius: 4px;
+  padding: 8px 16px;
+  margin-left: 12px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  background-color: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-  border: 1px solid var(--vscode-button-border);
+  font-weight: 500;
+  background-color: var(--vscode-button-secondaryBackground, #f3f3f3);
+  color: var(--vscode-button-secondaryForeground, #444);
+  border: 1px solid var(--vscode-button-border, #ddd);
+  transition: all 0.2s ease;
+  min-width: 100px;
+  text-align: center;
 }
 
 .dialog-button.primary-button {
-  background-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  background-color: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border-color: transparent;
 }
 
 .dialog-button:hover {
   opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+
+.dialog-button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ターミナルモード選択ダイアログ専用スタイル */
+#terminal-mode-dialog,
+#modal-terminal-mode-dialog {
+  max-width: 500px;
+}
+
+#terminal-mode-dialog .dialog-content,
+#modal-terminal-mode-dialog .dialog-content {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#terminal-mode-dialog .dialog-footer,
+#modal-terminal-mode-dialog .dialog-footer {
+  justify-content: center;
+}
+
+#terminal-mode-dialog .dialog-button,
+#modal-terminal-mode-dialog .dialog-button {
+  min-width: 180px;
+  padding: 10px 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  border-radius: 8px;
+}
+
+#terminal-mode-dialog .dialog-button:hover,
+#modal-terminal-mode-dialog .dialog-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+#terminal-mode-dialog .dialog-button:active,
+#modal-terminal-mode-dialog .dialog-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#terminal-mode-dialog .dialog-button,
+#modal-terminal-mode-dialog .dialog-button {
+  min-width: 180px;
+  padding: 10px 16px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+#terminal-mode-dialog .dialog-button.primary-button,
+#modal-terminal-mode-dialog .dialog-button.primary-button {
+  background-color: var(--vscode-button-background, #0078d4);
+  color: var(--vscode-button-foreground, #fff);
+  border: none;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
 }

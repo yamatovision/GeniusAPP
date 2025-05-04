@@ -7,6 +7,7 @@ import tabManager from './components/tabManager/tabManager.js';
 import stateManager from './state/stateManager.js';
 import markdownViewer from './components/markdownViewer/markdownViewer.js';
 import projectNavigation from './components/projectNavigation/projectNavigation.js';
+import dialogManager from './components/dialogManager/dialogManager.js';
 
 // VSCode APIを安全に取得
 let vscode;
@@ -279,106 +280,9 @@ try {
       
       // クリックイベント
       card.addEventListener('click', () => {
-        // カスタムモーダルダイアログを表示
-        showTerminalModeDialog(url, info.name, index);
+        // 新しいdialogManagerを使ってダイアログを表示
+        dialogManager.showTerminalModeDialog(url, info.name, index);
       });
-      
-      // ターミナルモード選択用のカスタムダイアログ関数を追加
-      function showTerminalModeDialog(url, name, index) {
-        // 既存のダイアログがあれば削除
-        const existingDialog = document.getElementById('terminal-mode-dialog');
-        if (existingDialog) {
-          existingDialog.remove();
-        }
-        
-        // モーダルオーバーレイとダイアログを作成
-        const overlay = document.createElement('div');
-        overlay.className = 'dialog-overlay';
-        overlay.id = 'terminal-mode-overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.right = '0';
-        overlay.style.bottom = '0';
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        overlay.style.zIndex = '10000';
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        
-        const dialog = document.createElement('div');
-        dialog.id = 'terminal-mode-dialog';
-        dialog.style.backgroundColor = 'var(--app-bg, #fff)';
-        dialog.style.borderRadius = '8px';
-        dialog.style.padding = '20px';
-        dialog.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-        dialog.style.width = '400px';
-        dialog.style.maxWidth = '90%';
-        
-        dialog.innerHTML = `
-          <h3 style="margin-top: 0; margin-bottom: 16px;">ターミナル表示モードを選択</h3>
-          <p style="margin-bottom: 20px;">ClaudeCodeの起動方法を選択してください：</p>
-          <div style="display: flex; justify-content: space-between;">
-            <button id="split-terminal-btn" class="button" style="flex: 1; margin-right: 8px;">分割ターミナルで表示</button>
-            <button id="new-tab-terminal-btn" class="button button-secondary" style="flex: 1; margin-left: 8px;">新しいタブで表示</button>
-          </div>
-        `;
-        
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        
-        // ボタンのイベントリスナーを設定
-        document.getElementById('split-terminal-btn').addEventListener('click', () => {
-          // 分割ターミナルモードを選択（true）
-          console.log('【デバッグ】分割ターミナルボタンがクリックされました - splitTerminal=true を送信します');
-          
-          // デバッグメッセージを表示（開発者がダイアログの選択を確認できるように）
-          const debugMessage = document.createElement('div');
-          debugMessage.style.position = 'fixed';
-          debugMessage.style.bottom = '20px';
-          debugMessage.style.left = '20px';
-          debugMessage.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-          debugMessage.style.color = 'white';
-          debugMessage.style.padding = '8px 16px';
-          debugMessage.style.borderRadius = '4px';
-          debugMessage.style.zIndex = '999999';
-          debugMessage.style.fontFamily = 'monospace';
-          debugMessage.textContent = '分割ターミナルモードを選択しました (splitTerminal=true)';
-          document.body.appendChild(debugMessage);
-          
-          // 3秒後にデバッグメッセージを消す
-          setTimeout(() => {
-            if (debugMessage.parentNode) {
-              debugMessage.parentNode.removeChild(debugMessage);
-            }
-          }, 3000);
-          
-          vscode.postMessage({
-            command: 'launchPromptFromURL',
-            url: url,
-            name: name,
-            index: index,
-            splitTerminal: true  // 分割ターミナルモード
-          });
-          
-          // ダイアログを閉じる
-          overlay.remove();
-        });
-        
-        document.getElementById('new-tab-terminal-btn').addEventListener('click', () => {
-          // 新しいタブモードを選択（false）
-          vscode.postMessage({
-            command: 'launchPromptFromURL',
-            url: url,
-            name: name,
-            index: index,
-            splitTerminal: false  // 新しいタブモード
-          });
-          
-          // ダイアログを閉じる
-          overlay.remove();
-        });
-      }
       
       promptGrid.appendChild(card);
     });
@@ -610,107 +514,10 @@ try {
         // プロンプトのURL
         const url = promptUrls[prompt.id];
         if (url) {
-          // カスタムモーダルダイアログを表示
-          showModalTerminalModeDialog(url, prompt.id, prompt.name);
+          // 新しいdialogManagerを使ってダイアログを表示
+          dialogManager.showModalTerminalModeDialog(url, prompt.id, prompt.name);
         }
       });
-      
-      // ターミナルモード選択用のカスタムダイアログ関数
-      function showModalTerminalModeDialog(url, promptId, promptName) {
-        // 既存のダイアログがあれば削除
-        const existingDialog = document.getElementById('modal-terminal-mode-dialog');
-        if (existingDialog) {
-          existingDialog.remove();
-        }
-        
-        // モーダルオーバーレイとダイアログを作成
-        const overlay = document.createElement('div');
-        overlay.className = 'dialog-overlay';
-        overlay.id = 'modal-terminal-mode-overlay';
-        overlay.style.position = 'fixed';
-        overlay.style.top = '0';
-        overlay.style.left = '0';
-        overlay.style.right = '0';
-        overlay.style.bottom = '0';
-        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-        overlay.style.zIndex = '10000';
-        overlay.style.display = 'flex';
-        overlay.style.alignItems = 'center';
-        overlay.style.justifyContent = 'center';
-        
-        const dialog = document.createElement('div');
-        dialog.id = 'modal-terminal-mode-dialog';
-        dialog.style.backgroundColor = 'var(--app-bg, #fff)';
-        dialog.style.borderRadius = '8px';
-        dialog.style.padding = '20px';
-        dialog.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
-        dialog.style.width = '400px';
-        dialog.style.maxWidth = '90%';
-        
-        dialog.innerHTML = `
-          <h3 style="margin-top: 0; margin-bottom: 16px;">ターミナル表示モードを選択</h3>
-          <p style="margin-bottom: 20px;">ClaudeCodeの起動方法を選択してください：</p>
-          <div style="display: flex; justify-content: space-between;">
-            <button id="modal-split-terminal-btn" class="button" style="flex: 1; margin-right: 8px;">分割ターミナルで表示</button>
-            <button id="modal-new-tab-terminal-btn" class="button button-secondary" style="flex: 1; margin-left: 8px;">新しいタブで表示</button>
-          </div>
-        `;
-        
-        overlay.appendChild(dialog);
-        document.body.appendChild(overlay);
-        
-        // ボタンのイベントリスナーを設定
-        document.getElementById('modal-split-terminal-btn').addEventListener('click', () => {
-          // 分割ターミナルモードを選択（true）
-          console.log('【デバッグ】モーダル内の分割ターミナルボタンがクリックされました - splitTerminal=true を送信します');
-          
-          // デバッグメッセージを表示
-          const debugMessage = document.createElement('div');
-          debugMessage.style.position = 'fixed';
-          debugMessage.style.bottom = '20px';
-          debugMessage.style.left = '20px';
-          debugMessage.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-          debugMessage.style.color = 'white';
-          debugMessage.style.padding = '8px 16px';
-          debugMessage.style.borderRadius = '4px';
-          debugMessage.style.zIndex = '999999';
-          debugMessage.style.fontFamily = 'monospace';
-          debugMessage.textContent = 'モーダル: 分割ターミナルモードを選択しました (splitTerminal=true)';
-          document.body.appendChild(debugMessage);
-          
-          // 3秒後にデバッグメッセージを消す
-          setTimeout(() => {
-            if (debugMessage.parentNode) {
-              debugMessage.parentNode.removeChild(debugMessage);
-            }
-          }, 3000);
-          
-          vscode.postMessage({
-            command: 'launchPromptFromURL',
-            url: url,
-            index: promptId,
-            name: promptName,
-            splitTerminal: true  // 分割ターミナルモード
-          });
-          
-          // ダイアログを閉じる
-          overlay.remove();
-        });
-        
-        document.getElementById('modal-new-tab-terminal-btn').addEventListener('click', () => {
-          // 新しいタブモードを選択（false）
-          vscode.postMessage({
-            command: 'launchPromptFromURL',
-            url: url,
-            index: promptId,
-            name: promptName,
-            splitTerminal: false  // 新しいタブモード
-          });
-          
-          // ダイアログを閉じる
-          overlay.remove();
-        });
-      }
       
       promptGrid.appendChild(card);
     });

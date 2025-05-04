@@ -5,6 +5,7 @@ class DialogManager {
   constructor() {
     this.container = document.querySelector('.dialog-container') || this._createDialogContainer();
     this.activeTimeout = null;
+    this.vscode = window.vsCodeApi;
     this.initialize();
   }
   
@@ -276,6 +277,205 @@ class DialogManager {
       input.focus();
       input.select();
     });
+  }
+  
+  /**
+   * ターミナルモード選択ダイアログを表示
+   * @param {string} url プロンプトURL
+   * @param {string} name プロンプト名
+   * @param {number} index プロンプトインデックス
+   */
+  showTerminalModeDialog(url, name, index) {
+    // 既存のダイアログがあれば削除
+    const existingDialog = document.getElementById('terminal-mode-dialog');
+    if (existingDialog) {
+      existingDialog.remove();
+    }
+    
+    // 現在のプロジェクト名を取得
+    // stateManagerから取得する（存在しない場合はデフォルト値を使用）
+    const currentProject = stateManager && stateManager.state && stateManager.state.activeProjectName ? 
+      stateManager.state.activeProjectName : '選択なし';
+    
+    // モーダルオーバーレイとダイアログを作成
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'terminal-mode-overlay';
+    
+    const dialog = document.createElement('div');
+    dialog.id = 'terminal-mode-dialog';
+    dialog.className = 'dialog';
+    
+    dialog.innerHTML = `
+      <div class="dialog-header">
+        <div class="dialog-title">ターミナル表示モードを選択</div>
+        <button class="dialog-close">×</button>
+      </div>
+      <div class="dialog-content">
+        <p>ClaudeCodeの起動方法を選択してください：</p>
+        <div class="project-info">現在のプロジェクト：<span class="current-project-name">${currentProject}</span></div>
+      </div>
+      <div class="dialog-footer">
+        <button id="split-terminal-btn" class="dialog-button primary-button">分割ターミナルで表示</button>
+        <button id="new-tab-terminal-btn" class="dialog-button">新しいタブで表示</button>
+      </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // 閉じるボタンのイベント
+    const closeButton = dialog.querySelector('.dialog-close');
+    closeButton.addEventListener('click', () => {
+      overlay.remove();
+    });
+    
+    // ボタンのイベントリスナーを設定
+    document.getElementById('split-terminal-btn').addEventListener('click', () => {
+      // 分割ターミナルモードを選択（true）
+      console.log('【デバッグ】分割ターミナルボタンがクリックされました - splitTerminal=true を送信します');
+      
+      // デバッグメッセージを表示（開発者がダイアログの選択を確認できるように）
+      this.showDebugMessage('分割ターミナルモードを選択しました (splitTerminal=true)');
+      
+      this.vscode.postMessage({
+        command: 'launchPromptFromURL',
+        url: url,
+        name: name,
+        index: index,
+        splitTerminal: true  // 分割ターミナルモード
+      });
+      
+      // ダイアログを閉じる
+      overlay.remove();
+    });
+    
+    document.getElementById('new-tab-terminal-btn').addEventListener('click', () => {
+      // 新しいタブモードを選択（false）
+      this.vscode.postMessage({
+        command: 'launchPromptFromURL',
+        url: url,
+        name: name,
+        index: index,
+        splitTerminal: false  // 新しいタブモード
+      });
+      
+      // ダイアログを閉じる
+      overlay.remove();
+    });
+  }
+  
+  /**
+   * モーダル内ターミナルモード選択ダイアログを表示
+   * @param {string} url プロンプトURL
+   * @param {number} promptId プロンプトID
+   * @param {string} promptName プロンプト名
+   */
+  showModalTerminalModeDialog(url, promptId, promptName) {
+    // 既存のダイアログがあれば削除
+    const existingDialog = document.getElementById('modal-terminal-mode-dialog');
+    if (existingDialog) {
+      existingDialog.remove();
+    }
+    
+    // 現在のプロジェクト名を取得
+    // stateManagerから取得する（存在しない場合はデフォルト値を使用）
+    const currentProject = stateManager && stateManager.state && stateManager.state.activeProjectName ? 
+      stateManager.state.activeProjectName : '選択なし';
+    
+    // モーダルオーバーレイとダイアログを作成
+    const overlay = document.createElement('div');
+    overlay.className = 'dialog-overlay';
+    overlay.id = 'modal-terminal-mode-overlay';
+    
+    const dialog = document.createElement('div');
+    dialog.id = 'modal-terminal-mode-dialog';
+    dialog.className = 'dialog';
+    
+    dialog.innerHTML = `
+      <div class="dialog-header">
+        <div class="dialog-title">ターミナル表示モードを選択</div>
+        <button class="dialog-close">×</button>
+      </div>
+      <div class="dialog-content">
+        <p>ClaudeCodeの起動方法を選択してください：</p>
+        <div class="project-info">現在のプロジェクト：<span class="current-project-name">${currentProject}</span></div>
+      </div>
+      <div class="dialog-footer">
+        <button id="modal-split-terminal-btn" class="dialog-button primary-button">分割ターミナルで表示</button>
+        <button id="modal-new-tab-terminal-btn" class="dialog-button">新しいタブで表示</button>
+      </div>
+    `;
+    
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    
+    // 閉じるボタンのイベント
+    const closeButton = dialog.querySelector('.dialog-close');
+    closeButton.addEventListener('click', () => {
+      overlay.remove();
+    });
+    
+    // ボタンのイベントリスナーを設定
+    document.getElementById('modal-split-terminal-btn').addEventListener('click', () => {
+      // 分割ターミナルモードを選択（true）
+      console.log('【デバッグ】モーダル内の分割ターミナルボタンがクリックされました - splitTerminal=true を送信します');
+      
+      // デバッグメッセージを表示
+      this.showDebugMessage('モーダル: 分割ターミナルモードを選択しました (splitTerminal=true)');
+      
+      this.vscode.postMessage({
+        command: 'launchPromptFromURL',
+        url: url,
+        index: promptId,
+        name: promptName,
+        splitTerminal: true  // 分割ターミナルモード
+      });
+      
+      // ダイアログを閉じる
+      overlay.remove();
+    });
+    
+    document.getElementById('modal-new-tab-terminal-btn').addEventListener('click', () => {
+      // 新しいタブモードを選択（false）
+      this.vscode.postMessage({
+        command: 'launchPromptFromURL',
+        url: url,
+        index: promptId,
+        name: promptName,
+        splitTerminal: false  // 新しいタブモード
+      });
+      
+      // ダイアログを閉じる
+      overlay.remove();
+    });
+  }
+  
+  /**
+   * デバッグメッセージを表示
+   * @param {string} message メッセージ内容
+   * @param {number} [duration=3000] 表示時間（ミリ秒）
+   */
+  showDebugMessage(message, duration = 3000) {
+    const debugMessage = document.createElement('div');
+    debugMessage.style.position = 'fixed';
+    debugMessage.style.bottom = '20px';
+    debugMessage.style.left = '20px';
+    debugMessage.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    debugMessage.style.color = 'white';
+    debugMessage.style.padding = '8px 16px';
+    debugMessage.style.borderRadius = '4px';
+    debugMessage.style.zIndex = '999999';
+    debugMessage.style.fontFamily = 'monospace';
+    debugMessage.textContent = message;
+    document.body.appendChild(debugMessage);
+    
+    // 指定時間後にデバッグメッセージを消す
+    setTimeout(() => {
+      if (debugMessage.parentNode) {
+        debugMessage.parentNode.removeChild(debugMessage);
+      }
+    }, duration);
   }
 }
 

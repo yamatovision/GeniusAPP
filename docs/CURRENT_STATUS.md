@@ -122,30 +122,35 @@ media/
 
 ### フェーズ5: ダイアログ関連の移行
 
-12. [ ] **タスク5.1: `hideNewProjectModal()` [行番号 1059] の移行**
-    - 移行先: `media/components/dialogManager/dialogManager.js`
+12. [x] **タスク5.1: `hideNewProjectModal()` [行番号 1059] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
     - 内容: モーダル非表示機能を移行
     - 確認ポイント: モーダルが正しく非表示になること
+    - **完了状況**: ✅ 2025-05-04 既にprojectNavigation.jsに実装されていたので確認のみ。
 
-13. [ ] **タスク5.2: `showNewProjectModal()` [行番号 983] の移行**
-    - 移行先: `media/components/dialogManager/dialogManager.js`
+13. [x] **タスク5.2: `showNewProjectModal()` [行番号 983] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
     - 内容: 新規プロジェクトモーダル表示機能を移行
     - 確認ポイント: モーダルが正しく表示され操作できること
+    - **完了状況**: ✅ 2025-05-04 既にprojectNavigation.jsに実装されていたので確認のみ。
 
-14. [ ] **タスク5.3: `createNewProject()` [行番号 1070] の移行**
+14. [x] **タスク5.3: `createNewProject()` [行番号 1070] の移行**
     - 移行先: `media/components/projectNavigation/projectNavigation.js`
     - 内容: プロジェクト作成処理を移行
     - 確認ポイント: 新規プロジェクトが正しく作成できること
+    - **完了状況**: ✅ 2025-05-04 既にprojectNavigation.jsに実装されていたので確認のみ。
 
-15. [ ] **タスク5.4: `showTerminalModeDialog(url, name, index)` [行番号 396] の移行**
+15. [x] **タスク5.4: `showTerminalModeDialog(url, name, index)` [行番号 287] の移行**
     - 移行先: `media/components/dialogManager/dialogManager.js`
     - 内容: ターミナルモード選択ダイアログ表示機能を移行
     - 確認ポイント: ダイアログが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。インラインスタイルからCSSクラス使用に変更し、コードを整理。
 
-16. [ ] **タスク5.5: `showModalTerminalModeDialog(url, promptId, promptName)` [行番号 1365] の移行**
+16. [x] **タスク5.5: `showModalTerminalModeDialog(url, promptId, promptName)` [行番号 619] の移行**
     - 移行先: `media/components/dialogManager/dialogManager.js`
     - 内容: モーダル内ターミナルモード選択ダイアログ表示機能を移行
     - 確認ポイント: モーダル内ダイアログが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。インラインスタイルからCSSクラス使用に変更し、コードを整理。
 
 ### フェーズ6: プロンプトカード関連の移行
 
@@ -197,7 +202,7 @@ media/
    - エラー時に適切なメッセージが表示されるか確認
    - エラーから正常に回復できるか確認
 
-## 6. 進捗状況 (2025年5月3日)
+## 6. 進捗状況 (2025年5月4日)
 
 ### 完了したタスク
 - [x] マークダウン変換機能のモジュール化 (`markdownConverter.js`)
@@ -206,20 +211,26 @@ media/
 - [x] VSCode API取得の重複エラーを解消
 - [x] **タスク1.1: `selectTab(tabId, saveToServer)` の移行**
 - [x] **タスク1.2: `initializeTabs()` の移行**
-- [x] タブ状態同期の初期化フラグ対応と競合状態解決
 - [x] **タスク2.1: `handleUpdateState(data)` の移行**
 - [x] **タスク2.2: `syncProjectState(project)` の移行**
 - [x] **タスク2.3: `restoreProjectState()` の移行**
 - [x] **タスク3.1: `displayMarkdownContent(markdownContent)` の移行**
 - [x] **タスク3.2: `initializeMarkdownDisplay()` の移行**
+- [x] **タスク4.1: `updateProjectName(projectName)` の移行**
+- [x] **タスク4.2: `updateProjectPath(data)` の移行**
+- [x] **タスク4.3: `updateProjects(projects, activeProject)` の移行**
+- [x] **タスク4.4: `initializeProjectNav()` の移行**
+- [x] **タスク5.1: `hideNewProjectModal()` の確認** (既にprojectNavigation.jsに実装済み)
+- [x] **タスク5.2: `showNewProjectModal()` の確認** (既にprojectNavigation.jsに実装済み)
+- [x] **タスク5.3: `createNewProject()` の確認** (既にprojectNavigation.jsに実装済み)
+- [x] **タスク5.4: `showTerminalModeDialog(url, name, index)` の移行**
+- [x] **タスク5.5: `showModalTerminalModeDialog(url, promptId, promptName)` の移行**
 
 ### 現在の作業中タスク
-- [ ] **タスク4.1: `updateProjectName(projectName)` の移行**
-- [ ] **タスク4.2: `updateProjectPath(data)` の移行準備**
+- [ ] **タスク6.1: `initializePromptCards()` [行番号 255] の移行準備**
 
 ### 次に予定されているタスク
-- [ ] **タスク4.3: `updateProjects(projects, activeProject)` の移行**
-- [ ] **タスク4.4: `initializeProjectNav()` の移行**
+- [ ] **タスク6.2: `initializePromptCardsInModal()` [行番号 574] の移行**
 
 ## 7. リファクタリング実装における教訓と注意点
 

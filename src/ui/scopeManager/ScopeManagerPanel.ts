@@ -1173,6 +1173,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
     const styleMainUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.css')
     );
+    // DialogManagerのスタイルシートを追加
+    const dialogManagerStyleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'dialogManager', 'dialogManager.css')
+    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js')
     );
@@ -1209,6 +1213,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       <link href="${styleResetUri}" rel="stylesheet">
       <link href="${designSystemStyleUri}" rel="stylesheet">
       <link href="${styleMainUri}" rel="stylesheet">
+      <link href="${dialogManagerStyleUri}" rel="stylesheet">
       <link href="${materialIconsUrl}" rel="stylesheet">
       <title>AppGenius スコープマネージャー</title>
       <style>
