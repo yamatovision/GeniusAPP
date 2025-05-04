@@ -154,15 +154,17 @@ media/
 
 ### フェーズ6: プロンプトカード関連の移行
 
-17. [ ] **タスク6.1: `initializePromptCards()` [行番号 364] の移行**
+17. [x] **タスク6.1: `initializePromptCards()` [行番号 255] の移行**
     - 移行先: `media/components/promptCards/promptCards.js`
     - 内容: プロンプトカード初期化機能を移行
     - 確認ポイント: プロンプトカードが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。旧関数は非推奨として実装を簡略化し、新promptCardsに処理を委譲。
 
-18. [ ] **タスク6.2: `initializePromptCardsInModal()` [行番号 1320] の移行**
+18. [x] **タスク6.2: `initializePromptCardsInModal()` [行番号 477] の移行**
     - 移行先: `media/components/promptCards/promptCards.js`
     - 内容: モーダル内プロンプトカード初期化機能を移行
     - 確認ポイント: モーダル内プロンプトカードが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。旧関数は非推奨として実装を簡略化し、新promptCardsに処理を委譲。
 
 ### フェーズ7: その他の機能の移行
 
@@ -225,12 +227,14 @@ media/
 - [x] **タスク5.3: `createNewProject()` の確認** (既にprojectNavigation.jsに実装済み)
 - [x] **タスク5.4: `showTerminalModeDialog(url, name, index)` の移行**
 - [x] **タスク5.5: `showModalTerminalModeDialog(url, promptId, promptName)` の移行**
+- [x] **タスク6.1: `initializePromptCards()` の移行**
+- [x] **タスク6.2: `initializePromptCardsInModal()` の移行**
 
 ### 現在の作業中タスク
-- [ ] **タスク6.1: `initializePromptCards()` [行番号 255] の移行準備**
+- [ ] **タスク7.1: `initializeClaudeCodeShareArea()` [行番号 396] の移行準備**
 
 ### 次に予定されているタスク
-- [ ] **タスク6.2: `initializePromptCardsInModal()` [行番号 574] の移行**
+- [ ] **タスク7.2: `setupEventListeners()` [行番号 300] の移行**
 
 ## 7. リファクタリング実装における教訓と注意点
 

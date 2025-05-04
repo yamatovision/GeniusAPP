@@ -1,0 +1,55 @@
+/* プロンプトカードスタイル */
+
+.prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--app-spacing-md);
+  overflow-y: auto;
+  max-height: calc(100vh - 250px);
+  padding-right: 10px;
+}
+
+.prompt-card {
+  background-color: var(--app-card-background);
+  border: 1px solid var(--app-border-color);
+  border-radius: var(--app-border-radius);
+  padding: var(--app-spacing-md);
+  cursor: pointer;
+  transition: all var(--app-transition);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.prompt-card:hover {
+  border-color: var(--app-primary);
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.prompt-icon {
+  font-size: 36px;
+  margin-bottom: var(--app-spacing-sm);
+  color: var(--app-primary);
+}
+
+.prompt-title {
+  font-weight: var(--app-font-weight-medium);
+  margin-bottom: var(--app-spacing-xs);
+}
+
+.prompt-description {
+  font-size: var(--app-font-size-xs);
+  color: var(--app-text-secondary);
+}
+
+.category-tag {
+  padding: 4px 8px;
+  border-radius: var(--app-border-radius-sm);
+  background-color: var(--app-primary-light);
+  color: var(--app-primary);
+  font-size: var(--app-font-size-xs);
+  margin-bottom: var(--app-spacing-xs);
+  display: inline-block;
+}

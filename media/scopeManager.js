@@ -8,6 +8,7 @@ import stateManager from './state/stateManager.js';
 import markdownViewer from './components/markdownViewer/markdownViewer.js';
 import projectNavigation from './components/projectNavigation/projectNavigation.js';
 import dialogManager from './components/dialogManager/dialogManager.js';
+import promptCards from './components/promptCards/promptCards.js';
 
 // VSCode APIを安全に取得
 let vscode;
@@ -105,8 +106,8 @@ try {
     // 注：タブ初期化はtabManager.jsに移行済み 
     // (tabManagerはインポート時に自動的に初期化されます)
     
-    // プロンプトカードを初期化
-    initializePromptCards();
+    // プロンプトカードを初期化 (promptCards.jsコンポーネントが担当)
+    promptCards.initializePromptCards();
     
     // プロジェクトナビゲーションの初期化
     // initializeProjectNav()の呼び出しをprojectNavigation.initializeNavigation()に置き換え
@@ -252,47 +253,12 @@ try {
   
   /**
    * プロンプトカードの初期化
+   * @deprecated promptCards.jsコンポーネントの同名メソッドに移行しました
    */
   function initializePromptCards() {
-    const promptsTab = document.getElementById('prompts-tab');
-    if (!promptsTab) return;
-    
-    const promptGrid = document.createElement('div');
-    promptGrid.className = 'prompt-grid';
-    
-    // プロンプトカードを作成
-    promptUrls.forEach((url, index) => {
-      const info = promptInfo[index] || { 
-        name: "プロンプト " + (index + 1), 
-        icon: "description", 
-        category: "その他", 
-        description: "プロンプトを実行します" 
-      };
-      
-      const card = document.createElement('div');
-      card.className = 'prompt-card';
-      card.innerHTML = `
-        <span class="material-icons prompt-icon">${info.icon}</span>
-        <div class="category-tag">${info.category}</div>
-        <h3 class="prompt-title">${info.name}</h3>
-        <p class="prompt-description">${info.description}</p>
-      `;
-      
-      // クリックイベント
-      card.addEventListener('click', () => {
-        // 新しいdialogManagerを使ってダイアログを表示
-        dialogManager.showTerminalModeDialog(url, info.name, index);
-      });
-      
-      promptGrid.appendChild(card);
-    });
-    
-    // ツールタブのコンテンツ作成処理は削除されました
-    // 「tools」タブはクリック時に openOriginalMockupGallery コマンドが実行されるため
-    // タブ内のコンテンツは表示されません
-    
-    // プロンプトタブにグリッドを追加
-    promptsTab.appendChild(promptGrid);
+    console.warn('非推奨警告: 古いinitializePromptCards関数が呼び出されました。代わりにpromptCards.initializePromptCardsを使用してください');
+    // 新しいpromptCardsコンポーネントに処理を委譲
+    promptCards.initializePromptCards();
   }
   
   /**
@@ -423,8 +389,8 @@ try {
 
     // テキストエリアは標準の動作のままにする
     
-    // 開発プロンプトカードを初期化
-    initializePromptCardsInModal();
+    // 開発プロンプトカードを初期化 (promptCards.jsコンポーネントが担当)
+    promptCards.initializePromptCardsInModal();
     
     console.log('scopeManager.js: 基本的なClaudeCode連携エリアの初期化を完了しました');
     // 詳細な機能はsharingPanel.jsに任せるため、ここでは最小限の初期化のみ行う
@@ -474,52 +440,11 @@ try {
   
   /**
    * 開発プロンプトモーダルにプロンプトカードを初期化
+   * @deprecated promptCards.jsコンポーネントの同名メソッドに移行しました
    */
   function initializePromptCardsInModal() {
-    const promptGrid = document.querySelector('.claude-code-share-area .prompt-grid');
-    if (!promptGrid) return;
-    
-    // developmentway.md に基づいた15個のプロンプト情報を使用
-    const allPrompts = [
-      { id: 0, name: "要件定義", icon: "description", category: "計画", description: "ビジネス要件を要件定義書に変換" },
-      { id: 1, name: "システムアーキテクチャ", icon: "architecture", category: "設計", description: "システム全体の設計と開発基盤の確立" },
-      { id: 2, name: "モックアップ作成", icon: "web", category: "UI", description: "要件に基づいたモックアップ作成" },
-      { id: 3, name: "データモデル統合", icon: "data_object", category: "設計", description: "一貫性のあるシステム全体のモデル構築" },
-      { id: 4, name: "データモデル精査", icon: "psychology", category: "設計", description: "データモデルの厳格な精査と品質向上" },
-      { id: 5, name: "環境変数設定", icon: "settings", category: "環境", description: "実際の本番環境用の環境変数設定" },
-      { id: 6, name: "認証システム構築", icon: "security", category: "実装", description: "シンプルなJWT自社実装による認証" },
-      { id: 7, name: "デプロイ設定", icon: "cloud_upload", category: "環境", description: "クラウドベースのWebアプリケーションデプロイ" },
-      { id: 8, name: "GitHub管理", icon: "code", category: "管理", description: "コードの安全なアップロード・管理支援" },
-      { id: 9, name: "実装タスク分析", icon: "assignment_turned_in", category: "管理", description: "実装順序の最適化と環境統一化" },
-      { id: 10, name: "スコープ実装", icon: "build", category: "実装", description: "設計情報から高品質なコード生成" },
-      { id: 11, name: "テスト管理", icon: "science", category: "テスト", description: "実データに基づく効率的なテスト実装" },
-      { id: 12, name: "デバッグ探偵", icon: "bug_report", category: "デバッグ", description: "フロントエンドエラーとAPI連携問題の解決" },
-      { id: 13, name: "追加機能実装", icon: "add_circle", category: "実装", description: "機能追加・変更・削除要望の分析" },
-      { id: 14, name: "リファクタリング", icon: "tune", category: "改善", description: "技術的負債の特定と設計改善" }
-    ];
-    
-    // モーダル内にプロンプトカードを追加
-    allPrompts.forEach(prompt => {
-      const card = document.createElement('div');
-      card.className = 'prompt-card';
-      card.innerHTML = `
-        <span class="material-icons prompt-icon">${prompt.icon}</span>
-        <div class="category-tag">${prompt.category}</div>
-        <h3 class="prompt-title">${prompt.name}</h3>
-        <p class="prompt-description">${prompt.description}</p>
-      `;
-      
-      // クリックイベント
-      card.addEventListener('click', () => {
-        // プロンプトのURL
-        const url = promptUrls[prompt.id];
-        if (url) {
-          // 新しいdialogManagerを使ってダイアログを表示
-          dialogManager.showModalTerminalModeDialog(url, prompt.id, prompt.name);
-        }
-      });
-      
-      promptGrid.appendChild(card);
-    });
+    console.warn('非推奨警告: 古いinitializePromptCardsInModal関数が呼び出されました。代わりにpromptCards.initializePromptCardsInModalを使用してください');
+    // 新しいpromptCardsコンポーネントに処理を委譲
+    promptCards.initializePromptCardsInModal();
   }
 })();
