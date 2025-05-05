@@ -45,1688 +45,270 @@
    - UI表示ロジックの集約
 
 ## 実装計画
+# ScopeManagerPanel 段階的リファクタリング実装計画 - 詳細タスクリスト
 
-### 1. StateManager（状態管理）
+## 1. 概要
 
-**ファイル**: `media/state/stateManager.js`
+このドキュメントは、`media/scopeManager.js`ファイルを機能ごとに分割し、保守性と拡張性を向上させるための詳細なタスクリストです。依存関係を考慮した段階的アプローチにより、各ステップでのユーザー確認を取り入れながら安全にリファクタリングを進めます。
 
-```javascript
-// @ts-check
+## 2. 目標
 
-/**
- * 状態管理クラス - VSCodeの状態APIとやり取りし、アプリケーション状態を管理
- */
-class StateManager {
-  /**
-   * @param {any} vscode VSCode API
-   */
-  constructor(vscode) {
-    this.vscode = vscode;
-    this.listeners = new Map();
-    this.state = this.vscode.getState() || this._getDefaultState();
-  }
-  
-  /**
-   * デフォルト状態を返す
-   * @returns {Object} デフォルト状態
-   */
-  _getDefaultState() {
-    return {
-      scopes: [],
-      selectedScopeIndex: -1,
-      selectedScope: null,
-      directoryStructure: '',
-      activeTab: 'current-status',
-      projects: [],
-      activeProject: null,
-      isNavCollapsed: false
-    };
-  }
-  
-  /**
-   * 現在の状態を取得
-   * @returns {Object} 現在の状態
-   */
-  getState() {
-    return this.state;
-  }
-  
-  /**
-   * 状態を更新
-   * @param {Object} newState 新しい状態（部分的）
-   * @param {boolean} notify リスナーに通知するか
-   * @returns {Object} 更新後の状態
-   */
-  setState(newState, notify = true) {
-    this.state = { ...this.state, ...newState };
-    this.vscode.setState(this.state);
-    
-    if (notify) {
-      this._notifyListeners();
-    }
-    
-    return this.state;
-  }
-  
-  /**
-   * 状態変更リスナーを追加
-   * @param {Function} listener 状態が変更されたときに呼び出される関数
-   * @returns {string} リスナーID（リスナー削除時に使用）
-   */
-  addStateChangeListener(listener) {
-    const id = Date.now().toString();
-    this.listeners.set(id, listener);
-    return id;
-  }
-  
-  /**
-   * 状態変更リスナーを削除
-   * @param {string} id リスナーID
-   * @returns {boolean} 削除に成功したか
-   */
-  removeStateChangeListener(id) {
-    return this.listeners.delete(id);
-  }
-  
-  /**
-   * すべてのリスナーに通知
-   * @private
-   */
-  _notifyListeners() {
-    for (const listener of this.listeners.values()) {
-      try {
-        listener(this.state);
-      } catch (error) {
-        console.error('状態変更リスナーでエラー発生:', error);
-      }
-    }
-  }
-  
-  /**
-   * VSCodeにメッセージを送信
-   * @param {string} command コマンド名
-   * @param {Object} data メッセージデータ
-   */
-  sendMessage(command, data = {}) {
-    this.vscode.postMessage({
-      command,
-      ...data
-    });
-  }
-  
-  // スコープ関連の状態操作
-  
-  /**
-   * スコープを選択
-   * @param {number} index スコープのインデックス
-   */
-  selectScope(index) {
-    if (index >= 0 && index < this.state.scopes.length) {
-      const scope = this.state.scopes[index];
-      this.setState({
-        selectedScopeIndex: index,
-        selectedScope: scope
-      });
-      
-      this.sendMessage('selectScope', { index });
-    }
-  }
-  
-  /**
-   * タブ状態を保存
-   * @param {string} tabId タブID
-   */
-  saveTabState(tabId) {
-    this.setState({ activeTab: tabId });
-    this.sendMessage('saveTabState', { tabId });
-  }
-}
+1. 単一責任の原則に従ったモジュール構造への移行
+2. 依存関係の整理と明確な階層構造の実現
+3. UIの安定性を維持しながらコードの品質向上
+4. 将来の機能拡張をしやすくする設計の実現
 
-// シングルトンインスタンス
-export default new StateManager(acquireVsCodeApi());
+## 3. ディレクトリ構造
+
+```
+media/
+├── scopeManager.js → エントリーポイント（最小化）
+├── components/
+│   ├── tabManager/
+│   │   ├── tabManager.js
+│   │   └── tabManager.css
+│   ├── markdownViewer/
+│   │   ├── markdownViewer.js
+│   │   └── markdownViewer.css
+│   ├── projectNavigation/
+│   │   ├── projectNavigation.js
+│   │   └── projectNavigation.css
+│   ├── dialogManager/
+│   │   ├── dialogManager.js
+│   │   └── dialogManager.css
+│   ├── promptCards/
+│   │   └── promptCards.js
+│   └── claudeCodeShare/
+│       └── claudeCodeShare.js
+├── state/
+│   └── stateManager.js
+├── utils/
+│   ├── markdownConverter.js
+│   ├── messageHandler.js
+│   ├── uiHelpers.js
+│   └── eventManager.js
 ```
 
-### 2. EventManager（イベント管理）
+## 4. 詳細タスクリスト
 
-**ファイル**: `media/utils/eventManager.js`
+各関数の依存関係を考慮した移行順序で、段階的にリファクタリングを進めます。各タスク完了後にはユーザー確認を行い、問題がないことを確認してから次のステップに進みます。
 
-```javascript
-// @ts-check
-import stateManager from '../state/stateManager.js';
+### フェーズ1: タブ管理関連の移行
 
-/**
- * イベント管理クラス - DOMイベントリスナーを登録・管理
- */
-class EventManager {
-  constructor() {
-    this.events = new Map();
-    this.initialize();
-  }
-  
-  /**
-   * イベントリスナーを初期化
-   */
-  initialize() {
-    this._setupTabEvents();
-    this._setupProjectNavigationEvents();
-    this._setupScopeListEvents();
-    this._setupImplementationButtonEvents();
-    this._setupDirectoryStructureButtonEvents();
-    this._setupCreateScopeButtonEvents();
-    
-    console.log('EventManager: すべてのイベントリスナーを初期化しました');
-  }
-  
-  /**
-   * タブイベントをセットアップ
-   * @private
-   */
-  _setupTabEvents() {
-    const tabs = document.querySelectorAll('.tab');
-    tabs.forEach(tab => {
-      const tabId = tab.getAttribute('data-tab');
-      if (!tabId) return;
-      
-      const handler = (event) => {
-        // モックアップギャラリーなど特殊タブの処理
-        if (tabId === 'tools') {
-          event.preventDefault();
-          event.stopPropagation();
-          
-          stateManager.sendMessage('openOriginalMockupGallery');
-          return;
-        }
-        
-        // タブ状態を更新
-        stateManager.saveTabState(tabId);
-      };
-      
-      tab.addEventListener('click', handler);
-      this._registerEventCleanup(tab, 'click', handler);
-    });
-  }
-  
-  /**
-   * プロジェクトナビゲーションイベントをセットアップ
-   * @private
-   */
-  _setupProjectNavigationEvents() {
-    // トグルボタン
-    const toggleNavBtn = document.getElementById('toggle-nav-btn');
-    if (toggleNavBtn) {
-      const handler = () => {
-        const projectNav = document.querySelector('.project-nav');
-        const contentArea = document.querySelector('.content-area');
-        const icon = toggleNavBtn.querySelector('.material-icons');
-        
-        // ナビゲーションの開閉状態を反転
-        const isCollapsed = projectNav?.classList.contains('collapsed') ?? false;
-        
-        if (isCollapsed) {
-          // パネルを展開
-          projectNav?.classList.remove('collapsed');
-          contentArea?.classList.remove('expanded');
-          icon.textContent = 'chevron_left';
-        } else {
-          // パネルを折りたたむ
-          projectNav?.classList.add('collapsed');
-          contentArea?.classList.add('expanded');
-          icon.textContent = 'chevron_right';
-        }
-        
-        // 状態を更新
-        stateManager.setState({ isNavCollapsed: !isCollapsed });
-      };
-      
-      toggleNavBtn.addEventListener('click', handler);
-      this._registerEventCleanup(toggleNavBtn, 'click', handler);
-    }
-    
-    // 新規プロジェクトボタン
-    const newProjectBtn = document.getElementById('new-project-btn');
-    if (newProjectBtn) {
-      const handler = () => {
-        stateManager.sendMessage('showNewProjectModal');
-      };
-      
-      newProjectBtn.addEventListener('click', handler);
-      this._registerEventCleanup(newProjectBtn, 'click', handler);
-    }
-    
-    // 既存プロジェクト読み込みボタン
-    const loadProjectBtn = document.getElementById('load-project-btn');
-    if (loadProjectBtn) {
-      const handler = () => {
-        stateManager.sendMessage('loadExistingProject');
-      };
-      
-      loadProjectBtn.addEventListener('click', handler);
-      this._registerEventCleanup(loadProjectBtn, 'click', handler);
-    }
-  }
-  
-  /**
-   * スコープリストイベントをセットアップ
-   * @private
-   */
-  _setupScopeListEvents() {
-    // 動的に生成されるスコープアイテムは、親要素にイベント委譲する
-    const scopeList = document.getElementById('scope-list');
-    if (scopeList) {
-      const handler = (event) => {
-        const scopeItem = event.target.closest('.scope-item');
-        if (!scopeItem) return;
-        
-        // スコープのインデックスを取得
-        const index = Array.from(scopeList.children).indexOf(scopeItem);
-        if (index >= 0) {
-          stateManager.selectScope(index);
-        }
-      };
-      
-      scopeList.addEventListener('click', handler);
-      this._registerEventCleanup(scopeList, 'click', handler);
-    }
-  }
-  
-  /**
-   * 実装開始ボタンイベントをセットアップ
-   * @private
-   */
-  _setupImplementationButtonEvents() {
-    const implementButton = document.getElementById('implement-button');
-    if (implementButton) {
-      const handler = () => {
-        stateManager.sendMessage('startImplementation');
-      };
-      
-      implementButton.addEventListener('click', handler);
-      this._registerEventCleanup(implementButton, 'click', handler);
-    }
-  }
-  
-  /**
-   * ディレクトリ構造ボタンイベントをセットアップ
-   * @private
-   */
-  _setupDirectoryStructureButtonEvents() {
-    const directoryButton = document.getElementById('directory-structure-button');
-    if (directoryButton) {
-      const handler = () => {
-        stateManager.sendMessage('showDirectoryStructure');
-      };
-      
-      directoryButton.addEventListener('click', handler);
-      this._registerEventCleanup(directoryButton, 'click', handler);
-    }
-  }
-  
-  /**
-   * スコープ新規作成ボタンイベントをセットアップ
-   * @private
-   */
-  _setupCreateScopeButtonEvents() {
-    const createScopeButton = document.getElementById('create-scope-button');
-    if (createScopeButton) {
-      const handler = () => {
-        stateManager.sendMessage('addNewScope');
-      };
-      
-      createScopeButton.addEventListener('click', handler);
-      this._registerEventCleanup(createScopeButton, 'click', handler);
-    }
-  }
-  
-  /**
-   * イベントクリーンアップを登録
-   * @param {HTMLElement} element 要素
-   * @param {string} eventType イベントタイプ
-   * @param {Function} handler イベントハンドラ
-   * @private
-   */
-  _registerEventCleanup(element, eventType, handler) {
-    const elementEvents = this.events.get(element) || [];
-    elementEvents.push({ type: eventType, handler });
-    this.events.set(element, elementEvents);
-  }
-  
-  /**
-   * リソースをクリーンアップ
-   */
-  cleanup() {
-    this.events.forEach((events, element) => {
-      events.forEach(({ type, handler }) => {
-        element.removeEventListener(type, handler);
-      });
-    });
-    
-    this.events.clear();
-  }
-}
+1. [x] **タスク1.1: `selectTab(tabId, saveToServer)` [行番号 1264] の移行**
+   - 移行先: `media/components/tabManager/tabManager.js`
+   - 内容: タブUI操作の中核機能を移行
+   - 確認ポイント: タブ切り替えが正常に動作すること
+   - **完了状況**: ✅ 2025-05-03 移行完了。競合状態防止のため初期化フラグによる安全対策を追加。
 
-// シングルトンインスタンス
-export default new EventManager();
-```
+2. [x] **タスク1.2: `initializeTabs()` [行番号 1105] の移行**
+   - 移行先: `media/components/tabManager/tabManager.js`
+   - 内容: タブ初期化機能を移行
+   - 確認ポイント: 初期タブ選択とイベントリスナーが正常に動作すること
+   - **完了状況**: ✅ 2025-05-03 移行完了。旧関数は非推奨として実装を簡略化し、新TabManagerに処理を委譲。
 
-### 3. MessageHandler（メッセージ処理）
+### フェーズ2: 状態管理関連の移行
 
-**ファイル**: `media/utils/messageHandler.js`
+3. [x] **タスク2.1: `handleUpdateState(data)` [行番号 309] の移行**
+   - 移行先: `media/state/stateManager.js`
+   - 内容: 状態更新の基本機能を移行
+   - 確認ポイント: 状態が正しく更新され永続化されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。CustomEventを使用してコンポーネント間の通信を実現。
 
-```javascript
-// @ts-check
-import stateManager from '../state/stateManager.js';
-import uiRenderer from './uiRenderer.js';
+4. [x] **タスク2.2: `syncProjectState(project)` [行番号 173] の移行**
+   - 移行先: `media/state/stateManager.js`
+   - 内容: プロジェクト状態同期機能を移行
+   - 確認ポイント: プロジェクト状態が正しく同期されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。状態の変更をイベントで通知する仕組みを実装。
 
-/**
- * メッセージ処理クラス - VSCodeとの通信を管理
- */
-class MessageHandler {
-  constructor() {
-    this.handlers = new Map();
-    this._setupHandlers();
-    this._setupMessageListener();
-  }
-  
-  /**
-   * メッセージハンドラーを設定
-   * @private
-   */
-  _setupHandlers() {
-    // ハンドラーを登録
-    this._registerHandler('updateState', this._handleUpdateState.bind(this));
-    this._registerHandler('showError', this._handleShowError.bind(this));
-    this._registerHandler('showSuccess', this._handleShowSuccess.bind(this));
-    this._registerHandler('showDirectoryStructure', this._handleShowDirectoryStructure.bind(this));
-    this._registerHandler('updateProjectPath', this._handleUpdateProjectPath.bind(this));
-    this._registerHandler('updateProjectName', this._handleUpdateProjectName.bind(this));
-    this._registerHandler('updateMarkdownContent', this._handleUpdateMarkdownContent.bind(this));
-    this._registerHandler('updateProjects', this._handleUpdateProjects.bind(this));
-    this._registerHandler('selectTab', this._handleSelectTab.bind(this));
-    this._registerHandler('updateToolsTab', this._handleUpdateToolsTab.bind(this));
-    this._registerHandler('syncProjectState', this._handleSyncProjectState.bind(this));
-  }
-  
-  /**
-   * メッセージリスナーを設定
-   * @private
-   */
-  _setupMessageListener() {
-    window.addEventListener('message', event => {
-      const message = event.data;
-      
-      // シェアリングパネル関連のメッセージは無視
-      if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
-        return;
-      }
-      
-      console.log('メッセージ受信:', message.command);
-      
-      const handler = this.handlers.get(message.command);
-      if (handler) {
-        try {
-          handler(message);
-        } catch (error) {
-          console.error(`メッセージハンドラーでエラー発生: ${message.command}`, error);
-          uiRenderer.showError(`メッセージ処理中にエラーが発生しました: ${error.message}`);
-        }
-      } else {
-        console.warn(`未登録のコマンド: ${message.command}`);
-      }
-    });
-  }
-  
-  /**
-   * メッセージハンドラーを登録
-   * @param {string} command コマンド名
-   * @param {Function} handler ハンドラー関数
-   * @private
-   */
-  _registerHandler(command, handler) {
-    this.handlers.set(command, handler);
-  }
-  
-  /**
-   * 状態更新メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleUpdateState(message) {
-    // 状態を更新
-    stateManager.setState(message);
-    
-    // UI更新指示
-    if (message.scopes) {
-      uiRenderer.updateScopeList(message.scopes);
-      uiRenderer.updateProjectProgress(message.scopes);
-    }
-    
-    if (message.selectedScope) {
-      uiRenderer.updateSelectedScope(message.selectedScope);
-    }
-  }
-  
-  /**
-   * エラーメッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleShowError(message) {
-    uiRenderer.showError(message.message);
-  }
-  
-  /**
-   * 成功メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleShowSuccess(message) {
-    uiRenderer.showSuccess(message.message);
-  }
-  
-  /**
-   * ディレクトリ構造表示メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleShowDirectoryStructure(message) {
-    uiRenderer.showDirectoryStructure(message.structure);
-  }
-  
-  /**
-   * プロジェクトパス更新メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleUpdateProjectPath(message) {
-    uiRenderer.updateProjectPath(message);
-    
-    if (message.statusFilePath && message.statusFileExists) {
-      stateManager.sendMessage('getMarkdownContent', {
-        filePath: message.statusFilePath
-      });
-    }
-  }
-  
-  /**
-   * プロジェクト名更新メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleUpdateProjectName(message) {
-    uiRenderer.updateProjectName(message.projectName);
-  }
-  
-  /**
-   * マークダウンコンテンツ更新メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleUpdateMarkdownContent(message) {
-    uiRenderer.displayMarkdownContent(message.content);
-  }
-  
-  /**
-   * プロジェクト一覧更新メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleUpdateProjects(message) {
-    uiRenderer.updateProjects(message.projects, message.activeProject);
-  }
-  
-  /**
-   * タブ選択メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleSelectTab(message) {
-    uiRenderer.selectTab(message.tabId, false);
-  }
-  
-  /**
-   * ツールタブ更新メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleUpdateToolsTab(message) {
-    uiRenderer.updateToolsTab(message.content);
-  }
-  
-  /**
-   * プロジェクト状態同期メッセージを処理
-   * @param {Object} message メッセージデータ
-   * @private
-   */
-  _handleSyncProjectState(message) {
-    if (!message.project) return;
-    
-    const project = message.project;
-    
-    // 必要な更新を行う
-    if (project.name) {
-      uiRenderer.updateProjectName(project.name);
-    }
-    
-    if (project.path) {
-      uiRenderer.updateProjectPath({
-        projectPath: project.path,
-        statusFilePath: project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '',
-        statusFileExists: true
-      });
-    }
-    
-    if (project.metadata && project.metadata.activeTab) {
-      const activeTabFromMetadata = project.metadata.activeTab;
-      
-      // タブが存在するか確認
-      const tabExists = Array.from(document.querySelectorAll('.tab'))
-        .some(tab => tab.getAttribute('data-tab') === activeTabFromMetadata);
-      
-      const tabToSelect = tabExists ? activeTabFromMetadata : 'current-status';
-      
-      // UIを更新
-      uiRenderer.selectTab(tabToSelect, false);
-    }
-    
-    // 状態を更新
-    stateManager.setState({
-      activeProjectName: project.name,
-      activeProjectPath: project.path,
-      activeTab: project.metadata?.activeTab || 'current-status'
-    });
-  }
-}
+5. [x] **タスク2.3: `restoreProjectState()` [行番号 939] の移行**
+   - 移行先: `media/state/stateManager.js`
+   - 内容: 状態復元機能を移行
+   - 確認ポイント: 他のパネルから戻った際に状態が正しく復元されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。遅延実行と非同期処理のタイミングを保持。
 
-// シングルトンインスタンス
-export default new MessageHandler();
-```
+### フェーズ3: マークダウン表示関連の移行
 
-### 4. UIRenderer（UI更新）
+6. [x] **タスク3.1: `displayMarkdownContent(markdownContent)` [行番号 335] の移行**
+   - 移行先: `media/components/markdownViewer/markdownViewer.js`
+   - 内容: マークダウン表示の基本機能を移行
+   - 確認ポイント: マークダウンが正しくHTMLに変換され表示されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。convertMarkdownToHtml関数を活用し、イベントベースの通信に移行。
 
-**ファイル**: `media/utils/uiRenderer.js`
+7. [x] **タスク3.2: `initializeMarkdownDisplay()` [行番号 913] の移行**
+   - 移行先: `media/components/markdownViewer/markdownViewer.js`
+   - 内容: マークダウン表示初期化機能を移行
+   - 確認ポイント: マークダウン表示が正しく初期化されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。markdownViewerが自動初期化される形に変更し、カスタムイベントリスナーを実装。
 
-```javascript
-// @ts-check
-import stateManager from '../state/stateManager.js';
-import markdownConverter from './markdownConverter.js';
+### フェーズ4: プロジェクトナビゲーション関連の移行
 
-/**
- * UI更新クラス - 状態に基づいてUI要素を更新
- */
-class UIRenderer {
-  /**
-   * スコープリストを更新
-   * @param {Array} scopes スコープ一覧
-   */
-  updateScopeList(scopes) {
-    const scopeList = document.getElementById('scope-list');
-    if (!scopeList) return;
-    
-    // リストをクリア
-    scopeList.innerHTML = '';
-    
-    // スコープがない場合は空のメッセージを表示
-    if (!scopes || scopes.length === 0) {
-      scopeList.innerHTML = `
-        <div class="scope-item">
-          <p>スコープが定義されていません</p>
-          <p>CURRENT_STATUS.mdファイルにスコープを追加してください</p>
-        </div>
-      `;
-      return;
-    }
-    
-    // 現在選択されているスコープのインデックス
-    const selectedIndex = stateManager.getState().selectedScopeIndex;
-    
-    // 各スコープをリストに追加
-    scopes.forEach((scope, index) => {
-      const statusClass = this._getStatusClass(scope.status);
-      const progressPercentage = scope.progress || 0;
-      
-      // スコープアイテムの作成
-      const scopeItem = document.createElement('div');
-      scopeItem.className = `scope-item ${index === selectedIndex ? 'active' : ''}`;
-      scopeItem.innerHTML = `
-        <h3>${scope.name}</h3>
-        <div class="scope-progress">
-          <div class="scope-progress-bar ${statusClass}" style="width: ${progressPercentage}%;"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-          <span style="font-size: 0.9rem; color: var(--app-text-secondary);">${scope.files ? scope.files.length : 0}ファイル</span>
-          <span style="font-size: 0.9rem; padding: 2px 8px; background-color: var(--app-primary-light); color: var(--app-primary); border-radius: 10px;">
-            ${progressPercentage}% ${this._getStatusText(scope.status)}
-          </span>
-        </div>
-      `;
-      
-      scopeList.appendChild(scopeItem);
-    });
-  }
-  
-  /**
-   * 選択されたスコープの詳細を更新
-   * @param {Object} scope スコープ情報
-   */
-  updateSelectedScope(scope) {
-    const scopeTitle = document.getElementById('scope-title');
-    const scopeDescription = document.getElementById('scope-description');
-    const scopeProgressBar = document.getElementById('scope-progress-bar');
-    const scopeProgressText = document.getElementById('scope-progress');
-    const implementationFiles = document.getElementById('implementation-files');
-    
-    if (scopeTitle) {
-      scopeTitle.textContent = scope.name;
-    }
-    
-    if (scopeDescription) {
-      scopeDescription.textContent = scope.description || '説明がありません';
-    }
-    
-    const progress = scope.progress || 0;
-    
-    if (scopeProgressBar) {
-      scopeProgressBar.style.width = `${progress}%`;
-      scopeProgressBar.className = `progress-fill ${this._getStatusClass(scope.status)}`;
-    }
-    
-    if (scopeProgressText) {
-      scopeProgressText.textContent = `${progress}%`;
-    }
-    
-    // 実装予定ファイルのリスト更新
-    if (implementationFiles) {
-      implementationFiles.innerHTML = '';
-      
-      if (scope.files && scope.files.length > 0) {
-        scope.files.forEach(file => {
-          const fileItem = document.createElement('div');
-          fileItem.className = 'file-item';
-          fileItem.innerHTML = `
-            <input type="checkbox" class="file-checkbox" ${file.completed ? 'checked' : ''} data-path="${file.path}" />
-            <span>${file.path}</span>
-          `;
-          
-          implementationFiles.appendChild(fileItem);
-        });
-        
-        // チェックボックスのイベントリスナー設定
-        const checkboxes = implementationFiles.querySelectorAll('.file-checkbox');
-        checkboxes.forEach(checkbox => {
-          checkbox.addEventListener('change', (e) => {
-            const path = e.target.getAttribute('data-path');
-            stateManager.sendMessage('toggleFileStatus', {
-              filePath: path,
-              completed: e.target.checked
-            });
-          });
-        });
-      } else {
-        implementationFiles.innerHTML = '<div class="file-item">実装予定ファイルがありません</div>';
-      }
-    }
-    
-    // スコープ詳細カードを表示
-    const scopeDetailContent = document.getElementById('scope-detail-content');
-    if (scopeDetailContent) {
-      scopeDetailContent.style.display = 'block';
-    }
-    
-    // 空メッセージを非表示
-    const scopeEmptyMessage = document.getElementById('scope-empty-message');
-    if (scopeEmptyMessage) {
-      scopeEmptyMessage.style.display = 'none';
-    }
-  }
-  
-  /**
-   * プロジェクト進捗を更新
-   * @param {Array} scopes スコープ一覧
-   */
-  updateProjectProgress(scopes) {
-    if (!scopes || scopes.length === 0) {
-      return;
-    }
-    
-    const progressElement = document.getElementById('project-progress');
-    const progressText = document.getElementById('project-progress-text');
-    
-    // プロジェクト全体の進捗を計算
-    const totalScopes = scopes.length;
-    const completedScopes = scopes.filter(scope => scope.status === 'completed').length;
-    const inProgressScopes = scopes.filter(scope => scope.status === 'in-progress').length;
-    
-    // 進捗率の計算 (完了=100%, 進行中=50%として計算)
-    const progressPercentage = Math.round((completedScopes * 100 + inProgressScopes * 50) / totalScopes);
-    
-    // 進捗バーの更新
-    if (progressElement) {
-      progressElement.style.width = `${progressPercentage}%`;
-    }
-    
-    // 進捗テキストの更新
-    if (progressText) {
-      progressText.textContent = `${progressPercentage}% 完了`;
-    }
-  }
-  
-  /**
-   * マークダウンコンテンツを表示
-   * @param {string} markdownContent マークダウンテキスト
-   */
-  displayMarkdownContent(markdownContent) {
-    const markdownContainer = document.querySelector('.markdown-content');
-    if (markdownContainer) {
-      // マークダウンをHTMLに変換
-      const htmlContent = markdownConverter.toHtml(markdownContent);
-      
-      // HTML内容を設定
-      markdownContainer.innerHTML = htmlContent;
-      
-      // ディレクトリツリーと表の特別なスタイリングを適用
-      this._enhanceSpecialElements();
-      
-      // チェックボックスのイベントリスナー設定
-      this._setupCheckboxes();
-    }
-  }
-  
-  /**
-   * ディレクトリツリーと表の特別なスタイリングを適用
-   * @private
-   */
-  _enhanceSpecialElements() {
-    try {
-      // ディレクトリツリーの処理
-      const directoryTrees = document.querySelectorAll('.directory-tree');
-      directoryTrees.forEach(tree => {
-        // ツリー項目の特別スタイリング
-        const treeItems = tree.querySelectorAll('.tree-item');
-        treeItems.forEach(item => {
-          // 必要に応じて追加スタイリング
-          item.style.fontFamily = 'monospace';
-        });
-        
-        // 適切なスタイルクラスを追加
-        tree.classList.add('enhanced-tree');
-      });
-      
-      // プレーンなコードブロックの処理
-      const preBlocks = document.querySelectorAll('.markdown-content pre.code-block');
-      preBlocks.forEach(preBlock => {
-        const content = preBlock.textContent || '';
-        
-        // コードブロックのベーススタイル
-        preBlock.style.fontFamily = 'monospace';
-        preBlock.style.whiteSpace = 'pre';
-        preBlock.style.overflow = 'auto';
-        preBlock.style.backgroundColor = 'var(--app-gray-100)';
-        preBlock.style.padding = '12px';
-        preBlock.style.borderRadius = 'var(--app-border-radius-sm)';
-        preBlock.style.border = '1px solid var(--app-border-color)';
-        preBlock.style.lineHeight = '1.5';
-        preBlock.style.color = 'var(--app-text)';
-        
-        // ディレクトリ構造っぽい特徴を持っているかチェック
-        if ((content.includes('├') || content.includes('└') || content.includes('│')) && 
-            content.includes('/')) {
-          
-          // ディレクトリ構造のような特徴を持つブロックには特別なクラスを追加
-          preBlock.classList.add('directory-structure');
-        }
-      });
-    } catch (error) {
-      console.error('特殊要素のスタイリング中にエラーが発生しました:', error);
-    }
-  }
-  
-  /**
-   * マークダウン内のチェックボックスにイベントリスナーを設定
-   * @private
-   */
-  _setupCheckboxes() {
-    const checkboxes = document.querySelectorAll('.markdown-content input[type="checkbox"]');
-    
-    checkboxes.forEach((checkbox, index) => {
-      checkbox.addEventListener('change', (e) => {
-        // チェックボックス変更のメッセージを送信
-        stateManager.sendMessage('updateMarkdownCheckbox', {
-          checked: e.target.checked,
-          index: index
-        });
-      });
-    });
-  }
-  
-  /**
-   * プロジェクトパスを更新
-   * @param {Object} data プロジェクトパスデータ
-   */
-  updateProjectPath(data) {
-    const projectNameElement = document.querySelector('.project-display .project-name');
-    const projectPathElement = document.querySelector('.project-path-display');
-    
-    // プロジェクト情報の更新
-    if (data.projectPath) {
-      // パスから最後のディレクトリ名を取得
-      const pathParts = data.projectPath.split(/[/\\]/);
-      const projectName = pathParts[pathParts.length - 1];
-      
-      // プロジェクト表示部分を更新
-      if (projectNameElement) {
-        projectNameElement.textContent = projectName || 'プロジェクト';
-      }
-    }
-    
-    if (projectPathElement) {
-      projectPathElement.textContent = data.projectPath || '/path/to/project';
-    }
-  }
-  
-  /**
-   * プロジェクト名を更新
-   * @param {string} projectName プロジェクト名
-   */
-  updateProjectName(projectName) {
-    // プロジェクト名をヘッダーに更新
-    const projectDisplayName = document.querySelector('.project-display .project-name');
-    if (projectDisplayName) {
-      projectDisplayName.textContent = projectName;
-    }
-  }
-  
-  /**
-   * プロジェクト一覧を更新
-   * @param {Array} projects プロジェクト一覧
-   * @param {Object} activeProject アクティブプロジェクト
-   */
-  updateProjects(projects, activeProject) {
-    const projectList = document.getElementById('project-list');
-    if (!projectList) return;
-    
-    // 既存のアクティブプロジェクトエリアがあれば削除
-    const existingActiveArea = document.getElementById('active-project-area');
-    if (existingActiveArea) {
-      existingActiveArea.remove();
-    }
-    
-    // 既存の他のプロジェクトラベルがあれば削除
-    const existingLabel = document.getElementById('other-projects-label');
-    if (existingLabel) {
-      existingLabel.remove();
-    }
-    
-    // リストをクリア
-    projectList.innerHTML = '';
-    
-    // プロジェクトがない場合の表示
-    if (!projects || projects.length === 0) {
-      projectList.innerHTML = '<div class="project-item">プロジェクトがありません</div>';
-      return;
-    }
-    
-    // ソート済みのプロジェクト配列を作成
-    let sortedProjects = [...projects];
-    sortedProjects.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    
-    // プロジェクトをリストに追加
-    sortedProjects.forEach((project) => {
-      const item = document.createElement('div');
-      const isActive = activeProject && activeProject.id === project.id;
-      
-      item.className = isActive ? 'project-item active' : 'project-item';
-      if (isActive) {
-        item.id = 'active-project-item';
-      }
-      
-      // プロジェクト表示名の設定
-      let displayName = project.name || '';
-      if (!displayName && project.path) {
-        const pathParts = project.path.split(/[/\\]/);
-        displayName = pathParts[pathParts.length - 1] || 'プロジェクト';
-      }
-      
-      item.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
-          <div>
-            <span class="project-name" ${isActive ? 'style="font-weight: 600;"' : ''}>${displayName}</span>
-            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">${project.path || 'パスなし'}</span>
-          </div>
-          <button class="remove-project-btn" title="プロジェクトの登録を解除" style="background: none; border: none; cursor: pointer; color: var(--app-text-secondary); opacity: 0.5; font-size: 16px;">
-            <span class="material-icons" style="font-size: 16px;">close</span>
-          </button>
-        </div>
-      `;
-      
-      // 削除ボタンのイベントリスナー
-      const removeBtn = item.querySelector('.remove-project-btn');
-      if (removeBtn) {
-        removeBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this._showProjectRemoveConfirmation(displayName, project);
-        });
-        
-        // ホバー効果
-        removeBtn.addEventListener('mouseover', () => {
-          removeBtn.style.opacity = '0.8';
-          removeBtn.style.color = 'var(--app-text)';
-        });
-        
-        removeBtn.addEventListener('mouseout', () => {
-          removeBtn.style.opacity = '0.5';
-          removeBtn.style.color = 'var(--app-text-secondary)';
-        });
-      }
-      
-      // プロジェクト選択イベント
-      item.addEventListener('click', (e) => {
-        if (!e.target.closest('.remove-project-btn')) {
-          this._selectProject(displayName, project.path);
-        }
-      });
-      
-      projectList.appendChild(item);
-    });
-  }
-  
-  /**
-   * プロジェクト削除確認ダイアログを表示
-   * @param {string} projectName プロジェクト名
-   * @param {Object} project プロジェクト情報
-   * @private
-   */
-  _showProjectRemoveConfirmation(projectName, project) {
-    const overlay = document.createElement('div');
-    overlay.className = 'dialog-overlay';
-    overlay.style.zIndex = '10000';
-    
-    const dialog = document.createElement('div');
-    dialog.className = 'dialog';
-    dialog.innerHTML = `
-      <div class="dialog-title">プロジェクト登録解除の確認</div>
-      <div style="margin: 20px 0;">
-        <p>プロジェクト「${projectName}」の登録を解除しますか？</p>
-        <p style="color: var(--app-text-secondary); font-size: 0.9em; margin-top: 10px;">
-          注意: この操作はプロジェクトファイルを削除するものではなく、
-          AppGeniusからの登録を解除するだけです。
-        </p>
-      </div>
-      <div class="dialog-footer">
-        <button class="button button-secondary" id="cancel-remove">キャンセル</button>
-        <button class="button" id="confirm-remove" style="background-color: var(--app-danger);">登録解除</button>
-      </div>
-    `;
-    
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    
-    // キャンセルボタン
-    document.getElementById('cancel-remove')?.addEventListener('click', () => {
-      document.body.removeChild(overlay);
-    });
-    
-    // 確認ボタン
-    document.getElementById('confirm-remove')?.addEventListener('click', () => {
-      stateManager.sendMessage('removeProject', {
-        projectName: projectName,
-        projectPath: project.path,
-        projectId: project.id
-      });
-      
-      document.body.removeChild(overlay);
-    });
-  }
-  
-  /**
-   * プロジェクトを選択
-   * @param {string} projectName プロジェクト名
-   * @param {string} projectPath プロジェクトパス
-   * @private
-   */
-  _selectProject(projectName, projectPath) {
-    // 現在のアクティブタブIDを取得
-    const currentActiveTab = document.querySelector('.tab.active')?.getAttribute('data-tab');
-    
-    // 状態を保存
-    stateManager.setState({
-      activeProjectName: projectName,
-      activeProjectPath: projectPath,
-      activeTab: currentActiveTab || 'current-status'
-    });
-    
-    // プロジェクト選択メッセージを送信
-    stateManager.sendMessage('selectProject', {
-      projectName: projectName,
-      projectPath: projectPath,
-      activeTab: currentActiveTab
-    });
-    
-    // 選択中の通知を表示
-    this._showProjectLoadingNotification(projectName);
-  }
-  
-  /**
-   * プロジェクト読み込み中通知を表示
-   * @param {string} projectName プロジェクト名
-   * @private
-   */
-  _showProjectLoadingNotification(projectName) {
-    const notification = document.createElement('div');
-    notification.className = 'save-notification';
-    notification.innerHTML = `
-      <span class="material-icons" style="color: var(--app-warning);">hourglass_top</span>
-      <span class="notification-text">プロジェクト「${projectName}」を読み込み中...</span>
-    `;
-    
-    // スタイル設定
-    notification.style.display = 'flex';
-    notification.style.opacity = '1';
-    notification.style.backgroundColor = 'rgba(253, 203, 110, 0.15)';
-    notification.style.position = 'fixed';
-    notification.style.bottom = '20px';
-    notification.style.right = '20px';
-    notification.style.padding = '10px 20px';
-    notification.style.borderRadius = '4px';
-    notification.style.alignItems = 'center';
-    notification.style.gap = '8px';
-    notification.style.zIndex = '1000';
-    
-    // 通知を表示
-    document.body.appendChild(notification);
-    
-    // 3秒後に自動で閉じる
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 3000);
-  }
-  
-  /**
-   * タブを選択
-   * @param {string} tabId タブID
-   * @param {boolean} saveToServer サーバーに保存するか
-   */
-  selectTab(tabId, saveToServer = true) {
-    if (!tabId) return;
-    
-    const tabs = document.querySelectorAll('.tab');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    // タブのアクティブ状態を更新
-    tabs.forEach(tab => {
-      if (tab.getAttribute('data-tab') === tabId) {
-        tab.classList.add('active');
-      } else {
-        tab.classList.remove('active');
-      }
-    });
-    
-    // タブコンテンツの表示状態を更新
-    tabContents.forEach(content => {
-      if (content.id === `${tabId}-tab`) {
-        content.classList.add('active');
-      } else {
-        content.classList.remove('active');
-      }
-    });
-    
-    // 状態を更新
-    stateManager.setState({ activeTab: tabId }, false);
-    
-    // サーバーに保存
-    if (saveToServer) {
-      stateManager.saveTabState(tabId);
-    }
-  }
-  
-  /**
-   * ツールタブの内容を更新
-   * @param {string} content HTMLコンテンツ
-   */
-  updateToolsTab(content) {
-    const toolsTab = document.getElementById('tools-tab');
-    if (!toolsTab) return;
-    
-    toolsTab.innerHTML = content;
-  }
-  
-  /**
-   * ディレクトリ構造ダイアログを表示
-   * @param {string} structure ディレクトリ構造テキスト
-   */
-  showDirectoryStructure(structure) {
-    const overlay = document.createElement('div');
-    overlay.className = 'dialog-overlay';
-    
-    const dialog = document.createElement('div');
-    dialog.className = 'dialog';
-    dialog.innerHTML = `
-      <div class="dialog-title">プロジェクト構造</div>
-      <div style="max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre; font-size: 12px;">
-        ${structure.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-      </div>
-      <div class="dialog-footer">
-        <button class="button" id="close-dialog">閉じる</button>
-      </div>
-    `;
-    
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    
-    // 閉じるボタン
-    document.getElementById('close-dialog').addEventListener('click', () => {
-      document.body.removeChild(overlay);
-    });
-  }
-  
-  /**
-   * エラーメッセージを表示
-   * @param {string} message メッセージ
-   */
-  showError(message) {
-    this._showNotification(message, 'error');
-  }
-  
-  /**
-   * 成功メッセージを表示
-   * @param {string} message メッセージ
-   */
-  showSuccess(message) {
-    this._showNotification(message, 'success');
-  }
-  
-  /**
-   * 通知メッセージを表示
-   * @param {string} message メッセージ
-   * @param {'error'|'success'|'info'|'warning'} type 通知タイプ
-   * @private
-   */
-  _showNotification(message, type) {
-    // 既存の通知を削除
-    document.querySelectorAll('.notification-message').forEach(el => el.remove());
-    
-    // 通知のスタイル情報
-    const styles = {
-      error: { bg: '#f8d7da', color: '#721c24', icon: '⚠️' },
-      success: { bg: '#d4edda', color: '#155724', icon: '✅' },
-      info: { bg: '#d1ecf1', color: '#0c5460', icon: 'ℹ️' },
-      warning: { bg: '#fff3cd', color: '#856404', icon: '⚠️' }
-    };
-    
-    const style = styles[type] || styles.info;
-    
-    // 通知要素の作成
-    const notification = document.createElement('div');
-    notification.className = `notification-message ${type}-message`;
-    notification.innerHTML = `<span>${style.icon}</span> ${message}`;
-    
-    // スタイル設定
-    Object.assign(notification.style, {
-      position: 'fixed',
-      top: '20px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      backgroundColor: style.bg,
-      color: style.color,
-      padding: '10px 20px',
-      borderRadius: '4px',
-      boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-      zIndex: '10000'
-    });
-    
-    document.body.appendChild(notification);
-    
-    // 5秒後に自動で消去
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 5000);
-  }
-  
-  /**
-   * ステータスに応じたCSSクラスを返す
-   * @param {string} status ステータス
-   * @returns {string} CSSクラス
-   * @private
-   */
-  _getStatusClass(status) {
-    switch (status) {
-      case 'completed':
-        return 'status-completed';
-      case 'in-progress':
-        return 'status-in-progress';
-      case 'blocked':
-        return 'status-blocked';
-      case 'pending':
-      default:
-        return 'status-pending';
-    }
-  }
-  
-  /**
-   * ステータスの表示テキストを返す
-   * @param {string} status ステータス
-   * @returns {string} 表示テキスト
-   * @private
-   */
-  _getStatusText(status) {
-    switch (status) {
-      case 'completed':
-        return '完了';
-      case 'in-progress':
-        return '進行中';
-      case 'blocked':
-        return '停止中';
-      case 'pending':
-      default:
-        return '未着手';
-    }
-  }
-}
+8. [x] **タスク4.1: `updateProjectName(projectName)` [行番号 541] の移行**
+   - 移行先: `media/components/projectNavigation/projectNavigation.js`
+   - 内容: プロジェクト名更新機能を移行
+   - 確認ポイント: プロジェクト名が正しく更新されること
+   - **完了状況**: ✅ 2025-05-03 移行完了。イベントベースの通信で機能を保持しつつ責任を分離。
 
-// シングルトンインスタンス
-export default new UIRenderer();
-```
+9. [x] **タスク4.2: `updateProjectPath(data)` [行番号 254] の移行**
+   - 移行先: `media/components/projectNavigation/projectNavigation.js`
+   - 内容: プロジェクトパス更新機能を移行
+   - 確認ポイント: プロジェクトパスが正しく更新され、マークダウン取得が機能すること
+   - **完了状況**: ✅ 2025-05-03 移行完了。VSCode APIとのインタラクションを保持しつつコンポーネント化。
 
-### 5. マークダウン変換（Utils）
+10. [x] **タスク4.3: `updateProjects(projects, activeProject)` [行番号 569] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
+    - 内容: プロジェクト一覧更新機能を移行
+    - 確認ポイント: プロジェクト一覧が正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-03 移行完了。大規模な機能をイベントベースの通信に変更し、プロジェクト操作の全責任をコンポーネントに委譲。
 
-**ファイル**: `media/utils/markdownConverter.js`
+11. [x] **タスク4.4: `initializeProjectNav()` [行番号 845] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
+    - 内容: プロジェクトナビゲーション初期化機能を移行
+    - 確認ポイント: プロジェクトナビゲーションが正しく初期化され操作できること
+    - **完了状況**: ✅ 2025-05-03 移行完了。initializeNavigation()メソッドを追加し、新規プロジェクト作成モーダル機能も完全に移行。
 
-```javascript
-// @ts-check
+### フェーズ5: ダイアログ関連の移行
 
-/**
- * マークダウン変換クラス - マークダウンテキストをHTMLに変換
- */
-class MarkdownConverter {
-  /**
-   * マークダウンテキストをHTMLに変換
-   * @param {string} markdown マークダウンテキスト
-   * @returns {string} HTML
-   */
-  static toHtml(markdown) {
-    if (!markdown) return '';
-    
-    // コードブロックを先に処理して保護
-    const codeBlocks = [];
-    let processedMarkdown = markdown.replace(/```([\s\S]*?)```/g, (match, code) => {
-      const id = `CODE_BLOCK_${codeBlocks.length}`;
-      codeBlocks.push(code);
-      return id;
-    });
-    
-    // テーブルを先に処理して保護
-    const tables = [];
-    processedMarkdown = processedMarkdown.replace(/\|(.+)\|\s*\n\|(?:[-:]+\|)+\s*\n(\|(?:.+)\|\s*\n)+/g, (match) => {
-      const id = `TABLE_BLOCK_${tables.length}`;
-      tables.push(match);
-      return id;
-    });
-    
-    // 強調（太字）を保護
-    const boldTexts = [];
-    processedMarkdown = processedMarkdown.replace(/\*\*(.+?)\*\*/g, (match, text) => {
-      const id = `BOLD_TEXT_${boldTexts.length}`;
-      boldTexts.push(text);
-      return id;
-    });
-    
-    // 斜体を保護
-    const italicTexts = [];
-    processedMarkdown = processedMarkdown.replace(/(?<!\*)\*([^\*]+)\*(?!\*)/g, (match, text) => {
-      const id = `ITALIC_TEXT_${italicTexts.length}`;
-      italicTexts.push(text);
-      return id;
-    });
-    
-    // 番号付きリストアイテムの番号を保持する特別処理
-    processedMarkdown = processedMarkdown.replace(/^(\s*)(\d+)\.\s+(.+)$/gm, (match, indent, number, content) => {
-      return `${indent}NUM_LIST_${number}. ${content}`;
-    });
-    
-    // ネスト付きリストの処理のために行を分割
-    const lines = processedMarkdown.split('\n');
-    const processedLines = [];
-    let inList = false;
-    let inNumberedList = false;
-    let currentListLevel = 0;
-    let listStack = [];
-    
-    // 各行を順番に処理
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const trimmedLine = line.trim();
-      
-      // 番号付きリストアイテムの検出
-      const numberedListMatch = trimmedLine.match(/^(\s*)NUM_LIST_(\d+)\. (.+)$/);
-      
-      // 通常のリストアイテムの検出
-      const listMatch = trimmedLine.match(/^(\s*)[-*+] (.+)$/);
-      
-      if (numberedListMatch) {
-        // 番号付きリスト処理
-        // ...
-        const indent = numberedListMatch[1];
-        const number = numberedListMatch[2];
-        const content = numberedListMatch[3];
-        const indentLevel = Math.floor(indent.length / 2); // 2スペースごとに1レベル
-        
-        // リスト開始または継続
-        if (!inList) {
-          inList = true;
-          inNumberedList = true;
-          processedLines.push('<ol>');
-          listStack.push('ol');
-          currentListLevel = 0;
-        } else if (!inNumberedList && currentListLevel === 0) {
-          // 番号なしから番号付きリストへの切り替え
-          processedLines.push('</ul>');
-          listStack.pop();
-          processedLines.push('<ol>');
-          listStack.push('ol');
-          inNumberedList = true;
-        }
-        
-        // レベル調整処理
-        // ...
-        // リストアイテムの追加（番号付き）
-        processedLines.push(`<li value="${number}">${content}</li>`);
-      } else if (listMatch) {
-        // 通常リスト処理
-        // ...
-        const indent = listMatch[1];
-        const content = listMatch[2];
-        const indentLevel = Math.floor(indent.length / 2); // 2スペースごとに1レベル
-        
-        // リスト開始または継続
-        if (!inList) {
-          inList = true;
-          inNumberedList = false;
-          processedLines.push('<ul>');
-          listStack.push('ul');
-          currentListLevel = 0;
-        } else if (inNumberedList && currentListLevel === 0) {
-          // 番号付きから番号なしリストへの切り替え
-          processedLines.push('</ol>');
-          listStack.pop();
-          processedLines.push('<ul>');
-          listStack.push('ul');
-          inNumberedList = false;
-        }
-        
-        // レベル調整処理
-        // ...
-        // リストアイテムの追加（通常）
-        processedLines.push(`<li>${content}</li>`);
-      } else if (trimmedLine === '' && inList) {
-        // 空行でリストを終了
-        while (listStack.length > 0) {
-          processedLines.push(`</${listStack.pop()}>`);
-        }
-        inList = false;
-        inNumberedList = false;
-        currentListLevel = 0;
-        processedLines.push('');
-      } else {
-        // 通常の行はそのまま追加
-        processedLines.push(line);
-      }
-    }
-    
-    // リストが閉じられていない場合は閉じる
-    if (inList) {
-      while (listStack.length > 0) {
-        processedLines.push(`</${listStack.pop()}>`);
-      }
-    }
-    
-    // 処理済みの行を結合
-    let processedText = processedLines.join('\n');
-    
-    // 見出し処理
-    processedText = processedText
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^#### (.+)$/gm, '<h4>$1</h4>');
-    
-    // リンク処理
-    processedText = processedText
-      .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
-    
-    // インラインコード処理
-    processedText = processedText
-      .replace(/`(.+?)`/g, '<code>$1</code>');
-    
-    // 太字テキストを復元
-    for (let i = 0; i < boldTexts.length; i++) {
-      processedText = processedText.replace(
-        new RegExp(`BOLD_TEXT_${i}`, 'g'), 
-        `<strong>${boldTexts[i]}</strong>`
-      );
-    }
-    
-    // 斜体テキストを復元
-    for (let i = 0; i < italicTexts.length; i++) {
-      processedText = processedText.replace(
-        new RegExp(`ITALIC_TEXT_${i}`, 'g'), 
-        `<em>${italicTexts[i]}</em>`
-      );
-    }
-    
-    // 段落処理
-    let html = processedText.replace(/\n\n/g, '</p><p>');
-    html = '<p>' + html + '</p>';
-    
-    // テーブルを復元して変換
-    html = html.replace(/TABLE_BLOCK_(\d+)/g, (match, index) => {
-      const tableContent = tables[parseInt(index, 10)];
-      return this.convertMarkdownTableToHtml(tableContent);
-    });
-    
-    // コードブロックを復元
-    html = html.replace(/CODE_BLOCK_(\d+)/g, (match, index) => {
-      const code = codeBlocks[parseInt(index, 10)];
-      // コードブロックをHTMLエスケープして<pre>タグで囲む
-      const escapedCode = this._escapeHtml(code);
-      return `<pre class="code-block">${escapedCode}</pre>`;
-    });
-    
-    return html;
-  }
-  
-  /**
-   * マークダウンテーブルをHTMLテーブルに変換
-   * @param {string} markdownTable マークダウン形式のテーブル
-   * @returns {string} HTMLテーブル
-   */
-  static convertMarkdownTableToHtml(markdownTable) {
-    try {
-      if (!markdownTable) return '';
-      
-      // テーブル行を分割
-      const lines = markdownTable.trim().split('\n');
-      if (lines.length < 3) return markdownTable; // 最低でもヘッダー行、区切り行、データ行が必要
-      
-      // ヘッダー行を処理
-      const headerRow = lines[0];
-      const headers = headerRow.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
-      
-      // 行の配置情報を取得（左寄せ、中央寄せ、右寄せ）
-      const alignmentRow = lines[1];
-      const alignments = alignmentRow.split('|')
-        .map(cell => cell.trim())
-        .filter(cell => cell !== '')
-        .map(cell => {
-          if (cell.startsWith(':') && cell.endsWith(':')) return 'center';
-          if (cell.endsWith(':')) return 'right';
-          return 'left';
-        });
-      
-      // テーブルのHTML開始
-      let html = '<table class="md-table">\n';
-      
-      // ヘッダー行を追加
-      html += '  <thead>\n    <tr>\n';
-      headers.forEach((header, index) => {
-        const align = alignments[index] || 'left';
-        html += `      <th style="text-align: ${align}">${header}</th>\n`;
-      });
-      html += '    </tr>\n  </thead>\n';
-      
-      // データ行を追加
-      html += '  <tbody>\n';
-      for (let i = 2; i < lines.length; i++) {
-        const row = lines[i];
-        const cells = row.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
-        
-        html += '    <tr>\n';
-        cells.forEach((cell, index) => {
-          const align = alignments[index] || 'left';
-          html += `      <td style="text-align: ${align}">${cell}</td>\n`;
-        });
-        html += '    </tr>\n';
-      }
-      html += '  </tbody>\n</table>';
-      
-      return html;
-    } catch (error) {
-      console.error('テーブル変換エラー:', error);
-      return markdownTable; // エラー時は元のマークダウンを返す
-    }
-  }
-  
-  /**
-   * HTMLエスケープ
-   * @param {string} text エスケープするテキスト
-   * @returns {string} エスケープされたテキスト
-   * @private
-   */
-  static _escapeHtml(text) {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-}
+12. [x] **タスク5.1: `hideNewProjectModal()` [行番号 1059] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
+    - 内容: モーダル非表示機能を移行
+    - 確認ポイント: モーダルが正しく非表示になること
+    - **完了状況**: ✅ 2025-05-04 既にprojectNavigation.jsに実装されていたので確認のみ。
 
-export default MarkdownConverter;
-```
+13. [x] **タスク5.2: `showNewProjectModal()` [行番号 983] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
+    - 内容: 新規プロジェクトモーダル表示機能を移行
+    - 確認ポイント: モーダルが正しく表示され操作できること
+    - **完了状況**: ✅ 2025-05-04 既にprojectNavigation.jsに実装されていたので確認のみ。
 
-### 6. 新しいscopeManager.js（エントリーポイント）
+14. [x] **タスク5.3: `createNewProject()` [行番号 1070] の移行**
+    - 移行先: `media/components/projectNavigation/projectNavigation.js`
+    - 内容: プロジェクト作成処理を移行
+    - 確認ポイント: 新規プロジェクトが正しく作成できること
+    - **完了状況**: ✅ 2025-05-04 既にprojectNavigation.jsに実装されていたので確認のみ。
 
-**ファイル**: `media/scopeManager.js`
+15. [x] **タスク5.4: `showTerminalModeDialog(url, name, index)` [行番号 287] の移行**
+    - 移行先: `media/components/dialogManager/dialogManager.js`
+    - 内容: ターミナルモード選択ダイアログ表示機能を移行
+    - 確認ポイント: ダイアログが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。インラインスタイルからCSSクラス使用に変更し、コードを整理。
 
-```javascript
-// @ts-check
+16. [x] **タスク5.5: `showModalTerminalModeDialog(url, promptId, promptName)` [行番号 619] の移行**
+    - 移行先: `media/components/dialogManager/dialogManager.js`
+    - 内容: モーダル内ターミナルモード選択ダイアログ表示機能を移行
+    - 確認ポイント: モーダル内ダイアログが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。インラインスタイルからCSSクラス使用に変更し、コードを整理。
 
-// VSCode API取得 
-const vscode = acquireVsCodeApi();
+### フェーズ6: プロンプトカード関連の移行
 
-// コンポーネント・サービスのインポート
-import stateManager from './state/stateManager.js';
-import messageHandler from './utils/messageHandler.js';
-import eventManager from './utils/eventManager.js';
-import uiRenderer from './utils/uiRenderer.js';
-import './components/tabManager/tabManager.js';
-import './components/projectNavigation/projectNavigation.js';
-import './components/markdownViewer/markdownViewer.js';
-import './components/dialogManager/dialogManager.js';
+17. [x] **タスク6.1: `initializePromptCards()` [行番号 255] の移行**
+    - 移行先: `media/components/promptCards/promptCards.js`
+    - 内容: プロンプトカード初期化機能を移行
+    - 確認ポイント: プロンプトカードが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。旧関数は非推奨として実装を簡略化し、新promptCardsに処理を委譲。
 
-// 初期化
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('ScopeManager: DOM読み込み完了、初期化を開始します');
-  
-  try {
-    // 初期化メッセージの送信
-    vscode.postMessage({ command: 'initialize' });
-    
-    // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
-    setTimeout(() => {
-      const state = stateManager.getState();
-      
-      if (state.activeTab) {
-        const tabExists = Array.from(document.querySelectorAll('.tab'))
-          .some(tab => tab.getAttribute('data-tab') === state.activeTab);
-        
-        const tabToSelect = tabExists ? state.activeTab : 'current-status';
-        uiRenderer.selectTab(tabToSelect, false);
-      }
-    }, 100);
-    
-    console.log('ScopeManager: 初期化が完了しました');
-  } catch (error) {
-    console.error('ScopeManager: 初期化中にエラーが発生しました', error);
-  }
-});
+18. [x] **タスク6.2: `initializePromptCardsInModal()` [行番号 477] の移行**
+    - 移行先: `media/components/promptCards/promptCards.js`
+    - 内容: モーダル内プロンプトカード初期化機能を移行
+    - 確認ポイント: モーダル内プロンプトカードが正しく表示され選択できること
+    - **完了状況**: ✅ 2025-05-04 移行完了。旧関数は非推奨として実装を簡略化し、新promptCardsに処理を委譲。
 
-// アンロード時のクリーンアップ
-window.addEventListener('beforeunload', () => {
-  eventManager.cleanup();
-});
-```
+### フェーズ7: その他の機能の移行
 
-## 移行計画
+19. [x] **タスク7.1: `initializeClaudeCodeShareArea()` [行番号 1191] の移行**
+    - 移行先: 既存の場所に留め、非推奨とマーク
+    - 内容: ClaudeCode連携エリア初期化機能を現状維持
+    - 確認ポイント: 連携エリアが正しく表示され操作できること
+    - **完了状況**: ✅ 2025-05-04 機能範囲が限定的であり、sharingPanel.jsとの連携が既に確立されているため、移行せずに現状維持。
 
-1. **準備フェーズ**
-   - 必要なディレクトリ構造を作成
-   - バックアップを取る
+20. [x] **タスク7.2: `setupEventListeners()` [行番号 506] の移行**
+    - 移行先: 既存の場所に留め、非推奨とマーク
+    - 内容: イベントリスナー設定機能を現状維持
+    - 確認ポイント: すべてのイベントが正しく機能すること
+    - **完了状況**: ✅ 2025-05-04 UIコンポーネントのイベント設定は対応するUIコンポーネントと同じファイルに配置する方が自然であるため、現状維持。
 
-2. **基盤構築フェーズ**
-   - stateManager.jsの実装
-   - markdownConverter.jsの実装
-   - uiRenderer.jsの実装
-   - messageHandler.jsの実装
-   - eventManager.jsの実装
+### フェーズ8: エントリーポイントの最小化
 
-3. **検証と修正フェーズ**
-   - 全コンポーネントを連携して動作確認
-   - デバッグと修正
+21. [x] **タスク8.1: `scopeManager.js` のエントリーポイント化**
+    - 内容: 各コンポーネントのインポートと初期化のみを行うよう最小化
+    - 確認ポイント: すべての機能が引き続き正常に動作すること
+    - **完了状況**: ✅ 2025-05-04 エントリーポイント化完了。非推奨関数を削除し、各コンポーネントへの依存を明確化。初期化順序を最適化し、クラス間の連携を整理。
 
-4. **完了フェーズ**
-   - 新しいscopeManager.jsへの切り替え
-   - 最終検証
+## 5. 各フェーズでのユーザー確認プロセス
 
-## 移行における注意点
+各タスク完了後に以下の手順で確認を行います：
 
-1. **下位互換性の確保**
-   - 既存のメッセージプロトコルとの互換性を維持
-   - 状態形式の互換性を維持
+1. **動作確認**
+   - 関連機能の全ての動作を確認
+   - エッジケースの動作も確認
 
-2. **段階的な実装**
-   - 一度にすべての変更を行わず、一部ずつ実装して検証
+2. **UI確認**
+   - 表示が崩れていないか確認
+   - アニメーションやトランジションが正常か確認
 
-3. **適切なモジュール間連携**
-   - 循環参照を避ける
-   - 明確な責任分担を維持
+3. **パフォーマンス確認**
+   - 処理速度に問題がないか確認
+   - メモリ使用量に問題がないか確認
 
-4. **エラーハンドリング**
-   - 適切なエラーハンドリングと回復メカニズム
-   - ロギングの充実
+4. **エラー処理確認**
+   - エラー時に適切なメッセージが表示されるか確認
+   - エラーから正常に回復できるか確認
 
-## 期待される効果
+## 6. 進捗状況 (2025年5月4日)
 
-1. **メンテナンス性の向上**
-   - 各モジュールが明確な責任を持ち、修正が容易になる
-   - コードが整理され、理解しやすくなる
+### 完了したタスク
+- [x] マークダウン変換機能のモジュール化 (`markdownConverter.js`)
+- [x] UIヘルパー関数のモジュール化 (`uiHelpers.js`)
+- [x] 不要なツールタブ関連コードの削除
+- [x] VSCode API取得の重複エラーを解消
+- [x] **タスク1.1: `selectTab(tabId, saveToServer)` の移行**
+- [x] **タスク1.2: `initializeTabs()` の移行**
+- [x] **タスク2.1: `handleUpdateState(data)` の移行**
+- [x] **タスク2.2: `syncProjectState(project)` の移行**
+- [x] **タスク2.3: `restoreProjectState()` の移行**
+- [x] **タスク3.1: `displayMarkdownContent(markdownContent)` の移行**
+- [x] **タスク3.2: `initializeMarkdownDisplay()` の移行**
+- [x] **タスク4.1: `updateProjectName(projectName)` の移行**
+- [x] **タスク4.2: `updateProjectPath(data)` の移行**
+- [x] **タスク4.3: `updateProjects(projects, activeProject)` の移行**
+- [x] **タスク4.4: `initializeProjectNav()` の移行**
+- [x] **タスク5.1: `hideNewProjectModal()` の確認** (既にprojectNavigation.jsに実装済み)
+- [x] **タスク5.2: `showNewProjectModal()` の確認** (既にprojectNavigation.jsに実装済み)
+- [x] **タスク5.3: `createNewProject()` の確認** (既にprojectNavigation.jsに実装済み)
+- [x] **タスク5.4: `showTerminalModeDialog(url, name, index)` の移行**
+- [x] **タスク5.5: `showModalTerminalModeDialog(url, promptId, promptName)` の移行**
+- [x] **タスク6.1: `initializePromptCards()` の移行**
+- [x] **タスク6.2: `initializePromptCardsInModal()` の移行**
 
-2. **拡張性の向上**
-   - 新機能追加時に適切なモジュールのみを変更
-   - プラグイン構造によるカスタマイズ容易性
+### 完了したタスク（追加分）
+- [x] **タスク7.1: `initializeClaudeCodeShareArea()` の移行** - 現状維持として完了
+- [x] **タスク7.2: `setupEventListeners()` の移行** - 現状維持として完了
+- [x] **タスク8.1: `scopeManager.js` のエントリーポイント化**
 
-3. **パフォーマンスの向上**
-   - 必要に応じた更新のみを行い、不要な再描画を減少
-   - メモリ使用量の最適化
+### 現在の作業中タスク
+- [ ] **プロジェクト全体の検証と統合テスト**
 
-4. **品質の向上**
-   - テスト可能性の向上によるバグの減少
-   - 明確な責任分担によるエラーの特定容易化
+### 次に予定されているタスク
+- [ ] **リファクタリング後のドキュメント更新**
 
+## 7. リファクタリング実装における教訓と注意点
 
+### 7.1 理論と実践のギャップ対策
+- **隠れた依存関係の発見**: 表面上は独立していても、実際には複雑な相互依存関係があることが判明。特にタブ管理とプロジェクト切り替えの間には予想外の依存があった。
+- **初期化タイミングの問題**: コンポーネントの初期化順序とタイミングが重要。タブマネージャーのisInitializedフラグと保留中リクエスト機能で対応。
+- **コンポーネント間の状態同期**: 分割したコンポーネント間で状態を一貫して維持することが課題。新しいstateManagerを介した統一的なアプローチが必要。
 
+### 7.2 実装上の具体的な対策
+- **段階的な変更と検証**: 各関数の移行後に必ず動作確認を行い、問題発見と修正を繰り返す。予想外の動作が多く発生するため、小さな変更ごとの確認が重要。
+- **非同期処理の順序制御**: DOMロード、コンポーネント初期化、状態復元の順序が重要。遅延実行とタイムアウトを適切に設定。
+- **フラグによる安全対策**: 初期化完了状態、処理中状態をフラグで管理し、競合状態を防止。
+- **パフォーマンス最適化**: 重複更新を防止する仕組みと、UIブロッキングを防ぐ非同期処理の導入。
+- **冗長なログ出力**: 内部動作を詳細に記録し、タイミング問題の調査に活用。
 
+### 7.3 リファクタリングプロセスの改善
+- **ユーザー確認を徹底**: 各段階での変更後に必ず動作確認を行い、承認を得てから次に進むプロセスを厳守する。
+- **メインスレッドブロッキング回避**: UIの応答性を維持するため、重い処理は非同期実行に変更。
+- **エラー検出の強化**: 予期せぬエラー状態を早期に検出するための防御的プログラミングを導入。
+- **計画と実践のバランス**: 詳細な計画は重要だが、実践から学び調整する柔軟性も必要。
 
+各タスクは、実装 → テスト → ユーザー確認 → 次のタスクへ、というサイクルで進めてください。
