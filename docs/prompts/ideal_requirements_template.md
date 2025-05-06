@@ -44,6 +44,8 @@
 
 ## 3. 画面詳細
 
+> **注意**: 以下の各画面の「データ要件」と「API要件」セクションは、`shared/index.ts`に定義されている型とAPIパスから抽出した主要情報です。完全な型定義とAPI仕様の詳細については、[型定義ファイル](/shared/index.ts)および各API仕様書へのリンクを参照してください。
+
 ### 3.1 ログイン画面 (P-001)
 
 **画面概要**: ユーザーがシステムにアクセスするための認証画面
@@ -61,14 +63,13 @@
 **モックアップ**: [login.html](/mockups/login.html)
 
 **データ要件**:
-- User (email, password, role)
+- User - ユーザー認証情報（email, password, role）
 
 **API要件**:
-- `POST /api/v1/auth/login`: ログイン処理
-- `POST /api/v1/auth/reset-password`: パスワードリセット
+- `POST /api/v1/auth/login` - ログイン処理
+- `POST /api/v1/auth/reset-password` - パスワードリセット
 
-**実装状況**: 完了 (100%)
-- [実装スコープ詳細](/docs/scopes/auth-scope.md)
+[API仕様の詳細はこちら](/docs/api/auth.md)
 
 ### 3.2 ダッシュボード (P-002)
 
@@ -88,16 +89,15 @@
 **モックアップ**: [dashboard.html](/mockups/dashboard.html)
 
 **データ要件**:
-- DashboardMetrics (summary, trend, activities)
-- UserActivity (type, timestamp, details)
+- DashboardMetrics - サマリー情報、トレンドデータ
+- Activity - アクティビティ情報（id, type, timestamp, description）
 
 **API要件**:
-- `GET /api/v1/dashboard/metrics`: ダッシュボード指標取得
-- `GET /api/v1/dashboard/activities`: 最近のアクティビティ取得
+- `GET /api/v1/dashboard/metrics` - ダッシュボード指標取得
+- `GET /api/v1/dashboard/activities` - 最近のアクティビティ取得
+- `PUT /api/v1/dashboard/layout` - ダッシュボードレイアウト更新
 
-**実装状況**: 進行中 (60%)
-- [実装スコープ詳細](/docs/scopes/dashboard-scope.md)
-- **現在の実装フォーカス**: このコンポーネントについては [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md) を参照
+[API仕様の詳細はこちら](/docs/api/dashboard.md)
 
 [他の画面も同様の形式で記述...]
 
@@ -112,114 +112,62 @@
 
 ## 5. データモデル概要
 
-モックアップから導出された主要データモデルを以下に示します。詳細は各モデルのドキュメントを参照してください。
+  アプリケーションの主要データモデルは以下の通りです。
 
-### 5.1 主要エンティティ
+  | エンティティ | 主な属性 | 関連エンティティ |
+  |------------|----------|----------------|
+  | User | id, email, name, role | Organization, Activity |
+  | Organization | id, name, settings | User, Report |
+  | Dashboard | id, user_id, widgets | User, Metric |
+  | Activity | id, user_id, type, data | User |
 
-| エンティティ | 主な属性 | 関連エンティティ | 詳細ドキュメント |
-|------------|----------|----------------|-----------------|
-| User | id, email, name, role | Organization, Activity | [user-model.md](/docs/data_models/user-model.md) |
-| Organization | id, name, settings | User, Report | [org-model.md](/docs/data_models/org-model.md) |
-| Dashboard | id, user_id, widgets | User, Metric | [dashboard-model.md](/docs/data_models/dashboard-model.md) |
-| Activity | id, user_id, type, data | User | [activity-model.md](/docs/data_models/activity-model.md) |
+  詳細な型定義は [型定義ファイル](/shared/index.ts) を参照してください。
+  
 
-### 5.2 モデル関連図
+## 6. 特記すべき非機能要件
 
-詳細なERDについては [data_models/erd.md](/docs/data_models/erd.md) を参照してください。
+<!-- 
+注: このセクションは標準的な実装方針から逸脱する特別な要件がある場合のみ記載してください。
+HTTPS対応、レスポンシブデザイン、基本的なセキュリティ対策などの一般的な非機能要件は
+現代の開発では標準的に適用されるため、特に記載が必要ない限り省略可能です。
+-->
 
-## 6. API要件概要
+以下は標準的な実装方針から特に注意すべき点です：
 
-モックアップの機能を実現するために必要なAPI一覧です。詳細は各APIドキュメントを参照してください。
+- **高負荷対応**: ダッシュボード画面では同時に1000ユーザー以上のアクセスに対応する必要があります
+- **地域制限**: EU圏のユーザーに対しては特定の機能制限が必要です
+- **オフライン対応**: 重要機能は一部オフライン環境でも動作する必要があります
 
-### 6.1 認証API
 
-- `POST /api/v1/auth/login`: ユーザーログイン
-- `POST /api/v1/auth/register`: ユーザー登録
-- `POST /api/v1/auth/refresh`: トークンリフレッシュ
+## 7. 開発計画とマイルストーン
 
-[詳細API仕様書](/docs/api/auth.md)
+| フェーズ | 内容 | ステータス |
+|---------|------|----------|
+| フェーズ1 | 要件定義とモックアップ作成 | 完了 |
+| フェーズ2 | 認証・ダッシュボード実装 | 進行中 |
+| フェーズ3 | ユーザー管理・設定実装 | 未着手 |
+| フェーズ4 | レポート機能実装 | 未着手 |
+| フェーズ5 | テストと品質保証 | 未着手 |
 
-### 6.2 ダッシュボードAPI
+## 8. 現在のフォーカス
 
-- `GET /api/v1/dashboard/metrics`: ダッシュボード指標取得
-- `GET /api/v1/dashboard/activities`: 最近のアクティビティ取得
-- `PUT /api/v1/dashboard/layout`: ダッシュボードレイアウト更新
+現在の開発フォーカスはダッシュボード画面(P-002)の実装です。
 
-[詳細API仕様書](/docs/api/dashboard.md)
+注: 詳細な実装状況と進捗報告は [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md) を参照してください。
 
-[他のAPIカテゴリも同様の形式で記述...]
+## 9. 添付資料
 
-## 7. 非機能要件
-
-### 7.1 パフォーマンス要件
-
-- ページロード時間: 3秒以内
-- API応答時間: 300ms以内
-
-### 7.2 セキュリティ要件
-
-- HTTPS通信の強制
-- ログイン試行制限
-- CSRF対策
-
-### 7.3 ユーザビリティ要件
-
-- レスポンシブデザイン (モバイル対応)
-- アクセシビリティ対応
-- 多言語サポート
-
-## 8. 技術スタック
-
-### 8.1 フロントエンド
-
-- フレームワーク: [技術名]
-- UI ライブラリ: [技術名]
-- 状態管理: [技術名]
-
-### 8.2 バックエンド
-
-- API: [技術名]
-- データベース: [技術名]
-- 認証: [技術名]
-
-### 8.3 インフラ
-
-- ホスティング: [技術名]
-- CI/CD: [技術名]
-- モニタリング: [技術名]
-
-## 9. 開発計画とマイルストーン
-
-| フェーズ | 内容 | 期間 | ステータス |
-|---------|------|------|----------|
-| フェーズ1 | 要件定義とモックアップ作成 | 2025-03-01 ~ 2025-03-15 | 完了 |
-| フェーズ2 | 認証・ダッシュボード実装 | 2025-03-16 ~ 2025-04-15 | 進行中 |
-| フェーズ3 | ユーザー管理・設定実装 | 2025-04-16 ~ 2025-05-15 | 未着手 |
-| フェーズ4 | レポート機能実装 | 2025-05-16 ~ 2025-05-31 | 未着手 |
-| フェーズ5 | テストと品質保証 | 2025-06-01 ~ 2025-06-15 | 未着手 |
-
-## 10. 実装状況概要
-
-| カテゴリ | 画面数 | 完了 | 進行中 | 未着手 | 進捗率 |
-|---------|-------|------|-------|-------|-------|
-| 認証・ログイン | 1 | 1 | 0 | 0 | 100% |
-| ダッシュボード | 1 | 0 | 1 | 0 | 60% |
-| ユーザー管理 | 1 | 0 | 0 | 1 | 0% |
-| 設定 | 1 | 0 | 0 | 1 | 0% |
-| レポート | 1 | 0 | 0 | 1 | 0% |
-| **合計** | **5** | **1** | **1** | **3** | **32%** |
-
-## 11. 現在のフォーカス
-
-現在の開発フォーカスはダッシュボード画面(P-002)の実装です。詳細な実装タスクと進捗状況については [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md) を参照してください。
-
-## 12. 添付資料
-
+### 9.1 ビジネス資料
 - [ユーザーペルソナ](/docs/personas.md)
 - [競合分析](/docs/competitive-analysis.md)
 - [用語集](/docs/glossary.md)
 
-## 13. 変更履歴
+### 9.2 技術資料
+- [技術スタック定義](/docs/architecture/tech-stack.md)
+- [デプロイガイド](/docs/deployment/deploy.md)
+- [環境変数設定](/docs/deployment/env-variables.md)
+
+## 10. 変更履歴
 
 | 日付 | バージョン | 変更者 | 変更内容 |
 |------|----------|-------|---------|

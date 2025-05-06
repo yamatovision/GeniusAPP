@@ -104,7 +104,8 @@ const promptUrls = [
   - **要件定義**: [requirements.md#section-123](/docs/requirements.md#section-123)
   - **モックアップ**: [admin-dashboard.html](/mockups/admin-dashboard.html)
   - **API仕様**: [admin.md](/docs/api/admin.md)
-  - **データモデル**: [admin-model.md](/docs/data_models/admin-model.md)
+  - **データモデル**: [admin-model.md](/docs/architecture/data-model.md#admin-model)
+  - **型定義**: [Admin型定義](/shared/index.ts#L450-L490)
   - **実装ガイド**: [admin-dashboard.md](/docs/implementation/admin-dashboard.md)
 
   ## 4. 依存関係
@@ -126,30 +127,36 @@ const promptUrls = [
   - [x] **BE-1**: ダッシュボードデータ取得APIエンドポイント実装
     - 完了日: 2025-05-06
     - 参照: [dashboard.controller.ts](/server/src/controllers/dashboard.controller.ts)
+    - 型定義: [DashboardResponse](/shared/index.ts#L520-L545)
     - テスト: [dashboard.test.ts](/server/src/tests/api/dashboard.test.ts)
 
   - [ ] **BE-2**: データ集計サービス実装 (進行中)
     - 担当: データモデル統合 (#4)
     - 目標: 2025-05-07
     - 参照: [aggregation.service.ts](/server/src/services/aggregation.service.ts)
+    - 型定義: [AggregationResult](/shared/index.ts#L550-L570)
 
   - [ ] **BE-3**: 権限ベースのデータフィルタリング実装
     - 依存: BE-1, BE-2
     - 目標: 2025-05-08
+    - 型定義: [UserRole](/shared/index.ts#L136-L140)
 
   ### フロントエンド実装
 
   - [ ] **FE-1**: ダッシュボードコンポーネント作成
     - 目標: 2025-05-08
     - 参照: モックアップセクション #3.2
+    - 型定義: [DashboardProps](/shared/index.ts#L580-L590)
 
   - [ ] **FE-2**: APIとの連携実装
     - 依存: BE-1, FE-1
     - 目標: 2025-05-09
+    - 型定義: [ApiResponse<DashboardResponse>](/shared/index.ts#L219)
 
   - [ ] **FE-3**: インタラクティブチャート実装
     - 依存: FE-2
     - 目標: 2025-05-09
+    - 型定義: [ChartData](/shared/index.ts#L600-L615)
 
   ### テストとドキュメント
 
@@ -166,6 +173,8 @@ const promptUrls = [
   - 権限チェックを各APIエンドポイントで徹底すること
   - データ集計は非同期処理で実行し、UI応答性を維持すること
   - チャートコンポーネントはモバイル対応を考慮すること
+  - バックエンド/フロントエンド間の型の整合性を保つため、必ず`shared/index.ts`の型定義を参照すること
+  - API実装時にはレスポンス型が`shared/index.ts`の定義と一致するよう検証すること
 
   ## 8. 実装状況の更新履歴
 
@@ -193,10 +202,11 @@ const promptUrls = [
 
   私が実装者として最も重視する情報は：
   - 具体的なタスク定義と優先順位
-  - 必要なドキュメントへの直接リンク
+  - 必要なドキュメントと型定義への直接リンク
   - 依存関係と前提条件
   - 実装時の具体的な注意点
   - 現在のステータスと進捗
+  - バックエンド/フロントエンド間で一貫した型定義
 
   このフォーマットがあれば、プロジェクトの全体像を常に参照することなく、現在のスコープに集中して効率的に実装を進めることができます。
 
@@ -661,10 +671,11 @@ const promptUrls = [
   プロジェクト構造の把握：ディレクトリ構造、ファイル構成、依存関係などを分析
   2. 既存ドキュメントの整理：散在している可能性のある要件定義やドキュメントを
   収集・整理
-  3. コード分析：実装パターン、命名規則、アーキテクチャを理解
-  4. 統合ドキュメントの作成：既存の情報から要件定義書やCURRENT_STATUSを現状に
+  3. 型定義の分析：`shared/index.ts`のような型定義ファイルを分析し、データモデルとAPI構造を理解
+  4. コード分析：実装パターン、命名規則、アーキテクチャを理解
+  5. 統合ドキュメントの作成：既存の情報から要件定義書やCURRENT_STATUSを現状に
   合わせて再構築
-  5. ギャップ分析：足りない情報や不明確な部分を特定
+  6. ギャップ分析：足りない情報や不明確な部分を特定
 
   この分析結果を基に、プロジェクトファウンデーションエージェントが現状を踏まえ
   た追加要件の定義や既存アーキテクチャとの整合性を考慮した設計を行えるようにな
@@ -744,7 +755,6 @@ const promptUrls = [
   │   ├── CURRENT_STATUS.md           # 現在の実装フォーカスとタスクリスト（中心的文書）
   │   ├── architecture/               # アーキテクチャ関連ドキュメント
   │   │   ├── directory-structure.md  # 理想的ディレクトリ構造の定義
-  │   │   ├── data-model.md           # 統合されたデータモデルの仕様書
   │   │   └── tech-stack.md           # 技術スタックと選定理由
   │   │
   │   ├── api/                        # API仕様書
@@ -769,6 +779,9 @@ const promptUrls = [
   │       ├── [page-name].html        # 各ページのモックアップ
   │       └── assets/                 # モックアップで使用する画像等
   │
+  ├── shared/                         # 共有ファイルディレクトリ
+  │   └── index.ts                    # 型定義の単一の真実源
+  │
   └── .env.example                    # 環境変数の例（実際の値は除外）
 
   このディレクトリ構造の特徴：
@@ -787,7 +800,8 @@ const promptUrls = [
     - ページとコンポーネントの明確な分離
   5. 実装との連携：
     - 実際のソースコードディレクトリ構造と対応するドキュメント構造
-    - ドキュメントからコードへのトレーサビリティを確保
+    - shared/index.tsを通じたドキュメントとコード間の一貫性確保
+    - 型定義を通じたフロントエンド/バックエンド間の整合性担保
 
   このシンプルな構造により、ドキュメント間の関連性を保ちながらも、監督者とAIエ
   ージェントが必要な情報に素早くアクセスできます。実装完遂を優先する方針に沿っ
@@ -833,10 +847,10 @@ const promptUrls = [
 
   3. 技術設計フェーズ
 
-  8. architecture/data-model.md
-    - モックアップから必要なデータ構造を抽出
-    - エンティティ間の関係を定義
-    - データの流れと操作を設計
+  8. shared/index.ts
+    - モックアップから必要なデータ構造を抽出して型定義化
+    - エンティティ間の関係を型システムで定義
+    - フロントエンド/バックエンドで共有する型の設計
   9. api/index.md
     - API設計の基本原則を定義
     - エンドポイント命名規則の確立
@@ -910,14 +924,14 @@ const promptUrls = [
     - 参照: requirements.md, tech-stack.md, UI/UXガイドライン
     - 特徴: ビジュアル面に集中、ユーザー体験を具体化
   3. データモデルアーキテクト
-    - 担当: データ構造設計、エンティティ関係定義
-    - 成果物: data-model.md
+    - 担当: データ構造設計、エンティティ関係定義、型システム設計
+    - 成果物: shared/index.ts
     - 参照: requirements.md, mockups/, tech-stack.md
-    - 特徴: モックアップからデータ要件を抽出、効率的なモデルを設計
+    - 特徴: モックアップからデータ要件を抽出して型定義化、フロントエンド/バックエンド間の型共有を設計
   4. APIデザイナー
     - 担当: REST API設計、エンドポイント定義
     - 成果物: api/ 内の全ファイル
-    - 参照: data-model.md, mockups/, requirements.md
+    - 参照: shared/index.ts, mockups/, requirements.md
     - 特徴: フロントとバックエンドの接続ポイントを設計
 
   2. 実装エージェント
@@ -925,18 +939,18 @@ const promptUrls = [
   5. スコーププランナー
     - 担当: タスク分解、依存関係分析、実装計画
     - 成果物: CURRENT_STATUS.md
-    - 参照: requirements.md, mockups/, data-model.md, api/, tech-stack.md
+    - 参照: requirements.md, mockups/, shared/index.ts, api/, tech-stack.md
     - 特徴: 開発ロードマップを作成、具体的なタスクに落とし込む
   6. フロントエンド実装エージェント
     - 担当: UI実装、状態管理、APIクライアント
     - 成果物: フロントエンドコード
-    - 参照: mockups/, api/, CURRENT_STATUS.md, tech-stack.md
+    - 参照: mockups/, api/, shared/index.ts, CURRENT_STATUS.md, tech-stack.md
     - 特徴: モックアップを動作するコードに変換
   7. バックエンド実装エージェント
     - 担当: API実装、データアクセス、ビジネスロジック
     - 成果物: バックエンドコード
-    - 参照: data-model.md, api/, CURRENT_STATUS.md, tech-stack.md
-    - 特徴: データモデルと仕様からサーバー側を実装
+    - 参照: shared/index.ts, api/, CURRENT_STATUS.md, tech-stack.md
+    - 特徴: 型定義と仕様からサーバー側を実装
   8. テスト&品質エージェント
     - 担当: テスト戦略、品質保証、バグ修正
     - 成果物: test-strategy.md, テストコード
@@ -983,3 +997,101 @@ const promptUrls = [
   この構成では、各エージェントが必要とする参照ファイルが明確になり、情報の流れ
   が可視化されています。これにより、エージェント間の連携がスムーズになり、一人
   の人間が監督する際にも、各AIエージェントに適切な情報を提供しやすくなります。
+
+プロジェクト分析エージェントのアプローチ
+
+  既存プロジェクトを分析する際には、以下のステップを踏むことでプロジェクトの全体像を効率的に把握できます：
+
+  ステップ1: 基本構造の把握
+  - プロジェクトのディレクトリ構造の分析
+  - 主要ファイルとエントリーポイントの特定
+  - 依存関係の把握（package.jsonなど）
+
+  ステップ2: 技術スタックの特定
+  - 使用されているフレームワークとライブラリの確認
+  - ビルドツールと開発環境の理解
+  - アーキテクチャパターンの特定
+
+  ステップ3: 型定義の分析
+  - shared/index.tsのような型定義ファイルを重点的に調査
+  - データモデルとAPI型の構造を理解
+  - フロントエンドとバックエンド間の型共有パターンを把握
+
+  ステップ4: コンポーネント構造の分析
+  - 主要UIコンポーネントの特定
+  - ビジネスロジックの分離パターンの理解
+  - 状態管理アプローチの把握
+
+  ステップ5: APIとデータフローの分析
+  - エンドポイント設計とRESTfulパターンの理解
+  - データの流れと加工ポイントの特定
+  - 認証メカニズムの分析
+
+  ステップ6: レポート生成
+  - 既存ドキュメントの再構成
+  - 不足しているドキュメントの特定と作成
+  - 分析結果のCURRENT_STATUSへの統合
+
+  要点：
+  - shared/index.tsを「単一の真実源」として重視し、アプリケーション全体のデータ構造を理解する
+  - API実装とフロントエンドの連携パターンを型定義から逆分析する
+  - ドキュメントと実装の間の整合性をチェックし、ギャップを特定する
+
+  このプロセスにより、既存プロジェクトの現状を正確に把握し、追加開発や改善に必要な基盤を構築することができます。
+
+プロジェクト内における型定義の参照パターン
+
+  型定義を「単一の真実源」として効果的に活用するためのベストプラクティス：
+
+  1. API仕様書での型定義参照
+  ```markdown
+  ## POST /api/users
+  **リクエスト型**: [CreateUserRequest](/shared/index.ts#L120-L135)
+  **レスポンス型**: [ApiResponse<User>](/shared/index.ts#L220-L225)
+
+  このエンドポイントは新規ユーザーを作成します。パスワードは自動的にハッシュ化されます。
+  ```
+
+  2. データモデル文書での型定義参照
+  ```markdown
+  ### ユーザーエンティティ
+  
+  ユーザーモデルは認証と権限管理の基盤となる重要なエンティティです。
+  **モデル定義**: [User型](/shared/index.ts#L50-L70)
+  **関連モデル**: 
+  - [UserRole型](/shared/index.ts#L30-L35) - ユーザーの役割と権限レベル
+  - [UserPreferences型](/shared/index.ts#L80-L95) - ユーザー設定情報
+  ```
+
+  3. 実装タスクでの型定義参照
+  ```markdown
+  ### FE-2: ユーザー管理画面の実装
+  - 目標: 2025-05-10
+  - 依存: BE-1
+  - 型定義: 
+    - [UserListResponse](/shared/index.ts#L250-L260)
+    - [UserSortOptions](/shared/index.ts#L180-L185)
+  ```
+
+  4. 実装コード内の型定義参照コメント
+  ```typescript
+  /**
+   * ユーザーサービス実装
+   * @see /shared/index.ts#L50-L70 - User型定義
+   */
+  class UserService {
+    // 実装
+  }
+  ```
+
+  5. モックアップからデータモデルへの参照
+  ```html
+  <!-- ユーザープロフィールカード -->
+  <!-- データモデル: /shared/index.ts#L50-L70 (User型) -->
+  <div class="user-card">
+    <h3 class="user-name">{{user.displayName}}</h3>
+    <p class="user-role">{{user.role}}</p>
+  </div>
+  ```
+
+  この参照パターンを一貫して使用することで、型定義とドキュメント・実装の間の整合性が維持され、APIのフロントエンドとバックエンドの連携がスムーズになります。また、型の変更がプロジェクト全体に与える影響を追跡しやすくなります。
