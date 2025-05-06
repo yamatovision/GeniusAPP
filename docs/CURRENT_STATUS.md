@@ -36,8 +36,7 @@ AppGeniusの開発プロセスを効率化するため、最適化されたド�
 
 ### テンプレート・ガイドライン
 - **要件定義テンプレート**: [ideal_requirements_template.md](/docs/prompts/ideal_requirements_template.md)
-- **現況文書テンプレート**: [ideal_current_status_template.md](/docs/prompts/ideal_current_status_template.md)
-- **改善版現況文書テンプレート**: [improved_current_status_template.md](/docs/prompts/improved_current_status_template.md)
+- **スコープ進捗文書テンプレート**: [improved_scope_progress_template.md](/docs/prompts/improved_scope_progress_template.md)
 - **Markdownテンプレートガイド**: [markdown-template-guide.md](/docs/templates/markdown-template-guide.md)
 - **サンプルドキュメント**: 
   - [サンプル現況文書](/docs/samples/sample-current-status.md)
@@ -740,7 +739,7 @@ HTTPS対応、レスポンシブデザイン、基本的なセキュリティ対
 
 現在の開発フォーカスはダッシュボード画面(P-002)の実装です。
 
-注: 詳細な実装状況と進捗報告は [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md) を参照してください。
+注: 詳細な実装状況と進捗報告は [SCOPE_PROGRESS.md](/docs/SCOPE_PROGRESS.md) を参照してください。
 
 ## 9. 添付資料
 

@@ -118,12 +118,12 @@ flowchart LR
 [変更の記録]
 ```
 
-### 3.2 CURRENT_STATUS テンプレート
+### 3.2 SCOPE_PROGRESS テンプレート
 
-[CURRENT_STATUS](/docs/templates/current-status-template.md)は以下の構造に従います：
+[SCOPE_PROGRESS](/docs/templates/current-status-template.md)は以下の構造に従います：
 
 ```markdown
-# 現在の実装スコープ: [機能名/ページ名]
+# スコープ進捗状況: [機能名/ページ名]
 
 ## 1. 基本情報
 
@@ -876,7 +876,7 @@ function complexFunction() {
 実際の例として、以下のサンプルドキュメントを参照してください：
 
 - [サンプル要件定義書](/docs/samples/sample-requirements.md)
-- [サンプルCURRENT_STATUS](/docs/samples/sample-current-status.md)
+- [サンプルSCOPE_PROGRESS](/docs/samples/sample-current-status.md)
 - [サンプルAPI仕様書](/docs/samples/sample-api-spec.md)
 - [サンプルデータモデル仕様](/docs/samples/sample-data-model.md)
 - [サンプル移行ガイド](/docs/samples/sample-migration-guide.md)

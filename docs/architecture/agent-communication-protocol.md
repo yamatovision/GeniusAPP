@@ -11,7 +11,7 @@
 すべてのエージェント間連携において、以下の情報源を「単一の真実源」として共有します：
 
 - **要件情報**: `requirements.md`
-- **現在の実装状況**: `CURRENT_STATUS.md`
+- **スコープ進捗状況**: `SCOPE_PROGRESS.md`
 - **型定義**: `shared/index.ts`
 - **API仕様**: `api/*.md`
 - **モックアップ**: `mockups/*.html`
@@ -161,7 +161,7 @@
 - エラーハンドリング: [詳細]
 
 ### 参照ドキュメント
-- 実装スコープ: [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md)
+- 実装スコープ: [SCOPE_PROGRESS.md](/docs/CURRENT_STATUS.md)
 - API仕様: [api/*.md](/docs/api/)
 - モックアップ: [mockups/*.html](/mockups/)
 - 型定義: [shared/index.ts](/shared/index.ts#L100-L200)
@@ -190,7 +190,7 @@
 ### 参照ドキュメント
 - 実装コード: [パス](/path/to/implementation)
 - 型定義: [shared/index.ts](/shared/index.ts)
-- CURRENT_STATUS: [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md)
+- スコープ進捗: [SCOPE_PROGRESS.md](/docs/SCOPE_PROGRESS.md)
 ```
 
 ### 3.3 デプロイ・メンテナンスフェーズの連携
@@ -217,7 +217,7 @@
 
 ### 参照ドキュメント
 - テスト結果: [test-results.md](/docs/testing/test-results.md)
-- CURRENT_STATUS: [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md)
+- スコープ進捗: [SCOPE_PROGRESS.md](/docs/SCOPE_PROGRESS.md)
 ```
 
 #### 3.3.2 チェンジディレクター → 関連エージェント
@@ -287,7 +287,7 @@
 1. すべてのコア画面のモックアップが完成している
 2. データモデルが `shared/index.ts` で型定義されている
 3. 主要APIエンドポイントが設計され、ドキュメント化されている
-4. `CURRENT_STATUS.md` に最初の実装スコープが定義されている
+4. `SCOPE_PROGRESS.md` に最初の実装スコープが定義されている
 
 ### 5.2 実装 → デプロイの移行基準
 
@@ -397,7 +397,7 @@
 - [テーブルコンポーネント](/frontend/src/components/Table.tsx)
 
 ### 5. 参照情報
-- [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md)
+- [SCOPE_PROGRESS.md](/docs/SCOPE_PROGRESS.md)
 - [ダッシュボードAPI仕様](/docs/api/dashboard.md)
 - [ダッシュボードモックアップ](/mockups/dashboard.html)
 ```

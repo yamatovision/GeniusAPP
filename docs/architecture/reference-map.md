@@ -20,7 +20,7 @@
 └────────┬────────┘     │                   │             │
          │              │                   │    ┌────────┴────────┐
          ▼              │                   └────┤                 │
-┌─────────────────┐     │                        │ CURRENT_STATUS.md
+┌─────────────────┐     │                        │ SCOPE_PROGRESS.md
 │ architecture/   │     │                   ┌────┤                 │
 │ - tech-stack.md │     │                   │    └────────┬────────┘
 │ - dir-structure │     │                   │             │
@@ -49,14 +49,14 @@
 
 | ドキュメント | 参照先 | 参照元 | 主な目的 |
 |-------------|-------|--------|---------|
-| requirements.md | mockups/, architecture/, api/ | CURRENT_STATUS.md, すべてのドキュメント | プロジェクト全体の要件定義 |
-| CURRENT_STATUS.md | requirements.md, mockups/, architecture/, api/, deployment/ | 実装タスク | 現在のスコープと実装タスク管理 |
-| mockups/*.html | requirements.md | requirements.md, CURRENT_STATUS.md, api/ | 視覚的なUI設計 |
-| architecture/tech-stack.md | requirements.md | CURRENT_STATUS.md, deployment/ | 技術選定の理由と詳細 |
-| architecture/data-model.md | requirements.md, mockups/ | api/, CURRENT_STATUS.md | データ構造の概要と関係性の説明 |
+| requirements.md | mockups/, architecture/, api/ | SCOPE_PROGRESS.md, すべてのドキュメント | プロジェクト全体の要件定義 |
+| SCOPE_PROGRESS.md | requirements.md, mockups/, architecture/, api/, deployment/ | 実装タスク | 現在のスコープと実装タスク管理 |
+| mockups/*.html | requirements.md | requirements.md, SCOPE_PROGRESS.md, api/ | 視覚的なUI設計 |
+| architecture/tech-stack.md | requirements.md | SCOPE_PROGRESS.md, deployment/ | 技術選定の理由と詳細 |
+| architecture/data-model.md | requirements.md, mockups/ | api/, SCOPE_PROGRESS.md | データ構造の概要と関係性の説明 |
 | shared/index.ts | architecture/data-model.md | api/*.md, 実装コード | データモデル型定義の単一の真実源 |
-| api/*.md | requirements.md, shared/index.ts | CURRENT_STATUS.md, 実装コード | APIエンドポイント仕様 |
-| deployment/deploy.md | architecture/tech-stack.md | CURRENT_STATUS.md | デプロイ手順と環境設定 |
+| api/*.md | requirements.md, shared/index.ts | SCOPE_PROGRESS.md, 実装コード | APIエンドポイント仕様 |
+| deployment/deploy.md | architecture/tech-stack.md | SCOPE_PROGRESS.md | デプロイ手順と環境設定 |
 
 ## 4. ドキュメントタイプと参照パターン
 
@@ -71,7 +71,7 @@
 - **api/*.md** → 実装コード（API仕様の真実源）
 
 ### 4.3 実装ドキュメント
-- **CURRENT_STATUS.md** → 上記すべて（現在のタスクの真実源）
+- **SCOPE_PROGRESS.md** → 上記すべて（現在のタスクの真実源）
 - **shared/index.ts** → 型定義とデータモデル（型定義の真実源）
 - **deployment/*.md** → 実装・設定コード（デプロイ情報の真実源）
 
@@ -86,12 +86,12 @@
 │   │   ├── 2.1.1 機能詳細
 │   │   │   └── 関連ドキュメント（参照セクション）
 ├── 3. 非機能要件
-└── 4. 実装ステータス（CURRENT_STATUS.mdへの参照）
+└── 4. 実装ステータス（SCOPE_PROGRESS.mdへの参照）
 ```
 
-### 5.2 CURRENT_STATUS.md 構造
+### 5.2 SCOPE_PROGRESS.md（スコープ進捗文書）構造
 ```
-# 現在の実装スコープ
+# スコープ進捗状況
 ├── 1. 基本情報
 ├── 2. 実装概要
 ├── 3. 参照ドキュメント（重要な参照セクション）
@@ -158,21 +158,21 @@
 ### 6.5 スコーププランナー
 - **主要参照**: requirements.md, mockups/*.html, api/*.md
 - **二次参照**: architecture/directory-structure.md, shared/index.ts
-- **作成ドキュメント**: CURRENT_STATUS.md
+- **作成ドキュメント**: SCOPE_PROGRESS.md
 
 ### 6.6 フロントエンド実装エージェント
-- **主要参照**: CURRENT_STATUS.md, mockups/*.html, api/*.md
+- **主要参照**: SCOPE_PROGRESS.md, mockups/*.html, api/*.md
 - **二次参照**: shared/index.ts, architecture/tech-stack.md
 - **作成ドキュメント**: 実装コード
 
 ### 6.7 バックエンド実装エージェント
-- **主要参照**: CURRENT_STATUS.md, api/*.md, shared/index.ts
+- **主要参照**: SCOPE_PROGRESS.md, api/*.md, shared/index.ts
 - **二次参照**: architecture/tech-stack.md, architecture/data-model.md
 - **作成ドキュメント**: 実装コード
 
 ### 6.8 環境&デプロイエージェント
 - **主要参照**: architecture/tech-stack.md
-- **二次参照**: CURRENT_STATUS.md
+- **二次参照**: SCOPE_PROGRESS.md
 - **作成ドキュメント**: deployment/deploy.md, deployment/env-template.md
 
 ## 7. 参照関係の更新と維持

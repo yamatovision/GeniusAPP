@@ -37,7 +37,7 @@
 | ファイルタイプ | 命名パターン | 例 |
 |-------------|------------|-----|
 | 要件定義 | `requirements.md` | `requirements.md` |
-| 現況文書 | `CURRENT_STATUS.md` | `CURRENT_STATUS.md` |
+| スコープ進捗文書 | `SCOPE_PROGRESS.md` | `SCOPE_PROGRESS.md` |
 | API仕様 | `[機能]-api.md` | `auth-api.md`, `user-api.md` |
 | データモデル | `[エンティティ]-model.md` | `user-model.md`, `team-model.md` |
 | 実装ガイド | `[機能]-implementation-guide.md` | `auth-implementation-guide.md` |
@@ -248,7 +248,7 @@ const user = await api.getUser(123);
 | モックアップクリエイター (#2) | モックアップ | `[ページ名].html` | `login.html` |
 | データモデルアーキテクト (#3) | データモデル | `[エンティティ名]-model.md` | `user-model.md` |
 | APIデザイナー (#4) | API仕様 | `[機能名]-api.md` | `auth-api.md` |
-| スコーププランナー (#5) | スコープ定義 | `CURRENT_STATUS.md` | `CURRENT_STATUS.md` |
+| スコーププランナー (#5) | スコープ定義 | `SCOPE_PROGRESS.md` | `CURRENT_STATUS.md` |
 | プロジェクト分析エージェント (#10) | 分析レポート | `[分析対象]-analysis.md` | `codebase-analysis.md` |
 
 ### 6.2 エージェント間の文書引き継ぎ標準

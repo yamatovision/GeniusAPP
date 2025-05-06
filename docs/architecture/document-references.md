@@ -12,7 +12,7 @@
 
 **ルール:**
 - 要件定義は `requirements.md` が真実源
-- 実装タスクは `CURRENT_STATUS.md` が真実源
+- 実装タスクは `SCOPE_PROGRESS.md`（ファイル名は `CURRENT_STATUS.md`）が真実源
 - アーキテクチャ情報は `architecture/` 内のファイルが真実源
 - API仕様は `api/` 内のファイルが真実源
 - モックアップは `mockups/` 内のファイルが真実源
@@ -36,7 +36,7 @@
 
 **階層:**
 1. `requirements.md` (トップレベル)
-2. `CURRENT_STATUS.md` (アクティブスコープ)
+2. `SCOPE_PROGRESS.md` (ファイル名は `CURRENT_STATUS.md`) (アクティブスコープ)
 3. 専門ドキュメント (`architecture/`, `api/`, etc.)
 4. 実装関連ドキュメント
 
@@ -91,7 +91,7 @@
 
 - 各機能セクションから関連するモックアップへのリンク
 - 各機能セクションから関連するアーキテクチャドキュメントへのリンク
-- 現在実装中の機能から `CURRENT_STATUS.md` へのリンク
+- 現在実装中の機能から `SCOPE_PROGRESS.md`（ファイル名は `CURRENT_STATUS.md`）へのリンク
 - 標準見出し構造:
   ```markdown
   # 要件定義書
@@ -104,20 +104,20 @@
   
   #### 関連ドキュメント
   - **モックアップ**: [機能名モックアップ](/mockups/pages/feature.html)
-  - **実装状況**: [現在の実装スコープ](/docs/CURRENT_STATUS.md)
+  - **実装状況**: [スコープ進捗状況](/docs/CURRENT_STATUS.md)
   - **API仕様**: [機能名API](/docs/api/feature.md)
   ```
 
-### 4.2 CURRENT_STATUS.md の参照ルール
+### 4.2 SCOPE_PROGRESS.md の参照ルール
 
-`CURRENT_STATUS.md` はアクティブスコープドキュメントとして:
+`SCOPE_PROGRESS.md`（ファイル名は `CURRENT_STATUS.md`）はアクティブスコープドキュメントとして:
 
 - 常に `requirements.md` の関連セクションへのリンク
 - 実装中の機能に関連するすべての参照ドキュメントへのリンク
 - タスクごとの参照ドキュメントのリスト
 - 標準見出し構造:
   ```markdown
-  # 現在の実装スコープ: [機能名]
+  # スコープ進捗状況: [機能名]
   
   ## 1. 基本情報
   
@@ -160,7 +160,7 @@
 
 AIエージェントがドキュメントを参照する優先順位:
 
-1. `CURRENT_STATUS.md` - 現在のスコープとタスク情報
+1. `SCOPE_PROGRESS.md`（ファイル名は `CURRENT_STATUS.md`） - 現在のスコープとタスク情報
 2. 専門ドキュメント - タスク固有の詳細情報
 3. `requirements.md` - より広い文脈や要件情報
 
@@ -183,7 +183,7 @@ AIエージェントがドキュメントを参照する優先順位:
 
 各エージェントは作業開始時に必ず以下の参照チェックを行う:
 
-1. `CURRENT_STATUS.md` で現在のスコープを確認
+1. `SCOPE_PROGRESS.md`（ファイル名は `CURRENT_STATUS.md`）で現在のスコープを確認
 2. 割り当てられたタスクに関連する参照ドキュメントをすべて読み込む
 3. 作業の前提条件となるタスクの完了状況を確認
 
@@ -219,7 +219,7 @@ AIエージェントがドキュメントを参照する優先順位:
 
 ## 7. 具体的な参照例
 
-### 7.1 requirements.md から CURRENT_STATUS.md への参照
+### 7.1 requirements.md から SCOPE_PROGRESS.md への参照
 
 ```markdown
 ## 2.3 ユーザー管理機能
@@ -227,10 +227,10 @@ AIエージェントがドキュメントを参照する優先順位:
 ユーザー管理機能の説明...
 
 ### 実装状況
-現在この機能は実装中です。詳細は [ユーザー管理機能の実装スコープ](/docs/CURRENT_STATUS.md) を参照してください。
+現在この機能は実装中です。詳細は [ユーザー管理機能のスコープ進捗状況](/docs/CURRENT_STATUS.md) を参照してください。
 ```
 
-### 7.2 CURRENT_STATUS.md から専門ドキュメントへの参照
+### 7.2 SCOPE_PROGRESS.md から専門ドキュメントへの参照
 
 ```markdown
 ## 3. 参照ドキュメント
@@ -249,7 +249,7 @@ AIエージェントがドキュメントを参照する優先順位:
 
 ## メタデータ
 - **関連要件**: [ユーザー管理機能](/docs/requirements.md#2-3-ユーザー管理機能)
-- **実装状況**: [現在のスコープ](/docs/CURRENT_STATUS.md)
+- **実装状況**: [スコープ進捗状況](/docs/CURRENT_STATUS.md)
 - **データモデル**: [ユーザーエンティティ](/docs/architecture/data-model.md#user-entity)
 - **バージョン**: 1.0.0
 - **最終更新**: 2025-05-06

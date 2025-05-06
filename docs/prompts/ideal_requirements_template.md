@@ -153,7 +153,7 @@ HTTPS対応、レスポンシブデザイン、基本的なセキュリティ対
 
 現在の開発フォーカスはダッシュボード画面(P-002)の実装です。
 
-注: 詳細な実装状況と進捗報告は [CURRENT_STATUS.md](/docs/CURRENT_STATUS.md) を参照してください。
+注: 詳細な実装状況と進捗報告は [SCOPE_PROGRESS.md](/docs/CURRENT_STATUS.md) を参照してください。
 
 ## 9. 添付資料
 
