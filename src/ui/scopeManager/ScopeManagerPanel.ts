@@ -21,7 +21,7 @@ import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
  * スコープマネージャーパネルクラス
- * CURRENT_STATUS.mdファイルと連携して実装スコープの管理を行う
+ * SCOPE_PROGRESS.mdファイルと連携して実装スコープの管理を行う
  * 権限保護されたパネルの基底クラスを継承
  */
 export class ScopeManagerPanel extends ProtectedPanel {
@@ -511,7 +511,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // 共有履歴を初期化
     await this._handleGetHistory();
     
-    // CURRENT_STATUS.mdの内容を読み込む
+    // 進捗ファイル(SCOPE_PROGRESS.md)の内容を読み込む
     if (this._statusFilePath && fs.existsSync(this._statusFilePath)) {
       await this._handleGetMarkdownContent(this._statusFilePath);
     }

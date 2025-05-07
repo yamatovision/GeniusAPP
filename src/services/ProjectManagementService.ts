@@ -166,34 +166,21 @@ export class ProjectManagementService {
       // 必要最小限のディレクトリ構成のみを作成
       // docs/ディレクトリの作成
       this.ensureDirectoryExists(path.join(projectPath, 'docs'));
-      // docs/scopes/ディレクトリの作成
-      this.ensureDirectoryExists(path.join(projectPath, 'docs', 'scopes'));
       // mockups/ディレクトリの作成
       this.ensureDirectoryExists(path.join(projectPath, 'mockups'));
       
-      // デバッグディレクトリの作成
-      this.ensureDirectoryExists(path.join(projectPath, 'logs'));
-      this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug'));
-      this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug', 'sessions'));
-      this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug', 'archived'));
-      this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug', 'knowledge'));
-      
-      // .gitkeepファイルを追加して空ディレクトリを追跡可能に
-      fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'sessions', '.gitkeep'), '', 'utf8');
-      fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'archived', '.gitkeep'), '', 'utf8');
-      fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'knowledge', '.gitkeep'), '', 'utf8');
+      // デバッグディレクトリの作成は不要なため削除
       
       // ClaudeCode データ共有ディレクトリの作成
       this.ensureDirectoryExists(path.join(projectPath, '.claude_data'));
       this.ensureDirectoryExists(path.join(projectPath, '.claude_data', 'screenshots'));
       
-      // 一時ファイル用ディレクトリの作成
-      this.ensureDirectoryExists(path.join(projectPath, 'temp'));
+      // 一時ファイル用ディレクトリの作成は不要なため削除
       
-      // .gitignoreに.claude_data/とtemp/を追加
+      // .gitignoreに.claude_data/を追加
       const gitignorePath = path.join(projectPath, '.gitignore');
       if (!fs.existsSync(gitignorePath)) {
-        fs.writeFileSync(gitignorePath, '.claude_data/\ntemp/\n', 'utf8');
+        fs.writeFileSync(gitignorePath, '.claude_data/\n', 'utf8');
       } else {
         // 既存のgitignoreがあれば内容を読み取って必要な項目が含まれていなければ追加
         const gitignoreContent = fs.readFileSync(gitignorePath, 'utf8');
@@ -203,41 +190,12 @@ export class ProjectManagementService {
           updatedContent += '\n.claude_data/\n';
         }
         
-        if (!gitignoreContent.includes('temp/')) {
-          updatedContent += 'temp/\n';
-        }
-        
         if (updatedContent !== gitignoreContent) {
           fs.writeFileSync(gitignorePath, updatedContent, 'utf8');
         }
       }
       
-      // CURRENT_STATUSTEMPLATE.mdを作成（既存ファイルがある場合は作成しない）
-      try {
-        const currentStatusTemplatePath = path.join(projectPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
-        
-        // 既存のCURRENT_STATUSTEMPLATE.mdファイルが存在するかチェック
-        if (!fs.existsSync(currentStatusTemplatePath)) {
-          // ファイルが存在しない場合のみ作成
-          const templatePath = path.join(__dirname, '../../docs/CURRENT_STATUSTEMPLATE.md');
-          
-          if (fs.existsSync(templatePath)) {
-            // システムのテンプレートをコピー
-            const templateContent = fs.readFileSync(templatePath, 'utf8');
-            fs.writeFileSync(currentStatusTemplatePath, templateContent, 'utf8');
-            Logger.info(`CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
-          } else {
-            // テンプレートが見つからない場合はエラーを記録
-            Logger.error(`テンプレートファイルが見つかりません: ${templatePath}`);
-            throw new Error(`CURRENT_STATUSTEMPLATE.md テンプレートファイルが見つかりません`);
-          }
-        } else {
-          Logger.info(`CURRENT_STATUSTEMPLATE.md already exists for project at: ${projectPath}, skipping creation`);
-        }
-      } catch (error) {
-        Logger.error(`Failed to create CURRENT_STATUSTEMPLATE.md: ${(error as Error).message}`);
-        // エラーが発生しても処理は続行
-      }
+      // CURRENT_STATUSTEMPLATE.mdの作成は不要なため削除
     } catch (error) {
       Logger.error(`Failed to create initial documents: ${(error as Error).message}`);
     }

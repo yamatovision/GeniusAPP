@@ -52,7 +52,7 @@ export interface IProjectService {
   onProjectUIStateUpdated: vscode.Event<{
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string;
+    statusFilePath: string; // 後方互換性のために名前はそのまま
     statusFileExists: boolean;
   }>;
   
@@ -80,14 +80,14 @@ export class ProjectService implements IProjectService {
   private _onProjectUIStateUpdated = new vscode.EventEmitter<{
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string;
+    statusFilePath: string; // 後方互換性のために名前はそのまま
     statusFileExists: boolean;
   }>();
   public readonly onProjectUIStateUpdated = this._onProjectUIStateUpdated.event;
   
   private _disposables: vscode.Disposable[] = [];
   private _projectPath: string = '';
-  private _statusFilePath: string = '';
+  private _progressFilePath: string = '';
   private _currentProjects: IProjectInfo[] = [];
   private _activeProject: IProjectInfo | null = null;
   private _extensionPath: string;
@@ -259,9 +259,8 @@ export class ProjectService implements IProjectService {
       await this._fileSystemService.ensureDirectoryExists(docsDir);
       await this._fileSystemService.ensureDirectoryExists(mockupsDir);
       
-      // CLAUDE.mdとCURRENT_STATUS.mdファイルを作成
+      // CLAUDE.mdファイルを作成
       const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
-      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
       
       // CLAUDETEMPLATEからCLAUDE.mdのコンテンツを作成
       let claudeMdContent = '';
@@ -293,7 +292,7 @@ export class ProjectService implements IProjectService {
       fs.writeFileSync(claudeMdPath, claudeMdContent, 'utf8');
       
       // SCOPE_PROGRESS.mdファイルを作成
-      await this._fileSystemService.createProgressFile(projectDir, name, 'SCOPE_PROGRESS.md');
+      await this._fileSystemService.createProgressFile(projectDir, name);
       
       // ProjectManagementServiceにプロジェクトを登録
       try {
@@ -405,19 +404,12 @@ export class ProjectService implements IProjectService {
       
       // 進捗ファイルが存在しない場合は作成
       if (!existsProgressFile) {
-        const createProgress = await vscode.window.showInformationMessage(
-          `${progressFileName}ファイルが見つかりません。自動的に作成しますか？`,
-          { modal: true },
-          '作成する'
-        );
+        // 常にSCOPE_PROGRESS.mdを使用
+        const progressFileName = 'SCOPE_PROGRESS.md';
         
-        if (createProgress === '作成する') {
-          // デフォルトではSCOPE_PROGRESS.mdを作成
-          await this._fileSystemService.createProgressFile(projectPath);
-        } else {
-          Logger.info(`ProjectService: プロジェクト読み込みがキャンセルされました: ${progressFileName}の作成がキャンセル`);
-          throw new Error(`${progressFileName}の作成がキャンセルされました`);
-        }
+        // 自動的に作成する（メッセージ表示なし）
+        Logger.info(`ProjectService: ${progressFileName}を自動的に作成します`);
+        await this._fileSystemService.createProgressFile(projectPath);
       }
       
       // mockupsディレクトリが存在しない場合は作成
@@ -755,29 +747,37 @@ export class ProjectService implements IProjectService {
   public async setProjectPath(projectPath: string): Promise<void> {
     this._projectPath = projectPath;
     
-    // FileSystemServiceから進捗ファイルパスを取得（新しいメソッドを使用）
-    this._statusFilePath = this._fileSystemService.getProgressFilePath(projectPath);
+    // FileSystemServiceから進捗ファイルパスを取得
+    this._progressFilePath = this._fileSystemService.getProgressFilePath(projectPath);
     
     Logger.info(`ProjectService: プロジェクトパスを設定しました: ${projectPath}`);
-    Logger.info(`ProjectService: 進捗ファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
+    Logger.info(`ProjectService: 進捗ファイルパス: ${this._progressFilePath}, ファイル存在: ${fs.existsSync(this._progressFilePath) ? 'はい' : 'いいえ'}`);
     
     // 進捗ファイルを作成（必要な場合）
-    if (!fs.existsSync(this._statusFilePath)) {
-      // デフォルトでSCOPE_PROGRESS.mdを作成
+    if (!fs.existsSync(this._progressFilePath)) {
+      // SCOPE_PROGRESS.mdを作成
       await this._fileSystemService.createProgressFile(projectPath);
     }
   }
   
   /**
    * 進捗ファイルパスを取得
-   * @returns ステータスファイルまたはスコープ進捗ファイルのパス
+   * @returns スコープ進捗ファイルのパス
    */
-  public getStatusFilePath(): string {
-    // 既存コードとの互換性のためにメソッド名は変更せず、内部で新しいFileSystemServiceメソッドを使用
+  public getProgressFilePath(): string {
     if (this._projectPath) {
       return this._fileSystemService.getProgressFilePath(this._projectPath);
     }
-    return this._statusFilePath;
+    return this._progressFilePath;
+  }
+  
+  /**
+   * 進捗ファイルパスを取得（後方互換性のために残す）
+   * @deprecated このメソッドは後方互換性のために残されています。代わりに getProgressFilePath() を使用してください。
+   * @returns スコープ進捗ファイルのパス
+   */
+  public getStatusFilePath(): string {
+    return this.getProgressFilePath();
   }
   
   /**
@@ -889,13 +889,13 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
       
       // 現在のプロジェクト状態を通知
       if (this._activeProject && this._activeProject.path) {
-        const statusFilePath = this.getStatusFilePath();
+        const progressFilePath = this.getProgressFilePath();
         
         this._onProjectUIStateUpdated.fire({
           allProjects: this._currentProjects,
           activeProject: this._activeProject,
-          statusFilePath: statusFilePath,
-          statusFileExists: fs.existsSync(statusFilePath)
+          statusFilePath: progressFilePath, // 後方互換性のために名前はそのまま
+          statusFileExists: fs.existsSync(progressFilePath)
         });
       }
       
@@ -915,7 +915,7 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
   public async syncProjectUIState(projectPath: string): Promise<{
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string;
+    statusFilePath: string; // 後方互換性のために名前はそのまま
     statusFileExists: boolean;
   }> {
     try {
@@ -927,14 +927,14 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
       // 最新のプロジェクト一覧を取得
       const allProjects = this.getAllProjects();
       const activeProject = this.getActiveProject();
-      const statusFilePath = this.getStatusFilePath();
+      const progressFilePath = this.getProgressFilePath();
       
       // 結果をまとめて返す
       const result = {
         allProjects: allProjects,
         activeProject: activeProject,
-        statusFilePath: statusFilePath,
-        statusFileExists: fs.existsSync(statusFilePath)
+        statusFilePath: progressFilePath, // 後方互換性のために名前はそのまま
+        statusFileExists: fs.existsSync(progressFilePath)
       };
       
       // イベントも発火
@@ -948,7 +948,7 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
       return {
         allProjects: this._currentProjects,
         activeProject: this._activeProject,
-        statusFilePath: this._statusFilePath,
+        statusFilePath: this._progressFilePath, // 後方互換性のために名前はそのまま
         statusFileExists: false
       };
     }

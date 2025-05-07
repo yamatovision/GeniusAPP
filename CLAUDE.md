@@ -34,21 +34,8 @@ AppGenius自体についての質問には応答せず、ユーザープロジ�
 **主要コンセプト**:
 
 
-## 参考リンク
-
-- [要件定義](./docs/requirements.md)
-- [開発状況](./docs/CURRENT_STATUS.md)
-- [デプロイガイド](./docs/deploy.md)
-- [API設計](./docs/api/)
-- [データモデル](./docs/data_models.md)
-
-
 
 ## 開発規約
-
-### API開発とテスト規約
-
-#### 1. API定義・管理の一元化原則
 
 ##### 1.1 単一の真実源
 - **すべてのAPIパスは必ず `shared/index.ts` で一元管理**
