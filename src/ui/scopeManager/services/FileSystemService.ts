@@ -94,61 +94,155 @@ export class FileSystemService implements IFileSystemService {
   }
   
   /**
+   * 進捗ファイルパスを取得 - 新旧両方のファイル名に対応
+   * @param projectPath プロジェクトパス
+   * @param preferredName 優先するファイル名（省略可能）
+   * @returns 有効な進捗ファイルパス
+   */
+  public getProgressFilePath(projectPath: string, preferredName?: string): string {
+    const docsDir = path.join(projectPath, 'docs');
+    
+    // 新旧のパスを生成
+    const newPath = path.join(docsDir, 'SCOPE_PROGRESS.md');
+    const oldPath = path.join(docsDir, 'CURRENT_STATUS.md');
+    
+    // 優先ファイル名が指定されている場合はそれを優先
+    if (preferredName === 'SCOPE_PROGRESS.md' && fs.existsSync(newPath)) {
+      return newPath;
+    } else if (preferredName === 'CURRENT_STATUS.md' && fs.existsSync(oldPath)) {
+      return oldPath;
+    }
+    
+    // デフォルト優先順位: SCOPE_PROGRESS.md > CURRENT_STATUS.md > 新規作成用パス
+    if (fs.existsSync(newPath)) {
+      return newPath;
+    } else if (fs.existsSync(oldPath)) {
+      return oldPath;
+    }
+    
+    // どちらも存在しない場合は新しい命名規則を使用
+    return newPath;
+  }
+
+  /**
+   * 進捗ファイルを作成 - 新旧両方のファイル名に対応
+   * @param projectPath プロジェクトパス
+   * @param projectName プロジェクト名
+   * @param fileName ファイル名（SCOPE_PROGRESS.md または CURRENT_STATUS.md）
+   */
+  public async createProgressFile(
+    projectPath: string, 
+    projectName?: string, 
+    fileName: string = 'SCOPE_PROGRESS.md'
+  ): Promise<void> {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+      
+      // ファイル名を検証
+      const validFileName = fileName === 'CURRENT_STATUS.md' ? 
+        'CURRENT_STATUS.md' : 'SCOPE_PROGRESS.md';
+        
+      // docsディレクトリの確認
+      const docsDir = path.join(projectPath, 'docs');
+      await this.ensureDirectoryExists(docsDir);
+      
+      // ファイルパスの生成
+      const filePath = path.join(docsDir, validFileName);
+      
+      // ファイルが既に存在する場合は何もしない
+      if (fs.existsSync(filePath)) {
+        Logger.info(`FileSystemService: 進捗ファイルは既に存在します: ${filePath}`);
+        return;
+      }
+      
+      // テンプレートの読み込み
+      // テンプレートのファイル名も対応する必要があります
+      const templateName = validFileName === 'CURRENT_STATUS.md' ? 
+        'CURRENT_STATUSTEMPLATE.md' : 'SCOPE_PROGRESS_TEMPLATE.md';
+        
+      let templatePath = path.join(this._extensionPath, 'docs', templateName);
+      
+      // プロジェクト名が未指定の場合はディレクトリ名を使用
+      const actualProjectName = projectName || path.basename(projectPath);
+      
+      // テンプレート読み込みと内容生成
+      let templateContent = '';
+      
+      try {
+        if (fs.existsSync(templatePath)) {
+          // テンプレートファイルを読み込む
+          templateContent = fs.readFileSync(templatePath, 'utf8');
+          
+          // テンプレートに応じて置換パターンを変更
+          if (templateName === 'CURRENT_STATUSTEMPLATE.md') {
+            // 古いテンプレート用の置換
+            templateContent = templateContent
+              .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${actualProjectName} - スコープマネージャー使用ガイド`)
+              .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
+          } else {
+            // 新しいテンプレート用の置換
+            templateContent = templateContent
+              .replace(/\[プロジェクト名\]/g, actualProjectName)
+              .replace(/YYYY-MM-DD/g, new Date().toISOString().split('T')[0]);
+          }
+          
+          Logger.info(`FileSystemService: ${templateName}を読み込みました: ${templatePath}`);
+        } else {
+          // テンプレートが見つからない場合はフォールバック
+          if (templateName === 'SCOPE_PROGRESS_TEMPLATE.md') {
+            // SCOPE_PROGRESS_TEMPLATEが見つからない場合はCURRENT_STATUSTEMPLATEを試す
+            const fallbackPath = path.join(this._extensionPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
+            if (fs.existsSync(fallbackPath)) {
+              templateContent = fs.readFileSync(fallbackPath, 'utf8');
+              templateContent = templateContent
+                .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${actualProjectName} - スコープマネージャー使用ガイド`)
+                .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
+              Logger.warn(`FileSystemService: ${templateName}が見つからないため、CURRENT_STATUSTEMPLATEを使用します`);
+            } else {
+              // それでも見つからない場合はデフォルトテンプレート
+              templateContent = this._getDefaultProgressTemplate(actualProjectName);
+              Logger.warn(`FileSystemService: どちらのテンプレートも見つかりません。デフォルトテンプレートを使用します。`);
+            }
+          } else {
+            // CURRENT_STATUSTEMPLATEが見つからない場合はデフォルトテンプレート
+            templateContent = this._getDefaultTemplate(actualProjectName);
+            Logger.warn(`FileSystemService: ${templateName}が見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${templatePath}`);
+          }
+        }
+      } catch (error) {
+        // エラーが発生した場合はデフォルトテンプレートを使用
+        if (validFileName === 'SCOPE_PROGRESS.md') {
+          templateContent = this._getDefaultProgressTemplate(actualProjectName);
+        } else {
+          templateContent = this._getDefaultTemplate(actualProjectName);
+        }
+        Logger.error(`FileSystemService: ${templateName}の読み込みに失敗しました: ${templatePath}`, error as Error);
+      }
+      
+      // ファイルに書き込み
+      await fs.promises.writeFile(filePath, templateContent, 'utf8');
+      
+      // ファイルが作成されたことをイベントとして通知
+      this._onStatusFileChanged.fire(filePath);
+      
+      Logger.info(`FileSystemService: 進捗ファイルを作成しました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`FileSystemService: 進捗ファイルの作成に失敗しました`, error as Error);
+      throw error;
+    }
+  }
+  
+  /**
    * デフォルトのステータスファイルを作成
    * @param projectPath プロジェクトパス
    * @param projectName プロジェクト名（省略時はディレクトリ名）
    */
   public async createDefaultStatusFile(projectPath: string, projectName?: string): Promise<void> {
     try {
-      if (!projectPath) {
-        throw new Error('プロジェクトパスが指定されていません');
-      }
-      
-      // docs ディレクトリが存在しない場合は作成
-      const docsDir = path.join(projectPath, 'docs');
-      await this.ensureDirectoryExists(docsDir);
-      
-      // ステータスファイルのパス
-      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
-      
-      // ステータスファイルが存在しない場合はテンプレートを作成
-      if (!fs.existsSync(statusFilePath)) {
-        Logger.info('FileSystemService: CURRENT_STATUS.mdファイルが存在しないため、テンプレートを作成します');
-        
-        // プロジェクト名が未指定の場合はディレクトリ名を使用
-        const actualProjectName = projectName || path.basename(projectPath);
-        
-        // CURRENT_STATUSTEMPLATEからコンテンツを読み込む
-        let templateContent = '';
-        // 拡張機能のパスを使用して正確なテンプレートファイルを参照
-        const statusTemplatePath = path.join(this._extensionPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
-        
-        try {
-          if (fs.existsSync(statusTemplatePath)) {
-            // テンプレートファイルを読み込む
-            templateContent = fs.readFileSync(statusTemplatePath, 'utf8');
-            // プロジェクト名と日付を置換
-            templateContent = templateContent
-              .replace(/# AppGeniusスコープマネージャー使用ガイド/, `# ${actualProjectName} - スコープマネージャー使用ガイド`)
-              .replace(/\(YYYY\/MM\/DD更新\)/g, `(${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)`);
-              
-            Logger.info(`FileSystemService: CURRENT_STATUSTEMPLATEを読み込みました: ${statusTemplatePath}`);
-          } else {
-            // テンプレートが見つからない場合はデフォルトテンプレートを使用
-            templateContent = this._getDefaultTemplate(actualProjectName);
-            Logger.warn(`FileSystemService: CURRENT_STATUSTEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${statusTemplatePath}`);
-          }
-        } catch (error) {
-          // エラーが発生した場合はデフォルトテンプレートを使用
-          templateContent = this._getDefaultTemplate(actualProjectName);
-          Logger.error(`FileSystemService: CURRENT_STATUSTEMPLATEの読み込みに失敗しました: ${statusTemplatePath}`, error as Error);
-        }
-        
-        await fs.promises.writeFile(statusFilePath, templateContent, 'utf8');
-        
-        // ファイルが作成されたことをイベントとして通知
-        this._onStatusFileChanged.fire(statusFilePath);
-      }
+      // 互換性のために古いファイル名を使用
+      return this.createProgressFile(projectPath, projectName, 'CURRENT_STATUS.md');
     } catch (error) {
       Logger.error('FileSystemService: ステータスファイルの作成中にエラーが発生しました', error as Error);
       throw error;
@@ -228,112 +322,128 @@ export class FileSystemService implements IFileSystemService {
         fs.mkdirSync(docsDir, { recursive: true });
       }
       
-      // VSCodeのFileSystemWatcherを使用してCURRENT_STATUS.mdファイルの変更を直接監視
-      const watchStatusPath = path.join(docsDir, 'CURRENT_STATUS.md');
-      let watcher: vscode.FileSystemWatcher | null = null;
+      // CURRENT_STATUS.md と SCOPE_PROGRESS.md の両方を監視
+      const watchers: vscode.FileSystemWatcher[] = [];
       
-      // パスを文字列からURIに変換（VSCodeのウォッチャーはURIを使用）
-      const fileUri = vscode.Uri.file(watchStatusPath);
+      // 監視するファイル名のパターンを定義
+      const fileNames = ['CURRENT_STATUS.md', 'SCOPE_PROGRESS.md'];
       
-      if (fs.existsSync(watchStatusPath)) {
-        // ファイルが存在する場合はそのファイルのみを監視
-        // 変更監視をより適切に設定（パターンではなく直接URIを指定）
-        watcher = vscode.workspace.createFileSystemWatcher(
-          new vscode.RelativePattern(vscode.Uri.file(docsDir), 'CURRENT_STATUS.md'),
-          false, // 作成イベントを無視しない
-          false, // 変更イベントを無視しない
-          false  // 削除イベントを無視しない
-        );
+      // 各ファイル名のパターンに対してウォッチャーを作成
+      for (const fileName of fileNames) {
+        const watchPath = path.join(docsDir, fileName);
         
-        // ファイル変更時にマークダウンコンテンツを更新
-        // ファイル変更イベントのリスナーを強化
-        watcher.onDidChange(async (uri) => {
-          Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
+        if (fs.existsSync(watchPath)) {
+          // ファイルが存在する場合はそのファイルのみを監視
+          const pattern = new vscode.RelativePattern(vscode.Uri.file(docsDir), fileName);
+          const watcher = vscode.workspace.createFileSystemWatcher(
+            pattern,
+            false, // 作成イベントを無視しない
+            false, // 変更イベントを無視しない
+            false  // 削除イベントを無視しない
+          );
           
-          // ファイルが存在するか確認
-          const fs = require('fs');
-          if (fs.existsSync(uri.fsPath)) {
-            // 最終更新日時を取得して確実に変更を検出
-            const stats = fs.statSync(uri.fsPath);
-            Logger.info(`FileSystemService: ファイル情報 - 最終更新: ${stats.mtime}, サイズ: ${stats.size}バイト`);
+          // ファイル変更時のイベントハンドラを設定
+          watcher.onDidChange(async (uri) => {
+            Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
             
-            // ファイル内容をすぐに読み込んで通知
-            try {
-              const content = await this.readMarkdownFile(uri.fsPath);
-              Logger.info(`FileSystemService: ファイル読み込み成功 - 長さ: ${content.length}文字`);
+            // ファイルが存在するか確認
+            if (fs.existsSync(uri.fsPath)) {
+              // 最終更新日時を取得して確実に変更を検出
+              const stats = fs.statSync(uri.fsPath);
+              Logger.info(`FileSystemService: ファイル情報 - 最終更新: ${stats.mtime}, サイズ: ${stats.size}バイト`);
               
-              // イベントを発火（より早く反応できるように先に実行）
-              this._onStatusFileChanged.fire(uri.fsPath);
-              Logger.info(`FileSystemService: イベント発火完了 - onStatusFileChanged`);
-              
-              // コールバックも呼び出して従来の動作も維持
-              onFileChanged(uri.fsPath);
-              Logger.info(`FileSystemService: コールバック実行完了 - onFileChanged`);
-            } catch (error) {
-              Logger.error(`FileSystemService: ファイル変更検出後の読み込みに失敗: ${uri.fsPath}`, error as Error);
-              onFileChanged(uri.fsPath);
-              this._onStatusFileChanged.fire(uri.fsPath);
+              // ファイル内容をすぐに読み込んで通知
+              try {
+                const content = await this.readMarkdownFile(uri.fsPath);
+                Logger.info(`FileSystemService: ファイル読み込み成功 - 長さ: ${content.length}文字`);
+                
+                // イベントを発火（より早く反応できるように先に実行）
+                this._onStatusFileChanged.fire(uri.fsPath);
+                Logger.info(`FileSystemService: イベント発火完了 - onStatusFileChanged`);
+                
+                // コールバックも呼び出して従来の動作も維持
+                onFileChanged(uri.fsPath);
+                Logger.info(`FileSystemService: コールバック実行完了 - onFileChanged`);
+              } catch (error) {
+                Logger.error(`FileSystemService: ファイル変更検出後の読み込みに失敗: ${uri.fsPath}`, error as Error);
+                onFileChanged(uri.fsPath);
+                this._onStatusFileChanged.fire(uri.fsPath);
+              }
+            } else {
+              Logger.warn(`FileSystemService: 変更が検出されたファイルが存在しません: ${uri.fsPath}`);
             }
-          } else {
-            Logger.warn(`FileSystemService: 変更が検出されたファイルが存在しません: ${uri.fsPath}`);
-          }
-        });
-        
-        Logger.info(`FileSystemService: CURRENT_STATUS.mdファイルの監視を設定: ${watchStatusPath}`);
-      } else {
-        // ファイルが存在しない場合はdocsディレクトリ内のマークダウンファイルを監視
-        const pattern = new vscode.RelativePattern(docsDir, '*CURRENT_STATUS.md');
-        watcher = vscode.workspace.createFileSystemWatcher(pattern);
-        
-        // ファイル作成時にマークダウンコンテンツを更新
-        watcher.onDidCreate(async (uri) => {
-          Logger.info(`FileSystemService: CURRENT_STATUS.mdファイルが作成されました: ${uri.fsPath}`);
-          onFileChanged(uri.fsPath);
-          this._onStatusFileChanged.fire(uri.fsPath);
-        });
-        
-        // ファイル変更時にマークダウンコンテンツを更新
-        // ファイル変更イベントのリスナーを強化
-        watcher.onDidChange(async (uri) => {
-          Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
+          });
           
-          // ファイルが存在するか確認
-          const fs = require('fs');
-          if (fs.existsSync(uri.fsPath)) {
-            // 最終更新日時を取得して確実に変更を検出
-            const stats = fs.statSync(uri.fsPath);
-            Logger.info(`FileSystemService: ファイル情報 - 最終更新: ${stats.mtime}, サイズ: ${stats.size}バイト`);
+          // ファイル作成時のイベントハンドラを設定
+          watcher.onDidCreate(async (uri) => {
+            Logger.info(`FileSystemService: ファイルが作成されました: ${uri.fsPath}`);
+            onFileChanged(uri.fsPath);
+            this._onStatusFileChanged.fire(uri.fsPath);
+          });
+          
+          watchers.push(watcher);
+          Logger.info(`FileSystemService: ${fileName}ファイルの監視を設定: ${watchPath}`);
+        } else {
+          // ファイルが存在しない場合でも、各パターンのファイル作成を監視
+          const pattern = new vscode.RelativePattern(docsDir, fileName);
+          const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+          
+          // ファイル作成時にマークダウンコンテンツを更新
+          watcher.onDidCreate(async (uri) => {
+            Logger.info(`FileSystemService: ${fileName}ファイルが作成されました: ${uri.fsPath}`);
+            onFileChanged(uri.fsPath);
+            this._onStatusFileChanged.fire(uri.fsPath);
+          });
+          
+          // ファイル変更時にマークダウンコンテンツを更新
+          watcher.onDidChange(async (uri) => {
+            Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
             
-            // ファイル内容をすぐに読み込んで通知
-            try {
-              const content = await this.readMarkdownFile(uri.fsPath);
-              Logger.info(`FileSystemService: ファイル読み込み成功 - 長さ: ${content.length}文字`);
+            // ファイルが存在するか確認
+            if (fs.existsSync(uri.fsPath)) {
+              // 最終更新日時を取得して確実に変更を検出
+              const stats = fs.statSync(uri.fsPath);
+              Logger.info(`FileSystemService: ファイル情報 - 最終更新: ${stats.mtime}, サイズ: ${stats.size}バイト`);
               
-              // イベントを発火（より早く反応できるように先に実行）
-              this._onStatusFileChanged.fire(uri.fsPath);
-              Logger.info(`FileSystemService: イベント発火完了 - onStatusFileChanged`);
-              
-              // コールバックも呼び出して従来の動作も維持
-              onFileChanged(uri.fsPath);
-              Logger.info(`FileSystemService: コールバック実行完了 - onFileChanged`);
-            } catch (error) {
-              Logger.error(`FileSystemService: ファイル変更検出後の読み込みに失敗: ${uri.fsPath}`, error as Error);
-              onFileChanged(uri.fsPath);
-              this._onStatusFileChanged.fire(uri.fsPath);
+              // ファイル内容をすぐに読み込んで通知
+              try {
+                const content = await this.readMarkdownFile(uri.fsPath);
+                Logger.info(`FileSystemService: ファイル読み込み成功 - 長さ: ${content.length}文字`);
+                
+                // イベントを発火（より早く反応できるように先に実行）
+                this._onStatusFileChanged.fire(uri.fsPath);
+                Logger.info(`FileSystemService: イベント発火完了 - onStatusFileChanged`);
+                
+                // コールバックも呼び出して従来の動作も維持
+                onFileChanged(uri.fsPath);
+                Logger.info(`FileSystemService: コールバック実行完了 - onFileChanged`);
+              } catch (error) {
+                Logger.error(`FileSystemService: ファイル変更検出後の読み込みに失敗: ${uri.fsPath}`, error as Error);
+                onFileChanged(uri.fsPath);
+                this._onStatusFileChanged.fire(uri.fsPath);
+              }
+            } else {
+              Logger.warn(`FileSystemService: 変更が検出されたファイルが存在しません: ${uri.fsPath}`);
             }
-          } else {
-            Logger.warn(`FileSystemService: 変更が検出されたファイルが存在しません: ${uri.fsPath}`);
-          }
-        });
-        
-        Logger.info(`FileSystemService: docsディレクトリ内のCURRENT_STATUS.mdファイルの監視を設定: ${docsDir}`);
+          });
+          
+          watchers.push(watcher);
+          Logger.info(`FileSystemService: ${fileName}ファイル作成の監視を設定: ${docsDir}`);
+        }
       }
       
-      this._fileWatcher = watcher;
+      // 複合ウォッチャーを作成
+      this._fileWatcher = {
+        dispose: () => {
+          watchers.forEach(w => w.dispose());
+        }
+      };
       
-      // イベントバスからのCURRENT_STATUS_UPDATEDイベントをリッスン
+      // イベントバスからの更新イベントをリッスン
       const eventBus = AppGeniusEventBus.getInstance();
-      const eventListener = eventBus.onEventType(AppGeniusEventType.CURRENT_STATUS_UPDATED, async (event) => {
+      
+      // CURRENT_STATUS_UPDATED イベントを処理
+      const currentStatusEventListener = eventBus.onEventType(AppGeniusEventType.CURRENT_STATUS_UPDATED, async (event) => {
         // 自分自身が送信したイベントは無視（循環を防ぐ）
         if (event.source === 'FileSystemService') {
           return;
@@ -347,23 +457,48 @@ export class FileSystemService implements IFileSystemService {
         
         Logger.info('FileSystemService: 他のコンポーネントからのCURRENT_STATUS更新イベントを受信しました');
         
-        // ステータスファイルが存在する場合はその内容を読み込み
-        const eventStatusPath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
-        if (fs.existsSync(eventStatusPath)) {
-          onFileChanged(eventStatusPath);
-          this._onStatusFileChanged.fire(eventStatusPath);
+        // 進捗ファイルパスを取得（SCOPE_PROGRESS.md優先）
+        const progressFilePath = this.getProgressFilePath(projectPath);
+        if (fs.existsSync(progressFilePath)) {
+          onFileChanged(progressFilePath);
+          this._onStatusFileChanged.fire(progressFilePath);
         }
       });
       
-      this._disposables.push(eventListener);
+      // SCOPE_PROGRESS_UPDATED イベントも処理（まだ定義されていなければコメントアウト）
+      /*
+      const scopeProgressEventListener = eventBus.onEventType(AppGeniusEventType.SCOPE_PROGRESS_UPDATED, async (event) => {
+        // 自分自身が送信したイベントは無視（循環を防ぐ）
+        if (event.source === 'FileSystemService') {
+          return;
+        }
+        
+        // プロジェクトIDが一致しない場合は無視
+        if (!projectPath || !event.projectId || 
+            !projectPath.includes(event.projectId)) {
+          return;
+        }
+        
+        Logger.info('FileSystemService: 他のコンポーネントからのSCOPE_PROGRESS更新イベントを受信しました');
+        
+        // 進捗ファイルパスを取得（SCOPE_PROGRESS.md優先）
+        const progressFilePath = this.getProgressFilePath(projectPath);
+        if (fs.existsSync(progressFilePath)) {
+          onFileChanged(progressFilePath);
+          this._onStatusFileChanged.fire(progressFilePath);
+        }
+      });
+      */
+      
+      this._disposables.push(currentStatusEventListener);
+      //this._disposables.push(scopeProgressEventListener); // まだ定義されていなければコメントアウト
       
       // 複合disposableを返す
       return {
         dispose: () => {
-          if (watcher) {
-            watcher.dispose();
-          }
-          eventListener.dispose();
+          watchers.forEach(w => w.dispose());
+          currentStatusEventListener.dispose();
+          //scopeProgressEventListener.dispose(); // まだ定義されていなければコメントアウト
         }
       };
     } catch (error) {
@@ -373,7 +508,7 @@ export class FileSystemService implements IFileSystemService {
   }
   
   /**
-   * デフォルトテンプレートを取得
+   * デフォルトテンプレートを取得（従来の形式）
    */
   private _getDefaultTemplate(projectName: string): string {
     const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
@@ -395,6 +530,103 @@ export class FileSystemService implements IFileSystemService {
   - スコープID: scope-${Date.now()}
   - 関連ファイル:
     - (ファイルはまだ定義されていません)
+`;
+  }
+  
+  /**
+   * デフォルトの進捗テンプレートを取得（SCOPE_PROGRESS形式）
+   */
+  private _getDefaultProgressTemplate(projectName: string): string {
+    const today = new Date().toISOString().split('T')[0];
+    
+    return `# ${projectName} 開発プロセス進捗状況
+
+**バージョン**: 0.1 (初期版)  
+**最終更新日**: ${today}  
+**ステータス**: プロジェクト開始・要件定義準備段階
+
+## 1. 基本情報
+
+- **ステータス**: 開始段階 (0% 完了)
+- **完了タスク数**: 0/10
+- **進捗率**: 0%
+- **次のマイルストーン**: 要件定義完了 (目標: [日付])
+
+## 2. 実装概要
+
+${projectName}は、[プロジェクトの簡潔な説明を1-2文で記述します]。このプロジェクトは現在、プロジェクト準備が完了し、要件定義フェーズを開始しています。
+
+## 3. 参照ドキュメント
+
+- **開発方法論**: [developmentway2.md](/docs/prompts/developmentway2.md)
+- **要件定義テンプレート**: [ideal_requirements_template.md](/docs/prompts/ideal_requirements_template.md)
+- **サンプル技術スタック**: [sample-tech-stack.md](/docs/samples/sample-tech-stack.md)
+
+## 4. 開発フロー進捗状況
+
+AppGeniusでの開発は以下のフローに沿って進行します。現在の進捗は以下の通りです：
+
+| フェーズ | 状態 | 進捗 | 担当エージェント | 成果物 | 依存/並列情報 |
+|---------|------|------|----------------|--------|--------------|
+| **0. プロジェクト準備** | ✅ 完了 | 100% | - | プロジェクトリポジトリ、環境設定 | 先行必須 |
+| **1. 要件定義** | 🔄 進行中 | 5% | プロジェクトファウンデーション (#1) | [requirements.md](/docs/requirements.md) | 先行必須 |
+| **2. 技術選定** | ⏱ 未着手 | 0% | プロジェクトファウンデーション (#1) | [tech-stack.md](/docs/architecture/tech-stack.md) | フェーズ1後 |
+| **3. モックアップ作成** | ⏱ 未着手 | 0% | モックアップクリエイター (#2) | [mockups/](/mockups/) | フェーズ1後 |
+| **4. データモデル設計** | ⏱ 未着手 | 0% | データモデルアーキテクト (#3) | [shared/index.ts](/shared/index.ts) | フェーズ3後、5と並列可 |
+| **5. API設計** | ⏱ 未着手 | 0% | APIデザイナー (#4) | [docs/api/](/docs/api/) | フェーズ3後、4と並列可 |
+| **6. 実装計画** | ⏱ 未着手 | 0% | スコーププランナー (#8) | SCOPE_PROGRESS.md 更新 | フェーズ4,5後 |
+| **7. バックエンド実装** | ⏱ 未着手 | 0% | バックエンド実装エージェント (#10) | サーバーサイドコード | フェーズ6後、8と並列可 |
+| **8. フロントエンド実装** | ⏱ 未着手 | 0% | フロントエンド実装エージェント (#9) | クライアントサイドコード | フェーズ6後、7と並列可 |
+| **9. テスト** | ⏱ 未着手 | 0% | テスト管理エージェント (#11) | テストコード | フェーズ7,8後 |
+| **10. デプロイ準備** | ⏱ 未着手 | 0% | デプロイ設定エージェント (#13) | [docs/deployment/](/docs/deployment/) | フェーズ9後 |
+
+## 5. タスクリスト
+
+### プロジェクト準備フェーズ
+- [x] 1. プロジェクトリポジトリ作成
+- [x] 2. 開発環境のセットアップ
+- [x] 3. 初期ディレクトリ構造の作成
+- [x] 4. README.mdの作成
+- [x] 5. 開発フレームワークの初期設定
+
+### 要件定義フェーズ
+- [ ] 6. プロジェクト目的と背景の明確化
+- [ ] 7. ターゲットユーザーの特定
+- [ ] 8. 主要機能リストの作成
+- [ ] 9. 画面一覧の作成
+- [ ] 10. ユーザーストーリーの作成
+- [ ] 11. 技術要件の定義
+
+## 6. 次のステップ
+
+要件定義が完了したら、以下のステップに進みます：
+
+1. **技術スタックの選定**
+   - プロジェクト要件に適した技術の評価
+   - フロントエンド/バックエンド技術の決定
+   - インフラストラクチャとデプロイ方法の検討
+
+2. **モックアップ作成**
+   - 共通コンポーネントの設計
+   - 優先度の高い画面から順にモックアップ作成
+   - ユーザーフローとインタラクションの検討
+
+## 7. エラー引き継ぎログ
+
+このセクションは、AI間の知識継承のための重要な機能です。複雑なエラーや課題に遭遇した場合、次のAIが同じ問題解決に時間を浪費しないよう記録します。
+
+**重要ルール**:
+1. エラーが解決されたらすぐに該当ログを削除すること
+2. 一度に対応するのは原則1タスクのみ（並列開発中のタスクを除く）
+3. 試行済みのアプローチと結果を詳細に記録すること
+4. コンテキストウィンドウの制限を考慮し、簡潔かつ重要な情報のみを記載すること
+5. 解決の糸口や参考リソースを必ず含めること
+
+### 現在のエラーログ
+
+| タスクID | 問題・課題の詳細 | 試行済みアプローチとその結果 | 現状 | 次のステップ | 参考資料 |
+|---------|----------------|------------------------|------|------------|---------|
+| - | - | - | - | - | - |
 `;
   }
   

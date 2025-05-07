@@ -148,7 +148,7 @@ AppGenius自体についての質問には応答せず、ユーザープロジ�
 
 ## 開発フェーズ
 
-現在の開発状況と進捗は [開発状況](./docs/CURRENT_STATUS.md) で管理しています。
+現在の開発状況と進捗は [開発状況](./docs/SCOPE_PROGRESS.md) で管理しています。
 
 ## 開発ワークフロー
 
@@ -225,8 +225,8 @@ AppGeniusでは各開発フェーズに特化したAIプロンプトを用意し
 - [環境変数リスト](./docs/env.md) - 必要な環境変数の設定リスト
 
 ### 技術情報
-- [開発状況](./docs/CURRENT_STATUS.md) - 現在の開発状況と進捗
-- [環境変数](./docs/CURRENT_STATUS.md#環境変数設定状況) - 必要な環境変数の設定リスト
+- [開発状況](./docs/SCOPE_PROGRESS.md) - 現在の開発状況と進捗
+- [環境変数](./docs/SCOPE_PROGRESS.md#環境変数設定状況) - 必要な環境変数の設定リスト
 - [コマンド一覧](#開発コマンド) - よく使うコマンドのリスト
 
 ## プロジェクト構造
@@ -235,7 +235,7 @@ AppGeniusでは各開発フェーズに特化したAIプロンプトを用意し
 [プロジェクト名]/
 ├── CLAUDE.md                     # プロジェクト中心情報
 ├── TOOLKIT.md                    # ツールキット管理・連携情報
-├── CURRENT_STATUS.md             # 開発状況と進捗
+├── SCOPE_PROGRESS.md             # 開発状況と進捗
 ├── .env                          # 環境変数（.gitignoreに追加）
 ├── docs/                         # プロジェクト定義とテンプレート
 │   ├── api/                      # API定義ファイル（RESTful設計）
@@ -257,9 +257,9 @@ AppGeniusでは各開発フェーズに特化したAIプロンプトを用意し
 
 ## 環境変数管理
 
-プロジェクトで使用する環境変数は `docs/env.md` で一元管理し、CURRENT_STATUS.mdで
+プロジェクトで使用する環境変数は `docs/env.md` で一元管理し、SCOPE_PROGRESS.mdで
 状況を追跡します。実際の値は`.env`ファイルに設定してください。環境変数に関する詳細情報は、
-[環境変数設定状況](./docs/CURRENT_STATUS.md#環境変数設定状況)を参照してください。
+[環境変数設定状況](./docs/SCOPE_PROGRESS.md#環境変数設定状況)を参照してください。
 
 ## 開発コマンド
 

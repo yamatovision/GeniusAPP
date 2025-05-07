@@ -23,6 +23,7 @@ export enum AppGeniusEventType {
   ENV_VARIABLES_UPDATED = 'env-variables-updated',
   ENV_FILE_CREATED = 'env-file-created',
   CURRENT_STATUS_UPDATED = 'current-status-updated',
+  SCOPE_PROGRESS_UPDATED = 'scope-progress-updated',
   
   // ClaudeCode関連イベント
   CLAUDE_CODE_STARTED = 'claude-code-started',

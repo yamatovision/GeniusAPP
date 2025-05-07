@@ -292,8 +292,8 @@ export class ProjectService implements IProjectService {
       // ファイルに書き込み
       fs.writeFileSync(claudeMdPath, claudeMdContent, 'utf8');
       
-      // CURRENT_STATUS.mdファイルを作成
-      await this._fileSystemService.createDefaultStatusFile(projectDir, name);
+      // SCOPE_PROGRESS.mdファイルを作成
+      await this._fileSystemService.createProgressFile(projectDir, name, 'SCOPE_PROGRESS.md');
       
       // ProjectManagementServiceにプロジェクトを登録
       try {
@@ -381,7 +381,11 @@ export class ProjectService implements IProjectService {
       
       // 選択されたフォルダが有効なプロジェクトかチェック
       const docsDir = path.join(projectPath, 'docs');
-      const statusFilePath = path.join(docsDir, 'CURRENT_STATUS.md');
+      
+      // FileSystemServiceを使って進捗ファイルパスを取得
+      const progressFilePath = this._fileSystemService.getProgressFilePath(projectPath);
+      const progressFileName = path.basename(progressFilePath);
+      const existsProgressFile = fs.existsSync(progressFilePath);
       
       // ディレクトリが存在しない場合は作成
       if (!fs.existsSync(docsDir)) {
@@ -399,19 +403,20 @@ export class ProjectService implements IProjectService {
         }
       }
       
-      // ステータスファイルが存在しない場合は作成
-      if (!fs.existsSync(statusFilePath)) {
-        const createStatus = await vscode.window.showInformationMessage(
-          'CURRENT_STATUS.mdファイルが見つかりません。自動的に作成しますか？',
+      // 進捗ファイルが存在しない場合は作成
+      if (!existsProgressFile) {
+        const createProgress = await vscode.window.showInformationMessage(
+          `${progressFileName}ファイルが見つかりません。自動的に作成しますか？`,
           { modal: true },
           '作成する'
         );
         
-        if (createStatus === '作成する') {
-          await this._fileSystemService.createDefaultStatusFile(projectPath);
+        if (createProgress === '作成する') {
+          // デフォルトではSCOPE_PROGRESS.mdを作成
+          await this._fileSystemService.createProgressFile(projectPath);
         } else {
-          Logger.info('ProjectService: プロジェクト読み込みがキャンセルされました: CURRENT_STATUS.mdの作成がキャンセル');
-          throw new Error('CURRENT_STATUS.mdの作成がキャンセルされました');
+          Logger.info(`ProjectService: プロジェクト読み込みがキャンセルされました: ${progressFileName}の作成がキャンセル`);
+          throw new Error(`${progressFileName}の作成がキャンセルされました`);
         }
       }
       
@@ -749,21 +754,29 @@ export class ProjectService implements IProjectService {
    */
   public async setProjectPath(projectPath: string): Promise<void> {
     this._projectPath = projectPath;
-    this._statusFilePath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
+    
+    // FileSystemServiceから進捗ファイルパスを取得（新しいメソッドを使用）
+    this._statusFilePath = this._fileSystemService.getProgressFilePath(projectPath);
     
     Logger.info(`ProjectService: プロジェクトパスを設定しました: ${projectPath}`);
-    Logger.info(`ProjectService: ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
+    Logger.info(`ProjectService: 進捗ファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
     
-    // ステータスファイルを作成（必要な場合）
+    // 進捗ファイルを作成（必要な場合）
     if (!fs.existsSync(this._statusFilePath)) {
-      await this._fileSystemService.createDefaultStatusFile(projectPath);
+      // デフォルトでSCOPE_PROGRESS.mdを作成
+      await this._fileSystemService.createProgressFile(projectPath);
     }
   }
   
   /**
-   * ステータスファイルパスを取得
+   * 進捗ファイルパスを取得
+   * @returns ステータスファイルまたはスコープ進捗ファイルのパス
    */
   public getStatusFilePath(): string {
+    // 既存コードとの互換性のためにメソッド名は変更せず、内部で新しいFileSystemServiceメソッドを使用
+    if (this._projectPath) {
+      return this._fileSystemService.getProgressFilePath(this._projectPath);
+    }
     return this._statusFilePath;
   }
   
