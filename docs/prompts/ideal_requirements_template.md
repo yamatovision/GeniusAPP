@@ -1,7 +1,7 @@
 # [プロジェクト名] 要件定義書
 
 **バージョン**: 1.0.0  
-**最終更新日**: 2025-05-05  
+**最終更新日**: 2025-05-07  
 **ステータス**: 進行中  
 
 ## 1. プロジェクト概要
@@ -43,7 +43,7 @@
 
 ## 3. 画面詳細
 
-> **注意**: 以下の各画面の「データ要件」と「API要件」セクションは、`shared/index.ts`に定義されている型とAPIパスから抽出した主要情報です。完全な型定義とAPI仕様の詳細については、[型定義ファイル](/shared/index.ts)および各API仕様書へのリンクを参照してください。
+> **注意**: 以下の各画面の「データとAPI」セクションは、`shared/index.ts`に定義されている型とAPIパスから抽出した主要情報です。完全な型定義とAPI仕様の詳細については、[型定義ファイル](/shared/index.ts)および各API仕様書へのリンクを参照してください。
 
 ### 3.1 ログイン画面 (P-001)
 
@@ -55,18 +55,18 @@
 - ログインボタン
 - パスワードリセットリンク
 
-**ユーザーアクション**:
-- ログイン情報入力
-- パスワードリセット依頼
-
 **モックアップ**: [login.html](/mockups/login.html)
 
-**データ要件**:
-- User - ユーザー認証情報（email, password, role）
+**状態と動作**:
+- エラー状態: 認証失敗時はフォーム下部にエラーメッセージ表示
+- 送信中状態: ログインボタンがローディング表示に変わる
 
-**API要件**:
-- `POST /api/v1/auth/login` - ログイン処理
-- `POST /api/v1/auth/reset-password` - パスワードリセット
+**データとAPI**:
+- User: { email: string, password: string, role: string }
+- `POST /api/v1/auth/login` → 認証処理
+  - リクエスト: { email, password }
+  - 成功: { token, user }
+  - エラー: 401「メールアドレスまたはパスワードが正しくありません」
 
 [API仕様の詳細はこちら](/docs/api/auth.md)
 
@@ -80,21 +80,19 @@
 - 最近のアクティビティリスト
 - クイックアクションボタン
 
-**ユーザーアクション**:
-- データのフィルタリング
-- 詳細情報の展開
-- アクションの実行
-
 **モックアップ**: [dashboard.html](/mockups/dashboard.html)
 
-**データ要件**:
-- DashboardMetrics - サマリー情報、トレンドデータ
-- Activity - アクティビティ情報（id, type, timestamp, description）
+**状態と動作**:
+- 初期ロード: ローディングスケルトン表示
+- データフィルタリング: フィルタ適用時は部分リロード
+- ドラッグ&ドロップ: カードの位置を変更可能
 
-**API要件**:
-- `GET /api/v1/dashboard/metrics` - ダッシュボード指標取得
-- `GET /api/v1/dashboard/activities` - 最近のアクティビティ取得
-- `PUT /api/v1/dashboard/layout` - ダッシュボードレイアウト更新
+**データとAPI**:
+- DashboardMetrics: { summary: MetricSummary[], trends: TrendPoint[] }
+- Activity: { id: string, type: string, timestamp: Date, description: string }
+- `GET /api/v1/dashboard/metrics` → ダッシュボード指標取得
+- `GET /api/v1/dashboard/activities` → 最近のアクティビティ取得
+- `PUT /api/v1/dashboard/layout` → ダッシュボードレイアウト更新
 
 [API仕様の詳細はこちら](/docs/api/dashboard.md)
 

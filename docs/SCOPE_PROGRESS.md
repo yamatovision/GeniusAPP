@@ -203,6 +203,37 @@ AppGeniusの開発プロセスを効率化するため、最適化されたド�
 - **参照計画**: [status_to_progress_migration_plan.md](/docs/tasks/refactoring/status_to_progress_migration_plan.md)
 - **実装状況**: フェーズ1（基本互換性対応）完了、フェーズ2（完全移行）進行中
 
+### G. AIエージェント最適化フェーズ
+- **参照資料**: 
+  - [AIエージェントプロンプト作成ガイド](/docs/prompts/prompt_excellence_guide.md)
+  - [エージェントプロンプトテンプレート集](/docs/prompts/templates/)
+  - [AIエージェントシステム完成計画書](/docs/prompts/agent-system-enhancement-plan.md)
+  - [サンプル進捗テンプレート](/docs/samples/initial-scope-progress-template.md)
+
+- [ ] **G-1**: AIエージェント名の標準化と最適化
+  - 目標: 2025-05-21
+  - 内容:
+    - 現在のエージェント名と番号付けの整合性確認
+    - 分かりやすく覚えやすいエージェント名の検討
+    - 担当業務を適切に反映した名称への変更
+    - 番号付けの連番化と論理的整理
+    
+- [ ] **G-2**: 開発プロンプトカード表示方法の改善
+  - 目標: 2025-05-21
+  - 内容:
+    - カード表示レイアウトのユーザビリティ向上
+    - エージェント特性を視覚的に表現する工夫
+    - サンプル成果物へのリンク追加
+    - エージェント間連携フローの可視化
+
+- [ ] **G-3**: テンプレートファイルへのエージェント名反映
+  - 目標: 2025-05-21
+  - 内容:
+    - initial-scope-progress-template.mdの更新
+    - SCOPE_PROGRESS_TEMPLATE.mdの更新
+    - エージェント名と番号の一貫性確保
+    - すべての参照ドキュメントでの用語統一
+
 - [x] **F-1**: FileSystemServiceの拡張実装
   - 完了日: 2025-05-19
   - 成果:
@@ -423,8 +454,8 @@ AppGeniusでは、18の専門AIエージェントが連携して開発を進め�
 ### 1. コア設計エージェント群
 
 #### 1. レコンX（要件定義エージェント）
-- **役割**: 要件定義、技術選定、基本アーキテクチャの設計
-- **成果物**: requirements.md, architecture/tech-stack.md, 初期 directory-structure.md
+- **役割**: 要件定義、基本アーキテクチャの設計
+- **成果物**: requirements.md, 初期 directory-structure.md
 - **参照**: クライアント要望資料、業界標準、競合分析
 - **特徴**: プロジェクトの基盤となる設計を担当、方向性を決定
 - **プロンプト**: [★1requirements_creator.md](/docs/prompts/★1requirements_creator.md)
@@ -433,7 +464,7 @@ AppGeniusでは、18の専門AIエージェントが連携して開発を進め�
 #### 2. モックアップクリエイター
 - **役割**: UI/UX設計、HTMLモックアップ作成
 - **成果物**: mockups/ ディレクトリ内の全ファイル
-- **参照**: requirements.md, tech-stack.md, UI/UXガイドライン
+- **参照**: requirements.md, UI/UXガイドライン
 - **特徴**: ビジュアル面に集中、ユーザー体験を具体化
 - **URL**: http://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb
 
@@ -451,10 +482,17 @@ AppGeniusでは、18の専門AIエージェントが連携して開発を進め�
 - **特徴**: フロントとバックエンドの接続ポイントを設計
 
 #### 5. 要件定義統合エージェント
-- **役割**: モックアップから抽出された要件の統合、実装計画への橋渡し
-- **成果物**: 更新された requirements.md, 最終化された directory-structure.md, 実装優先順位計画
+- **役割**: モックアップから抽出された要件の統合、技術スタックの策定、実装計画への橋渡し
+- **成果物**:
+  - 更新された requirements.md
+  - 最終化された tech-stack.md
+  - 最終化された directory-structure.md
+  - 実装優先順位計画
 - **参照**: モックアップ一式, データモデル, API仕様, 初期要件定義
-- **特徴**: モックアップ作成段階で発見された要件を統合し、実装フェーズの基盤を準備
+- **特徴**:
+  - モックアップ作成段階で発見された要件を統合
+  - 全モックアップとデータモデルを分析してプロジェクトに最適な技術スタックを選定
+  - 実装フェーズの基盤を準備
 
 ### 2. 基盤構築エージェント群
 

@@ -1002,7 +1002,6 @@
             <div class="tab active" data-tab="current-status">プロジェクト状況</div>
             <div class="tab" data-tab="requirements">要件定義</div>
             <div class="tab" data-tab="claude-code">ClaudeCode連携</div>
-            <div class="tab" data-tab="tools">開発ツール</div>
             <div class="tab" data-tab="file-browser">ファイル</div>
           </div>
 
@@ -1614,141 +1613,17 @@
           <!-- ClaudeCode連携タブコンテンツ -->
           <div id="claude-code-tab" class="tab-content">
             <div class="claude-share-container">
-              <!-- 左側：テキスト入力エリア（広げる） -->
-              <div class="text-input-area">
-                <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
-                <!-- ボタンエリア -->
-                <div class="action-buttons">
-                  <button class="button button-secondary" id="clear-button">クリア</button>
-                  <button class="button" id="share-to-claude">保存</button>
-                </div>
-                
-                <!-- 保存結果通知（成功時のみ表示） -->
-                <div class="save-notification" id="save-notification" style="display: none;">
-                  <span class="material-icons success-icon">check_circle</span>
-                  <span class="notification-text">保存完了</span>
-                </div>
-              </div>
-              
-              <!-- 右側：画像アップロードエリアと履歴 -->
-              <div class="image-upload-area">
-                <!-- ドロップゾーン -->
-                <div class="drop-zone" id="drop-zone" style="background-color: #f5f8ff; border: 2px dashed var(--app-primary-light); border-radius: var(--app-border-radius); padding: 15px 10px; text-align: center; cursor: pointer; transition: all 0.3s ease;">
-                  <span class="material-icons" style="font-size: 36px; margin-bottom: 10px; color: var(--app-primary);">add_photo_alternate</span>
-                  <p style="margin-bottom: 8px; text-align: center; color: var(--app-text);">
-                    このエリアをクリックして画像をアップロード<br>
-                    <span style="font-size: 12px; color: var(--app-text-secondary);">またはShiftキーを押しながらファイルをドラッグ＆ドロップ</span>
-                  </p>
-                  <button id="file-select-btn" class="button-secondary" style="margin-top: 5px;">ブラウズ...</button>
-                  <input type="file" id="file-input" accept="image/*" style="display: none;">
-                </div>
-                
-                <!-- 履歴表示エリア -->
-                <div class="history-container">
-                  <h4>共有履歴</h4>
-                  <div class="shared-history-list shared-history">
-                    <div class="history-item">
-                      <div class="history-item-name">認証サービスのエラーログ</div>
-                      <div class="history-item-actions">
-                        <span class="history-item-time">2分前</span>
-                        <span class="material-icons history-action-copy" style="font-size: 16px; cursor: pointer; margin-left: 8px;" title="コマンドをコピー">content_copy</span>
-                        <span class="material-icons history-action-delete" style="font-size: 16px; cursor: pointer; margin-left: 4px;" title="履歴から削除">delete</span>
-                      </div>
-                    </div>
-                    <div class="history-item">
-                      <div class="history-item-name">API接続テスト結果</div>
-                      <div class="history-item-actions">
-                        <span class="history-item-time">15分前</span>
-                        <span class="material-icons history-action-copy" style="font-size: 16px; cursor: pointer; margin-left: 8px;" title="コマンドをコピー">content_copy</span>
-                        <span class="material-icons history-action-delete" style="font-size: 16px; cursor: pointer; margin-left: 4px;" title="履歴から削除">delete</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <h3>ClaudeCode連携</h3>
+              <p style="padding: 20px; text-align: center;">ここにClaudeCode連携機能が表示されます。</p>
             </div>
           </div>
 
           <!-- ツールタブコンテンツ -->
-          <div id="tools-tab" class="tab-content">
-            <div class="prompt-grid">
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">fact_check</span>
-                <h3 class="prompt-title">要件定義エディタ</h3>
-                <p class="prompt-description">要件定義書の編集と管理</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">emoji_objects</span>
-                <h3 class="prompt-title">環境変数アシスタント</h3>
-                <p class="prompt-description">環境変数の設定と管理</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">dashboard</span>
-                <h3 class="prompt-title">モックアップギャラリー</h3>
-                <p class="prompt-description">UIモックアップの表示と管理</p>
-              </div>
-              <div class="prompt-card">
-                <span class="material-icons prompt-icon">bug_report</span>
-                <h3 class="prompt-title">デバッグ探偵</h3>
-                <p class="prompt-description">エラー解析と問題解決</p>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   </div>
   
-  <!-- 開発プロンプトエリア -->
-  <div class="toggle-share-btn" id="toggle-share-btn" style="display: flex;">
-    <span class="material-icons">description</span>
-    <span>開発プロンプト</span>
-  </div>
-  
-  <div class="claude-code-share-area" id="claude-code-share">
-    <div class="claude-code-share-header">
-      <h3>開発プロンプト</h3>
-      <div>
-        <button class="button button-secondary" id="minimize-share-btn" style="padding: 4px 8px;">
-          <span class="material-icons" style="font-size: 16px;">expand_more</span>
-        </button>
-      </div>
-    </div>
-    
-    <div class="prompt-grid">
-      <!-- 要件定義 -->
-      <div class="prompt-card">
-        <span class="material-icons prompt-icon">description</span>
-        <div class="category-tag">計画</div>
-        <h3 class="prompt-title">要件定義</h3>
-        <p class="prompt-description">ビジネス要件を要件定義書に変換</p>
-      </div>
-      
-      <!-- システムアーキテクチャ -->
-      <div class="prompt-card">
-        <span class="material-icons prompt-icon">architecture</span>
-        <div class="category-tag">設計</div>
-        <h3 class="prompt-title">システムアーキテクチャ</h3>
-        <p class="prompt-description">システム全体の設計と開発基盤の確立</p>
-      </div>
-      
-      <!-- モックアップ作成 -->
-      <div class="prompt-card">
-        <span class="material-icons prompt-icon">web</span>
-        <div class="category-tag">UI</div>
-        <h3 class="prompt-title">モックアップ作成</h3>
-        <p class="prompt-description">要件に基づいたモックアップ作成</p>
-      </div>
-      
-      <!-- データモデル統合 -->
-      <div class="prompt-card">
-        <span class="material-icons prompt-icon">data_object</span>
-        <div class="category-tag">設計</div>
-        <h3 class="prompt-title">データモデル統合</h3>
-        <p class="prompt-description">一貫性のあるシステム全体のモデル構築</p>
-      </div>
-    </div>
-  </div>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -1822,270 +1697,9 @@
           });
         });
       }
-      // ClaudeCode連携エリアの制御
-      const toggleShareBtn = document.getElementById('toggle-share-btn');
-      const shareArea = document.getElementById('claude-code-share');
-      const minimizeBtn = document.getElementById('minimize-share-btn');
+      // ClaudeCode連携エリアの制御は削除されました
       
-      toggleShareBtn.addEventListener('click', () => {
-        shareArea.classList.remove('collapsed');
-        toggleShareBtn.style.display = 'none';
-      });
-      
-      minimizeBtn.addEventListener('click', () => {
-        shareArea.classList.add('collapsed');
-        toggleShareBtn.style.display = 'flex';
-      });
-      
-      // 初期状態は表示（デバッグのため）
-      // shareArea.classList.add('collapsed');
-      // 最初から表示する
-      if (shareArea) {
-        shareArea.classList.remove('collapsed');
-        if (toggleShareBtn) toggleShareBtn.style.display = 'none';
-      } else {
-        console.error('shareArea要素が見つかりません');
-      }
-      
-      // ドラッグ&ドロップ機能
-      const dropZone = document.getElementById('drop-zone');
-      
-      // ドラッグ&ドロップイベントの処理
-      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-      });
-      
-      function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
-      
-      ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, highlight, false);
-      });
-      
-      ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, unhighlight, false);
-      });
-      
-      function highlight() {
-        dropZone.style.borderColor = 'var(--app-primary)';
-        dropZone.style.backgroundColor = 'rgba(74, 105, 189, 0.1)';
-      }
-      
-      function unhighlight() {
-        dropZone.style.borderColor = 'var(--app-border-color)';
-        dropZone.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
-      }
-      
-      // 画像ドロップ処理
-      dropZone.addEventListener('drop', handleDrop, false);
-      
-      // 画像保存用の情報
-      let uploadedImageInfo = null;
-      
-      function handleDrop(e) {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        
-        if (files.length) {
-          // ファイルを処理
-          const file = files[0];
-          
-          if (file.type.match('image.*')) {
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-              // 画像のデータを保存
-              const now = new Date();
-              const dateStr = now.getFullYear() +
-                        ('0' + (now.getMonth() + 1)).slice(-2) +
-                        ('0' + now.getDate()).slice(-2) + '_' +
-                        ('0' + now.getHours()).slice(-2) +
-                        ('0' + now.getMinutes()).slice(-2) +
-                        ('0' + now.getSeconds()).slice(-2);
-              const randomStr = Math.random().toString(36).substring(2, 8);
-              const filename = `image_${dateStr}_${randomStr}.png`;
-              
-              // 画像情報を保存
-              uploadedImageInfo = {
-                filename: filename,
-                data: e.target.result,
-                originalName: file.name
-              };
-              
-              // 画像プレビューを表示
-              dropZone.innerHTML = `
-                <img src="${e.target.result}" class="image-preview" />
-                <p style="margin-top: 10px;">画像を共有準備完了</p>
-                <p style="font-size: 12px; color: var(--app-text-secondary);">${file.name}</p>
-              `;
-            };
-            
-            reader.readAsDataURL(file);
-          }
-        }
-      }
-      
-      // 一時ファイルに保存ボタンのイベント処理
-      const shareToClaudeBtn = document.getElementById('share-to-claude');
-      
-      // 結果ダイアログを動的に生成（存在しない場合）
-      let shareResultDialog = document.getElementById('share-result-dialog');
-      if (!shareResultDialog) {
-        shareResultDialog = document.createElement('div');
-        shareResultDialog.id = 'share-result-dialog';
-        shareResultDialog.style.display = 'none';
-        shareResultDialog.style.marginTop = '10px';
-        shareResultDialog.style.padding = '10px';
-        shareResultDialog.style.backgroundColor = 'var(--app-card-background)';
-        shareResultDialog.style.borderRadius = 'var(--app-border-radius)';
-        shareResultDialog.style.border = '1px solid var(--app-primary)';
-        
-        shareResultDialog.innerHTML = `
-          <h4 style="margin-top: 0;">ファイル保存完了</h4>
-          <p>以下のコマンドをClaudeCodeに貼り付けてファイルを読み込んでください：</p>
-          <div style="background-color: #252525; padding: 8px; border-radius: 4px; position: relative;">
-            <code id="claude-command" style="font-family: monospace; color: #f0f0f0;">view /tmp/claude-share/shared_example.txt</code>
-            <button id="copy-command" style="position: absolute; right: 8px; top: 8px; background: transparent; border: none; color: #adadad; cursor: pointer;">
-              <span class="material-icons" style="font-size: 16px;">content_copy</span>
-            </button>
-          </div>
-        `;
-        
-        // 共有エリアに追加
-        document.querySelector('.image-upload-area').appendChild(shareResultDialog);
-      }
-      
-      const claudeCommand = document.getElementById('claude-command');
-      const copyCommandBtn = document.getElementById('copy-command');
-      const shareTextarea = document.querySelector('.share-textarea');
-      
-      shareToClaudeBtn.addEventListener('click', () => {
-        // 実際には一時ファイルに保存する処理が入る
-        // ここではモックアップのためダイアログ表示のみ
-        
-        // テキストと画像どちらを保存するか判断
-        let command = '';
-        
-        if (uploadedImageInfo) {
-          // 画像が選択されている場合
-          // 画像保存先のパスを定義（実際の実装ではVSCodeのワークスペースパスが考慮される）
-          const imagePath = `/tmp/claude-share/images/${uploadedImageInfo.filename}`;
-          command = `view ${imagePath}`;
-          
-          // 履歴に画像情報を追加
-          const historyList = document.querySelector('.shared-history');
-          const newItem = document.createElement('div');
-          newItem.className = 'history-item';
-          
-          // 現在時刻を取得
-          const now = new Date();
-          const timeStr = ('0' + now.getHours()).slice(-2) + ':' + 
-                         ('0' + now.getMinutes()).slice(-2);
-          
-          newItem.innerHTML = `
-            <span>画像: ${uploadedImageInfo.originalName} (${timeStr})</span>
-            <div>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
-            </div>
-          `;
-          
-          // 履歴リストの先頭に追加
-          historyList.insertBefore(newItem, historyList.firstChild);
-          
-        } else if (shareTextarea.value.trim() !== '') {
-          // テキストが入力されている場合
-          // 一時ファイル名の生成（現在日時＋ランダム文字列）
-          const now = new Date();
-          const dateStr = now.getFullYear() +
-                     ('0' + (now.getMonth() + 1)).slice(-2) +
-                     ('0' + now.getDate()).slice(-2) + '_' +
-                     ('0' + now.getHours()).slice(-2) +
-                     ('0' + now.getMinutes()).slice(-2) +
-                     ('0' + now.getSeconds()).slice(-2);
-          const randomStr = Math.random().toString(36).substring(2, 8);
-          const filename = `shared_${dateStr}_${randomStr}.txt`;
-          
-          // テキストファイルへのパス
-          command = `view /tmp/claude-share/${filename}`;
-          
-          // テキストエリアの内容に基づいて履歴に追加
-          const historyList = document.querySelector('.shared-history');
-          const newItem = document.createElement('div');
-          newItem.className = 'history-item';
-          
-          // テキストの最初の30文字を取得してプレビューとして表示
-          const textPreview = shareTextarea.value.trim().substring(0, 30) + 
-                           (shareTextarea.value.length > 30 ? '...' : '');
-          
-          // 現在時刻を取得
-          const timeStr = ('0' + now.getHours()).slice(-2) + ':' + 
-                         ('0' + now.getMinutes()).slice(-2);
-          
-          newItem.innerHTML = `
-            <span>${textPreview} (${timeStr})</span>
-            <div>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">content_copy</span>
-              <span class="material-icons" style="font-size: 16px; cursor: pointer;">delete</span>
-            </div>
-          `;
-          
-          // 履歴リストの先頭に追加
-          historyList.insertBefore(newItem, historyList.firstChild);
-        } else {
-          // テキストも画像も入力されていない場合
-          alert('テキストを入力するか、画像をドロップしてください');
-          return;
-        }
-        
-        // コマンドを表示（要素が存在する場合のみ）
-        if (claudeCommand) {
-          claudeCommand.textContent = command;
-        } else {
-          console.error('claudeCommand要素が見つかりません');
-        }
-        
-        // 結果ダイアログを表示（要素が存在する場合のみ）
-        if (shareResultDialog) {
-          shareResultDialog.style.display = 'block';
-        } else {
-          console.error('shareResultDialog要素が見つかりません');
-          // 成功メッセージを表示（代替手段）
-          alert(`ファイルを保存しました。コマンド: ${command}`);
-        }
-        
-        // 共有後にアップロード情報をリセット
-        if (uploadedImageInfo) {
-          uploadedImageInfo = null;
-          // 画像ドロップエリアを元に戻す
-          dropZone.innerHTML = `
-            <span class="material-icons" style="font-size: 32px; margin-bottom: 10px;">image</span>
-            <p>画像をドラッグ＆ドロップ<br>または</p>
-            <button class="button button-secondary" style="margin-top: 10px;">ファイルを選択</button>
-          `;
-        }
-        
-        // テキストエリアをクリア
-        shareTextarea.value = '';
-      });
-      
-      // コピーボタンのイベント処理
-      copyCommandBtn.addEventListener('click', () => {
-        // コマンドをクリップボードにコピー
-        navigator.clipboard.writeText(claudeCommand.textContent)
-          .then(() => {
-            // コピー成功時の視覚的フィードバック
-            copyCommandBtn.innerHTML = '<span class="material-icons" style="font-size: 16px; color: var(--app-secondary);">check</span>';
-            setTimeout(() => {
-              copyCommandBtn.innerHTML = '<span class="material-icons" style="font-size: 16px;">content_copy</span>';
-            }, 2000);
-          })
-          .catch(err => {
-            console.error('コピーに失敗しました', err);
-          });
-      });
+      // タブ制御機能のみ残します
       
       // タブ切り替え機能
       const tabs = document.querySelectorAll('.tab');
@@ -2093,8 +1707,6 @@
       
       tabs.forEach(tab => {
         tab.addEventListener('click', () => {
-          console.log('タブクリック:', tab);
-          
           // アクティブタブのクラスをリセット
           tabs.forEach(t => t.classList.remove('active'));
           tabContents.forEach(content => content.classList.remove('active'));
@@ -2104,11 +1716,9 @@
           
           // 対応するコンテンツを表示
           const tabId = tab.getAttribute('data-tab');
-          console.log(`探しているタブコンテンツID: ${tabId}-tab`);
-          
           const tabContent = document.getElementById(`${tabId}-tab`);
+          
           if (tabContent) {
-            console.log('タブコンテンツが見つかりました:', tabContent);
             tabContent.classList.add('active');
             
             // ファイル情報を更新（タブに応じて）
@@ -2143,12 +1753,6 @@
                 }
               }
             }
-          } else {
-            console.error(`タブコンテンツが見つかりません: ${tabId}-tab`);
-            // すべてのタブコンテンツを表示（デバッグ用）
-            document.querySelectorAll('.tab-content').forEach(el => {
-              console.log('存在するタブコンテンツ:', el.id);
-            });
           }
         });
       });
