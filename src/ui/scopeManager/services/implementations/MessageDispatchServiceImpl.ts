@@ -490,20 +490,21 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     
     // navigateDirectory ハンドラー
     this.registerHandler('navigateDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.dirPath) {
+      if (message.path || message.dirPath) {
         try {
-          const files = await this._fileSystemService.listDirectory(message.dirPath);
+          const dirPath = message.path || message.dirPath;
+          const files = await this._fileSystemService.listDirectory(dirPath);
           this.sendMessage(panel, {
             command: 'updateFileList',
             files: files,
-            currentPath: message.dirPath,
-            parentPath: path.dirname(message.dirPath) !== message.dirPath ? path.dirname(message.dirPath) : null
+            currentPath: dirPath,
+            parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
           });
         } catch (error) {
           this.showError(panel, `ディレクトリの移動に失敗しました: ${(error as Error).message}`);
         }
       } else {
-        Logger.warn('MessageDispatchServiceImpl: navigateDirectoryメッセージにdirPath必須パラメータがありません');
+        Logger.warn('MessageDispatchServiceImpl: navigateDirectoryメッセージにpath/dirPath必須パラメータがありません');
         this.showError(panel, 'ディレクトリパスが指定されていません');
       }
     });
@@ -722,11 +723,18 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         // 一緒にディレクトリリスティングも送信
         try {
           if (this._fileSystemService) {
-            const files = await this._fileSystemService.listDirectory(projectPath);
+            // プロジェクトパスと docs フォルダのパスを構築
+            const docsPath = path.join(projectPath, 'docs');
+            // docs フォルダが存在するか確認
+            const docsExists = fs.existsSync(docsPath);
+            // 表示するパスを決定（docs が存在すればそちらを表示、なければプロジェクトルート）
+            const displayPath = docsExists ? docsPath : projectPath;
+            
+            const files = await this._fileSystemService.listDirectory(displayPath);
             this.sendMessage(panel, {
               command: 'updateFileList',
               files: files,
-              currentPath: projectPath
+              currentPath: displayPath
             });
           }
         } catch (listError) {

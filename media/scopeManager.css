@@ -73,6 +73,9 @@
 h1, h2, h3, h4 {
   color: var(--app-heading-color);
   margin-bottom: var(--app-spacing-sm);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .main-content {
@@ -82,11 +85,13 @@ h1, h2, h3, h4 {
   overflow: visible;
   min-height: 0;
   position: relative;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* プロジェクトナビゲーション */
 .project-nav {
-  width: 300px;
+  width: 250px; /* 幅を少し小さく */
   flex-shrink: 0;
   border-right: 1px solid var(--app-border-color);
   padding: var(--app-spacing-md);
@@ -225,10 +230,13 @@ h1, h2, h3, h4 {
   flex-direction: column;
   gap: var(--app-spacing-md);
   overflow-y: visible;
+  overflow-x: hidden;
   padding-right: var(--app-spacing-sm);
   padding-left: 12px; /* 左側にパディングを追加してボタンとの重なりを防ぐ */
   max-height: none;
   flex: 1;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* パネルが閉じられたときのコンテンツエリア */
@@ -249,6 +257,8 @@ h1, h2, h3, h4 {
   flex-direction: column;
   height: calc(100vh - 40px);
   max-height: calc(100vh - 40px);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .card-header {
@@ -267,19 +277,27 @@ h1, h2, h3, h4 {
   justify-content: space-between; /* 左右に分ける */
   padding: 0 var(--app-spacing-md);
   align-items: flex-end;
+  flex-wrap: wrap; /* タブが多い場合は折り返し */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tabs-container {
   display: flex;
+  flex-wrap: wrap; /* タブが多い場合は折り返す */
+  gap: 2px;
 }
 
 .tab {
-  padding: var(--app-spacing-sm) var(--app-spacing-lg);
+  padding: var(--app-spacing-sm) var(--app-spacing-md); /* タブの幅を少し小さく */
   cursor: pointer;
   border-bottom: 3px solid transparent;
   color: var(--app-text-secondary);
   transition: all var(--app-transition);
   margin: 0 2px; /* タブ間に少しスペースを追加 */
+  white-space: nowrap; /* タブテキストが切れないように */
+  min-width: 60px; /* 最小幅を設定 */
+  text-align: center; /* テキストを中央揃え */
 }
 
 .tab.active {
@@ -306,6 +324,8 @@ h1, h2, h3, h4 {
   border-radius: 6px 6px 0 0;
   border-bottom: 3px solid var(--app-primary);
   margin-bottom: -1px; /* ボーダーの重なりを調整 */
+  max-width: 250px; /* プロジェクト表示エリアの幅を制限 */
+  flex-shrink: 1; /* スペースが足りない場合は縮小できるように */
 }
 
 .project-name {
@@ -314,38 +334,43 @@ h1, h2, h3, h4 {
   color: var(--app-primary-dark);
   margin: 0;
   padding: 0;
-}
-
-.project-path-display {
-  font-size: 11px;
-  color: var(--app-text-secondary);
-  font-family: monospace;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 300px;
+}
+
+/* プロジェクトパスは非表示に */
+.project-path-display {
+  display: none;
 }
 
 .tab-content {
   display: none;
   overflow-y: auto;
+  overflow-x: hidden;
   height: calc(100vh - 130px);
   max-height: calc(100vh - 130px);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tab-content.active {
   display: block;
+  width: 100%;
 }
 
 /* カード本体のスタイル */
 .card-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--app-spacing-md);
   padding-right: 10px;
   min-height: calc(100vh - 160px);
-  padding: var(--app-spacing-md);
   height: calc(100vh - 120px);
   max-height: calc(100vh - 120px);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* マークダウン表示用スタイル */
@@ -355,6 +380,11 @@ h1, h2, h3, h4 {
   padding: 0 5px;
   height: 100%;
   overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 .markdown-content h1 {
@@ -363,6 +393,9 @@ h1, h2, h3, h4 {
   margin-bottom: 0.5em;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--app-border-color);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .markdown-content h2 {
@@ -371,31 +404,47 @@ h1, h2, h3, h4 {
   margin-bottom: 0.5em;
   padding-bottom: 0.3em;
   border-bottom: 1px solid var(--app-border-color);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .markdown-content h3 {
   font-size: 1.3em;
   margin-top: 1em;
   margin-bottom: 0.5em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .markdown-content h4 {
   font-size: 1.1em;
   margin-top: 1em;
   margin-bottom: 0.5em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .markdown-content p {
   margin-bottom: 1em;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-content ul, .markdown-content ol {
   margin-bottom: 1em;
   padding-left: 2em;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .markdown-content li {
   margin-bottom: 0.5em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-content code {
@@ -404,6 +453,9 @@ h1, h2, h3, h4 {
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-size: 0.9em;
+  white-space: pre-wrap; /* コードブロック内でも折り返し */
+  word-wrap: break-word;
+  max-width: 100%;
 }
 
 .markdown-content pre {
@@ -412,6 +464,8 @@ h1, h2, h3, h4 {
   border-radius: var(--app-border-radius);
   overflow-x: auto;
   margin-bottom: 1em;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .markdown-content pre code {
@@ -419,6 +473,7 @@ h1, h2, h3, h4 {
   padding: 0;
   border-radius: 0;
   font-size: 0.9em;
+  white-space: pre-wrap; /* コードブロック内でも折り返し */
 }
 
 .markdown-content blockquote {
@@ -428,6 +483,10 @@ h1, h2, h3, h4 {
   margin-bottom: 1em;
   font-style: italic;
   color: var(--app-text-secondary);
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 .markdown-content table, .md-table {
@@ -439,6 +498,9 @@ h1, h2, h3, h4 {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   font-size: 0.95em;
   border: 1px solid var(--app-border-color);
+  display: block;
+  overflow-x: auto; /* テーブルは横スクロール可能に */
+  max-width: 100%;
 }
 
 .markdown-content table th, .markdown-content table td,
@@ -447,6 +509,8 @@ h1, h2, h3, h4 {
   padding: 0.6em 0.8em;
   line-height: 1.4;
   text-align: left;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-content table th, .md-table th {
@@ -501,12 +565,14 @@ h1, h2, h3, h4 {
   border: 1px solid var(--app-border-color);
   line-height: 1.4;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 /* コードブロック共通スタイル（ディレクトリ構造を含む） */
 pre.code-block {
   font-family: monospace;
-  white-space: pre !important; /* 改行と空白を完全に保持 */
+  white-space: pre-wrap !important; /* 改行と空白を保持しつつ折り返す */
   background-color: var(--app-gray-100);
   padding: 12px;
   border-radius: var(--app-border-radius-sm);
@@ -517,6 +583,9 @@ pre.code-block {
   color: var(--app-text);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
   tab-size: 4; /* タブサイズを指定 */
+  max-width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
 }
 
 /* ディレクトリ構造の特殊パーツのスタイル */
@@ -815,12 +884,16 @@ pre.code-block.directory-structure br {
 .tab-content {
   display: none;
   overflow-y: auto;
+  overflow-x: hidden;
   height: calc(100vh - 130px);
   max-height: calc(100vh - 130px);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tab-content.active {
   display: block;
+  width: 100%;
 }
 
 .filter-bar {
@@ -852,6 +925,7 @@ pre.code-block.directory-structure br {
   height: 100%;
   overflow-y: auto;
   max-height: calc(100vh - 130px);
+  flex-wrap: wrap; /* 画面が小さいときは折り返し */
 }
 
 /* 左側：テキスト入力エリア */
@@ -860,6 +934,9 @@ pre.code-block.directory-structure br {
   flex-direction: column;
   flex: 3;
   gap: 10px;
+  min-width: 300px; /* 最小幅を設定 */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .share-textarea {
@@ -872,6 +949,8 @@ pre.code-block.directory-structure br {
   color: var(--app-text);
   border: 1px solid var(--app-border-color);
   font-family: monospace;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .share-textarea:focus {
@@ -891,6 +970,8 @@ pre.code-block.directory-structure br {
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
   scrollbar-width: thin;
   scrollbar-color: rgba(74, 105, 189, 0.5) rgba(230, 230, 230, 0.5);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .history-container::-webkit-scrollbar {
@@ -926,6 +1007,7 @@ pre.code-block.directory-structure br {
   gap: 5px;
   max-height: 115px;
   overflow-y: auto;
+  width: 100%;
 }
 
 /* 右側：画像アップロードエリア */
@@ -934,6 +1016,8 @@ pre.code-block.directory-structure br {
   flex-direction: column;
   flex: 2;
   gap: 10px;
+  min-width: 200px; /* 最小幅を設定 */
+  box-sizing: border-box;
 }
 
 .drop-zone {
@@ -952,6 +1036,8 @@ pre.code-block.directory-structure br {
   position: relative;
   overflow: hidden; /* 内部のコンテンツがはみ出さないように */
   z-index: 1; /* 重なり順を設定 */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .drop-zone::before {
@@ -1119,6 +1205,8 @@ pre.code-block.directory-structure br {
   margin-bottom: 4px;
   position: relative;
   overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .history-item:hover {
@@ -1464,4 +1552,40 @@ pre.code-block.directory-structure br {
 
 .file-label {
   cursor: pointer;
+}
+
+/* メディアクエリ - 小さい画面サイズでの調整 */
+@media screen and (max-width: 768px) {
+  .project-nav {
+    width: 200px;
+  }
+  
+  .tab {
+    padding: var(--app-spacing-sm) var(--app-spacing-sm);
+    font-size: 13px;
+  }
+  
+  .project-display {
+    max-width: 150px;
+  }
+  
+  .claude-share-container {
+    flex-direction: column;
+  }
+  
+  .text-input-area, .image-upload-area {
+    width: 100%;
+    min-width: 100%;
+  }
+}
+
+/* 極小画面サイズの対応 */
+@media screen and (max-width: 480px) {
+  .tabs-container {
+    flex-wrap: wrap;
+  }
+  
+  .tab {
+    margin-bottom: 4px;
+  }
 }

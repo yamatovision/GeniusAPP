@@ -532,6 +532,27 @@ export class ScopeManagerPanel extends ProtectedPanel {
         Logger.info('進捗ファイルを初期読み込みしました');
       }
       
+      // プロジェクトパスが設定されている場合、ファイルブラウザの初期設定も更新
+      if (this._projectPath) {
+        try {
+          // MessageDispatchServiceのインスタンスを取得
+          const dispatchService = ServiceFactory.getMessageService();
+          if (dispatchService) {
+            // ファイルブラウザの初期表示をdocsディレクトリに設定
+            const docsPath = path.join(this._projectPath, 'docs');
+            if (fs.existsSync(docsPath)) {
+              dispatchService.sendMessage(this._panel, {
+                command: 'setProjectPath',
+                projectPath: docsPath
+              });
+              Logger.info(`ファイルブラウザの初期表示パスをdocsディレクトリに設定: ${docsPath}`);
+            }
+          }
+        } catch (error) {
+          Logger.warn('ファイルブラウザの初期設定中にエラー:', error as Error);
+        }
+      }
+      
       // この時点で強制的なタブ選択は行わない（UIが自動的に処理）
     } catch (error) {
       Logger.error('ScopeManagerPanel: 初期化処理中にエラーが発生しました', error as Error);

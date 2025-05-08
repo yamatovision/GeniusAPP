@@ -45,26 +45,26 @@ class FileBrowser {
         
         // モックアップスタイルのファイルブラウザを作成
         const fileBrowserHTML = `
-          <div class="file-browser" style="display: flex; flex-direction: column; height: 100%;">
-            <div class="file-browser-header" style="display: flex; justify-content: space-between; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--vscode-panel-border);">
+          <div class="file-browser" style="display: flex; flex-direction: column; height: 100%; background-color: #f8f9fa; color: #333333;">
+            <div class="file-browser-header" style="display: flex; justify-content: space-between; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0;">
               <div id="file-breadcrumb" class="file-path" style="display: flex; align-items: center; gap: 4px; overflow-x: auto; white-space: nowrap; padding-bottom: 5px; max-width: 80%;"></div>
               <div class="file-actions" style="display: flex; gap: 8px;">
-                <button id="refresh-file-browser" class="button-secondary" style="padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                <button id="refresh-file-browser" class="button-secondary" style="padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px; background-color: #ffffff; color: #4a69bd; border: 1px solid #4a69bd; border-radius: 4px;">
                   <span class="material-icons" style="font-size: 16px;">refresh</span>
                 </button>
-                <button id="new-file-button" class="button-secondary" style="padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px;">
+                <button id="new-file-button" class="button-secondary" style="padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px; background-color: #ffffff; color: #4a69bd; border: 1px solid #4a69bd; border-radius: 4px;">
                   <span class="material-icons" style="font-size: 16px;">add</span>
                   <span>新規作成</span>
                 </button>
               </div>
             </div>
             
-            <div class="files-container" style="flex: 1; display: flex; flex-direction: column;">
-              <div id="file-list" style="flex: 1; overflow-y: auto; padding-right: 10px;"></div>
+            <div class="files-container" style="flex: 1; display: flex; flex-direction: column; background-color: #f8f9fa;">
+              <div id="file-list" style="flex: 1; overflow-y: auto; padding-right: 10px; background-color: #f8f9fa;"></div>
               
-              <div id="file-preview-section" style="margin-top: 20px; display: none;">
-                <h3 style="margin-bottom: 10px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 8px;">ファイルプレビュー</h3>
-                <div id="file-preview" class="file-preview-panel" style="border: 1px solid var(--vscode-panel-border); border-radius: 4px; padding: 10px; min-height: 200px; max-height: 450px; overflow-y: auto;"></div>
+              <div id="file-preview-section" style="margin-top: 20px; display: none; background-color: #ffffff;">
+                <h3 style="margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; color: #2d3748;">ファイルプレビュー</h3>
+                <div id="file-preview" class="file-preview-panel" style="border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; min-height: 200px; max-height: 450px; overflow-y: auto; background-color: #ffffff;"></div>
               </div>
             </div>
           </div>
@@ -129,7 +129,7 @@ class FileBrowser {
     setTimeout(() => {
       if (this.vscode) {
         // 既存のプロジェクトパスがあればそれを使用、なければdocsフォルダを表示
-        const targetPath = this.currentPath || 'docs';
+        const targetPath = this.currentPath || this._defaultDirectory;
         console.log(`FileBrowser: デフォルトで${targetPath}ディレクトリを表示するようリクエスト送信`);
         
         this.vscode.postMessage({
@@ -239,6 +239,7 @@ class FileBrowser {
   _batchRequests = [];
   _batchRequestTimer = null;
   _batchDelay = 50; // バッチ処理の遅延時間（ミリ秒）
+  _defaultDirectory = 'docs'; // デフォルトで表示するディレクトリ
 
   _requestDirectoryListing(path) {
     try {
