@@ -174,6 +174,7 @@ class AIService {
 /apikey - API キーを設定
 /version - バージョン情報を表示
 /status - システム状態を表示
+/logout - アカウントからログアウト
 `;
         }
         else if (cmd === '/clear') {
@@ -197,6 +198,11 @@ class AIService {
 - 現在の時刻: ${new Date().toLocaleString('ja-JP')}
 - 拡張機能状態: アクティブ
 `;
+        }
+        else if (cmd === '/logout') {
+            // ログアウトコマンドは非同期で処理されるため、即時メッセージのみ返す
+            vscode.commands.executeCommand('appgenius-ai.logout');
+            return 'ログアウト処理を実行しています...';
         }
         return `未知のコマンド: ${command}\n/help でコマンド一覧を表示できます。`;
     }

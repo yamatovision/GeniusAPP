@@ -72,7 +72,6 @@ class DashboardPanel extends ProtectedPanel_1.ProtectedPanel {
             ],
             enableFindWidget: true,
             enableCommandUris: true
-            // WebViewオプションでsandboxを指定していましたが、現在のVSCode APIではサポートされていないため削除しました
         });
         DashboardPanel.currentPanel = new DashboardPanel(panel, extensionUri, aiService);
         return DashboardPanel.currentPanel;
@@ -81,13 +80,31 @@ class DashboardPanel extends ProtectedPanel_1.ProtectedPanel {
      * 外部向けのパネル作成・表示メソッド
      * 権限チェック付きで、パネルを表示する
      */
-    static createOrShow(extensionUri, aiService) {
+    static createOrShow(extensionUri, aiService, options) {
         // 権限チェック
         if (!this.checkPermissionForFeature(roles_1.Feature.DASHBOARD, 'DashboardPanel')) {
             return undefined;
         }
-        // 権限があれば表示
-        return this._createOrShowPanel(extensionUri, aiService);
+        // パネルを作成または取得
+        const panel = this._createOrShowPanel(extensionUri, aiService);
+        // オンボーディングをスキップするオプションが指定されている場合
+        if (options?.skipOnboarding && panel) {
+            // タイマーを使ってWebView初期化後にメッセージを送信
+            setTimeout(() => {
+                try {
+                    // WebViewにメッセージを送信
+                    panel._panel.webview.postMessage({
+                        command: 'skipOnboarding',
+                        skipOnboarding: true
+                    });
+                    logger_1.Logger.info('オンボーディング表示をスキップするように指示しました');
+                }
+                catch (error) {
+                    logger_1.Logger.error('オンボーディングスキップ通知エラー', error);
+                }
+            }, 500);
+        }
+        return panel;
     }
     /**
      * コンストラクタ
@@ -186,7 +203,17 @@ class DashboardPanel extends ProtectedPanel_1.ProtectedPanel {
                     break;
                 case 'logout':
                     // ログアウト処理
-                    await vscode.commands.executeCommand('appgenius.simpleAuth.logout');
+                    try {
+                        await vscode.commands.executeCommand('appgenius.simpleAuth.logout');
+                        // ログアウト完了を通知
+                        this._panel.webview.postMessage({
+                            command: 'logoutComplete'
+                        });
+                    }
+                    catch (error) {
+                        logger_1.Logger.error('ログアウト処理中にエラーが発生しました', error);
+                        this._showError(`ログアウトエラー: ${error.message}`);
+                    }
                     break;
                 case 'showVSCodeMessage':
                     await this._handleShowVSCodeMessage(message.type, message.message);

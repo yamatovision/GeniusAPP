@@ -115,6 +115,11 @@ class TerminalInterface {
             logger_1.Logger.debug(`ユーザーからのクエリを処理: ${query}`);
             // ユーザー入力を入力欄として直接表示（echo コマンドを使わない）
             this.terminal?.sendText(query);
+            // 特別なコマンドを処理
+            if (query === '/logout') {
+                await this.processLogout();
+                return;
+            }
             try {
                 // AIの処理を開始 - 処理中表示は簡潔に
                 this.terminal?.sendText(`処理中...`);
@@ -209,6 +214,53 @@ class TerminalInterface {
         }
         catch (error) {
             logger_1.Logger.error(`結果表示中にエラーが発生: ${error.message}`);
+        }
+    }
+    /**
+     * ログアウト処理を実行
+     * ターミナルから認証情報をクリアし、ログアウトメッセージを表示
+     */
+    async processLogout() {
+        try {
+            // ターミナルがなければ作成
+            if (!this.terminal) {
+                this.showTerminal();
+                // ターミナル初期化待ち
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            this.terminal?.sendText(`ログアウト処理を実行しています...`);
+            try {
+                // グローバル変数からSimpleAuthServiceを取得
+                const simpleAuthService = global._appgenius_simple_auth_service;
+                if (simpleAuthService) {
+                    // 認証状態を確認
+                    const isAuthenticated = simpleAuthService.isAuthenticated();
+                    if (isAuthenticated) {
+                        // ログアウト実行
+                        await simpleAuthService.logout();
+                        this.terminal?.sendText(`AppGeniusからログアウトしました`);
+                        logger_1.Logger.info('ターミナルからログアウトしました');
+                    }
+                    else {
+                        this.terminal?.sendText(`既にログアウト状態です`);
+                        logger_1.Logger.info('既にログアウト状態です');
+                    }
+                }
+                else {
+                    this.terminal?.sendText(`認証サービスが見つかりません`);
+                    logger_1.Logger.error('SimpleAuthServiceがグローバル変数に見つかりません');
+                }
+            }
+            catch (error) {
+                logger_1.Logger.error(`ログアウト処理中にエラーが発生: ${error.message}`);
+                this.terminal?.sendText(`ログアウトエラー: ${error.message}`);
+            }
+            // プロンプト表示
+            this.terminal?.sendText(`> `);
+        }
+        catch (error) {
+            logger_1.Logger.error(`ログアウト処理中にエラーが発生: ${error.message}`);
+            vscode.window.showErrorMessage(`ログアウトエラー: ${error.message}`);
         }
     }
     /**

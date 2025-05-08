@@ -80,6 +80,14 @@ class Logger {
         }
     }
     static info(message, data) {
+        // ダッシュボードWebView関連のログはフィルタリング
+        if (message.includes('ダッシュボードWebView更新: プロジェクト数=') ||
+            message.includes('ダッシュボードWebViewを更新開始') ||
+            message.includes('ダッシュボードWebView更新完了') ||
+            message.includes('ダッシュボードWebViewからメッセージを受信') ||
+            message.includes('拡張されたCURRENT_STATUS.mdファイルの監視を設定')) {
+            return;
+        }
         if (this.logLevel <= LogLevel.INFO) {
             this.log('INFO', message, data);
         }
@@ -199,5 +207,5 @@ class Logger {
     }
 }
 exports.Logger = Logger;
-Logger.logLevel = LogLevel.INFO; // INFO以上のレベルのみ出力するように設定
+Logger.logLevel = LogLevel.DEBUG; // DEBUGレベルを含めすべてのログを出力
 //# sourceMappingURL=logger.js.map

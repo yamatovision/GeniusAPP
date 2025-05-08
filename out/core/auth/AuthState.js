@@ -60,6 +60,12 @@ class AuthStateBuilder {
             .setExpiresAt(state.expiresAt);
     }
     /**
+     * 新しいビルダーインスタンスを作成（create メソッドを追加）
+     */
+    static create() {
+        return new AuthStateBuilder();
+    }
+    /**
      * ゲスト状態のビルダーを作成
      */
     static guest() {

@@ -60,17 +60,26 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
-        // すでにパネルが存在する場合は、それを表示
+        // すでにパネルが存在する場合
         if (MockupGalleryPanel.currentPanel) {
+            // 既存パネルを表示
             MockupGalleryPanel.currentPanel._panel.reveal(column);
-            // プロジェクトパスが異なる場合は更新
+            // プロジェクトパスが異なる場合は内容を更新
             if (projectPath && MockupGalleryPanel.currentPanel._projectPath !== projectPath) {
+                logger_1.Logger.info(`プロジェクトが変更されました。モックアップギャラリーの内容を更新: ${MockupGalleryPanel.currentPanel._projectPath} -> ${projectPath}`);
+                // パネルのタイトルを更新
+                MockupGalleryPanel.currentPanel._panel.title = `モックアップギャラリー: ${path.basename(projectPath)}`;
+                // プロジェクトパスを更新して内容も更新
                 MockupGalleryPanel.currentPanel._updateProjectPath(projectPath);
+            }
+            else if (projectPath) {
+                // 同じプロジェクトでも内容を再ロード
+                MockupGalleryPanel.currentPanel._handleLoadMockups();
             }
             return MockupGalleryPanel.currentPanel;
         }
-        // 新しいパネルを作成
-        const panel = vscode.window.createWebviewPanel(MockupGalleryPanel.viewType, 'モックアップギャラリー', column || vscode.ViewColumn.One, {
+        // パネルが存在しない場合は新規作成
+        const panel = vscode.window.createWebviewPanel(MockupGalleryPanel.viewType, projectPath ? `モックアップギャラリー: ${path.basename(projectPath)}` : 'モックアップギャラリー', column || vscode.ViewColumn.One, {
             enableScripts: true,
             retainContextWhenHidden: true,
             localResourceRoots: [
@@ -100,7 +109,10 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
      */
     static openWithMockup(extensionUri, aiService, mockupId, projectPath) {
         const panel = MockupGalleryPanel.createOrShow(extensionUri, aiService, projectPath);
-        panel._loadAndSelectMockup(mockupId);
+        // パネルが返された場合のみロード処理を実行
+        if (panel) {
+            panel._loadAndSelectMockup(mockupId);
+        }
         return panel;
     }
     /**
@@ -158,19 +170,39 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
         logger_1.Logger.info('モックアップギャラリーパネルを作成しました');
     }
     /**
-     * プロジェクトパスを更新
+     * プロジェクトパスを更新（より強力な更新処理）
      */
     _updateProjectPath(projectPath) {
+        // 以前のパスを保存（ログ用）
+        const prevPath = this._projectPath;
+        // パスを更新
         this._projectPath = projectPath;
         this._requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
         this._structurePath = path.join(this._projectPath, 'docs', 'structure.md');
         // ストレージサービスを選択中のプロジェクトパスだけで初期化
         this._storage.initializeWithPath(this._projectPath);
-        // モックアップを再読み込み
+        // UI表示の更新
+        this._update();
+        // モックアップを再読み込み (内容の更新)
         this._handleLoadMockups();
+        // フレームを一時的にクリア (古いコンテンツがちらつくのを防止) - WebViewに依頼
+        this._panel.webview.postMessage({
+            command: 'clearMockupFrame',
+            loadingMessage: '<html><body style="display: flex; justify-content: center; align-items: center; height: 100vh; font-family: Arial; color: #666;">モックアップを読み込み中...</body></html>'
+        });
+        // Webviewにプロジェクト変更を通知
+        this._panel.webview.postMessage({
+            command: 'projectChanged',
+            projectPath: this._projectPath,
+            projectName: path.basename(this._projectPath)
+        });
         // ファイル監視を再設定
         this._setupFileWatcher();
-        logger_1.Logger.info(`プロジェクトパスを更新しました: ${this._projectPath}`);
+        logger_1.Logger.info(`プロジェクトパスを更新しました: ${prevPath} -> ${this._projectPath}`);
+        // 強制的なUI更新のタイミングを微調整するため、短い遅延後に再度モックアップのリストを更新
+        setTimeout(() => {
+            this._handleLoadMockups();
+        }, 100);
     }
     /**
      * デフォルトのプロジェクトパスを取得
@@ -577,7 +609,7 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
             // インテグレーションサービスを取得
             const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
             // 中央ポータルURL
-            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+            const portalUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
             try {
                 logger_1.Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
                 // 公開URLから起動（追加情報も渡す）
@@ -635,8 +667,8 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
                 const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
                 // セキュリティガイドライン付きで起動
                 logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
-                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
+                const guidancePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
+                const featurePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
                 // テンプレートの内容を追加コンテンツとして渡す
                 await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, templateContent);
                 // 一時ファイルの自動削除（25秒後）
@@ -939,7 +971,14 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
      * リソースの解放
      */
     dispose() {
-        MockupGalleryPanel.currentPanel = undefined;
+        // このインスタンスがcurrentPanelの場合のみundefinedに設定
+        if (MockupGalleryPanel.currentPanel === this) {
+            MockupGalleryPanel.currentPanel = undefined;
+            logger_1.Logger.info('メインのモックアップギャラリーパネルを破棄しました');
+        }
+        else {
+            logger_1.Logger.info('追加のモックアップギャラリーパネルを破棄しました');
+        }
         // ファイルウォッチャーを解放（すでに_disposablesに追加されている場合もあるが念のため）
         if (this._fileWatcher) {
             this._fileWatcher.dispose();
@@ -952,7 +991,7 @@ class MockupGalleryPanel extends ProtectedPanel_1.ProtectedPanel {
                 disposable.dispose();
             }
         }
-        logger_1.Logger.info('モックアップギャラリーパネルを破棄しました');
+        logger_1.Logger.info(`モックアップギャラリーパネルを破棄しました: ${this._projectPath}`);
     }
 }
 exports.MockupGalleryPanel = MockupGalleryPanel;

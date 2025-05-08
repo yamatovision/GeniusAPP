@@ -24,7 +24,7 @@ export interface IProjectService {
   
   // プロジェクトパス関連
   setProjectPath(projectPath: string): Promise<void>;
-  getStatusFilePath(): string;
+  getProgressFilePath(): string;
   
   // タブ状態管理
   saveTabState(projectId: string, tabId: string): Promise<void>;
@@ -38,8 +38,8 @@ export interface IProjectService {
   syncProjectUIState(projectPath: string): Promise<{ 
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string;
-    statusFileExists: boolean;
+    progressFilePath: string;
+    progressFileExists: boolean;
   }>;
   
   // イベント
@@ -52,8 +52,8 @@ export interface IProjectService {
   onProjectUIStateUpdated: vscode.Event<{
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string; // 後方互換性のために名前はそのまま
-    statusFileExists: boolean;
+    progressFilePath: string;
+    progressFileExists: boolean;
   }>;
   
   // リソース解放
@@ -80,8 +80,8 @@ export class ProjectService implements IProjectService {
   private _onProjectUIStateUpdated = new vscode.EventEmitter<{
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string; // 後方互換性のために名前はそのまま
-    statusFileExists: boolean;
+    progressFilePath: string;
+    progressFileExists: boolean;
   }>();
   public readonly onProjectUIStateUpdated = this._onProjectUIStateUpdated.event;
   
@@ -575,13 +575,13 @@ export class ProjectService implements IProjectService {
           await this._projectManagementService.updateProject(projectId, {
             metadata: {
               ...metadata,
-              activeTab: activeTab || metadata.activeTab || 'current-status'
+              activeTab: activeTab || metadata.activeTab || 'scope-progress'
             }
           });
         }
         
         await this._projectManagementService.setActiveProject(projectId);
-        Logger.info(`ProjectService: 既存プロジェクトをアクティブに設定: ID=${projectId}, パス=${path}, アクティブタブ=${activeTab || (existingProject?.metadata?.activeTab) || 'current-status'}`);
+        Logger.info(`ProjectService: 既存プロジェクトをアクティブに設定: ID=${projectId}, パス=${path}, アクティブタブ=${activeTab || (existingProject?.metadata?.activeTab) || 'scope-progress'}`);
       } else {
         // プロジェクトが見つからない場合は、新規作成または更新
         try {
@@ -595,10 +595,10 @@ export class ProjectService implements IProjectService {
               updatedAt: Date.now(),
               metadata: {
                 ...existingProjectWithPath.metadata,
-                activeTab: activeTab || existingProjectWithPath.metadata?.activeTab || 'current-status'
+                activeTab: activeTab || existingProjectWithPath.metadata?.activeTab || 'scope-progress'
               }
             });
-            Logger.info(`ProjectService: 既存プロジェクトを更新: ID=${projectId}, 名前=${name}, アクティブタブ=${activeTab || existingProjectWithPath.metadata?.activeTab || 'current-status'}`);
+            Logger.info(`ProjectService: 既存プロジェクトを更新: ID=${projectId}, 名前=${name}, アクティブタブ=${activeTab || existingProjectWithPath.metadata?.activeTab || 'scope-progress'}`);
           } else {
             // 新規プロジェクトとして登録
             projectId = await this._projectManagementService.createProject({
@@ -606,10 +606,10 @@ export class ProjectService implements IProjectService {
               description: "",
               path: path,
               metadata: {
-                activeTab: activeTab || 'current-status'
+                activeTab: activeTab || 'scope-progress'
               }
             });
-            Logger.info(`ProjectService: 新規プロジェクトを作成: ID=${projectId}, 名前=${name}, パス=${path}, アクティブタブ=${activeTab || 'current-status'}`);
+            Logger.info(`ProjectService: 新規プロジェクトを作成: ID=${projectId}, 名前=${name}, パス=${path}, アクティブタブ=${activeTab || 'scope-progress'}`);
           }
           
           // 作成または更新したプロジェクトをアクティブに設定
@@ -771,14 +771,6 @@ export class ProjectService implements IProjectService {
     return this._progressFilePath;
   }
   
-  /**
-   * 進捗ファイルパスを取得（後方互換性のために残す）
-   * @deprecated このメソッドは後方互換性のために残されています。代わりに getProgressFilePath() を使用してください。
-   * @returns スコープ進捗ファイルのパス
-   */
-  public getStatusFilePath(): string {
-    return this.getProgressFilePath();
-  }
   
   /**
    * タブ状態を保存
@@ -867,7 +859,7 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
 ## 参考リンク
 
 - [要件定義](./docs/requirements.md)
-- [開発状況](./docs/CURRENT_STATUS.md)
+- [進捗状況](./docs/SCOPE_PROGRESS.md)
 
 ## プロジェクト情報
 - 作成日: ${new Date().toISOString().split('T')[0]}
@@ -894,8 +886,8 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
         this._onProjectUIStateUpdated.fire({
           allProjects: this._currentProjects,
           activeProject: this._activeProject,
-          statusFilePath: progressFilePath, // 後方互換性のために名前はそのまま
-          statusFileExists: fs.existsSync(progressFilePath)
+          progressFilePath: progressFilePath,
+          progressFileExists: fs.existsSync(progressFilePath)
         });
       }
       
@@ -915,8 +907,8 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
   public async syncProjectUIState(projectPath: string): Promise<{
     allProjects: IProjectInfo[];
     activeProject: IProjectInfo | null;
-    statusFilePath: string; // 後方互換性のために名前はそのまま
-    statusFileExists: boolean;
+    progressFilePath: string;
+    progressFileExists: boolean;
   }> {
     try {
       // プロジェクトパスが指定されている場合は、パスを更新
@@ -933,8 +925,8 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
       const result = {
         allProjects: allProjects,
         activeProject: activeProject,
-        statusFilePath: progressFilePath, // 後方互換性のために名前はそのまま
-        statusFileExists: fs.existsSync(progressFilePath)
+        progressFilePath: progressFilePath,
+        progressFileExists: fs.existsSync(progressFilePath)
       };
       
       // イベントも発火
@@ -948,8 +940,8 @@ ${description || `${projectName}プロジェクトの説明をここに記述し
       return {
         allProjects: this._currentProjects,
         activeProject: this._activeProject,
-        statusFilePath: this._progressFilePath, // 後方互換性のために名前はそのまま
-        statusFileExists: false
+        progressFilePath: this._progressFilePath,
+        progressFileExists: false
       };
     }
   }

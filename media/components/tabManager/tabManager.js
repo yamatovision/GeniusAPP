@@ -14,7 +14,7 @@ class TabManager {
   initialize() {
     // 保存されたタブ状態を復元
     const state = stateManager.getState();
-    const savedTab = state.activeTab || 'current-status';
+    const savedTab = state.activeTab || 'scope-progress';
     
     // タブクリックイベントをセットアップ
     this.tabs.forEach(tab => {
@@ -48,6 +48,20 @@ class TabManager {
       
       stateManager.sendMessage('openOriginalMockupGallery');
       return;
+    }
+    
+    // 各タブの特別な初期化処理
+    if (tabId === 'requirements') {
+      // 要件定義タブが選択された場合、ファイルの読み込みをリクエスト
+      stateManager.sendMessage('loadRequirementsFile');
+    } else if (tabId === 'file-browser') {
+      // ファイルブラウザタブが選択された場合、ファイルリストのリフレッシュをリクエスト
+      stateManager.sendMessage('refreshFileBrowser');
+      
+      // fileBrowserコンポーネントが存在していれば初期化
+      if (window.fileBrowser && typeof window.fileBrowser.initialize === 'function') {
+        window.fileBrowser.initialize();
+      }
     }
     
     this.selectTab(tabId, true);

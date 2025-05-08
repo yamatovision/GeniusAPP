@@ -158,29 +158,17 @@ class ProjectManagementService {
             // 必要最小限のディレクトリ構成のみを作成
             // docs/ディレクトリの作成
             this.ensureDirectoryExists(path.join(projectPath, 'docs'));
-            // docs/scopes/ディレクトリの作成
-            this.ensureDirectoryExists(path.join(projectPath, 'docs', 'scopes'));
             // mockups/ディレクトリの作成
             this.ensureDirectoryExists(path.join(projectPath, 'mockups'));
-            // デバッグディレクトリの作成
-            this.ensureDirectoryExists(path.join(projectPath, 'logs'));
-            this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug'));
-            this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug', 'sessions'));
-            this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug', 'archived'));
-            this.ensureDirectoryExists(path.join(projectPath, 'logs', 'debug', 'knowledge'));
-            // .gitkeepファイルを追加して空ディレクトリを追跡可能に
-            fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'sessions', '.gitkeep'), '', 'utf8');
-            fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'archived', '.gitkeep'), '', 'utf8');
-            fs.writeFileSync(path.join(projectPath, 'logs', 'debug', 'knowledge', '.gitkeep'), '', 'utf8');
+            // デバッグディレクトリの作成は不要なため削除
             // ClaudeCode データ共有ディレクトリの作成
             this.ensureDirectoryExists(path.join(projectPath, '.claude_data'));
             this.ensureDirectoryExists(path.join(projectPath, '.claude_data', 'screenshots'));
-            // 一時ファイル用ディレクトリの作成
-            this.ensureDirectoryExists(path.join(projectPath, 'temp'));
-            // .gitignoreに.claude_data/とtemp/を追加
+            // 一時ファイル用ディレクトリの作成は不要なため削除
+            // .gitignoreに.claude_data/を追加
             const gitignorePath = path.join(projectPath, '.gitignore');
             if (!fs.existsSync(gitignorePath)) {
-                fs.writeFileSync(gitignorePath, '.claude_data/\ntemp/\n', 'utf8');
+                fs.writeFileSync(gitignorePath, '.claude_data/\n', 'utf8');
             }
             else {
                 // 既存のgitignoreがあれば内容を読み取って必要な項目が含まれていなければ追加
@@ -189,119 +177,11 @@ class ProjectManagementService {
                 if (!gitignoreContent.includes('.claude_data')) {
                     updatedContent += '\n.claude_data/\n';
                 }
-                if (!gitignoreContent.includes('temp/')) {
-                    updatedContent += 'temp/\n';
-                }
                 if (updatedContent !== gitignoreContent) {
                     fs.writeFileSync(gitignorePath, updatedContent, 'utf8');
                 }
             }
-            // CURRENT_STATUSTEMPLATE.mdを作成（既存ファイルがある場合は作成しない）
-            try {
-                const currentStatusTemplatePath = path.join(projectPath, 'docs', 'CURRENT_STATUSTEMPLATE.md');
-                // 既存のCURRENT_STATUSTEMPLATE.mdファイルが存在するかチェック
-                if (!fs.existsSync(currentStatusTemplatePath)) {
-                    // ファイルが存在しない場合のみ作成
-                    const templatePath = path.join(__dirname, '../../docs/CURRENT_STATUSTEMPLATE.md');
-                    if (fs.existsSync(templatePath)) {
-                        // システムのテンプレートをコピー
-                        const templateContent = fs.readFileSync(templatePath, 'utf8');
-                        fs.writeFileSync(currentStatusTemplatePath, templateContent, 'utf8');
-                        logger_1.Logger.info(`CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
-                    }
-                    else {
-                        // テンプレートが見つからない場合は基本的なCURRENT_STATUSTEMPLATE.mdを作成
-                        fs.writeFileSync(currentStatusTemplatePath, `# CURRENT_STATUSTEMPLATE
-
-このプロジェクトは複数のAIがプロジェクト完遂のために統一性のある綺麗な重複のないジョブスもニッコリのシンプルかつ美しいコードアーキテクチャーで堅牢性と拡張性の高いアプリケーションを開発を行えることを目的にCURRENT_STATUSに基づいて実装管理を行っています。
-
-CURRENT_STATUSTEMPLATEはこのCURRENT_STATUSを更新していくための手順書です。
-なお、このプロジェクトはCURRENT_STATUSの記述ルールをパースしてプロジェクトスコープに反映させてユーザーに開発進捗を知らせることになりますのでパースルールから外れないように下記の形式を必ず守って記述更新をしてください。
-
-## パースルール
-
-ScopeManagerPanelはCURRENT_STATUS.mdの内容を以下のルールでパースして表示します：
-
-1. **スコープの検出**:
-   - 「### 完了済みスコープ」セクションから \`- [x] スコープ名 (100%)\` 形式のスコープを検出
-   - 「### 進行中スコープ」セクションから \`- [ ] スコープ名 (進捗率%)\` 形式のスコープを検出
-   - 「### 未着手スコープ」セクションから \`- [ ] スコープ名 (0%)\` または \`- [ ] スコープ名\` 形式のスコープを検出
-
-2. **ファイルリストの検出**:
-   - 「## スコープ名」形式のセクションからそのスコープに関連するファイルリストを検出
-   - \`- [x] ファイルパス\` は完了したファイル、\`- [ ] ファイルパス\` は未完了のファイルとして認識
-
-3. **進捗率の計算**:
-   - 各スコープの進捗率はファイルリストの完了状態から自動計算される
-   - 明示的に記載された進捗率（例：\`スコープ名 (50%)\`）も認識される
-
-4. **セクション名の重要性**:
-   - 「### 完了済みスコープ」「### 進行中スコープ」「### 未着手スコープ」の見出しは正確に記述する必要がある
-   - 「## スコープ名」の見出しはスコープ名と完全に一致する必要がある
-
-これらのルールに従わない記述や形式はパースエラーを引き起こす可能性があります。
-
-<具体例>
-
-# プロジェクト名 - 実装状況 (YYYY/MM/DD更新)
-
-## 全体進捗
-- 完成予定ファイル数: 82
-- 作成済みファイル数: 41
-- 進捗率: 50%
-- 最終更新日: 2025/03/12
-
-## スコープ状況
-
-### 完了済みスコープ
-- [x] スコープ名1 (100%)
-- [x] スコープ名2 (100%)
-
-### 進行中スコープ
-- [ ] スコープ名3 (50%)
-
-### 未着手スコープ
-- [ ] スコープ名4 (0%)
-- [ ] スコープ名5 (0%)
-
-## 最終的なディレクトリ構造(予測)
-\`\`\`
-project-root/
-└── [ディレクトリ構造]
-\`\`\`
-
-## 現在のディレクトリ構造
-\`\`\`
-project-root/
-└── [ディレクトリ構造]
-\`\`\`
-
-## スコープ名1 
-- [x] src/ui/auth/AuthStatusBar.ts
-- [x] src/services/AuthEventBus.ts
-- [x] src/core/auth/authCommands.ts
-- [ ] src/ui/promptLibrary/PromptLibraryPanel.ts
-- [ ] src/ui/promptLibrary/PromptEditor.ts
-- [ ] src/ui/promptLibrary/CategoryManager.ts
-- [ ] src/ui/promptLibrary/PromptImportExport.ts
-- [ ] src/commands/promptLibraryCommands.ts
-
-### 参考資料
-- 要件定義書: docs/requirements.md
-- スコープ仕様書: docs/scopes/scope-name1.md
-- API仕様: docs/api.md
-</具体例>`, 'utf8');
-                        logger_1.Logger.info(`Basic CURRENT_STATUSTEMPLATE.md created for project at: ${projectPath}`);
-                    }
-                }
-                else {
-                    logger_1.Logger.info(`CURRENT_STATUSTEMPLATE.md already exists for project at: ${projectPath}, skipping creation`);
-                }
-            }
-            catch (error) {
-                logger_1.Logger.error(`Failed to create CURRENT_STATUSTEMPLATE.md: ${error.message}`);
-                // エラーが発生しても処理は続行
-            }
+            // CURRENT_STATUSTEMPLATE.mdの作成は不要なため削除
         }
         catch (error) {
             logger_1.Logger.error(`Failed to create initial documents: ${error.message}`);
@@ -486,36 +366,6 @@ project-root/
         }
     }
     /**
-     * プロジェクトのアーカイブ/アクティブ化
-     * @param id プロジェクトID
-     * @param isArchived アーカイブ状態にするかどうか
-     * @returns 更新されたプロジェクト
-     */
-    async toggleArchiveProject(id, isArchived) {
-        try {
-            const existingProject = this.projects.get(id);
-            if (!existingProject) {
-                throw new Error(`Project with ID ${id} not found`);
-            }
-            // プロジェクトのステータスを更新
-            const updatedProject = {
-                ...existingProject,
-                status: isArchived ? 'archived' : 'active',
-                updatedAt: Date.now()
-            };
-            // メモリ上のマップを更新
-            this.projects.set(id, updatedProject);
-            // メタデータファイルの更新
-            await this.saveMetadata();
-            logger_1.Logger.info(`Project ${isArchived ? 'archived' : 'activated'}: ${id}`);
-            return updatedProject;
-        }
-        catch (error) {
-            logger_1.Logger.error(`Failed to toggle archive project: ${error.message}`);
-            throw new Error(`プロジェクトのアーカイブ状態変更に失敗しました: ${error.message}`);
-        }
-    }
-    /**
      * 指定したプロジェクトをアクティブに設定
      * @param projectId プロジェクトID
      * @returns 更新されたプロジェクト
@@ -540,102 +390,46 @@ project-root/
         }
     }
     /**
-     * プロジェクトのフェーズ状態を更新
-     * @param projectId プロジェクトID
-     * @param phase 更新するフェーズ名
-     * @param isCompleted 完了状態
-     * @returns 更新されたプロジェクト
+     * パスでプロジェクトを検索して削除
+     * @param projectPath プロジェクトのパス
+     * @returns 成功した場合はtrue、プロジェクトが見つからない場合はfalse
      */
-    async updateProjectPhase(projectId, phase, isCompleted) {
+    async removeProjectByPath(projectPath) {
         try {
-            const project = this.getProject(projectId);
-            if (!project) {
-                throw new Error(`プロジェクトID ${projectId} が見つかりません`);
+            // パスでプロジェクトを検索
+            let projectId = null;
+            // 比較のために正規化したパスを使用
+            const normalizedPath = path.normalize(projectPath);
+            for (const [id, project] of this.projects.entries()) {
+                if (project.path && path.normalize(project.path) === normalizedPath) {
+                    projectId = id;
+                    break;
+                }
             }
-            // フェーズが存在するか確認
-            if (!project.phases || typeof project.phases !== 'object') {
-                project.phases = {
-                    requirements: false,
-                    design: false,
-                    implementation: false,
-                    testing: false,
-                    deployment: false
-                };
+            if (!projectId) {
+                logger_1.Logger.warn(`プロジェクトが見つかりません: パス ${projectPath}`);
+                return false;
             }
-            // フェーズ状態を更新
-            const updatedPhases = {
-                ...project.phases,
-                [phase]: isCompleted
-            };
-            // プロジェクトを更新
-            const updatedProject = await this.updateProject(projectId, {
-                phases: updatedPhases,
-                updatedAt: Date.now()
-            });
-            logger_1.Logger.info(`プロジェクトフェーズを更新: ${projectId}.${phase} = ${isCompleted}`);
-            return updatedProject;
+            // 見つかったIDを使用してプロジェクトを削除
+            return await this.deleteProject(projectId);
         }
         catch (error) {
-            logger_1.Logger.error(`プロジェクトフェーズの更新に失敗: ${error.message}`);
-            throw new Error(`プロジェクトフェーズの更新に失敗しました: ${error.message}`);
+            logger_1.Logger.error(`パスによるプロジェクト削除に失敗: ${error.message}`);
+            return false;
         }
     }
     /**
-     * プロジェクトのエクスポート
-     * @param id プロジェクトID
-     * @param exportPath エクスポート先のパス
+     * IDでプロジェクトを削除
+     * @param projectId プロジェクトID
      * @returns 成功した場合はtrue
      */
-    async exportProject(id, exportPath) {
+    async removeProjectById(projectId) {
         try {
-            const project = this.projects.get(id);
-            if (!project) {
-                throw new Error(`Project with ID ${id} not found`);
-            }
-            // プロジェクトデータとメタデータをJSONとしてエクスポート
-            const exportData = {
-                ...project,
-                exportedAt: Date.now()
-            };
-            this.ensureDirectoryExists(path.dirname(exportPath));
-            fs.writeFileSync(exportPath, JSON.stringify(exportData, null, 2), 'utf8');
-            logger_1.Logger.info(`Project exported: ${id} to ${exportPath}`);
-            return true;
+            return await this.deleteProject(projectId);
         }
         catch (error) {
-            logger_1.Logger.error(`Failed to export project: ${error.message}`);
-            throw new Error(`プロジェクトのエクスポートに失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * プロジェクトのインポート
-     * @param importPath インポート元のパス
-     * @returns インポートされたプロジェクトのID
-     */
-    async importProject(importPath) {
-        try {
-            // インポートファイルを読み込み
-            const data = fs.readFileSync(importPath, 'utf8');
-            const importedData = JSON.parse(data);
-            // 新しいIDを生成
-            const newId = `project_${Date.now()}`;
-            // インポートデータを新しいプロジェクトとして作成
-            const project = {
-                ...importedData,
-                id: newId,
-                importedAt: Date.now(),
-                updatedAt: Date.now()
-            };
-            // メモリ上のマップに保存
-            this.projects.set(newId, project);
-            // メタデータファイルの更新
-            await this.saveMetadata();
-            logger_1.Logger.info(`Project imported: ${newId} from ${importPath}`);
-            return newId;
-        }
-        catch (error) {
-            logger_1.Logger.error(`Failed to import project: ${error.message}`);
-            throw new Error(`プロジェクトのインポートに失敗しました: ${error.message}`);
+            logger_1.Logger.error(`IDによるプロジェクト削除に失敗: ${error.message}`);
+            return false;
         }
     }
 }

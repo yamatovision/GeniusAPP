@@ -39,7 +39,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   private _projectPath: string = '';
   private _fileManager: FileOperationManager;
-  private _statusFilePath: string = '';
+  private _progressFilePath: string = '';
   private _directoryStructure: string = '';
   private _fileWatcher: vscode.Disposable | null = null;
   private _tempShareDir: string = '';
@@ -236,6 +236,29 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'saveTabState':
               await this._handleSaveTabState(message.tabId);
               break;
+            // タブ関連
+            case 'loadFileToTab':
+              await this._handleLoadFileToTab(message.tabId, message.filePath);
+              break;
+            case 'loadRequirementsFile':
+              await this._handleLoadRequirementsFile();
+              break;
+            // ファイルブラウザ関連
+            case 'refreshFileBrowser':
+              await this._handleRefreshFileBrowser();
+              break;
+            case 'openFile':
+              await this._handleOpenFile(message.filePath);
+              break;
+            case 'navigateDirectory':
+              await this._handleNavigateDirectory(message.dirPath);
+              break;
+            case 'listDirectory':
+              await this._handleListDirectory(message.path);
+              break;
+            case 'openFileInEditor':
+              await this._handleOpenFileInEditor(message.filePath);
+              break;
             // 新しいコマンド
             case 'launchPromptFromURL':
               // splitTerminalパラメータを明示的に処理
@@ -338,10 +361,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
       if (activeProject && activeProject.path) {
         this.setProjectPath(activeProject.path);
         
-        // ステータスファイルの内容も読み込んで表示
-        const statusFilePath = this._projectService.getStatusFilePath();
-        if (statusFilePath && fs.existsSync(statusFilePath)) {
-          await this._handleGetMarkdownContent(statusFilePath);
+        // 進捗ファイルの内容も読み込んで表示
+        const progressFilePath = this._projectService.getProgressFilePath();
+        if (progressFilePath && fs.existsSync(progressFilePath)) {
+          await this._handleGetMarkdownContent(progressFilePath);
         }
       }
       
@@ -416,10 +439,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
           activeProject: activeProject
         });
         
-        // ステータスファイルの内容も読み込んで表示
-        const statusFilePath = this._projectService.getStatusFilePath();
-        if (statusFilePath && fs.existsSync(statusFilePath)) {
-          await this._handleGetMarkdownContent(statusFilePath);
+        // 進捗ファイルの内容も読み込んで表示
+        const progressFilePath = this._projectService.getProgressFilePath();
+        if (progressFilePath && fs.existsSync(progressFilePath)) {
+          await this._handleGetMarkdownContent(progressFilePath);
         }
         
         // 成功メッセージを表示
@@ -452,8 +475,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // ProjectServiceにプロジェクトパスを設定
       await this._projectService.setProjectPath(projectPath);
       
-      // ステータスファイルパスをProjectServiceから取得
-      this._statusFilePath = this._projectService.getStatusFilePath();
+      // 進捗ファイルパスをProjectServiceから取得
+      this._progressFilePath = this._projectService.getProgressFilePath();
       
       // 既存のファイルウォッチャーを破棄
       if (this._fileWatcher) {
@@ -469,16 +492,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._promptServiceClient.setProjectPath(projectPath);
       this._sharingService.setProjectBasePath(projectPath);
       
-      // ファイルウォッチャーとステータスファイルを設定
+      // ファイルウォッチャーと進捗ファイルを設定
       this._setupFileWatcher();
-      this._loadStatusFile();
+      this._loadProgressFile();
       
       // WebViewにプロジェクト情報を送信
       this._panel.webview.postMessage({
         command: 'updateProjectPath',
         projectPath: this._projectPath,
-        statusFilePath: this._statusFilePath,
-        statusFileExists: fs.existsSync(this._statusFilePath)
+        progressFilePath: this._progressFilePath,
+        progressFileExists: fs.existsSync(this._progressFilePath)
       });
       
       // プロジェクト一覧を更新
@@ -503,7 +526,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // 最新のプロジェクト一覧を取得して送信
     await this._refreshProjects();
     
-    await this._loadStatusFile();
+    await this._loadProgressFile();
 
     // ディレクトリ構造を更新
     await this._updateDirectoryStructure();
@@ -512,8 +535,283 @@ export class ScopeManagerPanel extends ProtectedPanel {
     await this._handleGetHistory();
     
     // 進捗ファイル(SCOPE_PROGRESS.md)の内容を読み込む
-    if (this._statusFilePath && fs.existsSync(this._statusFilePath)) {
-      await this._handleGetMarkdownContent(this._statusFilePath);
+    if (this._progressFilePath && fs.existsSync(this._progressFilePath)) {
+      await this._handleGetMarkdownContent(this._progressFilePath);
+    }
+    
+    // 要件定義ファイル(requirements.md)がある場合は読み込む
+    const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
+    if (fs.existsSync(requirementsFilePath)) {
+      await this._handleLoadRequirementsFile();
+    }
+    
+    // ファイルブラウザの初期化
+    await this._initializeFileBrowser();
+  }
+  
+  /**
+   * 要件定義ファイルの読み込み
+   * docsディレクトリ内のrequirements.mdファイルを読み込んで表示
+   */
+  private async _handleLoadRequirementsFile(): Promise<void> {
+    try {
+      Logger.info('要件定義ファイルの読み込みを開始します');
+      
+      // プロジェクトパスが設定されていない場合は処理しない
+      if (!this._projectPath) {
+        Logger.warn('プロジェクトパスが設定されていません。要件定義ファイルの読み込みをスキップします。');
+        return;
+      }
+      
+      // 要件定義ファイルのパスを生成
+      const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
+      
+      // ファイルの存在確認
+      if (!fs.existsSync(requirementsFilePath)) {
+        Logger.info(`要件定義ファイルが見つかりません: ${requirementsFilePath}`);
+        
+        // 要件定義ファイルが存在しない場合は、空のメッセージを表示
+        this._panel.webview.postMessage({
+          command: 'updateTabContent',
+          tabId: 'requirements',
+          content: '# 要件定義\n\n要件定義ファイルが見つかりません。プロジェクトの `docs/requirements.md` ファイルを作成してください。',
+          filePath: requirementsFilePath,
+          forRequirements: true // 要件定義タブ用の更新であることを示す
+        });
+        return;
+      }
+      
+      // FileSystemServiceを使用してファイルを読み込む
+      const content = await this._fileSystemService.readMarkdownFile(requirementsFilePath);
+      
+      // タブ内容を更新
+      this._panel.webview.postMessage({
+        command: 'updateTabContent',
+        tabId: 'requirements',
+        content: content,
+        filePath: requirementsFilePath,
+        forRequirements: true // 要件定義タブ用の更新であることを示す
+      });
+      
+      Logger.info(`要件定義ファイルを読み込みました: ${requirementsFilePath}`);
+    } catch (error) {
+      Logger.error('要件定義ファイルの読み込み中にエラーが発生しました', error as Error);
+      this._showError(`要件定義ファイルの読み込みに失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ファイルブラウザの初期化
+   * docsディレクトリの内容をリストアップして表示
+   */
+  private async _initializeFileBrowser(): Promise<void> {
+    try {
+      Logger.info('ファイルブラウザの初期化を開始します');
+      
+      // プロジェクトパスが設定されていない場合は処理しない
+      if (!this._projectPath) {
+        Logger.warn('プロジェクトパスが設定されていません。ファイルブラウザの初期化をスキップします。');
+        return;
+      }
+      
+      // docsディレクトリのパスを生成
+      const docsPath = path.join(this._projectPath, 'docs');
+      
+      // docsディレクトリの存在確認と作成
+      await this._fileSystemService.ensureDirectoryExists(docsPath);
+      
+      // ファイルブラウザ用のディレクトリ構造を送信
+      this._panel.webview.postMessage({
+        command: 'updateFileBrowser',
+        structure: this._directoryStructure
+      });
+      
+      // ディレクトリの内容をリストアップ
+      const files = await this._fileSystemService.listDirectory(docsPath);
+      
+      // ファイルリストを送信
+      this._panel.webview.postMessage({
+        command: 'updateFileList',
+        files: files,
+        currentPath: docsPath
+      });
+      
+      Logger.info(`ファイルブラウザを初期化しました: ${docsPath}`);
+    } catch (error) {
+      Logger.error('ファイルブラウザの初期化中にエラーが発生しました', error as Error);
+      this._showError(`ファイルブラウザの初期化に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ファイルブラウザを更新する
+   */
+  private async _handleRefreshFileBrowser(): Promise<void> {
+    try {
+      Logger.info('ファイルブラウザを更新します');
+      
+      // ディレクトリ構造を更新
+      await this._updateDirectoryStructure();
+      
+      if (this._projectPath) {
+        // docsディレクトリのパスを生成
+        const docsPath = path.join(this._projectPath, 'docs');
+        
+        // ディレクトリの内容をリストアップ
+        const files = await this._fileSystemService.listDirectory(docsPath);
+        
+        // ファイルリストを送信
+        this._panel.webview.postMessage({
+          command: 'updateFileList',
+          files: files,
+          currentPath: docsPath
+        });
+      }
+      
+      Logger.info('ファイルブラウザを更新しました');
+    } catch (error) {
+      Logger.error('ファイルブラウザの更新に失敗しました', error as Error);
+      this._showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 指定されたディレクトリの内容をリストアップする
+   * @param dirPath ディレクトリパス（未指定の場合はプロジェクトのdocsディレクトリ）
+   */
+  private async _handleListDirectory(dirPath?: string): Promise<void> {
+    try {
+      Logger.info(`ディレクトリ内容のリストアップ: ${dirPath || 'プロジェクトdocsディレクトリ'}`);
+      
+      // ディレクトリパスが指定されていない場合はプロジェクトのdocsディレクトリを使用
+      const targetPath = dirPath || (this._projectPath ? path.join(this._projectPath, 'docs') : '');
+      
+      if (!targetPath) {
+        Logger.warn('ディレクトリパスが指定されていません。');
+        return;
+      }
+      
+      // ディレクトリの存在確認
+      if (!fs.existsSync(targetPath)) {
+        Logger.warn(`指定されたディレクトリが存在しません: ${targetPath}`);
+        return;
+      }
+      
+      // ディレクトリの内容をリストアップ
+      const files = await this._fileSystemService.listDirectory(targetPath);
+      
+      // ファイルリストを送信
+      this._panel.webview.postMessage({
+        command: 'updateFileList',
+        files: files,
+        currentPath: targetPath,
+        parentPath: path.dirname(targetPath) !== targetPath ? path.dirname(targetPath) : null
+      });
+      
+      Logger.info(`ディレクトリ内容をリストアップしました: ${targetPath}, ${files.length}件`);
+    } catch (error) {
+      Logger.error('ディレクトリ内容のリストアップに失敗しました', error as Error);
+      this._showError(`ディレクトリ内容の取得に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ファイルをVSCodeエディタで開く
+   * @param filePath 開くファイルのパス
+   */
+  private async _handleOpenFileInEditor(filePath: string): Promise<void> {
+    try {
+      Logger.info(`ファイルをエディタで開きます: ${filePath}`);
+      
+      // ファイルの存在確認
+      if (!fs.existsSync(filePath)) {
+        this._showError(`ファイルが見つかりません: ${filePath}`);
+        return;
+      }
+      
+      // VSCodeのOpen APIを使用してファイルを開く
+      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+      await vscode.window.showTextDocument(document);
+      
+      Logger.info(`ファイルをエディタで開きました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`ファイルをエディタで開く際にエラーが発生しました: ${filePath}`, error as Error);
+      this._showError(`ファイルをエディタで開けませんでした: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * 指定されたディレクトリに移動する
+   * @param dirPath 移動先のディレクトリパス
+   */
+  private async _handleNavigateDirectory(dirPath: string): Promise<void> {
+    try {
+      Logger.info(`ディレクトリに移動します: ${dirPath}`);
+      
+      // ディレクトリの存在確認
+      if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+        this._showError(`ディレクトリが見つかりません: ${dirPath}`);
+        return;
+      }
+      
+      // ディレクトリの内容をリストアップして送信
+      await this._handleListDirectory(dirPath);
+    } catch (error) {
+      Logger.error(`ディレクトリの移動に失敗しました: ${dirPath}`, error as Error);
+      this._showError(`ディレクトリの移動に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ファイルを開いてプレビュー表示する
+   * @param filePath 開くファイルのパス
+   */
+  private async _handleOpenFile(filePath: string): Promise<void> {
+    try {
+      Logger.info(`ファイルを開きます: ${filePath}`);
+      
+      // ファイルの存在確認
+      if (!fs.existsSync(filePath)) {
+        this._showError(`ファイルが見つかりません: ${filePath}`);
+        return;
+      }
+      
+      // ファイルの種類を判定
+      const fileExt = path.extname(filePath).toLowerCase();
+      
+      // テキストファイルかどうかを判断
+      if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
+        // テキストファイルの場合は内容を読み込んで表示
+        const content = await this._fileSystemService.readFile(filePath);
+        
+        this._panel.webview.postMessage({
+          command: 'updateFilePreview',
+          filePath: filePath,
+          content: content,
+          type: 'text',
+          extension: fileExt
+        });
+      } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
+        // 画像ファイルの場合は画像として表示
+        // Base64エンコードなしでUriとして送信
+        this._panel.webview.postMessage({
+          command: 'updateFilePreview',
+          filePath: filePath,
+          type: 'image',
+          extension: fileExt,
+          // ファイルURIをWebView用に変換
+          uri: this._panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
+      } else {
+        // その他のファイルはVSCodeで開く
+        await this._handleOpenFileInEditor(filePath);
+        this._showSuccess(`ファイル「${path.basename(filePath)}」をVSCodeで開きました`);
+      }
+      
+      Logger.info(`ファイル「${path.basename(filePath)}」を開きました`);
+    } catch (error) {
+      Logger.error(`ファイルを開く際にエラーが発生しました: ${filePath}`, error as Error);
+      this._showError(`ファイルを開けませんでした: ${(error as Error).message}`);
     }
   }
   
@@ -907,10 +1205,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
         activeProject: activeProject
       });
       
-      // ステータスファイルの内容も読み込んで表示
-      const statusFilePath = this._projectService.getStatusFilePath();
-      if (statusFilePath && fs.existsSync(statusFilePath)) {
-        await this._handleGetMarkdownContent(statusFilePath);
+      // 進捗ファイルの内容も読み込んで表示
+      const progressFilePath = this._projectService.getProgressFilePath();
+      if (progressFilePath && fs.existsSync(progressFilePath)) {
+        await this._handleGetMarkdownContent(progressFilePath);
       }
       
       // WebViewに成功メッセージを送信
@@ -939,6 +1237,169 @@ export class ScopeManagerPanel extends ProtectedPanel {
       command: 'showDirectoryStructure',
       structure: this._directoryStructure
     });
+  }
+  
+  /**
+   * 特定のタブにファイルを読み込んで表示
+   * @param tabId 表示対象のタブID
+   * @param filePath 読み込むファイルパス
+   */
+  private async _handleLoadFileToTab(tabId: string, filePath: string): Promise<void> {
+    try {
+      Logger.info(`タブにファイルを読み込みます: タブID=${tabId}, ファイル=${filePath}`);
+      
+      // ファイルが存在するか確認
+      if (!fs.existsSync(filePath)) {
+        this._showError(`ファイルが見つかりません: ${filePath}`);
+        return;
+      }
+      
+      // ファイルの内容を読み込む
+      const content = await this._fileSystemService.readMarkdownFile(filePath);
+      
+      // タブ内の.markdown-contentにコンテンツを表示
+      this._panel.webview.postMessage({
+        command: 'updateTabContent',
+        tabId: tabId,
+        content: content,
+        filePath: filePath
+      });
+      
+      Logger.info(`タブ「${tabId}」にファイル内容を読み込みました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`タブへのファイル読み込みに失敗しました: ${filePath}`, error as Error);
+      this._showError(`ファイルの読み込みに失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ファイルブラウザを更新
+   */
+  private async _handleRefreshFileBrowser(): Promise<void> {
+    try {
+      Logger.info('ファイルブラウザを更新します');
+      
+      // ディレクトリ構造を更新
+      await this._updateDirectoryStructure();
+      
+      // ファイルブラウザを更新
+      this._panel.webview.postMessage({
+        command: 'updateFileBrowser',
+        structure: this._directoryStructure
+      });
+      
+      Logger.info('ファイルブラウザを更新しました');
+    } catch (error) {
+      Logger.error('ファイルブラウザの更新に失敗しました', error as Error);
+      this._showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ファイルを開いてプレビュー表示
+   * @param filePath 開くファイルのパス
+   */
+  private async _handleOpenFile(filePath: string): Promise<void> {
+    try {
+      Logger.info(`ファイルを開きます: ${filePath}`);
+      
+      // ファイルが存在するか確認
+      if (!fs.existsSync(filePath)) {
+        this._showError(`ファイルが見つかりません: ${filePath}`);
+        return;
+      }
+      
+      // ファイルの種類を判定
+      const fileExt = path.extname(filePath).toLowerCase();
+      
+      // テキストファイルかどうかを判断
+      if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
+        // テキストファイルの場合は内容を読み込んで表示
+        const content = await this._fileSystemService.readFile(filePath);
+        
+        this._panel.webview.postMessage({
+          command: 'showFilePreview',
+          filePath: filePath,
+          content: content,
+          type: 'text',
+          extension: fileExt
+        });
+      } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
+        // 画像ファイルの場合は画像として表示
+        // Base64エンコードなしでUriとして送信
+        this._panel.webview.postMessage({
+          command: 'showFilePreview',
+          filePath: filePath,
+          type: 'image',
+          extension: fileExt,
+          // ファイルURIをWebView用に変換
+          uri: this._panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
+      } else {
+        // その他のファイルはVSCodeで開く
+        await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(filePath));
+        this._showSuccess(`ファイル「${path.basename(filePath)}」をVSCodeで開きました`);
+      }
+      
+      Logger.info(`ファイル「${path.basename(filePath)}」を開きました`);
+    } catch (error) {
+      Logger.error(`ファイルを開く際にエラーが発生しました: ${filePath}`, error as Error);
+      this._showError(`ファイルを開けませんでした: ${(error as Error).message}`);
+    }
+  }
+  
+  /**
+   * ディレクトリを開いてファイル一覧を表示
+   * @param dirPath ディレクトリパス
+   */
+  private async _handleNavigateDirectory(dirPath: string): Promise<void> {
+    try {
+      Logger.info(`ディレクトリを開きます: ${dirPath}`);
+      
+      // ディレクトリが存在するか確認
+      if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+        this._showError(`ディレクトリが見つかりません: ${dirPath}`);
+        return;
+      }
+      
+      // ディレクトリ内のファイル一覧を取得
+      const files = await fs.promises.readdir(dirPath);
+      
+      // ファイル情報の配列を作成
+      const fileEntries = await Promise.all(files.map(async (file) => {
+        const fullPath = path.join(dirPath, file);
+        const stats = await fs.promises.stat(fullPath);
+        return {
+          name: file,
+          path: fullPath,
+          isDirectory: stats.isDirectory(),
+          size: stats.size,
+          modified: stats.mtime.toISOString()
+        };
+      }));
+      
+      // ディレクトリとファイルを分けてソート
+      const directories = fileEntries.filter(entry => entry.isDirectory)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      const textFiles = fileEntries.filter(entry => !entry.isDirectory)
+        .sort((a, b) => a.name.localeCompare(b.name));
+      
+      // 結合して先頭にディレクトリを配置
+      const sortedEntries = [...directories, ...textFiles];
+      
+      // ファイルブラウザを更新
+      this._panel.webview.postMessage({
+        command: 'updateFileList',
+        currentPath: dirPath,
+        files: sortedEntries,
+        parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
+      });
+      
+      Logger.info(`ディレクトリ「${dirPath}」のファイル一覧を表示しました: ${sortedEntries.length}件`);
+    } catch (error) {
+      Logger.error(`ディレクトリ内容の取得に失敗しました: ${dirPath}`, error as Error);
+      this._showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
+    }
   }
 
   /**
@@ -987,7 +1448,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
         command: 'updateMarkdownContent',
         content: content,
         timestamp: Date.now(), // タイムスタンプを追加して新しい更新を識別できるように
-        priority: 'high'       // 優先度の高い更新であることを示す
+        priority: 'high',      // 優先度の高い更新であることを示す
+        forScopeProgress: true // 進捗状況タブ用の更新であることを示す
       });
       
       Logger.info(`FileSystemServiceを使用してマークダウンコンテンツを読み込みました: ${filePath}`);
@@ -1082,7 +1544,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._activeProject = activeProject;
       
       // アクティブタブ情報を取得（重要な部分）
-      let activeTabId = 'current-status'; // デフォルト値
+      let activeTabId = 'scope-progress'; // デフォルト値
       
       if (activeProject && activeProject.metadata) {
         // 1. メタデータからタブ情報を正確に抽出
@@ -1162,7 +1624,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * @param webview VSCodeのWebviewインスタンス
    * @param activeTabId アクティブなタブID（デフォルトは'current-status'）
    */
-  private _getHtmlForWebview(webview: vscode.Webview, activeTabId: string = 'current-status'): string {
+  private _getHtmlForWebview(webview: vscode.Webview, activeTabId: string = 'scope-progress'): string {
     // スタイルシートやスクリプトのURIを取得
     const styleResetUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
@@ -1181,11 +1643,19 @@ export class ScopeManagerPanel extends ProtectedPanel {
     const promptCardsStyleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'promptCards', 'promptCards.css')
     );
+    // ファイルブラウザのスタイルシートを追加
+    const fileBrowserStyleUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.css')
+    );
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js')
     );
     const sharingPanelScriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'sharingPanel.js')
+    );
+    // ファイルブラウザのスクリプトを追加
+    const fileBrowserScriptUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.js')
     );
     
     // Material Iconsの読み込み
@@ -1219,6 +1689,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       <link href="${styleMainUri}" rel="stylesheet">
       <link href="${dialogManagerStyleUri}" rel="stylesheet">
       <link href="${promptCardsStyleUri}" rel="stylesheet">
+      <link href="${fileBrowserStyleUri}" rel="stylesheet">
       <link href="${materialIconsUrl}" rel="stylesheet">
       <title>AppGenius スコープマネージャー</title>
       <style>
@@ -1345,18 +1816,66 @@ export class ScopeManagerPanel extends ProtectedPanel {
                   <span class="project-path-display">${projectPath}</span>
                 </div>
                 <div class="tabs-container">
-                  <div class="tab ${activeTabId === 'current-status' ? 'active' : ''}" data-tab="current-status">プロジェクト状況</div>
+                  <div class="tab ${activeTabId === 'scope-progress' ? 'active' : ''}" data-tab="scope-progress">進捗状況</div>
+                  <div class="tab ${activeTabId === 'requirements' ? 'active' : ''}" data-tab="requirements">要件定義</div>
+                  <div class="tab ${activeTabId === 'file-browser' ? 'active' : ''}" data-tab="file-browser">ファイル</div>
                   <div class="tab ${activeTabId === 'claude-code' ? 'active' : ''}" data-tab="claude-code">ClaudeCode連携</div>
                   <div class="tab ${activeTabId === 'tools' ? 'active' : ''}" data-tab="tools">モックアップギャラリー</div>
                 </div>
               </div>
               
-              <!-- プロジェクト状況タブコンテンツ -->
-              <div id="current-status-tab" class="tab-content ${activeTabId === 'current-status' ? 'active' : ''}">
+              <!-- 進捗状況タブコンテンツ -->
+              <div id="scope-progress-tab" class="tab-content ${activeTabId === 'scope-progress' ? 'active' : ''}">
                 <div class="card-body">
                   <div class="markdown-content">
-                    <!-- ここにCURRENT_STATUS.mdの内容がマークダウン表示される -->
+                    <!-- ここにSCOPE_PROGRESS.mdの内容がマークダウン表示される -->
                     <p>読み込み中...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 要件定義タブコンテンツ -->
+              <div id="requirements-tab" class="tab-content ${activeTabId === 'requirements' ? 'active' : ''}">
+                <div class="card-body">
+                  <div class="markdown-content">
+                    <!-- ここにrequirements.mdの内容がマークダウン表示される -->
+                    <p>読み込み中...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ファイルブラウザタブコンテンツ -->
+              <div id="file-browser-tab" class="tab-content ${activeTabId === 'file-browser' ? 'active' : ''}">
+                <div class="card-body">
+                  <div class="file-browser-container">
+                    <div class="file-explorer">
+                      <div class="file-explorer-toolbar">
+                        <button class="button button-secondary" id="refresh-files-btn">
+                          <span class="material-icons">refresh</span>
+                          更新
+                        </button>
+                        <div class="file-path-display">
+                          <span id="current-file-path">プロジェクトルート</span>
+                        </div>
+                      </div>
+                      <div class="breadcrumb-container" id="file-breadcrumb">
+                        <!-- パンくずリストはJSで動的に生成 -->
+                      </div>
+                      <div class="file-list-container">
+                        <div id="file-list" class="file-list">
+                          <!-- ファイルリストはJSで動的に生成 -->
+                          <p>読み込み中...</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="file-preview">
+                      <div id="file-preview-content">
+                        <div class="file-preview-placeholder">
+                          <span class="material-icons">description</span>
+                          <p>ファイルを選択してください</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1439,27 +1958,30 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       <!-- 共有パネルコンポーネント専用スクリプト -->
       <script type="module" nonce="${nonce}" src="${sharingPanelScriptUri}"></script>
+      
+      <!-- ファイルブラウザコンポーネント専用スクリプト -->
+      <script type="module" nonce="${nonce}" src="${fileBrowserScriptUri}"></script>
     </body>
     </html>`;
   }
 
   /**
-   * ステータスファイルを読み込む - FileSystemServiceに委譲
+   * 進捗ファイルを読み込む - FileSystemServiceに委譲
    */
-  private async _loadStatusFile(): Promise<void> {
+  private async _loadProgressFile(): Promise<void> {
     try {
       if (!this._projectPath) {
         return;
       }
 
       // FileSystemServiceの新しいメソッドを呼び出す
-      await this._fileSystemService.loadStatusFile(this._projectPath, async (content) => {
+      await this._fileSystemService.loadProgressFile(this._projectPath, async (content) => {
         // マークダウン表示を更新
-        await this._handleGetMarkdownContent(this._statusFilePath);
+        await this._handleGetMarkdownContent(this._progressFilePath);
       });
     } catch (error) {
-      Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error as Error);
-      this._showError(`ステータスファイルの読み込みに失敗しました: ${(error as Error).message}`);
+      Logger.error('進捗ファイルの読み込み中にエラーが発生しました', error as Error);
+      this._showError(`進捗ファイルの読み込みに失敗しました: ${(error as Error).message}`);
     }
   }
 

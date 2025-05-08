@@ -37,20 +37,19 @@ exports.ScopeManagerPanel = void 0;
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
-const os = __importStar(require("os"));
 const logger_1 = require("../../utils/logger");
 const fileOperationManager_1 = require("../../utils/fileOperationManager");
-const types_1 = require("../../types");
 const ClaudeCodeLauncherService_1 = require("../../services/ClaudeCodeLauncherService");
-const ClaudeCodeIntegrationService_1 = require("../../services/ClaudeCodeIntegrationService");
-const AppGeniusEventBus_1 = require("../../services/AppGeniusEventBus");
 const ProtectedPanel_1 = require("../auth/ProtectedPanel");
 const roles_1 = require("../../core/auth/roles");
-const AuthenticationService_1 = require("../../core/auth/AuthenticationService");
-const claudeCodeApiClient_1 = require("../../api/claudeCodeApiClient");
+const PromptServiceClient_1 = require("../../services/PromptServiceClient");
+const FileSystemService_1 = require("./services/FileSystemService");
+const ProjectService_1 = require("./services/ProjectService");
+const SharingService_1 = require("./services/SharingService");
+const AuthenticationHandler_1 = require("./services/AuthenticationHandler");
 /**
  * スコープマネージャーパネルクラス
- * CURRENT_STATUS.mdファイルと連携して実装スコープの管理を行う
+ * SCOPE_PROGRESS.mdファイルと連携して実装スコープの管理を行う
  * 権限保護されたパネルの基底クラスを継承
  */
 class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
@@ -58,7 +57,22 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
      * 実際のパネル作成・表示ロジック
      * ProtectedPanelから呼び出される
      */
-    static _createOrShowPanel(extensionUri, projectPath) {
+    static createOrShow(extensionUri, context, projectPath) {
+        // 認証ハンドラーを取得
+        const authHandler = AuthenticationHandler_1.AuthenticationHandler.getInstance();
+        // 認証チェック：ログインしていない場合はログイン画面に直接遷移
+        if (!authHandler.checkLoggedIn()) {
+            logger_1.Logger.info('スコープマネージャー: 未認証のためログイン画面に誘導します');
+            // ログイン画面を表示
+            authHandler.showLoginScreen(extensionUri);
+            return undefined;
+        }
+        // 権限チェック：SCOPE_MANAGERの権限がない場合はアクセスを拒否
+        if (!authHandler.checkPermission(ScopeManagerPanel._feature)) {
+            logger_1.Logger.warn('スコープマネージャー: 権限不足のためアクセスを拒否します');
+            vscode.window.showWarningMessage('スコープマネージャーへのアクセス権限がありません。');
+            return undefined;
+        }
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
@@ -76,6 +90,8 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
         const panel = vscode.window.createWebviewPanel(ScopeManagerPanel.viewType, 'AppGenius スコープマネージャー', column || vscode.ViewColumn.One, {
             enableScripts: true,
             retainContextWhenHidden: true,
+            // カスタムCSP設定を削除し、VSCodeのデフォルト設定を使用
+            // contentSecurityPolicy: "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src *;",
             localResourceRoots: [
                 vscode.Uri.joinPath(extensionUri, 'media'),
                 vscode.Uri.joinPath(extensionUri, 'dist'),
@@ -83,85 +99,77 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
             ]
         });
         logger_1.Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}`);
-        ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, projectPath);
+        ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, context, projectPath);
         return ScopeManagerPanel.currentPanel;
-    }
-    /**
-     * 外部向けのパネル作成・表示メソッド
-     * 認証状態と権限チェック付きで、パネルを表示する
-     */
-    static async createOrShow(extensionUri, projectPath) {
-        // 認証状態の追加確認
-        try {
-            const authService = AuthenticationService_1.AuthenticationService.getInstance();
-            const apiClient = claudeCodeApiClient_1.ClaudeCodeApiClient.getInstance();
-            const isAuthenticated = await authService.isAuthenticated();
-            if (!isAuthenticated) {
-                logger_1.Logger.warn('認証されていません。スコープマネージャーは表示できません');
-                vscode.window.showErrorMessage('この機能を使用するには再ログインが必要です', '再ログイン')
-                    .then(selection => {
-                    if (selection === '再ログイン') {
-                        vscode.commands.executeCommand('appgenius.login');
-                    }
-                });
-                return undefined;
-            }
-            // 実際のAPIリクエストでも確認
-            try {
-                const testResult = await apiClient.testApiConnection();
-                if (!testResult) {
-                    logger_1.Logger.warn('API接続テストに失敗しました。スコープマネージャーは表示できません');
-                    vscode.window.showErrorMessage('サーバー接続に問題があります。再ログインしてください', '再ログイン')
-                        .then(selection => {
-                        if (selection === '再ログイン') {
-                            vscode.commands.executeCommand('appgenius.login');
-                        }
-                    });
-                    return undefined;
-                }
-            }
-            catch (error) {
-                // APIエラーの場合も再ログインを促す
-                logger_1.Logger.error('API接続テスト中にエラーが発生しました', error);
-                vscode.window.showErrorMessage('サーバー接続でエラーが発生しました。再ログインしてください', '再ログイン')
-                    .then(selection => {
-                    if (selection === '再ログイン') {
-                        vscode.commands.executeCommand('appgenius.login');
-                    }
-                });
-                return undefined;
-            }
-        }
-        catch (error) {
-            logger_1.Logger.error('認証状態確認中にエラーが発生しました', error);
-            return undefined;
-        }
-        // 権限チェック
-        if (!this.checkPermissionForFeature(roles_1.Feature.SCOPE_MANAGER, 'ScopeManagerPanel')) {
-            return undefined;
-        }
-        // 権限があれば表示
-        return this._createOrShowPanel(extensionUri, projectPath);
     }
     /**
      * コンストラクタ
      */
-    constructor(panel, extensionUri, projectPath) {
-        super(); // 親クラスのコンストラクタを呼び出し
+    constructor(panel, extensionUri, context, projectPath) {
+        super();
         this._disposables = [];
         this._projectPath = '';
-        this._statusFilePath = '';
-        this._scopes = [];
-        this._selectedScopeIndex = -1;
-        this._currentScope = null;
+        this._progressFilePath = '';
         this._directoryStructure = '';
         this._fileWatcher = null;
-        this._docsDirWatcher = null; // Node.jsのファイルシステムウォッチャー
-        // 開発モード管理
-        this._isPreparationMode = false; // 準備モードまたは実装モード
+        this._tempShareDir = '';
+        this._activeProject = null; // 現在選択中のプロジェクト
         this._panel = panel;
         this._extensionUri = extensionUri;
+        this._extensionPath = context.extensionPath; // 拡張機能のファイルシステムパスを保存
         this._fileManager = fileOperationManager_1.FileOperationManager.getInstance();
+        this._promptServiceClient = PromptServiceClient_1.PromptServiceClient.getInstance();
+        // FileSystemServiceのインスタンスを取得
+        this._fileSystemService = FileSystemService_1.FileSystemService.getInstance();
+        // ProjectServiceのインスタンスを取得
+        this._projectService = ProjectService_1.ProjectService.getInstance(this._fileSystemService);
+        // ProjectServiceのイベントリスナーを設定
+        this._setupProjectServiceEventListeners();
+        // 共有サービスを初期化
+        this._sharingService = SharingService_1.SharingService.getInstance(context);
+        // 認証ハンドラーを初期化
+        this._authHandler = AuthenticationHandler_1.AuthenticationHandler.getInstance();
+        // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
+        this._tempShareDir = '';
+        // 認証状態の監視を設定 (1分ごとにチェック)
+        this._setupTokenExpirationMonitor();
+        // 認証状態変更イベントをAuthenticationHandlerから監視
+        try {
+            const authStateChangedDisposable = this._authHandler.onAuthStateChanged(state => {
+                // 認証状態が未認証になった、または権限がなくなった場合
+                if (!state.isAuthenticated || !this._authHandler.checkPermission(ScopeManagerPanel._feature)) {
+                    logger_1.Logger.info('スコープマネージャー: 認証状態が変更されたため、パネルを閉じます');
+                    // パネルを閉じる
+                    this.dispose();
+                    if (!state.isAuthenticated) {
+                        // ログイン画面に誘導
+                        this._authHandler.showLoginScreen(this._extensionUri);
+                    }
+                }
+            });
+            // Disposableリストに追加
+            this._disposables.push(authStateChangedDisposable);
+            logger_1.Logger.info('スコープマネージャー: 認証状態変更イベントの監視を開始しました');
+        }
+        catch (error) {
+            logger_1.Logger.error('認証状態変更イベントの監視設定中にエラーが発生しました', error);
+        }
+        // FileSystemServiceのイベントリスナーを設定
+        this._disposables.push(this._fileSystemService.onDirectoryStructureUpdated((structure) => {
+            this._directoryStructure = structure;
+            // ディレクトリ構造が表示されている場合は更新
+            this._panel.webview.postMessage({
+                command: 'updateDirectoryStructure',
+                structure: structure
+            });
+        }));
+        // アクティブプロジェクトを取得
+        const activeProject = this._projectService.getActiveProject();
+        // アクティブプロジェクトが指定されていない場合は、引数または現在のアクティブプロジェクトを使用
+        if (!projectPath && activeProject && activeProject.path) {
+            projectPath = activeProject.path;
+            logger_1.Logger.info(`アクティブプロジェクトパスを使用: ${projectPath}`);
+        }
         // プロジェクトパスが指定されている場合は設定
         if (projectPath) {
             this.setProjectPath(projectPath);
@@ -179,3127 +187,1793 @@ class ScopeManagerPanel extends ProtectedPanel_1.ProtectedPanel {
         // WebViewからのメッセージを処理
         this._panel.webview.onDidReceiveMessage(async (message) => {
             try {
+                // デバッグログ：受信したメッセージの内容を詳細に記録
+                if (message.command === 'launchPromptFromURL') {
+                    logger_1.Logger.info(`【WebViewメッセージ】コマンド=${message.command}, URL=${message.url}, index=${message.index}, name=${message.name}`);
+                    logger_1.Logger.info(`【WebViewメッセージ詳細】splitTerminal=${message.splitTerminal} (型: ${typeof message.splitTerminal})`);
+                    logger_1.Logger.info(`【WebViewメッセージJSON】${JSON.stringify(message)}`);
+                }
                 switch (message.command) {
                     case 'initialize':
                         await this._handleInitialize();
                         break;
-                    case 'selectScope':
-                        await this._handleSelectScope(message.index);
-                        break;
-                    case 'updateScopeStatus':
-                        await this._handleUpdateScopeStatus(message.scopeId, message.status, message.progress);
-                        break;
-                    case 'toggleFileStatus':
-                        await this._handleToggleFileStatus(message.filePath, message.completed);
-                        break;
-                    case 'startImplementation':
-                        await this._handleStartImplementation();
-                        break;
-                    case 'editScope':
-                        await this._handleEditScope(message.scopeData);
-                        break;
                     case 'showDirectoryStructure':
                         await this._handleShowDirectoryStructure();
                         break;
-                    case 'addNewScope':
-                        await this._handleAddNewScope();
+                    case 'getMarkdownContent':
+                        await this._handleGetMarkdownContent(message.filePath);
                         break;
-                    case 'openEnvironmentVariablesAssistant':
-                        await this._handleOpenEnvironmentVariablesAssistant();
+                    case 'saveTabState':
+                        await this._handleSaveTabState(message.tabId);
+                        break;
+                    // タブ関連
+                    case 'loadFileToTab':
+                        await this._handleLoadFileToTab(message.tabId, message.filePath);
+                        break;
+                    case 'loadRequirementsFile':
+                        await this._handleLoadRequirementsFile();
+                        break;
+                    // ファイルブラウザ関連
+                    case 'refreshFileBrowser':
+                        await this._handleRefreshFileBrowser();
+                        break;
+                    case 'openFile':
+                        await this._handleOpenFile(message.filePath);
+                        break;
+                    case 'navigateDirectory':
+                        await this._handleNavigateDirectory(message.dirPath);
+                        break;
+                    case 'listDirectory':
+                        await this._handleListDirectory(message.path);
+                        break;
+                    case 'openFileInEditor':
+                        await this._handleOpenFileInEditor(message.filePath);
+                        break;
+                    // 新しいコマンド
+                    case 'launchPromptFromURL':
+                        // splitTerminalパラメータを明示的に処理
+                        const splitTerminalValue = message.splitTerminal === true ? true : false;
+                        logger_1.Logger.info(`【メッセージ変換】splitTerminal: ${message.splitTerminal} => ${splitTerminalValue}`);
+                        await this._handleLaunchPromptFromURL(message.url, message.index, message.name, splitTerminalValue);
+                        break;
+                    case 'shareText':
+                        await this._handleShareText(message.text, message.suggestedFilename);
+                        break;
+                    case 'shareImage':
+                        // デバッグログを追加
+                        console.log('ScopeManagerPanel: shareImage命令を受信', {
+                            hasImageData: !!message.imageData,
+                            hasData: !!message.data,
+                            fileName: message.fileName
+                        });
+                        // message.imageDataまたはmessage.dataのどちらかを使用（互換性のため）
+                        const imageData = message.imageData || message.data;
+                        if (!imageData) {
+                            this._showError('画像データが見つかりません');
+                            return;
+                        }
+                        await this._handleShareImage(imageData, message.fileName);
                         break;
                     case 'openMockupGallery':
                         await this._handleOpenMockupGallery();
                         break;
-                    case 'openDebugDetective':
-                        await this._handleOpenDebugDetective();
+                    case 'openOriginalMockupGallery':
+                        await this._handleOpenOriginalMockupGallery(message.filePath);
                         break;
-                    case 'openReferenceManager':
-                        await this._handleOpenReferenceManager();
+                    case 'getHistory':
+                        await this._handleGetHistory();
                         break;
-                    case 'launchScopeCreator':
-                        await this._handleLaunchScopeCreator();
+                    case 'deleteFromHistory':
+                        await this._handleDeleteFromHistory(message.fileId);
                         break;
-                    case 'launchImplementationAssistant':
-                        await this._handleLaunchImplementationAssistant();
+                    case 'copyCommand':
+                        await this._handleCopyCommand(message.fileId);
                         break;
-                    case 'openRequirementsVisualizer':
-                        await this._handleOpenRequirementsVisualizer();
+                    case 'copyToClipboard':
+                        await this._handleCopyToClipboard(message.text);
                         break;
-                    case 'switchToImplementationMode':
-                        await this._handleSwitchToImplementationMode();
+                    case 'reuseHistoryItem':
+                        await this._handleReuseHistoryItem(message.fileId);
                         break;
-                    case 'resetToPreparationMode':
-                        await this._handleResetToPreparationMode();
+                    case 'selectProject':
+                        await this._handleSelectProject(message.projectName, message.projectPath);
                         break;
+                    case 'loadExistingProject':
+                        await this._handleLoadExistingProject();
+                        break;
+                    case 'createProject':
+                        await this._handleCreateProject(message.name, message.description);
+                        break;
+                    case 'removeProject':
+                        await this._handleRemoveProject(message.projectName, message.projectPath, message.projectId);
+                        break;
+                    // モックアップビューア関連のコマンド
+                    case 'selectMockup':
+                        await this._handleSelectMockup(message.filePath);
+                        break;
+                    case 'openInBrowser':
+                        await this._handleOpenMockupInBrowser(message.filePath);
+                        break;
+                    // 状態同期関連のコマンドは削除されました
                 }
             }
             catch (error) {
                 logger_1.Logger.error(`メッセージ処理エラー: ${message.command}`, error);
-                await this._showError(`操作に失敗しました: ${error.message}`);
+                this._showError(`操作に失敗しました: ${error.message}`);
             }
         }, null, this._disposables);
     }
     /**
-     * プロジェクトパスを設定する
+     * 新規プロジェクト作成処理
+     * ProjectServiceを使用して実装
      */
-    setProjectPath(projectPath) {
-        logger_1.Logger.info(`[Debug] スコープマネージャー:setProjectPath呼び出し - パラメータ: ${projectPath}`);
-        // スタックトレースを表示（呼び出し元を特定するため）
+    async _handleCreateProject(projectName, description) {
         try {
-            throw new Error('スタックトレース確認用');
-        }
-        catch (e) {
-            logger_1.Logger.debug(`[Debug] setProjectPathの呼び出し元スタック: ${e.stack?.split('\n').slice(1, 3).join('\n')}`);
-        }
-        this._projectPath = projectPath;
-        this._statusFilePath = path.join(projectPath, 'docs', 'CURRENT_STATUS.md');
-        logger_1.Logger.info(`プロジェクトパスを設定しました: ${projectPath}`);
-        logger_1.Logger.info(`ステータスファイルパス: ${this._statusFilePath}, ファイル存在: ${fs.existsSync(this._statusFilePath) ? 'はい' : 'いいえ'}`);
-        // 既存のファイルウォッチャーを破棄
-        if (this._fileWatcher) {
-            this._fileWatcher.dispose();
-            this._fileWatcher = null;
-        }
-        // Node.jsのファイルシステムウォッチャーも破棄
-        if (this._docsDirWatcher) {
-            this._docsDirWatcher.close();
-            this._docsDirWatcher = null;
-        }
-        // ファイルウォッチャーを設定
-        this._setupFileWatcher();
-        // パスが設定されたらステータスファイルを読み込む
-        this._loadStatusFile();
-        // WebViewにもプロジェクトパス情報を送信
-        this._panel.webview.postMessage({
-            command: 'updateProjectPath',
-            projectPath: this._projectPath,
-            statusFilePath: this._statusFilePath,
-            statusFileExists: fs.existsSync(this._statusFilePath)
-        });
-    }
-    /**
-     * ファイル変更の監視を設定
-     */
-    _setupFileWatcher() {
-        try {
-            // docs ディレクトリが存在しない場合は作成
-            const docsDir = path.join(this._projectPath, 'docs');
-            if (!fs.existsSync(docsDir)) {
-                fs.mkdirSync(docsDir, { recursive: true });
-            }
-            // Node.jsのネイティブfs.watchを使用してdocsディレクトリを監視
-            // これにより、OSレベルのファイルシステムイベントを直接検知できる
-            this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
-                if (filename === 'CURRENT_STATUS.md') {
-                    logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (fs.watch)');
-                    logger_1.Logger.info(`ファイルパス: ${this._statusFilePath}, 存在確認: ${fs.existsSync(this._statusFilePath) ? '存在します' : '存在しません'}`);
-                    // イベントバスに通知を送信 - グローバルイベントとして通知
-                    const eventBus = AppGeniusEventBus_1.AppGeniusEventBus.getInstance();
-                    // プロジェクトIDは現在のプロジェクトパスから抽出する
-                    const projectId = this._projectPath ? path.basename(this._projectPath) : undefined;
-                    eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.CURRENT_STATUS_UPDATED, { filePath: this._statusFilePath, timestamp: Date.now() }, 'ScopeManagerPanel', projectId);
-                    // 直接ファイルを読み込み、WebViewを強制更新する
-                    // 実装モードの場合はリアルタイムで更新する
-                    setTimeout(() => {
-                        logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出 - 遅延読み込みによる強制更新を実行');
-                        if (fs.existsSync(this._statusFilePath)) {
-                            try {
-                                const content = fs.readFileSync(this._statusFilePath, 'utf8');
-                                this._parseStatusFile(content);
-                                this._updateWebview();
-                                // 二重の更新を防ぐための追加ログ
-                                logger_1.Logger.info('CURRENT_STATUS.mdファイルの強制更新が完了しました');
-                            }
-                            catch (err) {
-                                logger_1.Logger.error('強制更新中にエラーが発生しました', err);
-                            }
-                        }
-                    }, 200); // 少し遅延させて確実にファイル書き込みが完了した後に読み込む
-                    // 通常の更新処理も維持
-                    if (!this._isPreparationMode) {
-                        logger_1.Logger.info('実装モードでCURRENT_STATUSが更新されました - リアルタイム更新を行います');
-                        this._loadStatusFile();
-                    }
-                    else {
-                        logger_1.Logger.info('準備モードでの変更は標準の処理を実行します');
-                        this._loadStatusFile();
-                    }
+            logger_1.Logger.info(`新規プロジェクト作成: ${projectName}`);
+            // ProjectServiceを使用してプロジェクトを作成
+            const projectId = await this._projectService.createProject(projectName, description);
+            logger_1.Logger.info(`プロジェクト「${projectName}」の作成が完了しました: ID=${projectId}`);
+            // プロジェクトの最新情報を取得
+            const activeProject = this._projectService.getActiveProject();
+            const allProjects = this._projectService.getAllProjects();
+            // プロジェクトパスを更新
+            if (activeProject && activeProject.path) {
+                this.setProjectPath(activeProject.path);
+                // 進捗ファイルの内容も読み込んで表示
+                const progressFilePath = this._projectService.getProgressFilePath();
+                if (progressFilePath && fs.existsSync(progressFilePath)) {
+                    await this._handleGetMarkdownContent(progressFilePath);
                 }
+            }
+            // WebViewにプロジェクト一覧を更新
+            this._panel.webview.postMessage({
+                command: 'updateProjects',
+                projects: allProjects,
+                activeProject: activeProject
             });
-            // VS Codeのファイルシステムウォッチャーもバックアップとして維持
-            // このウォッチャーはVS Code内部での操作を監視するために使用
-            this._fileWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/CURRENT_STATUS.md'));
-            // ファイル変更時の処理
-            this._fileWatcher.onDidChange(() => {
-                logger_1.Logger.info('CURRENT_STATUS.mdファイルの変更を検出しました (VSCode watcher)');
-                this._loadStatusFile();
+            // 成功メッセージを表示
+            this._panel.webview.postMessage({
+                command: 'showSuccess',
+                message: `プロジェクト「${projectName}」を作成しました`
             });
-            // 新規ファイル作成時の処理
-            this._fileWatcher.onDidCreate(() => {
-                logger_1.Logger.info('CURRENT_STATUS.mdファイルが新規作成されました');
-                this._loadStatusFile();
+            // プロジェクト名を更新
+            this._panel.webview.postMessage({
+                command: 'updateProjectName',
+                projectName: projectName
             });
-            // ファイル削除時の処理（必要に応じて）
-            this._fileWatcher.onDidDelete(() => {
-                logger_1.Logger.info('CURRENT_STATUS.mdファイルが削除されました');
-                // ファイルが削除された場合は空のスコープリストを表示
-                this._scopes = [];
-                this._updateWebview();
-            });
-            // ウォッチャーをdisposablesに追加
-            this._disposables.push(this._fileWatcher);
-            // スコープ進捗のトリガーとなる重要ファイルの監視（docs/requirements.md, mockups/*.html, docs/scopes/*.md, docs/env.md）
-            // 要件定義ファイルの監視
-            const requirementsWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/requirements.md'));
-            requirementsWatcher.onDidCreate(() => {
-                logger_1.Logger.info('requirements.mdファイルが作成されました - スコープ1の完了を確認します');
-                this._checkAndUpdateScopeCompletion();
-            });
-            this._disposables.push(requirementsWatcher);
-            // モックアップディレクトリの監視
-            const mockupsWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'mockups/**/*.html'));
-            mockupsWatcher.onDidCreate(() => {
-                logger_1.Logger.info('新しいモックアップファイルが作成されました - スコープ2の完了を確認します');
-                this._checkAndUpdateScopeCompletion();
-            });
-            this._disposables.push(mockupsWatcher);
-            // スコープディレクトリの監視
-            const scopesWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/scopes/**/*.md'));
-            scopesWatcher.onDidCreate(() => {
-                logger_1.Logger.info('新しいスコープ定義ファイルが作成されました - スコープ3の完了を確認します');
-                this._checkAndUpdateScopeCompletion();
-            });
-            this._disposables.push(scopesWatcher);
-            // 環境変数ファイルの監視
-            const envWatcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(this._projectPath, 'docs/env.md'));
-            envWatcher.onDidCreate(() => {
-                logger_1.Logger.info('env.mdファイルが作成されました - スコープ4の完了を確認します');
-                this._checkAndUpdateScopeCompletion();
-            });
-            this._disposables.push(envWatcher);
-            logger_1.Logger.info('ファイル監視を設定しました');
         }
         catch (error) {
-            logger_1.Logger.error('ファイル監視の設定中にエラーが発生しました', error);
+            logger_1.Logger.error(`プロジェクト作成中にエラーが発生しました: ${projectName}`, error);
+            this._showError(`プロジェクトの作成に失敗しました: ${error.message}`);
         }
     }
     /**
-     * CURRENT_STATUS.mdファイルを読み込む
+     * 既存プロジェクトの読み込み処理
+     * ProjectServiceを使用して実装
      */
-    async _loadStatusFile() {
+    async _handleLoadExistingProject() {
         try {
-            if (!this._statusFilePath) {
-                logger_1.Logger.warn(`ステータスファイルのパスが未設定です`);
+            logger_1.Logger.info('既存プロジェクト読み込み処理を開始');
+            // プロジェクトパスを選択するダイアログを表示
+            const folderUri = await vscode.window.showOpenDialog({
+                canSelectFolders: true,
+                canSelectFiles: false,
+                canSelectMany: false,
+                openLabel: 'プロジェクトフォルダを選択',
+                title: '既存プロジェクトの選択'
+            });
+            if (!folderUri || folderUri.length === 0) {
+                logger_1.Logger.info('プロジェクト読み込みがキャンセルされました: フォルダが選択されていません');
                 return;
             }
-            logger_1.Logger.info(`CURRENT_STATUS.mdファイルを読み込みます。パス: ${this._statusFilePath}`);
-            // ファイルが存在しない場合、開発準備モードで表示する
-            if (!fs.existsSync(this._statusFilePath)) {
-                logger_1.Logger.info(`CURRENT_STATUS.mdファイルが見つかりません - 開発準備モードを有効化します`);
-                // 開発準備モードを有効化
-                this._isPreparationMode = true;
-                // 準備モード用のスコープを解析
-                let preparationTemplate = this._getPreparationStepsTemplate();
-                this._parseStatusFile(preparationTemplate);
-                // WebViewを更新（準備モードUI）
-                this._updateWebview();
-                return; // ここで処理を終了（ファイル読み込みは不要）
-            }
-            else {
-                // CURRENT_STATUS.mdが存在する場合は実装モードで動作
-                this._isPreparationMode = false;
-                // ユーザーに再作成の確認（開発準備フェーズに戻る場合）
-                if (await this._shouldResetToPreparationMode()) {
-                    try {
-                        // docsディレクトリが存在するか確認し、必要に応じて作成
-                        const docsDir = path.dirname(this._statusFilePath);
-                        if (!fs.existsSync(docsDir)) {
-                            fs.mkdirSync(docsDir, { recursive: true });
-                            logger_1.Logger.info(`ディレクトリを作成しました: ${docsDir}`);
-                        }
-                        // 内部定義のテンプレートを使用
-                        let template = this._getPreparationStepsTemplate();
-                        logger_1.Logger.info(`内部テンプレートを使用してCURRENT_STATUSを作成します`);
-                        fs.writeFileSync(this._statusFilePath, template, 'utf8');
-                        logger_1.Logger.info(`CURRENT_STATUS.mdテンプレートを作成しました: ${this._statusFilePath}`);
-                        // 開発準備モードを有効化
-                        this._isPreparationMode = true;
-                        // 作成したファイルを読み込み
-                        let content = template;
-                        // 自動的にファイル存在に基づいてスコープ状態を更新
-                        await this._checkAndUpdateScopeCompletion();
-                    }
-                    catch (error) {
-                        logger_1.Logger.error(`テンプレートファイルの作成に失敗しました: ${error.message}`);
-                        vscode.window.showErrorMessage(`テンプレートファイルの作成に失敗しました: ${error.message}`);
-                        return;
-                    }
+            // 選択されたプロジェクトパスを使用
+            const projectPath = folderUri[0].fsPath;
+            // ProjectServiceを使用して既存プロジェクトを読み込む
+            const projectInfo = await this._projectService.loadExistingProject(projectPath);
+            // プロジェクトパスを更新
+            if (projectInfo && projectInfo.path) {
+                // プロジェクトパスを設定
+                this.setProjectPath(projectInfo.path);
+                // プロジェクトの最新情報を取得
+                const activeProject = this._projectService.getActiveProject();
+                const allProjects = this._projectService.getAllProjects();
+                // アクティブプロジェクトを保存
+                this._activeProject = activeProject;
+                // WebViewにプロジェクト一覧を更新
+                this._panel.webview.postMessage({
+                    command: 'updateProjects',
+                    projects: allProjects,
+                    activeProject: activeProject
+                });
+                // 進捗ファイルの内容も読み込んで表示
+                const progressFilePath = this._projectService.getProgressFilePath();
+                if (progressFilePath && fs.existsSync(progressFilePath)) {
+                    await this._handleGetMarkdownContent(progressFilePath);
                 }
-                else {
-                    // ユーザーがテンプレート作成を拒否した場合
-                    this._panel.webview.postMessage({
-                        command: 'showError',
-                        message: `CURRENT_STATUS.mdファイルが見つかりません。ファイルを手動で作成してください: ${this._statusFilePath}`
-                    });
-                    return;
-                }
+                // 成功メッセージを表示
+                this._panel.webview.postMessage({
+                    command: 'showSuccess',
+                    message: `プロジェクト「${projectInfo.name}」を開きました`
+                });
+                // プロジェクト名を更新
+                this._panel.webview.postMessage({
+                    command: 'updateProjectName',
+                    projectName: projectInfo.name
+                });
+                logger_1.Logger.info(`プロジェクト「${projectInfo.name}」の読み込みが完了しました: ${projectInfo.path}`);
             }
-            // ファイルの内容を読み込む
-            let content = await this._fileManager.readFileAsString(this._statusFilePath);
-            logger_1.Logger.info(`ファイル読み込み完了 - 内容の長さ: ${content.length}バイト`);
-            // ステータスファイルからスコープ情報を解析
-            this._parseStatusFile(content);
-            logger_1.Logger.info(`ステータスファイル解析完了 - スコープ数: ${this._scopes.length}`);
-            // 明示的にWebViewを更新
-            await this._updateWebview();
-            // フォーマットチェックを行い、問題があればファイルに警告コメントを追加（一度だけ）
-            let needsWarning = false;
-            let warningMessage = '';
-            // 必要なセクションが存在するか確認
-            const hasUnstartedSection = content.includes('### 未着手スコープ');
-            const hasInProgressSection = content.includes('### 進行中スコープ');
-            const hasCompletedSection = content.includes('### 完了済みスコープ');
-            // 未着手スコープセクションがない
-            if (!hasUnstartedSection) {
-                logger_1.Logger.warn('「未着手スコープ」セクションが見つかりません。');
-                needsWarning = true;
-                warningMessage += `\n### 未着手スコープ\n`;
-            }
-            // 進行中スコープセクションがない
-            if (!hasInProgressSection) {
-                logger_1.Logger.warn('「進行中スコープ」セクションが見つかりません。');
-                needsWarning = true;
-                warningMessage += `\n### 進行中スコープ\n（実装中のスコープはまだありません）\n`;
-            }
-            // 完了済みスコープセクションがない
-            if (!hasCompletedSection) {
-                logger_1.Logger.warn('「完了済みスコープ」セクションが見つかりません。');
-                needsWarning = true;
-                warningMessage += `\n### 完了済みスコープ\n（完了したスコープはまだありません）\n`;
-            }
-            // 箇条書きフォーマットチェック
-            const completedScopeSection = content.match(/### 完了済みスコープ\s*\n((?:.*\n)*?)(?:\n###|$)/);
-            const inProgressScopeSection = content.match(/### 進行中スコープ\s*\n((?:.*\n)*?)(?:\n###|$)/);
-            const pendingScopeSection = content.match(/### 未着手スコープ\s*\n((?:.*\n)*?)(?:\n###|$)/);
-            const hasCompletedBullets = completedScopeSection && completedScopeSection[1].trim().match(/^- \[x\]/m);
-            const hasInProgressBullets = inProgressScopeSection && inProgressScopeSection[1].trim().match(/^- \[ \]/m);
-            const hasPendingBullets = pendingScopeSection && pendingScopeSection[1].trim().match(/^- \[ \]/m);
-            // 警告が既に存在するか確認（重複追加を防ぐ）
-            const hasExistingWarning = content.includes('<!-- スコープマネージャー警告:');
-            // 問題があり、かつ既存の警告がない場合のみ、ファイルに警告を追加
-            if ((needsWarning || !hasCompletedBullets || !hasInProgressBullets || !hasPendingBullets) && !hasExistingWarning) {
-                logger_1.Logger.warn('フォーマットに問題があります。ファイルに警告を追加します。');
-                // 警告メッセージを作成
-                const warningTemplate = `\n\n<!-- スコープマネージャー警告: 以下のフォーマット推奨事項を確認してください -->
-<!-- 
-スコープマネージャーが正しく動作するには、以下のセクションとフォーマットが必要です：
-
-## スコープ状況
-
-### 完了済みスコープ
-（完了したスコープはまだありません）
-または
-- [x] 完了したスコープ名 (100%)
-
-### 進行中スコープ
-（実装中のスコープはまだありません）
-または
-- [ ] 進行中のスコープ名 (50%)
-
-### 未着手スコープ
-- [ ] スコープ名
-  - 説明: スコープの説明
-  - 優先度: 高/中/低
-  - 関連ファイル: ファイルパス1, ファイルパス2
--->
-
-${warningMessage}`;
-                // ファイルに警告を追加
-                try {
-                    // 不足している必須セクションを追加しつつ、警告メッセージも追記
-                    let updatedContent = content;
-                    // スコープ状況セクションの有無をチェック
-                    if (!content.includes('## スコープ状況')) {
-                        // ファイルの末尾にスコープ状況セクションを追加
-                        updatedContent = updatedContent.trim() + `\n\n## スコープ状況`;
-                    }
-                    // 警告を追加（ファイルの末尾）
-                    updatedContent = updatedContent.trim() + warningTemplate;
-                    // 更新したファイルを保存
-                    await fs.promises.writeFile(this._statusFilePath, updatedContent, 'utf8');
-                    logger_1.Logger.info('CURRENT_STATUS.mdファイルにフォーマット警告とサンプルを追加しました');
-                    // 更新した内容を再読み込み
-                    content = updatedContent;
-                    // 修正したファイルを再解析
-                    this._parseStatusFile(content);
-                }
-                catch (writeError) {
-                    logger_1.Logger.error(`警告の追加に失敗しました: ${writeError.message}`);
-                }
-            }
-            else if (!needsWarning && hasCompletedBullets && hasInProgressBullets && hasPendingBullets) {
-                // 全ての条件を満たしている場合、既存の警告があれば削除
-                if (hasExistingWarning) {
-                    try {
-                        // 既存の警告を削除
-                        const updatedContent = content.replace(/\n*<!-- スコープマネージャー警告:[\s\S]*?-->[\s\S]*?(?=\n\n|$)/g, '');
-                        // 更新したファイルを保存
-                        await fs.promises.writeFile(this._statusFilePath, updatedContent, 'utf8');
-                        logger_1.Logger.info('フォーマットが修正されたため、警告を削除しました');
-                        // 更新した内容を再読み込み
-                        content = updatedContent;
-                    }
-                    catch (removeError) {
-                        logger_1.Logger.error(`警告の削除に失敗しました: ${removeError.message}`);
-                    }
-                }
-            }
-            // WebViewを更新
-            this._updateWebview();
         }
         catch (error) {
-            logger_1.Logger.error('ステータスファイルの読み込み中にエラーが発生しました', error);
+            logger_1.Logger.error('プロジェクト読み込み中にエラーが発生しました', error);
+            this._showError(`プロジェクトの読み込みに失敗しました: ${error.message}`);
         }
     }
     /**
-     * CURRENT_STATUS.mdファイルのテンプレートを取得（新規作成用）
-     * このメソッドは直接ファイルを変更せず、テンプレート文字列を返すだけ
+     * プロジェクトパスを設定 - 各サービスに委譲
      */
-    _getStatusFileTemplate() {
-        return `# プロジェクト現状
-
-## 全体進捗
-- 要件定義: 未完了
-- モックアップ: 未完了
-- ディレクトリ構造: 未完了
-- 実装: 未開始
-- テスト: 未開始
-- デプロイ: 未開始
-
-## スコープ状況
-
-### 完了済みスコープ
-（完了したスコープはまだありません）
-
-### 進行中スコープ
-（実装中のスコープはまだありません）
-
-### 未着手スコープ
-（未着手のスコープはまだありません。スコープを追加するには次の形式を使用してください）
-
-- [ ] スコープ名
-  - 説明: スコープの説明
-  - 優先度: 高/中/低
-  - 関連ファイル: ファイルパス1, ファイルパス2
-
-## 環境変数設定状況
-
-必要な環境変数:
-- API_KEY: 未設定
-- DATABASE_URL: 未設定
-
-## API設計
-
-APIエンドポイントはまだ定義されていません。
-`;
-    }
-    /**
-     * ステータスファイルからスコープ情報を解析
-     */
-    _parseStatusFile(content) {
+    async setProjectPath(projectPath) {
         try {
-            this._scopes = [];
-            let currentSection = '';
-            let completedScopes = [];
-            let inProgressScopes = [];
-            let pendingScopes = [];
-            let directoryStructure = '';
-            let completedFiles = [];
-            let inProgressFiles = [];
-            let nextScope = null;
-            let inheritanceInfo = '';
-            // 行ごとに処理
-            const lines = content.split(/\r?\n/);
-            let i = 0;
-            while (i < lines.length) {
-                const line = lines[i];
-                // セクションヘッダーを検出 (## や ### 両方に対応)
-                if (line.startsWith('## ')) {
-                    currentSection = line.substring(3).trim();
-                    i++;
-                    continue;
-                }
-                // スコープセクションの処理
-                if (currentSection === 'スコープ状況') {
-                    // 見出しを検出する正規表現を拡張
-                    if (line.startsWith('### 完了済みスコープ')) {
-                        i++;
-                        while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
-                            const scopeLine = lines[i].trim();
-                            // 完了スコープの箇条書きパターンを検出 ([x])
-                            const match = scopeLine.match(/- \[x\] (.+?) \(100%\)/);
-                            if (match) {
-                                const name = match[1];
-                                completedScopes.push({
-                                    name,
-                                    status: 'completed',
-                                    progress: 100
-                                });
-                            }
-                            i++;
-                        }
-                        continue;
-                    }
-                    else if (line.startsWith('### 進行中スコープ')) {
-                        i++;
-                        while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
-                            const scopeLine = lines[i].trim();
-                            // 進行中スコープの箇条書きパターンを検出 ([ ] + 進捗率)
-                            const match = scopeLine.match(/- \[ \] (.+?) \((\d+)%\)/);
-                            if (match) {
-                                const name = match[1];
-                                const progress = parseInt(match[2]);
-                                inProgressScopes.push({
-                                    name,
-                                    status: 'in-progress',
-                                    progress
-                                });
-                            }
-                            i++;
-                        }
-                        continue;
-                    }
-                    else if (line.startsWith('### 未着手スコープ')) {
-                        i++;
-                        while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
-                            const scopeLine = lines[i].trim();
-                            // より柔軟な未着手スコープの検出パターン：
-                            // 1. 標準形式 ([ ] スコープ名 (0%))
-                            // 2. ダッシュボード形式 ([ ] スコープ名) - 進捗情報なし
-                            // 3. ID付き形式 ([ ] スコープ名 (scope-xxx-xxx))
-                            let match = scopeLine.match(/- \[ \] (.+?) \(0%\)/);
-                            if (!match) {
-                                // 進捗情報のない形式を検出
-                                match = scopeLine.match(/^- \[ \] ([^(]+)(?:\s|$)/);
-                            }
-                            if (!match && scopeLine.includes('(scope-')) {
-                                // スコープID付きの形式を検出
-                                match = scopeLine.match(/^- \[ \] (.+?) \(scope-[^)]+\)/);
-                            }
-                            if (match) {
-                                const name = match[1].trim();
-                                // ロギングを追加（デバッグ用）
-                                logger_1.Logger.info(`未着手スコープを検出: "${name}" (行: ${scopeLine})`);
-                                // スコープID抽出を試みる (スコープIDパターンがあれば)
-                                let scopeId = '';
-                                const idMatch = scopeLine.match(/\(scope-([^)]+)\)/);
-                                if (idMatch) {
-                                    scopeId = `scope-${idMatch[1]}`;
-                                }
-                                // 説明の抽出を試みる（次の行がインデントされている場合）
-                                let description = '';
-                                if (i + 1 < lines.length && lines[i + 1].trim().startsWith('- 説明:')) {
-                                    description = lines[i + 1].trim().substring('- 説明:'.length).trim();
-                                }
-                                pendingScopes.push({
-                                    name,
-                                    status: 'pending',
-                                    progress: 0,
-                                    id: scopeId,
-                                    description: description
-                                });
-                            }
-                            i++;
-                        }
-                        continue;
-                    }
-                }
-                // ディレクトリ構造セクションの処理
-                if (currentSection === '現在のディレクトリ構造') {
-                    if (line.startsWith('```')) {
-                        i++;
-                        let structureContent = '';
-                        while (i < lines.length && !lines[i].startsWith('```')) {
-                            structureContent += lines[i] + '\n';
-                            i++;
-                        }
-                        directoryStructure = structureContent;
-                        this._directoryStructure = structureContent;
-                        i++; // ```の行をスキップ
-                        continue;
-                    }
-                }
-                // 実装ファイルセクションの処理（スコープ別）
-                // 「実装完了ファイル」「実装すべきファイル」「実装予定ファイル」など複数のパターンに対応
-                if (currentSection.includes('実装完了ファイル') ||
-                    currentSection.includes('実装すべきファイル') ||
-                    currentSection.includes('実装予定ファイル')) {
-                    // スコープ別のファイルリストを処理
-                    if (line.startsWith('### スコープ') || line.trim().startsWith('- [')) {
-                        let currentScopeName = '';
-                        // スコープヘッダーを検出
-                        if (line.startsWith('### スコープ')) {
-                            currentScopeName = line.substring(4).trim();
-                            i++;
-                        }
-                        // ファイルリストを処理
-                        while (i < lines.length && !lines[i].startsWith('###') && !lines[i].startsWith('## ')) {
-                            const fileLine = lines[i].trim();
-                            if (fileLine.startsWith('- [')) {
-                                const completedMatch = fileLine.match(/- \[([ x])\] ([^\(\)]+)/);
-                                if (completedMatch) {
-                                    const isCompleted = completedMatch[1] === 'x';
-                                    const filePath = completedMatch[2].trim();
-                                    // 完了済みならcompletedFilesに追加
-                                    if (isCompleted) {
-                                        completedFiles.push(filePath);
-                                    }
-                                    // 該当するスコープのファイルリストを更新
-                                    const scopesToUpdate = [...completedScopes, ...inProgressScopes, ...pendingScopes];
-                                    scopesToUpdate.forEach(scope => {
-                                        if (scope.name === currentScopeName || fileLine.includes(scope.name)) {
-                                            if (!scope.files)
-                                                scope.files = [];
-                                            // 既存のファイルリストにあれば更新、なければ追加
-                                            const fileIndex = scope.files.findIndex((f) => f.path === filePath);
-                                            if (fileIndex >= 0) {
-                                                scope.files[fileIndex].completed = isCompleted;
-                                            }
-                                            else {
-                                                scope.files.push({
-                                                    path: filePath,
-                                                    completed: isCompleted
-                                                });
-                                            }
-                                        }
-                                    });
-                                }
-                            }
-                            i++;
-                        }
-                        continue;
-                    }
-                }
-                // 実装中ファイルセクションの処理（より柔軟性を持たせる）
-                if (currentSection === '実装中ファイル' || currentSection.includes('実装中')) {
-                    if (line.trim().startsWith('- [ ]')) {
-                        const filePath = line.match(/- \[ \] ([^\(\)]+)/)?.[1]?.trim();
-                        if (filePath) {
-                            inProgressFiles.push(filePath);
-                            // 進行中スコープのファイルリストを更新
-                            inProgressScopes.forEach(scope => {
-                                if (line.includes(scope.name)) {
-                                    if (!scope.files)
-                                        scope.files = [];
-                                    // 既存のファイルリストにあれば更新、なければ追加
-                                    const fileIndex = scope.files.findIndex((f) => f.path === filePath);
-                                    if (fileIndex >= 0) {
-                                        scope.files[fileIndex].completed = false;
-                                    }
-                                    else {
-                                        scope.files.push({
-                                            path: filePath,
-                                            completed: false
-                                        });
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    i++;
-                    continue;
-                }
-                // 引継ぎ情報セクションの処理
-                if (currentSection === '引継ぎ情報') {
-                    // 現在のスコープ情報の処理
-                    if (line.startsWith('### 現在のスコープ:')) {
-                        const scopeName = line.substring('### 現在のスコープ:'.length).trim();
-                        let scopeId = '';
-                        let description = '';
-                        let features = [];
-                        let files = [];
-                        // 引継ぎ情報の内容をキャプチャ
-                        let sectionStartIdx = i;
-                        let sectionEndIdx = i;
-                        i++;
-                        while (i < lines.length && !lines[i].startsWith('##')) {
-                            const currentLine = lines[i];
-                            if (currentLine.startsWith('**スコープID**:')) {
-                                scopeId = currentLine.substring('**スコープID**:'.length).trim();
-                            }
-                            else if (currentLine.startsWith('**説明**:')) {
-                                description = currentLine.substring('**説明**:'.length).trim();
-                            }
-                            else if (currentLine.startsWith('**含まれる機能**:')) {
-                                i++;
-                                while (i < lines.length && /^\d+\. /.test(lines[i])) {
-                                    features.push(lines[i].replace(/^\d+\. /, '').trim());
-                                    i++;
-                                }
-                                continue;
-                            }
-                            else if (currentLine.startsWith('**実装すべきファイル**:') ||
-                                currentLine.startsWith('**実装予定ファイル**:') ||
-                                currentLine.includes('実装すべきファイル') ||
-                                currentLine.includes('実装予定ファイル')) {
-                                sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
-                                i++;
-                                // ファイルリストを処理（空行までまたは別のセクションまで）
-                                while (i < lines.length &&
-                                    (lines[i].trim().startsWith('- ') || lines[i].trim().length === 0) &&
-                                    !lines[i].startsWith('**') &&
-                                    !lines[i].startsWith('##')) {
-                                    const line = lines[i].trim();
-                                    if (line.length === 0) {
-                                        i++;
-                                        continue;
-                                    }
-                                    // 箇条書きチェックボックス形式 (- [ ] path)
-                                    const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
-                                    if (checkboxMatch) {
-                                        const completed = checkboxMatch[1] === 'x';
-                                        const filePath = checkboxMatch[2].trim();
-                                        files.push({
-                                            path: filePath,
-                                            completed
-                                        });
-                                    }
-                                    // 単純な箇条書き形式 (- path)
-                                    else if (line.startsWith('- ')) {
-                                        const filePath = line.substring(2).trim();
-                                        // 「（ファイルはまだ定義されていません）」はスキップ
-                                        if (!filePath.includes('ファイルはまだ定義されていません')) {
-                                            files.push({
-                                                path: filePath,
-                                                completed: false
-                                            });
-                                        }
-                                    }
-                                    i++;
-                                }
-                                continue;
-                            }
-                            i++;
-                        }
-                        // 引継ぎ情報を抽出
-                        if (sectionEndIdx > sectionStartIdx) {
-                            inheritanceInfo = lines.slice(sectionStartIdx, sectionEndIdx + 1).join('\n');
-                        }
-                        // 現在進行中のスコープを選択
-                        const found = [...completedScopes, ...inProgressScopes, ...pendingScopes].find(s => s.name.includes(scopeName));
-                        if (found) {
-                            this._currentScope = {
-                                ...found,
-                                id: scopeId,
-                                description,
-                                features,
-                                files,
-                                inheritanceInfo
-                            };
-                        }
-                        else if (scopeName) {
-                            // スコープリストに存在しないが、スコープ名が記載されている場合は新規作成
-                            const newScope = {
-                                name: scopeName,
-                                id: scopeId || `scope-${Date.now()}`,
-                                description,
-                                status: 'pending',
-                                progress: 0,
-                                features,
-                                files,
-                                inheritanceInfo
-                            };
-                            pendingScopes.push(newScope);
-                            this._currentScope = newScope;
-                        }
-                        continue;
-                    }
-                }
-                // 次のスコープ情報の処理
-                if (currentSection === '次回実装予定') {
-                    if (line.startsWith('### 次のスコープ:')) {
-                        const scopeName = line.substring('### 次のスコープ:'.length).trim();
-                        let scopeId = '';
-                        let description = '';
-                        let features = [];
-                        let files = [];
-                        let dependencies = [];
-                        // 引継ぎ情報の開始位置
-                        let sectionStartIdx = i;
-                        let sectionEndIdx = i;
-                        i++;
-                        while (i < lines.length && !lines[i].startsWith('##')) {
-                            const currentLine = lines[i];
-                            if (currentLine.startsWith('**スコープID**:')) {
-                                scopeId = currentLine.substring('**スコープID**:'.length).trim();
-                            }
-                            else if (currentLine.startsWith('**説明**:')) {
-                                description = currentLine.substring('**説明**:'.length).trim();
-                            }
-                            else if (currentLine.startsWith('**含まれる機能**:')) {
-                                i++;
-                                while (i < lines.length && /^\d+\. /.test(lines[i])) {
-                                    features.push(lines[i].replace(/^\d+\. /, '').trim());
-                                    i++;
-                                }
-                                continue;
-                            }
-                            else if (currentLine.startsWith('**依存するスコープ**:')) {
-                                i++;
-                                while (i < lines.length && lines[i].trim().startsWith('- ')) {
-                                    dependencies.push(lines[i].replace(/^- /, '').trim());
-                                    i++;
-                                }
-                                continue;
-                            }
-                            else if (currentLine.startsWith('**実装予定ファイル**:') ||
-                                currentLine.startsWith('**実装すべきファイル**:') ||
-                                currentLine.includes('実装すべきファイル') ||
-                                currentLine.includes('実装予定ファイル')) {
-                                sectionEndIdx = i - 1; // 実装すべきファイルの前の行まで引継ぎ情報としてキャプチャ
-                                i++;
-                                // ファイルリストを処理（空行までまたは別のセクションまで）
-                                while (i < lines.length &&
-                                    (lines[i].trim().startsWith('- ') || lines[i].trim().length === 0) &&
-                                    !lines[i].startsWith('**') &&
-                                    !lines[i].startsWith('##')) {
-                                    const line = lines[i].trim();
-                                    if (line.length === 0) {
-                                        i++;
-                                        continue;
-                                    }
-                                    // 箇条書きチェックボックス形式 (- [ ] path)
-                                    const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
-                                    if (checkboxMatch) {
-                                        const completed = checkboxMatch[1] === 'x';
-                                        const filePath = checkboxMatch[2].trim();
-                                        files.push({
-                                            path: filePath,
-                                            completed
-                                        });
-                                    }
-                                    // 単純な箇条書き形式 (- path)
-                                    else if (line.startsWith('- ')) {
-                                        const filePath = line.substring(2).trim();
-                                        // 「（ファイルはまだ定義されていません）」はスキップ
-                                        if (!filePath.includes('ファイルはまだ定義されていません')) {
-                                            files.push({
-                                                path: filePath,
-                                                completed: false
-                                            });
-                                        }
-                                    }
-                                    i++;
-                                }
-                                continue;
-                            }
-                            i++;
-                        }
-                        // 引継ぎ情報を抽出
-                        let nextInheritanceInfo = '';
-                        if (sectionEndIdx > sectionStartIdx) {
-                            nextInheritanceInfo = lines.slice(sectionStartIdx, sectionEndIdx + 1).join('\n');
-                        }
-                        // 次のスコープ情報を保存
-                        nextScope = {
-                            name: scopeName,
-                            id: scopeId || `scope-${Date.now()}`,
-                            description,
-                            status: 'pending',
-                            progress: 0,
-                            features,
-                            files,
-                            dependencies,
-                            inheritanceInfo: nextInheritanceInfo
-                        };
-                        // もし次のスコープが未着手スコープリストに存在しなければ追加
-                        const existingNextScope = pendingScopes.find(s => s.name.includes(scopeName));
-                        if (!existingNextScope && scopeName) {
-                            pendingScopes.push(nextScope);
-                        }
-                        continue;
-                    }
-                }
-                i++;
+            this._projectPath = projectPath;
+            // ProjectServiceにプロジェクトパスを設定
+            await this._projectService.setProjectPath(projectPath);
+            // 進捗ファイルパスをProjectServiceから取得
+            this._progressFilePath = this._projectService.getProgressFilePath();
+            // 既存のファイルウォッチャーを破棄
+            if (this._fileWatcher) {
+                this._fileWatcher.dispose();
+                this._fileWatcher = null;
             }
-            // 詳細情報からもスコープを検出（代替方法）
-            // より柔軟なパターンマッチングを使用
-            let detailedScopeMatches = [...content.matchAll(/#### ([^:\n]+)[\s\S]*?スコープID[^:]*?: ([^\n]*)/g)];
-            // 別形式のスコープも検出 (### 現在のスコープ: や ### 次のスコープ: の形式)
-            const currentScopeMatch = content.match(/### 現在のスコープ:\s*([^\n]+)[\s\S]*?スコープID[^:]*?:\s*([^\n]*)/);
-            const nextScopeMatch = content.match(/### 次のスコープ:\s*([^\n]+)[\s\S]*?スコープID[^:]*?:\s*([^\n]*)/);
-            if (currentScopeMatch) {
-                // RegExpExecArray型として扱うために変換
-                const execArray = Object.assign([null, currentScopeMatch[1], currentScopeMatch[2]], {
-                    index: 0,
-                    input: '',
-                    groups: undefined
-                });
-                detailedScopeMatches.push(execArray);
-            }
-            if (nextScopeMatch) {
-                // RegExpExecArray型として扱うために変換
-                const execArray = Object.assign([null, nextScopeMatch[1], nextScopeMatch[2]], {
-                    index: 0,
-                    input: '',
-                    groups: undefined
-                });
-                detailedScopeMatches.push(execArray);
-            }
-            // 詳細情報からスコープを補完
-            for (const match of detailedScopeMatches) {
-                const scopeName = match[1].trim();
-                const scopeId = match[2] ? match[2].trim() : `scope-${Date.now()}`;
-                // 既存のスコープリストに存在しなければ未着手スコープとして追加
-                const existingScope = [...completedScopes, ...inProgressScopes, ...pendingScopes]
-                    .find(s => s.name === scopeName);
-                if (!existingScope) {
-                    logger_1.Logger.info(`詳細情報から新たなスコープを検出: ${scopeName}`);
-                    pendingScopes.push({
-                        name: scopeName,
-                        id: scopeId,
-                        status: 'pending',
-                        progress: 0
-                    });
-                }
-            }
-            // スコープの「実装予定ファイル」や「実装すべきファイル」セクションからファイル情報を抽出
-            // 実装予定/実装すべきファイルセクションを検出するより汎用的なパターン
-            const fileListPatterns = [
-                // #### スコープ名\n...\n**実装予定ファイル**:
-                new RegExp(`#### ([^:\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
-                // ### 現在のスコープ: スコープ名\n...\n**実装すべきファイル**:
-                new RegExp(`### 現在のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
-                // ### 次のスコープ: スコープ名\n...\n**実装予定ファイル**:
-                new RegExp(`### 次のスコープ:\\s*([^\\n]+)[\\s\\S]*?(?:実装予定ファイル|実装すべきファイル)[^:]*:[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
-                // スコープ専用セクション: ## スコープ名\n直後にファイルリストが続くパターン
-                new RegExp(`## ([^#\\n]+)\\s*\\n(?:\\s*\\n)*((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
-                // 新しいパターン: ## スコープ名 の下に ### カテゴリ名 があり、その下に直接タスクリストがある場合
-                new RegExp(`## ([^#\\n]+)[\\s\\S]*?### [^#\\n]+\\s*\\n((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g'),
-                // より一般的なパターン: ## スコープ -> 任意のコンテンツ -> タスクリスト
-                new RegExp(`## ([^#\\n]+)[\\s\\S]*?((?:\\s*- \\[[^\\]]*\\].*\\n)+)`, 'g')
-            ];
-            for (const pattern of fileListPatterns) {
-                const matches = [...content.matchAll(pattern)];
-                for (const match of matches) {
-                    const scopeName = match[1].trim();
-                    const fileListText = match[2];
-                    // スコープ名の前後の空白を除去し、正規化
-                    const normalizedScopeName = scopeName.replace(/^\s+|\s+$/g, '');
-                    // 部分一致を許容してスコープを探す
-                    const targetScope = [...completedScopes, ...inProgressScopes, ...pendingScopes]
-                        .find(s => {
-                        const normalizedSName = s.name.replace(/^\s+|\s+$/g, '');
-                        return normalizedSName === normalizedScopeName ||
-                            normalizedScopeName.includes(normalizedSName) ||
-                            normalizedSName.includes(normalizedScopeName);
-                    });
-                    if (targetScope) {
-                        // ファイルリストを解析
-                        const fileLines = fileListText.split('\n').filter(line => line.trim().startsWith('- '));
-                        const files = fileLines.map(line => {
-                            const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
-                            if (checkboxMatch) {
-                                return {
-                                    path: checkboxMatch[2].trim(),
-                                    completed: checkboxMatch[1] === 'x'
-                                };
-                            }
-                            else {
-                                // 単純な箇条書き形式の場合
-                                return {
-                                    path: line.replace(/^- /, '').trim(),
-                                    completed: false
-                                };
-                            }
-                        }).filter(file => file.path && !file.path.includes('ファイルはまだ定義されていません'));
-                        // スコープにファイル情報を追加
-                        if (files.length > 0) {
-                            if (!targetScope.files) {
-                                targetScope.files = [];
-                            }
-                            // 重複を避けて追加
-                            for (const file of files) {
-                                if (!targetScope.files.some(f => f.path === file.path)) {
-                                    targetScope.files.push(file);
-                                }
-                            }
-                            logger_1.Logger.info(`スコープ "${scopeName}" に ${files.length} 個のファイルを追加しました (マッチ: ${targetScope.name})`);
-                        }
-                    }
-                    else {
-                        logger_1.Logger.info(`スコープが見つかりませんでした: "${scopeName}" - 対象の候補: ${[...completedScopes, ...inProgressScopes, ...pendingScopes].map(s => `"${s.name}"`).join(', ')}`);
-                    }
-                }
-            }
-            // すべてのスコープをまとめる
-            this._scopes = [...completedScopes, ...inProgressScopes, ...pendingScopes];
-            // スコープにインデックス情報を追加
-            this._scopes.forEach((scope, index) => {
-                scope.index = index;
-                // #### 形式のスコープ詳細情報を関連付け
-                const detailMatch = content.match(new RegExp(`#### [^:\n]*${scope.name}[^:\n]*\\s*\\n\\s*\\*\\*スコープID\\*\\*: ([^\\n]*)`, 'i'));
-                if (detailMatch) {
-                    scope.id = detailMatch[1].trim();
-                    // 機能一覧を抽出
-                    const featuresSection = content.match(new RegExp(`#### [^:\n]*${scope.name}[^:\n]*[\\s\\S]*?\\*\\*含まれる機能\\*\\*:[\\s\\S]*?(\\d+\\. .*?)\\n\\n`, 'i'));
-                    if (featuresSection) {
-                        const featuresText = featuresSection[1];
-                        scope.features = featuresText.split('\n').map(line => line.replace(/^\d+\. /, '').trim());
-                    }
-                }
-                // ## 形式のスコープセクションも検索
-                const sectionMatch = content.match(new RegExp(`## ${scope.name}\\s*\\n`, 'i'));
-                if (sectionMatch) {
-                    // ## 形式のスコープセクションが見つかった場合、そのスコープの情報を設定
-                    logger_1.Logger.info(`スコープ "${scope.name}" の専用セクションが見つかりました`);
-                    // このセクションの下のファイルリストをチェック
-                    const sectionStart = content.indexOf(sectionMatch[0]);
-                    const sectionEnd = content.indexOf('##', sectionStart + 2);
-                    const sectionContent = sectionEnd !== -1
-                        ? content.substring(sectionStart, sectionEnd)
-                        : content.substring(sectionStart);
-                    // セクション内のファイルリストを解析
-                    const fileLines = sectionContent.split('\n')
-                        .filter(line => line.trim().startsWith('- ['));
-                    if (fileLines.length > 0) {
-                        // ファイルリストを解析してスコープに追加
-                        const files = fileLines.map(line => {
-                            const checkboxMatch = line.match(/- \[([ x])\] (.+)/);
-                            if (checkboxMatch) {
-                                return {
-                                    path: checkboxMatch[2].trim(),
-                                    completed: checkboxMatch[1] === 'x'
-                                };
-                            }
-                            else {
-                                // 単純な箇条書き形式の場合
-                                return {
-                                    path: line.replace(/^- /, '').trim(),
-                                    completed: false
-                                };
-                            }
-                        }).filter(file => file.path && !file.path.includes('ファイルはまだ定義されていません'));
-                        // スコープにファイル情報を追加
-                        if (files.length > 0) {
-                            if (!scope.files) {
-                                scope.files = [];
-                            }
-                            // 重複を避けて追加
-                            for (const file of files) {
-                                if (!scope.files.some(f => f.path === file.path)) {
-                                    scope.files.push(file);
-                                }
-                            }
-                            logger_1.Logger.info(`スコープセクションから "${scope.name}" に ${files.length} 個のファイルを追加しました`);
-                        }
-                    }
-                }
-                // 現在のスコープを特定
-                if (this._currentScope && scope.name.includes(this._currentScope.name)) {
-                    this._selectedScopeIndex = index;
-                    // 現在のスコープが既に選択されている場合は、引継ぎ情報を引き継ぐ
-                    if (this._currentScope.inheritanceInfo) {
-                        scope.inheritanceInfo = this._currentScope.inheritanceInfo;
-                    }
-                }
+            // 一時ディレクトリを設定
+            this._tempShareDir = path.join(projectPath, '.appgenius_temp');
+            await this._fileSystemService.ensureDirectoryExists(this._tempShareDir);
+            // 関連サービスにプロジェクトパスを設定
+            this._promptServiceClient.setProjectPath(projectPath);
+            this._sharingService.setProjectBasePath(projectPath);
+            // ファイルウォッチャーと進捗ファイルを設定
+            this._setupFileWatcher();
+            this._loadProgressFile();
+            // WebViewにプロジェクト情報を送信
+            this._panel.webview.postMessage({
+                command: 'updateProjectPath',
+                projectPath: this._projectPath,
+                progressFilePath: this._progressFilePath,
+                progressFileExists: fs.existsSync(this._progressFilePath)
             });
-            // 現在のスコープが選択されていない場合、次のスコープを選択
-            if (this._selectedScopeIndex < 0 && nextScope) {
-                const nextScopeIndex = this._scopes.findIndex(s => s.name.includes(nextScope.name));
-                if (nextScopeIndex >= 0) {
-                    this._selectedScopeIndex = nextScopeIndex;
-                    this._currentScope = this._scopes[nextScopeIndex];
-                    // 次のスコープに引継ぎ情報がある場合は設定
-                    if (nextScope.inheritanceInfo) {
-                        this._currentScope.inheritanceInfo = nextScope.inheritanceInfo;
-                    }
-                }
-            }
-            logger_1.Logger.info(`${this._scopes.length}個のスコープを読み込みました`);
-            if (this._selectedScopeIndex >= 0) {
-                logger_1.Logger.info(`現在のスコープ: ${this._scopes[this._selectedScopeIndex].name}`);
-            }
-            if (nextScope) {
-                logger_1.Logger.info(`次のスコープ: ${nextScope.name}`);
-            }
+            // プロジェクト一覧を更新
+            const allProjects = this._projectService.getAllProjects();
+            const activeProject = this._projectService.getActiveProject();
+            this._panel.webview.postMessage({
+                command: 'updateProjects',
+                projects: allProjects,
+                activeProject: activeProject
+            });
         }
         catch (error) {
-            logger_1.Logger.error('ステータスファイルの解析中にエラーが発生しました', error);
+            logger_1.Logger.error(`プロジェクトパスの設定に失敗しました: ${error}`);
+            throw error;
         }
-    }
-    /**
-     * ファイルの存在に基づいてスコープの完了状態を確認し更新する
-     */
-    async _checkAndUpdateScopeCompletion() {
-        try {
-            if (!this._projectPath) {
-                logger_1.Logger.warn('プロジェクトパスが設定されていないため、スコープ完了状態の確認をスキップします');
-                return;
-            }
-            // 現在のスコープを取得
-            let content = await this._fileManager.readFileAsString(this._statusFilePath);
-            // スコープの更新が必要かどうかを追跡
-            let needsUpdate = false;
-            // スコープ1: 要件定義を作成する - docs/requirements.mdの存在を確認
-            const requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
-            const requirementsExists = fs.existsSync(requirementsPath);
-            // スコープ2: モックアップを完成させる - mockups/*.htmlファイルの存在を確認
-            const mockupsDir = path.join(this._projectPath, 'mockups');
-            let mockupsExist = false;
-            if (fs.existsSync(mockupsDir)) {
-                const mockupFiles = fs.readdirSync(mockupsDir)
-                    .filter(file => file.endsWith('.html'));
-                mockupsExist = mockupFiles.length > 0;
-            }
-            // スコープ3: モックアップを完璧にし要件定義を整える - docs/scopes/*.mdファイルの存在を確認
-            const scopesDir = path.join(this._projectPath, 'docs', 'scopes');
-            let scopesExist = false;
-            if (fs.existsSync(scopesDir)) {
-                const scopeFiles = fs.readdirSync(scopesDir)
-                    .filter(file => file.endsWith('.md'));
-                scopesExist = scopeFiles.length > 0;
-            }
-            // スコープ4: プロジェクトの計画を立てる - docs/env.mdファイルの存在を確認
-            const envPath = path.join(this._projectPath, 'docs', 'env.md');
-            const envExists = fs.existsSync(envPath);
-            // スコープ状態を更新
-            if (requirementsExists) {
-                // スコープ1を完了状態に更新
-                content = content.replace(/- \[ \] スコープ1: 要件定義を作成する \(0%\)/g, '- [x] スコープ1: 要件定義を作成する (100%)');
-                needsUpdate = true;
-                logger_1.Logger.info('スコープ1（要件定義）が完了しています - ステータスを更新します');
-            }
-            if (mockupsExist) {
-                // スコープ2を完了状態に更新
-                content = content.replace(/- \[ \] スコープ2: モックアップを完成させる \(0%\)/g, '- [x] スコープ2: モックアップを完成させる (100%)');
-                needsUpdate = true;
-                logger_1.Logger.info('スコープ2（モックアップ）が完了しています - ステータスを更新します');
-            }
-            if (scopesExist) {
-                // スコープ3を完了状態に更新
-                content = content.replace(/- \[ \] スコープ3: モックアップを完璧にし要件定義を整える \(0%\)/g, '- [x] スコープ3: モックアップを完璧にし要件定義を整える (100%)');
-                needsUpdate = true;
-                logger_1.Logger.info('スコープ3（詳細要件定義）が完了しています - ステータスを更新します');
-            }
-            if (envExists) {
-                // スコープ4を完了状態に更新
-                content = content.replace(/- \[ \] スコープ4: プロジェクトの計画を立てる \(0%\)/g, '- [x] スコープ4: プロジェクトの計画を立てる (100%)');
-                needsUpdate = true;
-                logger_1.Logger.info('スコープ4（プロジェクト計画）が完了しています - ステータスを更新します');
-                // スコープ4が完了した場合、スコープ5を進行中状態に更新
-                content = content.replace(/- \[ \] スコープ5: 環境変数を設定する \(0%\)/g, '- [ ] スコープ5: 環境変数を設定する (10%)');
-                // スコープマネージャーが本格的な実装フェーズに移行する準備ができていることを示す
-                if (requirementsExists && mockupsExist && scopesExist) {
-                    logger_1.Logger.info('すべての初期フェーズが完了しました - CURRENT_STATUSを更新して実装フェーズに移行します');
-                    // このタイミングでCURRENT_STATUSファイルを完全に更新（実装フェーズ用の内容に変更）
-                    // このロジックは別のメソッドに分けるか、または特別な処理としてフラグを立てるなどの対応が必要かもしれません
-                }
-            }
-            // 更新が必要な場合はファイルを書き込み
-            if (needsUpdate) {
-                await fs.promises.writeFile(this._statusFilePath, content, 'utf8');
-                logger_1.Logger.info('ファイル存在チェックに基づいてCURRENT_STATUS.mdを更新しました');
-                // 更新後のファイルを再読み込み
-                await this._parseStatusFile(content);
-            }
-        }
-        catch (error) {
-            logger_1.Logger.error('スコープ完了状態の確認中にエラーが発生しました', error);
-        }
-    }
-    /**
-     * 開発準備ステップのテンプレートを取得
-     * 開発の初期段階で表示するCURRENT_STATUSの内容
-     */
-    _getPreparationStepsTemplate() {
-        const today = new Date().toISOString().split('T')[0].replace(/-/g, '/');
-        return `# プロジェクト開発 - 準備フェーズ (${today}更新)
-
-## 全体進捗
-- 要件定義: 未完了
-- モックアップ: 未完了
-- スコープ計画: 未完了
-- 環境変数設定: 未設定
-- 実装: 未開始
-- テスト: 未開始
-
-## スコープ状況
-
-### 完了済みスコープ
-（完了したスコープはまだありません）
-
-### 進行中スコープ
-（実装中のスコープはまだありません）
-
-### 未着手スコープ
-- [ ] スコープ1: 要件定義を作成する (0%)
-  - 説明: 要件定義ビジュアライザーに行って要件定義書を作成する
-  - 優先度: 高
-  - 関連ファイル: docs/requirements.md
-- [ ] スコープ2: モックアップを完成させる (0%)
-  - 説明: 要件定義ビジュアライザーでモックアップを作成する
-  - 優先度: 高
-  - 関連ファイル: mockups/*.html
-- [ ] スコープ3: モックアップを完璧にし要件定義を整える (0%)
-  - 説明: モックアップギャラリーでモックアップをブラッシュアップし各ページの要件定義を完成させる
-  - 優先度: 高
-  - 関連ファイル: docs/scopes/*.md
-- [ ] スコープ4: プロジェクトの計画を立てる (0%)
-  - 説明: スコープマネージャーで新規スコープを作成し、プロジェクト計画を立てる
-  - 優先度: 高
-  - 関連ファイル: docs/env.md
-- [ ] スコープ5: 環境変数を設定する (0%)
-  - 説明: 環境変数設定アシスタントで環境変数をセットしCI/CDパイプラインを作成する
-  - 優先度: 高
-  - 関連ファイル: .env, .github/workflows/*.yml
-- [ ] スコープ6: スコープマネージャーの計画に沿ってプロジェクトを完成させる (0%)
-  - 説明: スコープマネージャーの実装計画に沿って開発を進める
-  - 優先度: 高
-  - 関連ファイル: src/**/*.*
-
-## 最終的なディレクトリ構造(予測)
-\`\`\`
-project-root/
-└── [ディレクトリ構造はスコープ4の完了後に更新されます]
-\`\`\`
-
-## 現在のディレクトリ構造
-\`\`\`
-project-root/
-└── [現在の実際のディレクトリ構造]
-\`\`\`
-
-## 開発フェーズのガイド
-1. まず要件定義を作成してください（スコープ1）
-2. 次にモックアップを作成してください（スコープ2）
-3. モックアップを完璧にして詳細な要件定義を作成してください（スコープ3）
-4. プロジェクト計画を立て、実装スコープを定義してください（スコープ4）
-5. 環境変数を設定し、開発環境を整えてください（スコープ5）
-6. 定義されたスコープに沿って実装を進めてください（スコープ6）
-
-## スコープ1: 要件定義を作成する
-- [ ] docs/requirements.md
-
-## スコープ2: モックアップを完成させる
-- [ ] mockups/*.html
-
-## スコープ3: モックアップを完璧にし要件定義を整える
-- [ ] docs/scopes/*.md
-
-## スコープ4: プロジェクトの計画を立てる
-- [ ] docs/env.md
-
-## スコープ5: 環境変数を設定する
-- [ ] .env
-- [ ] .github/workflows/*.yml
-
-## スコープ6: スコープマネージャーの計画に沿ってプロジェクトを完成させる
-- [ ] src/**/*.*`;
     }
     /**
      * 初期化処理
      */
     async _handleInitialize() {
+        // 最新のプロジェクト一覧を取得して送信
+        await this._refreshProjects();
+        await this._loadProgressFile();
+        // ディレクトリ構造を更新
+        await this._updateDirectoryStructure();
+        // 共有履歴を初期化
+        await this._handleGetHistory();
+        // 進捗ファイル(SCOPE_PROGRESS.md)の内容を読み込む
+        if (this._progressFilePath && fs.existsSync(this._progressFilePath)) {
+            await this._handleGetMarkdownContent(this._progressFilePath);
+        }
+        // 要件定義ファイル(requirements.md)がある場合は読み込む
+        const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
+        if (fs.existsSync(requirementsFilePath)) {
+            await this._handleLoadRequirementsFile();
+        }
+        // ファイルブラウザの初期化
+        await this._initializeFileBrowser();
+    }
+    /**
+     * 要件定義ファイルの読み込み
+     * docsディレクトリ内のrequirements.mdファイルを読み込んで表示
+     */
+    async _handleLoadRequirementsFile() {
         try {
-            logger_1.Logger.info('スコープマネージャーパネルを初期化しています');
-            // プロジェクトパスが設定されていない場合はワークスペースフォルダを使用
+            logger_1.Logger.info('要件定義ファイルの読み込みを開始します');
+            // プロジェクトパスが設定されていない場合は処理しない
             if (!this._projectPath) {
-                const workspaceFolders = vscode.workspace.workspaceFolders;
-                if (workspaceFolders && workspaceFolders.length > 0) {
-                    const wsPath = workspaceFolders[0].uri.fsPath;
-                    this.setProjectPath(wsPath);
-                    logger_1.Logger.info(`プロジェクトパスが未設定のためワークスペースパスを使用: ${wsPath}`);
-                }
-            }
-            // ステータスファイルを読み込む
-            await this._loadStatusFile();
-            // ファイル存在チェックによるスコープ状態の更新
-            await this._checkAndUpdateScopeCompletion();
-            // WebViewを更新
-            this._updateWebview();
-        }
-        catch (error) {
-            logger_1.Logger.error('パネル初期化エラー', error);
-        }
-    }
-    /**
-     * スコープを選択
-     */
-    async _handleSelectScope(index) {
-        try {
-            if (index < 0 || index >= this._scopes.length) {
-                throw new Error('無効なスコープインデックスです');
-            }
-            this._selectedScopeIndex = index;
-            this._currentScope = this._scopes[index];
-            // WebViewを更新
-            this._updateWebview();
-            logger_1.Logger.info(`スコープを選択しました: ${this._currentScope.name}`);
-        }
-        catch (error) {
-            logger_1.Logger.error('スコープ選択中にエラーが発生しました', error);
-            await this._showError(`スコープの選択に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * スコープのステータスを更新
-     */
-    async _handleUpdateScopeStatus(scopeId, status, progress) {
-        try {
-            if (this._selectedScopeIndex < 0) {
-                throw new Error('スコープが選択されていません');
-            }
-            // 選択中のスコープのステータスを更新
-            this._scopes[this._selectedScopeIndex].status = status;
-            this._scopes[this._selectedScopeIndex].progress = progress;
-            this._currentScope.status = status;
-            this._currentScope.progress = progress;
-            // CURRENT_STATUS.mdファイルを更新
-            await this._updateStatusFile();
-            // WebViewを更新
-            this._updateWebview();
-            logger_1.Logger.info(`スコープステータスを更新しました: ${status}, 進捗: ${progress}%`);
-        }
-        catch (error) {
-            logger_1.Logger.error('スコープステータスの更新中にエラーが発生しました', error);
-            await this._showError(`スコープステータスの更新に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * ファイルのステータスを切り替え
-     */
-    async _handleToggleFileStatus(filePath, completed) {
-        try {
-            if (!this._currentScope) {
-                throw new Error('スコープが選択されていません');
-            }
-            // ファイルのステータスを更新
-            const fileIndex = this._currentScope.files.findIndex((f) => f.path === filePath);
-            if (fileIndex >= 0) {
-                this._currentScope.files[fileIndex].completed = completed;
-            }
-            // 進捗率を再計算
-            const completedCount = this._currentScope.files.filter((f) => f.completed).length;
-            const totalCount = this._currentScope.files.length;
-            const newProgress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-            // スコープのステータスと進捗を更新
-            this._currentScope.progress = newProgress;
-            this._scopes[this._selectedScopeIndex].progress = newProgress;
-            // すべてのファイルが完了した場合はステータスを完了に
-            if (newProgress === 100) {
-                this._currentScope.status = 'completed';
-                this._scopes[this._selectedScopeIndex].status = 'completed';
-            }
-            else if (newProgress > 0) {
-                this._currentScope.status = 'in-progress';
-                this._scopes[this._selectedScopeIndex].status = 'in-progress';
-            }
-            // CURRENT_STATUS.mdファイルを更新
-            await this._updateStatusFile();
-            // WebViewを更新
-            this._updateWebview();
-            logger_1.Logger.info(`ファイルステータスを更新しました: ${filePath}, 完了: ${completed}, 新しい進捗: ${newProgress}%`);
-        }
-        catch (error) {
-            logger_1.Logger.error('ファイルステータスの更新中にエラーが発生しました', error);
-            await this._showError(`ファイルステータスの更新に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * スコープ作成プロンプトでClaudeCodeを起動
-     */
-    async _handleLaunchScopeCreator() {
-        try {
-            if (!this._projectPath) {
-                throw new Error('プロジェクトパスが設定されていません');
-            }
-            // 中央ポータルURL 
-            // 開発準備モードではスコープマネージャー、実装モードではプロジェクト分析アシスタントを使用
-            const portalUrl = this._isPreparationMode
-                ? 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704' // スコープマネージャー
-                : 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6'; // プロジェクト分析アシスタント
-            // ログにモードと使用プロンプトを記録
-            logger_1.Logger.info(`現在のモード: ${this._isPreparationMode ? '開発準備モード' : '実装モード'}, 使用プロンプト: ${portalUrl}`);
-            // ステータスファイルの内容を追加コンテンツとして渡す
-            let additionalContent = '';
-            const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
-            if (fs.existsSync(statusFilePath)) {
-                const statusContent = fs.readFileSync(statusFilePath, 'utf8');
-                additionalContent = `# 追加情報\n\n## CURRENT_STATUS.md\n\n\`\`\`markdown\n${statusContent}\n\`\`\``;
-            }
-            // インテグレーションサービスを動的importで安全に取得
-            const integrationService = await Promise.resolve().then(() => __importStar(require('../../services/ClaudeCodeIntegrationService'))).then(module => module.ClaudeCodeIntegrationService.getInstance());
-            try {
-                // 一時ファイルにも保存（デバッグ用・参照用）
-                const tempDir = os.tmpdir();
-                const analysisFilePath = path.join(tempDir, `scope_creator_${Date.now()}.md`);
-                fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
-                logger_1.Logger.info(`スコープ作成用の分析ファイルを作成しました: ${analysisFilePath}`);
-                // 公開URLから起動（追加情報も渡す）
-                logger_1.Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
-                await integrationService.launchWithPublicUrl(portalUrl, this._projectPath, additionalContent);
-                vscode.window.showInformationMessage('スコープ作成のためのClaudeCodeを起動しました。');
-            }
-            catch (error) {
-                // URL起動に失敗した場合、ローカルファイルにフォールバック
-                logger_1.Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
-                // スコープマネージャプロンプトのパスを取得
-                const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_manager.md');
-                if (!fs.existsSync(promptFilePath)) {
-                    throw new Error(`スコープマネージャプロンプトファイルが見つかりません: ${promptFilePath}`);
-                }
-                // 一時的なテンプレートファイルを作成
-                const tempDir = os.tmpdir(); // 一時ディレクトリに保存（25秒後に自動削除）
-                const tempFilePath = path.join(tempDir, `combined_scope_${Date.now()}.md`);
-                // プロンプトファイルの内容を読み込む
-                let promptContent = fs.readFileSync(promptFilePath, 'utf8');
-                // 追加コンテンツの準備
-                let scopeAdditionalContent = '';
-                // ステータスの内容を追加（外部から渡されたもの）
-                if (additionalContent) {
-                    promptContent += '\n\n' + additionalContent;
-                }
-                // 一時的なテンプレートファイルを作成
-                fs.writeFileSync(tempFilePath, promptContent, 'utf8');
-                // ClaudeCodeIntegrationServiceを使用して起動
-                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
-                // セキュリティガイドライン付きで起動
-                logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
-                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/b168dcd63cc12e15c2e57bce02caf704';
-                // プロンプトファイルの内容を追加コンテンツとして渡す
-                scopeAdditionalContent = promptContent;
-                const success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, scopeAdditionalContent);
-                if (success) {
-                    vscode.window.showInformationMessage('スコープ作成のためのClaudeCodeを起動しました（ローカルモード）。');
-                }
-                else {
-                    vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
-                }
-            }
-        }
-        catch (error) {
-            logger_1.Logger.error('スコープ作成の起動に失敗しました', error);
-            await this._showError(`スコープ作成の起動に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * 実装アシスタントプロンプトでClaudeCodeを起動
-     */
-    async _handleLaunchImplementationAssistant() {
-        try {
-            if (!this._projectPath) {
-                throw new Error('プロジェクトパスが設定されていません');
-            }
-            // 中央ポータルURL - プロジェクト分析アシスタント
-            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/8c09f971e4a3d020497eec099a53e0a6';
-            // ステータスファイルの内容を追加コンテンツとして渡す
-            let additionalContent = '';
-            const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
-            if (fs.existsSync(statusFilePath)) {
-                // Fileのコンテンツを現在のステータスとして渡す
-                const statusContent = fs.readFileSync(statusFilePath, 'utf8');
-                additionalContent = `# 追加情報\n\n## CURRENT_STATUS.md\n\n\`\`\`markdown\n${statusContent}\n\`\`\``;
-            }
-            else {
-                logger_1.Logger.warn('CURRENT_STATUS.mdファイルが見つかりません: ' + statusFilePath);
-            }
-            // インテグレーションサービスを動的importで安全に取得
-            const integrationService = await Promise.resolve().then(() => __importStar(require('../../services/ClaudeCodeIntegrationService'))).then(module => module.ClaudeCodeIntegrationService.getInstance());
-            try {
-                // 一時ファイルにも保存（デバッグ用・参照用）
-                const tempDir = os.tmpdir();
-                const analysisFilePath = path.join(tempDir, `analyzer_content_${Date.now()}.md`);
-                fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
-                logger_1.Logger.info(`プロジェクト分析アシスタント用の分析ファイルを作成しました: ${analysisFilePath}`);
-                // 公開URLから起動（追加情報も渡す）
-                logger_1.Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
-                await integrationService.launchWithPublicUrl(portalUrl, this._projectPath, additionalContent);
-                vscode.window.showInformationMessage('開発案件追加のためのプロジェクト分析アシスタントを起動しました。');
-            }
-            catch (error) {
-                // URL起動に失敗した場合、ローカルファイルにフォールバック
-                logger_1.Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
-                // 実装アシスタントプロンプトのパスを取得
-                const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_implementer.md');
-                if (!fs.existsSync(promptFilePath)) {
-                    throw new Error(`実装アシスタントプロンプトファイルが見つかりません: ${promptFilePath}`);
-                }
-                // 一時的なテンプレートファイルを作成
-                const tempDir = os.tmpdir(); // 一時ディレクトリに保存（25秒後に自動削除）
-                const tempFilePath = path.join(tempDir, `combined_implementer_${Date.now()}.md`);
-                // プロンプトファイルの内容を読み込む
-                let promptContent = fs.readFileSync(promptFilePath, 'utf8');
-                // ステータスの内容を追加
-                if (additionalContent) {
-                    promptContent += '\n\n' + additionalContent;
-                }
-                // 一時的なテンプレートファイルを作成
-                fs.writeFileSync(tempFilePath, promptContent, 'utf8');
-                logger_1.Logger.info(`フォールバック用プロンプトを作成しました: ${tempFilePath}`);
-                // ClaudeCodeIntegrationServiceを使用して起動
-                const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
-                // セキュリティガイドライン付きで起動
-                logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
-                const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-                const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
-                // プロンプトファイルの内容を追加コンテンツとして渡す
-                const implementerAdditionalContent = promptContent;
-                const success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, implementerAdditionalContent);
-                if (success) {
-                    vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました（ローカルモード）。');
-                }
-                else {
-                    vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
-                }
-            }
-        }
-        catch (error) {
-            logger_1.Logger.error('実装アシスタントの起動に失敗しました', error);
-            await this._showError(`実装アシスタントの起動に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * 環境変数アシスタントを開く
-     */
-    async _handleOpenEnvironmentVariablesAssistant() {
-        try {
-            // 環境変数アシスタントを開くコマンドを実行
-            await vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant', this._projectPath);
-            logger_1.Logger.info('環境変数アシスタントを開きました');
-        }
-        catch (error) {
-            logger_1.Logger.error('環境変数アシスタントの起動に失敗しました', error);
-            await this._showError(`環境変数アシスタントの起動に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * 実装モードに切り替え、CURRENT_STATUSを作成
-     */
-    async _handleSwitchToImplementationMode() {
-        try {
-            // 既に実装モードの場合は何もしない
-            if (!this._isPreparationMode) {
-                vscode.window.showInformationMessage('すでに実装モードです');
+                logger_1.Logger.warn('プロジェクトパスが設定されていません。要件定義ファイルの読み込みをスキップします。');
                 return;
             }
-            // 正式なCURRENT_STATUSファイルを作成するか確認
-            const confirm = await vscode.window.showInformationMessage('実装フェーズに移行し、CURRENT_STATUS.mdを作成しますか？これにより開発準備フェーズが完了し、実装フェーズに進みます。', { modal: true }, 'はい', 'いいえ');
-            if (confirm !== 'はい') {
+            // 要件定義ファイルのパスを生成
+            const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
+            // ファイルの存在確認
+            if (!fs.existsSync(requirementsFilePath)) {
+                logger_1.Logger.info(`要件定義ファイルが見つかりません: ${requirementsFilePath}`);
+                // 要件定義ファイルが存在しない場合は、空のメッセージを表示
+                this._panel.webview.postMessage({
+                    command: 'updateTabContent',
+                    tabId: 'requirements',
+                    content: '# 要件定義\n\n要件定義ファイルが見つかりません。プロジェクトの `docs/requirements.md` ファイルを作成してください。',
+                    filePath: requirementsFilePath,
+                    forRequirements: true // 要件定義タブ用の更新であることを示す
+                });
                 return;
             }
-            // ユーザーに実装フェーズのCURRENT_STATUSの初期内容を入力させるか確認
-            const useTemplate = await vscode.window.showQuickPick(['新規作成', '準備フェーズの内容を保持'], {
-                placeHolder: 'CURRENT_STATUSの初期化方法を選択してください',
-                canPickMany: false
+            // FileSystemServiceを使用してファイルを読み込む
+            const content = await this._fileSystemService.readMarkdownFile(requirementsFilePath);
+            // タブ内容を更新
+            this._panel.webview.postMessage({
+                command: 'updateTabContent',
+                tabId: 'requirements',
+                content: content,
+                filePath: requirementsFilePath,
+                forRequirements: true // 要件定義タブ用の更新であることを示す
             });
-            let initialContent = '';
-            if (useTemplate === '準備フェーズの内容を保持') {
-                // 準備フェーズのテンプレートをベースに、進捗情報を維持した状態でCURRENT_STATUSを作成
-                initialContent = this._getPreparationStepsTemplate();
-                // [スコープを作成してください] 部分を [実装フェーズに移行しました] に変更
-                initialContent = initialContent.replace('# プロジェクト開発 - 準備フェーズ', '# プロジェクト開発 - 実装フェーズ');
+            logger_1.Logger.info(`要件定義ファイルを読み込みました: ${requirementsFilePath}`);
+        }
+        catch (error) {
+            logger_1.Logger.error('要件定義ファイルの読み込み中にエラーが発生しました', error);
+            this._showError(`要件定義ファイルの読み込みに失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * ファイルブラウザの初期化
+     * docsディレクトリの内容をリストアップして表示
+     */
+    async _initializeFileBrowser() {
+        try {
+            logger_1.Logger.info('ファイルブラウザの初期化を開始します');
+            // プロジェクトパスが設定されていない場合は処理しない
+            if (!this._projectPath) {
+                logger_1.Logger.warn('プロジェクトパスが設定されていません。ファイルブラウザの初期化をスキップします。');
+                return;
+            }
+            // docsディレクトリのパスを生成
+            const docsPath = path.join(this._projectPath, 'docs');
+            // docsディレクトリの存在確認と作成
+            await this._fileSystemService.ensureDirectoryExists(docsPath);
+            // ファイルブラウザ用のディレクトリ構造を送信
+            this._panel.webview.postMessage({
+                command: 'updateFileBrowser',
+                structure: this._directoryStructure
+            });
+            // ディレクトリの内容をリストアップ
+            const files = await this._fileSystemService.listDirectory(docsPath);
+            // ファイルリストを送信
+            this._panel.webview.postMessage({
+                command: 'updateFileList',
+                files: files,
+                currentPath: docsPath
+            });
+            logger_1.Logger.info(`ファイルブラウザを初期化しました: ${docsPath}`);
+        }
+        catch (error) {
+            logger_1.Logger.error('ファイルブラウザの初期化中にエラーが発生しました', error);
+            this._showError(`ファイルブラウザの初期化に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * ファイルブラウザを更新する
+     */
+    async _handleRefreshFileBrowser() {
+        try {
+            logger_1.Logger.info('ファイルブラウザを更新します');
+            // ディレクトリ構造を更新
+            await this._updateDirectoryStructure();
+            if (this._projectPath) {
+                // docsディレクトリのパスを生成
+                const docsPath = path.join(this._projectPath, 'docs');
+                // ディレクトリの内容をリストアップ
+                const files = await this._fileSystemService.listDirectory(docsPath);
+                // ファイルリストを送信
+                this._panel.webview.postMessage({
+                    command: 'updateFileList',
+                    files: files,
+                    currentPath: docsPath
+                });
+            }
+            logger_1.Logger.info('ファイルブラウザを更新しました');
+        }
+        catch (error) {
+            logger_1.Logger.error('ファイルブラウザの更新に失敗しました', error);
+            this._showError(`ファイルブラウザの更新に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * 指定されたディレクトリの内容をリストアップする
+     * @param dirPath ディレクトリパス（未指定の場合はプロジェクトのdocsディレクトリ）
+     */
+    async _handleListDirectory(dirPath) {
+        try {
+            logger_1.Logger.info(`ディレクトリ内容のリストアップ: ${dirPath || 'プロジェクトdocsディレクトリ'}`);
+            // ディレクトリパスが指定されていない場合はプロジェクトのdocsディレクトリを使用
+            const targetPath = dirPath || (this._projectPath ? path.join(this._projectPath, 'docs') : '');
+            if (!targetPath) {
+                logger_1.Logger.warn('ディレクトリパスが指定されていません。');
+                return;
+            }
+            // ディレクトリの存在確認
+            if (!fs.existsSync(targetPath)) {
+                logger_1.Logger.warn(`指定されたディレクトリが存在しません: ${targetPath}`);
+                return;
+            }
+            // ディレクトリの内容をリストアップ
+            const files = await this._fileSystemService.listDirectory(targetPath);
+            // ファイルリストを送信
+            this._panel.webview.postMessage({
+                command: 'updateFileList',
+                files: files,
+                currentPath: targetPath,
+                parentPath: path.dirname(targetPath) !== targetPath ? path.dirname(targetPath) : null
+            });
+            logger_1.Logger.info(`ディレクトリ内容をリストアップしました: ${targetPath}, ${files.length}件`);
+        }
+        catch (error) {
+            logger_1.Logger.error('ディレクトリ内容のリストアップに失敗しました', error);
+            this._showError(`ディレクトリ内容の取得に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * ファイルをVSCodeエディタで開く
+     * @param filePath 開くファイルのパス
+     */
+    async _handleOpenFileInEditor(filePath) {
+        try {
+            logger_1.Logger.info(`ファイルをエディタで開きます: ${filePath}`);
+            // ファイルの存在確認
+            if (!fs.existsSync(filePath)) {
+                this._showError(`ファイルが見つかりません: ${filePath}`);
+                return;
+            }
+            // VSCodeのOpen APIを使用してファイルを開く
+            const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+            await vscode.window.showTextDocument(document);
+            logger_1.Logger.info(`ファイルをエディタで開きました: ${filePath}`);
+        }
+        catch (error) {
+            logger_1.Logger.error(`ファイルをエディタで開く際にエラーが発生しました: ${filePath}`, error);
+            this._showError(`ファイルをエディタで開けませんでした: ${error.message}`);
+        }
+    }
+    /**
+     * 指定されたディレクトリに移動する
+     * @param dirPath 移動先のディレクトリパス
+     */
+    async _handleNavigateDirectory(dirPath) {
+        try {
+            logger_1.Logger.info(`ディレクトリに移動します: ${dirPath}`);
+            // ディレクトリの存在確認
+            if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+                this._showError(`ディレクトリが見つかりません: ${dirPath}`);
+                return;
+            }
+            // ディレクトリの内容をリストアップして送信
+            await this._handleListDirectory(dirPath);
+        }
+        catch (error) {
+            logger_1.Logger.error(`ディレクトリの移動に失敗しました: ${dirPath}`, error);
+            this._showError(`ディレクトリの移動に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * ファイルを開いてプレビュー表示する
+     * @param filePath 開くファイルのパス
+     */
+    async _handleOpenFile(filePath) {
+        try {
+            logger_1.Logger.info(`ファイルを開きます: ${filePath}`);
+            // ファイルの存在確認
+            if (!fs.existsSync(filePath)) {
+                this._showError(`ファイルが見つかりません: ${filePath}`);
+                return;
+            }
+            // ファイルの種類を判定
+            const fileExt = path.extname(filePath).toLowerCase();
+            // テキストファイルかどうかを判断
+            if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
+                // テキストファイルの場合は内容を読み込んで表示
+                const content = await this._fileSystemService.readFile(filePath);
+                this._panel.webview.postMessage({
+                    command: 'updateFilePreview',
+                    filePath: filePath,
+                    content: content,
+                    type: 'text',
+                    extension: fileExt
+                });
+            }
+            else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
+                // 画像ファイルの場合は画像として表示
+                // Base64エンコードなしでUriとして送信
+                this._panel.webview.postMessage({
+                    command: 'updateFilePreview',
+                    filePath: filePath,
+                    type: 'image',
+                    extension: fileExt,
+                    // ファイルURIをWebView用に変換
+                    uri: this._panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+                });
             }
             else {
-                // 実装フェーズ用の新しいテンプレートでCURRENT_STATUSを作成
-                initialContent = `# プロジェクト開発 - 実装フェーズ (${new Date().toISOString().split('T')[0].replace(/-/g, '/')}更新)
-
-## 全体進捗
-- 完成予定ファイル数: 0
-- 作成済みファイル数: 0
-- 進捗率: 0%
-- 最終更新日: ${new Date().toISOString().split('T')[0].replace(/-/g, '/')}
-
-## スコープ状況
-
-### 完了済みスコープ
-（完了したスコープはまだありません）
-
-### 進行中スコープ
-（実装中のスコープはまだありません）
-
-### 未着手スコープ
-（スコープを追加するには「新規スコープ作成」ボタンを使用してください）
-
-## 最終的なディレクトリ構造
-\`\`\`
-project-root/
-└── [ディレクトリ構造]
-\`\`\`
-
-## 現在のディレクトリ構造
-\`\`\`
-project-root/
-└── [ディレクトリ構造]
-\`\`\`
-`;
+                // その他のファイルはVSCodeで開く
+                await this._handleOpenFileInEditor(filePath);
+                this._showSuccess(`ファイル「${path.basename(filePath)}」をVSCodeで開きました`);
             }
-            // docsディレクトリが存在するか確認し、必要に応じて作成
-            const docsDir = path.dirname(this._statusFilePath);
-            if (!fs.existsSync(docsDir)) {
-                fs.mkdirSync(docsDir, { recursive: true });
-                logger_1.Logger.info(`ディレクトリを作成しました: ${docsDir}`);
-            }
-            // CURRENT_STATUSファイルを作成
-            fs.writeFileSync(this._statusFilePath, initialContent, 'utf8');
-            logger_1.Logger.info(`実装フェーズ用のCURRENT_STATUS.mdを作成しました: ${this._statusFilePath}`);
-            // モードを実装モードに変更
-            this._isPreparationMode = false;
-            // ファイルを読み込み直して表示を更新
-            await this._loadStatusFile();
-            // 通知
-            vscode.window.showInformationMessage('実装フェーズに移行しました。CURRENT_STATUS.mdが作成されました。');
+            logger_1.Logger.info(`ファイル「${path.basename(filePath)}」を開きました`);
         }
         catch (error) {
-            logger_1.Logger.error('実装モードへの切り替え中にエラーが発生しました', error);
-            await this._showError(`実装モードへの切り替えに失敗しました: ${error.message}`);
+            logger_1.Logger.error(`ファイルを開く際にエラーが発生しました: ${filePath}`, error);
+            this._showError(`ファイルを開けませんでした: ${error.message}`);
         }
     }
     /**
-     * 開発準備モードに戻す
+     * プロジェクト一覧を更新
+     * ProjectServiceを使用して実装
      */
-    async _handleResetToPreparationMode() {
+    async _refreshProjects() {
         try {
-            // 既に準備モードの場合は何もしない
-            if (this._isPreparationMode) {
-                vscode.window.showInformationMessage('既に開発準備モードです');
-                return;
-            }
-            // 確認
-            const confirm = await vscode.window.showInformationMessage('開発準備モードに戻しますか？現在のCURRENT_STATUS.mdは上書きされます。', { modal: true }, 'はい', 'いいえ');
-            if (confirm !== 'はい') {
-                return;
-            }
-            // 準備モードのテンプレートを使用
-            const template = this._getPreparationStepsTemplate();
-            // docsディレクトリが存在するか確認し、必要に応じて作成
-            const docsDir = path.dirname(this._statusFilePath);
-            if (!fs.existsSync(docsDir)) {
-                fs.mkdirSync(docsDir, { recursive: true });
-                logger_1.Logger.info(`ディレクトリを作成しました: ${docsDir}`);
-            }
-            // CURRENT_STATUSファイルを上書き
-            fs.writeFileSync(this._statusFilePath, template, 'utf8');
-            logger_1.Logger.info(`開発準備モードのCURRENT_STATUS.mdを作成しました: ${this._statusFilePath}`);
-            // モードを準備モードに変更
-            this._isPreparationMode = true;
-            // ファイルを読み込み直して表示を更新
-            await this._loadStatusFile();
-            // 通知
-            vscode.window.showInformationMessage('開発準備モードに戻しました。CURRENT_STATUS.mdが更新されました。');
+            // ProjectServiceの新しいrefreshProjectsListメソッドを使用
+            const allProjects = await this._projectService.refreshProjectsList();
+            const activeProject = this._projectService.getActiveProject();
+            logger_1.Logger.info(`プロジェクト一覧を更新しました: ${allProjects.length}件`);
+            // WebViewにプロジェクト一覧を送信
+            this._panel.webview.postMessage({
+                command: 'updateProjects',
+                projects: allProjects,
+                activeProject: activeProject ? {
+                    id: activeProject.id,
+                    name: activeProject.name,
+                    path: activeProject.path
+                } : null
+            });
         }
         catch (error) {
-            logger_1.Logger.error('開発準備モードへの切り替え中にエラーが発生しました', error);
-            await this._showError(`開発準備モードへの切り替えに失敗しました: ${error.message}`);
+            logger_1.Logger.error(`プロジェクト一覧の更新に失敗しました`, error);
+            this._showError(`プロジェクト一覧の取得に失敗しました: ${error.message}`);
         }
     }
     /**
-     * 要件定義エディタを開く（シンプルチャット）
+     * プロンプトURLからClaudeCodeを起動する
+     * @param url プロンプトのURL
+     * @param index プロンプトのインデックス
+     * @param name プロンプト名（ターミナルタイトルに使用）
+     * @param splitTerminal ターミナル分割モードを使用するかどうか
      */
-    async _handleOpenRequirementsVisualizer() {
+    async _handleLaunchPromptFromURL(url, index, name, splitTerminal) {
         try {
-            // シンプルチャット（要件定義エディタ）を開くコマンドを実行
-            await vscode.commands.executeCommand('appgenius-ai.openSimpleChat', this._projectPath);
-            logger_1.Logger.info('要件定義エディタを開きました');
-        }
-        catch (error) {
-            logger_1.Logger.error('要件定義エディタの起動に失敗しました', error);
-            await this._showError(`要件定義エディタの起動に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * モックアップギャラリーを開く
-     */
-    async _handleOpenMockupGallery() {
-        try {
-            // モックアップギャラリーを開くコマンドを実行
-            await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
-            logger_1.Logger.info('モックアップギャラリーを開きました');
-        }
-        catch (error) {
-            logger_1.Logger.error('モックアップギャラリーの起動に失敗しました', error);
-            await this._showError(`モックアップギャラリーの起動に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * デバッグ探偵を開く
-     */
-    async _handleOpenDebugDetective() {
-        try {
-            // デバッグ探偵を開くコマンドを実行
-            await vscode.commands.executeCommand('appgenius-ai.openDebugDetective', this._projectPath);
-            logger_1.Logger.info('デバッグ探偵を開きました');
-        }
-        catch (error) {
-            logger_1.Logger.error('デバッグ探偵の起動に失敗しました', error);
-            await this._showError(`デバッグ探偵の起動に失敗しました: ${error.message}`);
-        }
-    }
-    /**
-     * リファレンスマネージャーを開く
-     */
-    async _handleOpenReferenceManager() {
-        try {
-            // リファレンスマネージャーを開くコマンドを実行
-            await vscode.commands.executeCommand('appgenius-ai.openReferenceManager', this._projectPath);
-            logger_1.Logger.info('リファレンスマネージャーを開きました');
-        }
-        catch (error) {
-            logger_1.Logger.error('リファレンスマネージャーの起動に失敗しました', error);
-            await this._showError(`リファレンスマネージャーの起動に失敗しました: ${error.message}`);
-        }
-    }
-    async _handleStartImplementation() {
-        try {
-            if (!this._currentScope) {
-                throw new Error('スコープが選択されていません');
-            }
-            // 実装アシスタントプロンプトのパスを取得
-            const promptFilePath = path.join(this._projectPath, 'docs', 'prompts', 'scope_implementer.md');
-            // CURRENT_STATUS.mdファイルへの参照を追加
-            const statusFilePath = path.join(this._projectPath, 'docs', 'CURRENT_STATUS.md');
-            // ClaudeCodeの起動方法を決定
+            // 受信したメッセージ全体をログ出力（デバッグ用）
+            logger_1.Logger.info(`プロンプト起動パラメータを受信: URL=${url}, index=${index}, name=${name}, splitTerminal=${splitTerminal}`);
+            // フロントエンドから送信されたURLとインデックスをそのまま使用
+            // プロンプトの内容を取得して一時ファイルに保存（プロジェクトパスを指定）
+            const promptFilePath = await this._promptServiceClient.fetchAndSavePrompt(url, index, this._projectPath);
+            // ClaudeCodeを起動
             const launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
-            let success = false;
-            // ファイル配列が未定義または空の場合のデフォルト値を設定
-            const files = this._currentScope.files || [];
-            // 実装に必要な情報の準備
-            const scopeInfo = {
-                id: this._currentScope.id || `scope-${Date.now()}`,
-                name: this._currentScope.name,
-                description: this._currentScope.description || '説明が設定されていません',
-                items: files.map((file) => ({
-                    id: `file-${Math.random().toString(36).substr(2, 9)}`,
-                    title: file.path,
-                    description: `Implementation of ${file.path}`,
-                    status: file.completed ? types_1.ScopeItemStatus.COMPLETED : types_1.ScopeItemStatus.PENDING,
-                    progress: file.completed ? 100 : 0,
-                    priority: 'medium',
-                    complexity: 'medium',
-                    dependencies: [],
-                    relatedFiles: [file.path]
-                })),
-                selectedIds: files
-                    .filter((f) => !f.completed)
-                    .map(() => `file-${Math.random().toString(36).substr(2, 9)}`),
-                estimatedTime: this._currentScope.estimatedTime || "10時間",
-                totalProgress: this._currentScope.progress || 0,
-                projectPath: this._projectPath
-            };
-            // CURRENT_STATUS.mdファイルの存在を確認
-            if (!fs.existsSync(statusFilePath)) {
-                // 存在しない場合は作成
-                await this._updateStatusFile();
-                logger_1.Logger.info(`CURRENT_STATUS.mdファイルが存在しなかったため作成しました: ${statusFilePath}`);
-            }
-            // ステータスファイルの内容を読み込む
-            const statusContent = fs.readFileSync(statusFilePath, 'utf8');
-            // 中央ポータルURL
-            const portalUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
-            // 追加情報（現在の実装状況など）
-            const additionalContent = `# 追加情報\n\n## CURRENT_STATUS.md\n\n\`\`\`markdown\n${statusContent}\n\`\`\`\n\n## 選択されたスコープ\n\n現在選択されているスコープ: **${this._currentScope.name}**\n\n説明: ${this._currentScope.description || '説明が設定されていません'}\n\n進捗: ${this._currentScope.progress || 0}%`;
-            try {
-                // 一時ファイルにも保存（デバッグ用・参照用）
-                const tempDir = os.tmpdir();
-                const analysisFilePath = path.join(tempDir, `scope_implementation_${Date.now()}.md`);
-                fs.writeFileSync(analysisFilePath, additionalContent, 'utf8');
-                logger_1.Logger.info(`実装用の分析ファイルを作成しました: ${analysisFilePath}`);
-                // インテグレーションサービスを動的importで安全に取得
-                const integrationService = await Promise.resolve().then(() => __importStar(require('../../services/ClaudeCodeIntegrationService'))).then(module => module.ClaudeCodeIntegrationService.getInstance());
-                // 公開URLから起動（追加情報も渡す）
-                logger_1.Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
-                await integrationService.launchWithPublicUrl(portalUrl, this._projectPath, additionalContent);
-                // 成功とみなす
-                success = true;
-            }
-            catch (error) {
-                logger_1.Logger.warn(`公開URL経由の起動に失敗しました。ローカルファイルで試行します: ${error}`);
-                // 実装アシスタントプロンプトが存在する場合はそれを使用
-                if (fs.existsSync(promptFilePath)) {
-                    try {
-                        // プロンプトファイルの内容を読み込む
-                        const promptContent = fs.readFileSync(promptFilePath, 'utf8');
-                        // 一時的な結合ファイルを作成して両方の内容を含める
-                        const tempDir = os.tmpdir(); // OSの一時ディレクトリを使用
-                        const combinedFilePath = path.join(tempDir, `combined_prompt_${Date.now()}.md`);
-                        // 結合ファイルを作成
-                        const combinedContent = promptContent +
-                            '\n\n# 追加情報\n\n' +
-                            '## CURRENT_STATUS.md\n\n' +
-                            '```markdown\n' +
-                            statusContent +
-                            '\n```\n\n' +
-                            '## 選択されたスコープ\n\n' +
-                            `現在選択されているスコープ: **${this._currentScope.name}**\n\n` +
-                            `説明: ${this._currentScope.description || '説明が設定されていません'}\n\n` +
-                            `進捗: ${this._currentScope.progress || 0}%`;
-                        fs.writeFileSync(combinedFilePath, combinedContent, 'utf8');
-                        logger_1.Logger.info(`結合プロンプトファイルを作成しました: ${combinedFilePath}`);
-                        // ClaudeCodeIntegrationServiceを使用して起動
-                        const integrationService = ClaudeCodeIntegrationService_1.ClaudeCodeIntegrationService.getInstance();
-                        // セキュリティガイドライン付きで起動
-                        logger_1.Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
-                        const guidancePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-                        const featurePromptUrl = 'http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/868ba99fc6e40d643a02e0e02c5e980a';
-                        // プロンプトコンテンツを追加コンテンツとして渡す
-                        success = await integrationService.launchWithSecurityBoundary(guidancePromptUrl, featurePromptUrl, this._projectPath, combinedContent);
-                        // メッセージを変更してローカルモードであることを示す
-                        if (success) {
-                            vscode.window.showInformationMessage('実装アシスタントのためのClaudeCodeを起動しました（ローカルモード）。');
-                        }
-                    }
-                    catch (error) {
-                        logger_1.Logger.error('結合プロンプトファイルの作成に失敗しました', error);
-                        throw error;
-                    }
-                }
-                else {
-                    // 旧式のスコープベースの起動方法にフォールバック
-                    success = await launcher.launchClaudeCode(scopeInfo);
-                }
-            }
+            // UIからsplitTerminalパラメータを受け取り、未指定の場合はfalseをデフォルト値とする
+            // 明示的なブール値変換を行い、受け取ったsplitTerminalの型も出力
+            const useSplitTerminal = splitTerminal === true;
+            logger_1.Logger.info(`【詳細ログ】受け取ったsplitTerminalの値: ${splitTerminal} (型: ${typeof splitTerminal})`);
+            logger_1.Logger.info(`【詳細ログ】変換後のsplitTerminal値: ${useSplitTerminal} (型: ${typeof useSplitTerminal})`);
+            // 分割モードの最終状態をログ出力
+            logger_1.Logger.info(`ターミナル分割モード: ${useSplitTerminal ? '有効' : '無効'}`);
+            // UIのダイアログで「分割ターミナルで表示」が選択された場合のみtrueになる
+            const success = await launcher.launchClaudeCodeWithPrompt(this._projectPath, promptFilePath, {
+                deletePromptFile: true, // 使用後に一時ファイルを削除
+                splitTerminal: useSplitTerminal, // UIから指定された分割モードを使用
+                promptType: name // プロンプト名をターミナルタイトルに反映
+            });
             if (success) {
-                vscode.window.showInformationMessage('ClaudeCodeを起動しました。実装が開始されます。');
-                // スコープのステータスを進行中に更新
-                if (this._currentScope.status === 'pending') {
-                    this._currentScope.status = 'in-progress';
-                    this._scopes[this._selectedScopeIndex].status = 'in-progress';
-                    // 進捗が0の場合は10%に設定（開始の印として）
-                    if (this._currentScope.progress === 0) {
-                        this._currentScope.progress = 10;
-                        this._scopes[this._selectedScopeIndex].progress = 10;
-                    }
-                    // CURRENT_STATUS.mdファイルを更新
-                    await this._updateStatusFile();
-                    // WebViewを更新
-                    this._updateWebview();
-                }
+                logger_1.Logger.info(`ClaudeCode起動成功: ${promptFilePath}, 分割モード: ${useSplitTerminal ? '有効' : '無効'}`);
+                // 成功通知をUIに送信（デバッグ用）
+                this._panel.webview.postMessage({
+                    command: 'launchResult',
+                    success: true,
+                    splitTerminal: useSplitTerminal,
+                    message: `ClaudeCodeを起動しました (${useSplitTerminal ? '分割ターミナル' : '新しいタブ'})`
+                });
             }
             else {
-                vscode.window.showErrorMessage('ClaudeCodeの起動に失敗しました。');
+                this._showError('ClaudeCodeの起動に失敗しました');
             }
         }
         catch (error) {
-            logger_1.Logger.error('実装開始中にエラーが発生しました', error);
-            await this._showError(`実装の開始に失敗しました: ${error.message}`);
+            logger_1.Logger.error('プロンプト起動中にエラーが発生しました', error);
+            this._showError(`プロンプトの取得または起動に失敗しました: ${error.message}`);
+        }
+    }
+    // レガシー共有メソッドは削除されました
+    /**
+     * モックアップギャラリーを開く - 共通メソッドに統合
+     * @param filePath 表示するモックアップファイルのパス（オプション）
+     */
+    async _handleOpenMockupGallery(filePath) {
+        try {
+            // 別ウィンドウでモックアップギャラリーを開く
+            await vscode.commands.executeCommand('appgenius-ai.openMockupGallery', this._projectPath);
+            logger_1.Logger.info(`モックアップギャラリーを開きました${filePath ? ': ' + filePath : ''}`);
+            this._showSuccess('モックアップギャラリーを開きました');
+        }
+        catch (error) {
+            logger_1.Logger.error('モックアップギャラリーを開けませんでした', error);
+            this._showError('モックアップギャラリーを開けませんでした');
         }
     }
     /**
-     * スコープを編集
+     * 旧メソッド名での互換性維持用
      */
-    async _handleEditScope(scopeData) {
+    async _handleOpenOriginalMockupGallery(filePath) {
+        // 統合したメソッドを呼び出す
+        return this._handleOpenMockupGallery(filePath);
+    }
+    /**
+     * モックアップファイルを選択 - 統合メソッドを呼び出す
+     * @param filePath モックアップファイルのパス
+     */
+    async _handleSelectMockup(filePath) {
+        return this._handleOpenMockupGallery(filePath);
+    }
+    /**
+     * モックアップをブラウザで開く
+     * @param filePath モックアップファイルのパス
+     */
+    async _handleOpenMockupInBrowser(filePath) {
         try {
-            if (this._selectedScopeIndex < 0) {
-                throw new Error('スコープが選択されていません');
-            }
-            // スコープの情報を更新
-            this._scopes[this._selectedScopeIndex].name = scopeData.name;
-            this._scopes[this._selectedScopeIndex].description = scopeData.description;
-            this._scopes[this._selectedScopeIndex].priority = scopeData.priority;
-            this._scopes[this._selectedScopeIndex].estimatedTime = scopeData.estimatedTime;
-            // 現在のスコープも更新
-            this._currentScope = {
-                ...this._currentScope,
-                name: scopeData.name,
-                description: scopeData.description,
-                priority: scopeData.priority,
-                estimatedTime: scopeData.estimatedTime
+            // 外部ブラウザでファイルを開く
+            await vscode.env.openExternal(vscode.Uri.file(filePath));
+            logger_1.Logger.info(`モックアップをブラウザで開きました: ${filePath}`);
+        }
+        catch (error) {
+            logger_1.Logger.error('モックアップをブラウザで開けませんでした', error);
+            this._showError('モックアップをブラウザで開けませんでした');
+        }
+    }
+    /**
+     * 共有履歴を取得してWebViewに送信
+     */
+    async _handleGetHistory() {
+        try {
+            const history = this._sharingService.getHistory();
+            logger_1.Logger.debug('共有履歴を取得しました', { count: history.length });
+            this._panel.webview.postMessage({
+                command: 'updateSharingHistory',
+                history: history || []
+            });
+        }
+        catch (error) {
+            logger_1.Logger.error('履歴取得エラー', error);
+        }
+    }
+    /**
+     * テキストを共有サービスで共有 - SharingServiceに委譲
+     */
+    async _handleShareText(text, suggestedFilename) {
+        try {
+            // 共有オプションを設定
+            const options = {
+                type: 'text',
+                expirationHours: 24 // デフォルト有効期限
             };
-            // ファイルリストを更新
-            if (scopeData.files) {
-                this._currentScope.files = scopeData.files.map((file) => ({
-                    path: file,
-                    completed: false
-                }));
+            // 提案されたファイル名があれば使用
+            if (suggestedFilename) {
+                options.title = suggestedFilename;
+                options.metadata = { suggestedFilename };
             }
-            // CURRENT_STATUS.mdファイルを更新
-            await this._updateStatusFile();
-            // WebViewを更新
-            this._updateWebview();
-            logger_1.Logger.info(`スコープを編集しました: ${scopeData.name}`);
+            // SharingServiceを使ってテキストを共有
+            const file = await this._sharingService.shareText(text, options);
+            // コマンドを生成
+            const command = this._sharingService.generateCommand(file);
+            // 履歴を取得
+            await this._handleGetHistory();
+            // 結果をUIに通知
+            setTimeout(() => {
+                this._panel.webview.postMessage({
+                    command: 'showShareResult',
+                    data: {
+                        filePath: file.path,
+                        command: command,
+                        type: 'text',
+                        title: file.title || suggestedFilename,
+                        originalName: file.originalName
+                    }
+                });
+                // 履歴更新
+                setTimeout(() => this._handleGetHistory(), 500);
+            }, 100);
         }
         catch (error) {
-            logger_1.Logger.error('スコープ編集中にエラーが発生しました', error);
-            await this._showError(`スコープの編集に失敗しました: ${error.message}`);
+            logger_1.Logger.error('テキスト共有エラー', error);
+            this._showError(`テキストの共有に失敗しました: ${error.message}`);
         }
     }
     /**
-     * 開発準備モードにリセットすべきかユーザーに確認
-     * ファイルが存在するがモードをリセットして開発準備に戻りたい場合に使用
-     *
-     * 注：確認ダイアログは現在無効化されています
+     * 画像を共有サービスで共有 - SharingServiceに委譲
      */
-    async _shouldResetToPreparationMode() {
+    async _handleShareImage(imageData, fileName) {
         try {
-            // 常にfalseを返して確認ダイアログを表示せず、
-            // 既存のCURRENT_STATUS.mdを上書きしないようにする
-            return false;
+            // SharingServiceを使って画像を共有
+            const file = await this._sharingService.shareImage(imageData, fileName);
+            // コマンドを生成
+            const command = this._sharingService.generateCommand(file);
+            // 履歴を更新
+            await this._handleGetHistory();
+            // UIをリセット
+            this._panel.webview.postMessage({
+                command: 'resetDropZone',
+                force: true,
+                timestamp: new Date().getTime()
+            });
+            // 念のため再度リセット
+            setTimeout(() => {
+                this._panel.webview.postMessage({
+                    command: 'resetDropZone',
+                    force: true,
+                    timestamp: new Date().getTime() + 100
+                });
+            }, 100);
+            // 結果をUIに通知
+            setTimeout(() => {
+                this._panel.webview.postMessage({
+                    command: 'showShareResult',
+                    data: {
+                        filePath: file.path,
+                        command: command,
+                        type: 'image'
+                    }
+                });
+                // 履歴更新
+                setTimeout(() => this._handleGetHistory(), 500);
+            }, 100);
         }
         catch (error) {
-            logger_1.Logger.error('開発準備モードの確認中にエラーが発生しました', error);
-            return false;
+            this._showError(`画像の共有に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * 履歴からアイテムを削除
+     */
+    async _handleDeleteFromHistory(fileId) {
+        const success = this._sharingService.deleteFromHistory(fileId);
+        if (success) {
+            logger_1.Logger.info(`共有履歴から項目を削除しました: ${fileId}`);
+            // 履歴を更新して送信
+            await this._handleGetHistory();
+        }
+        else {
+            logger_1.Logger.warn(`共有履歴からの項目削除に失敗しました: ${fileId}`);
+        }
+    }
+    /**
+     * ファイルのコマンドをクリップボードにコピー
+     */
+    async _handleCopyCommand(fileId) {
+        try {
+            // ファイルを履歴から検索
+            const history = this._sharingService.getHistory();
+            const file = history.find(item => item.id === fileId);
+            if (file) {
+                // コマンドを生成
+                const command = this._sharingService.generateCommand(file);
+                // VSCodeのクリップボード機能を使用
+                await vscode.env.clipboard.writeText(command);
+                // アクセスカウントを増やす
+                this._sharingService.recordAccess(fileId);
+                // 成功メッセージを送信 - 特定のファイルIDを明示
+                this._panel.webview.postMessage({
+                    command: 'commandCopied',
+                    fileId: fileId,
+                    fileName: file.title || file.originalName || file.fileName
+                });
+                // VSCodeの通知も表示（オプション）
+                vscode.window.showInformationMessage(`コマンド "${command}" をコピーしました！`);
+                logger_1.Logger.info(`コマンドをコピーしました: ${fileId}, ファイル: ${file.fileName}`);
+            }
+            else {
+                logger_1.Logger.warn(`コピー対象のファイルが見つかりません: ${fileId}`);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error(`コピーコマンド実行中にエラーが発生しました: ${fileId}`, error);
+            this._showError(`コピーに失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * テキストをクリップボードにコピー
+     */
+    async _handleCopyToClipboard(text) {
+        // VSCodeのクリップボード機能を使用
+        vscode.env.clipboard.writeText(text);
+    }
+    /**
+     * 履歴アイテムを再利用
+     */
+    async _handleReuseHistoryItem(fileId) {
+        try {
+            // ファイルを履歴から検索
+            const history = this._sharingService.getHistory();
+            const file = history.find(item => item.id === fileId);
+            if (file) {
+                // コマンドを生成
+                const command = this._sharingService.generateCommand(file);
+                // アクセスカウントを増やす
+                this._sharingService.recordAccess(fileId);
+                // 結果を表示
+                this._panel.webview.postMessage({
+                    command: 'showShareResult',
+                    data: {
+                        filePath: file.path,
+                        command: command,
+                        type: file.type
+                    }
+                });
+                logger_1.Logger.info(`履歴アイテムを再利用しました: ${fileId}, ファイル: ${file.fileName}`);
+            }
+            else {
+                logger_1.Logger.warn(`再利用対象のファイルが見つかりません: ${fileId}`);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error(`履歴アイテム再利用中にエラーが発生しました: ${fileId}`, error);
+            this._showError(`履歴アイテムの再利用に失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * プロジェクト選択処理
+     * ProjectServiceを使用して実装
+     * @param projectName プロジェクト名
+     * @param projectPath プロジェクトパス
+     * @param activeTab 現在のアクティブタブID（オプション）
+     */
+    async _handleSelectProject(projectName, projectPath, activeTab) {
+        try {
+            logger_1.Logger.info(`プロジェクト選択: ${projectName}, パス: ${projectPath}`);
+            // ProjectServiceを使用してプロジェクトを選択
+            await this._projectService.selectProject(projectName, projectPath, activeTab);
+            // プロジェクトパスを更新
+            this.setProjectPath(projectPath);
+            // プロジェクトの最新情報を取得
+            const activeProject = this._projectService.getActiveProject();
+            this._activeProject = activeProject; // インスタンス変数にも保存
+            const allProjects = this._projectService.getAllProjects();
+            // WebViewにプロジェクト状態同期メッセージを送信
+            if (activeProject) {
+                this._panel.webview.postMessage({
+                    command: 'syncProjectState',
+                    project: activeProject
+                });
+                logger_1.Logger.info(`プロジェクト状態同期メッセージを送信: ${activeProject.name}`);
+            }
+            // WebViewにプロジェクト一覧を更新
+            this._panel.webview.postMessage({
+                command: 'updateProjects',
+                projects: allProjects,
+                activeProject: activeProject
+            });
+            // 進捗ファイルの内容も読み込んで表示
+            const progressFilePath = this._projectService.getProgressFilePath();
+            if (progressFilePath && fs.existsSync(progressFilePath)) {
+                await this._handleGetMarkdownContent(progressFilePath);
+            }
+            // WebViewに成功メッセージを送信
+            this._panel.webview.postMessage({
+                command: 'showSuccess',
+                message: `プロジェクト「${projectName}」を開きました`
+            });
+            // VSCodeの通知も表示
+            vscode.window.showInformationMessage(`プロジェクト「${projectName}」を開きました`);
+        }
+        catch (error) {
+            logger_1.Logger.error(`プロジェクトを開く際にエラーが発生しました`, error);
+            this._showError(`プロジェクトを開けませんでした: ${error.message}`);
         }
     }
     /**
      * ディレクトリ構造を表示
      */
     async _handleShowDirectoryStructure() {
-        try {
-            if (!this._directoryStructure) {
-                throw new Error('ディレクトリ構造が読み込まれていません');
-            }
-            // ディレクトリ構造を表示
-            await this._panel.webview.postMessage({
-                command: 'showDirectoryStructure',
-                structure: this._directoryStructure
-            });
-            logger_1.Logger.info('ディレクトリ構造を表示しました');
+        if (!this._directoryStructure) {
+            await this._updateDirectoryStructure();
         }
-        catch (error) {
-            logger_1.Logger.error('ディレクトリ構造の表示中にエラーが発生しました', error);
-            await this._showError(`ディレクトリ構造の表示に失敗しました: ${error.message}`);
-        }
+        this._panel.webview.postMessage({
+            command: 'showDirectoryStructure',
+            structure: this._directoryStructure
+        });
     }
     /**
-     * 新しいスコープを追加
+     * 特定のタブにファイルを読み込んで表示
+     * @param tabId 表示対象のタブID
+     * @param filePath 読み込むファイルパス
      */
-    async _handleAddNewScope() {
+    async _handleLoadFileToTab(tabId, filePath) {
         try {
-            // 新しいスコープの情報を入力するフォームを表示
-            const name = await vscode.window.showInputBox({
-                prompt: 'スコープ名を入力してください',
-                placeHolder: '例: 初期セットアップ/環境構築'
-            });
-            if (!name) {
+            logger_1.Logger.info(`タブにファイルを読み込みます: タブID=${tabId}, ファイル=${filePath}`);
+            // ファイルが存在するか確認
+            if (!fs.existsSync(filePath)) {
+                this._showError(`ファイルが見つかりません: ${filePath}`);
                 return;
             }
-            const description = await vscode.window.showInputBox({
-                prompt: 'スコープの説明を入力してください',
-                placeHolder: '例: プロジェクトの基盤となる環境を整備する'
+            // ファイルの内容を読み込む
+            const content = await this._fileSystemService.readMarkdownFile(filePath);
+            // タブ内の.markdown-contentにコンテンツを表示
+            this._panel.webview.postMessage({
+                command: 'updateTabContent',
+                tabId: tabId,
+                content: content,
+                filePath: filePath
             });
-            const priority = await vscode.window.showQuickPick(['高', '中', '低'], {
-                placeHolder: '優先度を選択してください'
-            });
-            const estimatedTime = await vscode.window.showInputBox({
-                prompt: '見積作業時間を入力してください',
-                placeHolder: '例: 16時間',
-                value: '8時間'
-            });
-            // 新しいスコープを作成
-            const newScope = {
-                name,
-                description,
-                priority,
-                estimatedTime,
-                status: 'pending',
-                progress: 0,
-                id: `scope-${Date.now()}`,
-                files: [],
-                features: [],
-                index: this._scopes.length
-            };
-            // スコープリストに追加
-            this._scopes.push(newScope);
-            // 新しいスコープを選択
-            this._selectedScopeIndex = this._scopes.length - 1;
-            this._currentScope = newScope;
-            // CURRENT_STATUS.mdファイルを更新
-            await this._updateStatusFile();
-            // WebViewを更新
-            this._updateWebview();
-            logger_1.Logger.info(`新しいスコープを追加しました: ${name}`);
+            logger_1.Logger.info(`タブ「${tabId}」にファイル内容を読み込みました: ${filePath}`);
         }
         catch (error) {
-            logger_1.Logger.error('スコープ追加中にエラーが発生しました', error);
-            await this._showError(`スコープの追加に失敗しました: ${error.message}`);
+            logger_1.Logger.error(`タブへのファイル読み込みに失敗しました: ${filePath}`, error);
+            this._showError(`ファイルの読み込みに失敗しました: ${error.message}`);
         }
     }
     /**
-     * CURRENT_STATUS.mdファイルを更新
+     * ファイルブラウザを更新
      */
-    async _updateStatusFile() {
+    async _handleRefreshFileBrowser() {
         try {
-            if (!this._statusFilePath) {
-                throw new Error('ステータスファイルパスが設定されていません');
-            }
-            // docsディレクトリが存在しない場合は作成
-            const docsDir = path.join(this._projectPath, 'docs');
-            if (!fs.existsSync(docsDir)) {
-                fs.mkdirSync(docsDir, { recursive: true });
-                logger_1.Logger.info(`docsディレクトリを作成しました: ${docsDir}`);
-            }
-            // ファイルの内容を生成
-            let content = '# 実装状況 (';
-            content += new Date().toISOString().split('T')[0].replace(/-/g, '/');
-            content += '更新)\n\n';
-            // 全体進捗
-            const totalFiles = this._scopes.reduce((sum, scope) => sum + (scope.files?.length || 0), 0);
-            const completedFiles = this._scopes.reduce((sum, scope) => {
-                return sum + (scope.files?.filter((f) => f.completed)?.length || 0);
-            }, 0);
-            const progressPercent = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
-            content += '## 全体進捗\n';
-            content += `- 完成予定ファイル数: ${totalFiles}\n`;
-            content += `- 作成済みファイル数: ${completedFiles}\n`;
-            content += `- 進捗率: ${progressPercent}%\n`;
-            content += `- 最終更新日: ${new Date().toISOString().split('T')[0].replace(/-/g, '/')}\n\n`;
-            // スコープ状況
-            content += '## スコープ状況\n\n';
-            // 完了済みスコープ
-            const completedScopes = this._scopes.filter(s => s.status === 'completed');
-            content += '### 完了済みスコープ\n';
-            if (completedScopes.length === 0) {
-                content += '（完了したスコープはまだありません）\n\n';
-            }
-            else {
-                completedScopes.forEach(scope => {
-                    content += `- [x] ${scope.name} (100%)\n`;
-                });
-                content += '\n';
-            }
-            // 進行中スコープ
-            const inProgressScopes = this._scopes.filter(s => s.status === 'in-progress');
-            content += '### 進行中スコープ\n';
-            if (inProgressScopes.length === 0) {
-                content += '（実装中のスコープはまだありません）\n\n';
-            }
-            else {
-                inProgressScopes.forEach(scope => {
-                    content += `- [ ] ${scope.name} (${scope.progress}%)\n`;
-                });
-                content += '\n';
-            }
-            // 未着手スコープ
-            const pendingScopes = this._scopes.filter(s => s.status === 'pending');
-            content += '### 未着手スコープ\n';
-            if (pendingScopes.length === 0) {
-                content += '（未着手のスコープはありません）\n\n';
-            }
-            else {
-                pendingScopes.forEach(scope => {
-                    content += `- [ ] ${scope.name} (0%)\n`;
-                });
-                content += '\n';
-            }
-            // ディレクトリ構造
-            content += '## 現在のディレクトリ構造\n';
-            content += '```\n';
-            content += this._directoryStructure || '（ディレクトリ構造はまだ定義されていません）\n';
-            content += '```\n\n';
-            // 実装完了ファイル
-            content += '## 実装完了ファイル\n';
-            const allCompletedFiles = this._scopes.flatMap(scope => (scope.files || [])
-                .filter((f) => f.completed)
-                .map((f) => ({ path: f.path, scope: scope.name })));
-            if (allCompletedFiles.length === 0) {
-                content += '（実装済みファイルはまだありません）\n\n';
-            }
-            else {
-                allCompletedFiles.forEach(file => {
-                    content += `- ✅ ${file.path} (${file.scope})\n`;
-                });
-                content += '\n';
-            }
-            // 実装中ファイル
-            content += '## 実装中ファイル\n';
-            const allInProgressFiles = this._scopes
-                .filter(scope => scope.status === 'in-progress')
-                .flatMap(scope => (scope.files || [])
-                .filter((f) => !f.completed)
-                .map((f) => ({ path: f.path, scope: scope.name })));
-            if (allInProgressFiles.length === 0) {
-                content += '（実装中のファイルはまだありません）\n\n';
-            }
-            else {
-                allInProgressFiles.forEach(file => {
-                    content += `- ⏳ ${file.path} (${file.scope})\n`;
-                });
-                content += '\n';
-            }
-            // 引継ぎ情報
-            content += '## 引継ぎ情報\n\n';
-            // 現在のスコープ情報
-            if (this._currentScope) {
-                content += `### 現在のスコープ: ${this._currentScope.name}\n`;
-                content += `**スコープID**: ${this._currentScope.id || `scope-${Date.now()}`}  \n`;
-                content += `**説明**: ${this._currentScope.description || ''}  \n`;
-                // 含まれる機能
-                content += '**含まれる機能**:\n';
-                if (this._currentScope.features && this._currentScope.features.length > 0) {
-                    this._currentScope.features.forEach((feature, index) => {
-                        content += `${index + 1}. ${feature}\n`;
-                    });
-                }
-                else {
-                    content += '1. （機能はまだ定義されていません）\n';
-                }
-                content += '\n';
-                // 実装すべきファイル
-                content += '**実装すべきファイル**: \n';
-                if (this._currentScope.files && this._currentScope.files.length > 0) {
-                    this._currentScope.files.forEach((file) => {
-                        content += `- [${file.completed ? 'x' : ' '}] ${file.path}\n`;
-                    });
-                }
-                else {
-                    content += '- [ ] （ファイルはまだ定義されていません）\n';
-                }
-                content += '\n';
-            }
-            else {
-                content += '（現在のスコープはまだ選択されていません）\n\n';
-            }
-            // 次回実装予定
-            content += '## 次回実装予定\n\n';
-            // 次のスコープを特定（現在のスコープが進行中なら次のスコープ、そうでなければ最初の未着手スコープ）
-            let nextScope = null;
-            if (this._currentScope && this._currentScope.status === 'in-progress') {
-                // 現在のスコープが進行中なら、最初の未着手スコープを次のスコープとする
-                nextScope = pendingScopes[0];
-            }
-            else if (this._currentScope && this._currentScope.status === 'completed') {
-                // 現在のスコープが完了なら、最初の進行中または未着手スコープを次のスコープとする
-                nextScope = inProgressScopes[0] || pendingScopes[0];
-            }
-            else {
-                // 現在のスコープが未選択なら、最初の進行中スコープまたは未着手スコープを次のスコープとする
-                nextScope = inProgressScopes[0] || pendingScopes[0] || this._currentScope;
-            }
-            if (nextScope) {
-                content += `### 次のスコープ: ${nextScope.name}\n`;
-                content += `**スコープID**: ${nextScope.id || `scope-${Date.now()}`}  \n`;
-                content += `**説明**: ${nextScope.description || ''}  \n`;
-                // 含まれる機能
-                content += '**含まれる機能**:\n';
-                if (nextScope.features && nextScope.features.length > 0) {
-                    nextScope.features.forEach((feature, index) => {
-                        content += `${index + 1}. ${feature}\n`;
-                    });
-                }
-                else {
-                    content += '1. （機能はまだ定義されていません）\n';
-                }
-                content += '\n';
-                // 依存するスコープ
-                const prevScopes = completedScopes
-                    .map(s => s.name)
-                    .filter(name => name !== nextScope.name);
-                if (prevScopes.length > 0) {
-                    content += '**依存するスコープ**:\n';
-                    prevScopes.forEach((name) => {
-                        content += `- ${name}\n`;
-                    });
-                    content += '\n';
-                }
-                // 実装予定ファイル
-                content += '**実装予定ファイル**:\n';
-                if (nextScope.files && nextScope.files.length > 0) {
-                    nextScope.files
-                        .filter((f) => !f.completed)
-                        .forEach((file) => {
-                        content += `- [ ] ${file.path}\n`;
-                    });
-                }
-                else {
-                    content += '- [ ] （ファイルはまだ定義されていません）\n';
-                }
-            }
-            else {
-                content += '（次回実装予定のスコープはありません）\n';
-            }
-            // ファイルに書き込み
-            await fs.promises.writeFile(this._statusFilePath, content, 'utf8');
-            logger_1.Logger.info(`CURRENT_STATUS.mdファイルを更新しました: ${this._statusFilePath}`);
+            logger_1.Logger.info('ファイルブラウザを更新します');
+            // ディレクトリ構造を更新
+            await this._updateDirectoryStructure();
+            // ファイルブラウザを更新
+            this._panel.webview.postMessage({
+                command: 'updateFileBrowser',
+                structure: this._directoryStructure
+            });
+            logger_1.Logger.info('ファイルブラウザを更新しました');
         }
         catch (error) {
-            logger_1.Logger.error('ステータスファイルの更新中にエラーが発生しました', error);
-            throw error;
+            logger_1.Logger.error('ファイルブラウザの更新に失敗しました', error);
+            this._showError(`ファイルブラウザの更新に失敗しました: ${error.message}`);
         }
     }
     /**
-     * エラーメッセージの表示
+     * ファイルを開いてプレビュー表示
+     * @param filePath 開くファイルのパス
      */
-    async _showError(message) {
-        vscode.window.showErrorMessage(message);
-        // WebViewにもエラーを表示
-        await this._panel.webview.postMessage({
+    async _handleOpenFile(filePath) {
+        try {
+            logger_1.Logger.info(`ファイルを開きます: ${filePath}`);
+            // ファイルが存在するか確認
+            if (!fs.existsSync(filePath)) {
+                this._showError(`ファイルが見つかりません: ${filePath}`);
+                return;
+            }
+            // ファイルの種類を判定
+            const fileExt = path.extname(filePath).toLowerCase();
+            // テキストファイルかどうかを判断
+            if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
+                // テキストファイルの場合は内容を読み込んで表示
+                const content = await this._fileSystemService.readFile(filePath);
+                this._panel.webview.postMessage({
+                    command: 'showFilePreview',
+                    filePath: filePath,
+                    content: content,
+                    type: 'text',
+                    extension: fileExt
+                });
+            }
+            else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
+                // 画像ファイルの場合は画像として表示
+                // Base64エンコードなしでUriとして送信
+                this._panel.webview.postMessage({
+                    command: 'showFilePreview',
+                    filePath: filePath,
+                    type: 'image',
+                    extension: fileExt,
+                    // ファイルURIをWebView用に変換
+                    uri: this._panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+                });
+            }
+            else {
+                // その他のファイルはVSCodeで開く
+                await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(filePath));
+                this._showSuccess(`ファイル「${path.basename(filePath)}」をVSCodeで開きました`);
+            }
+            logger_1.Logger.info(`ファイル「${path.basename(filePath)}」を開きました`);
+        }
+        catch (error) {
+            logger_1.Logger.error(`ファイルを開く際にエラーが発生しました: ${filePath}`, error);
+            this._showError(`ファイルを開けませんでした: ${error.message}`);
+        }
+    }
+    /**
+     * ディレクトリを開いてファイル一覧を表示
+     * @param dirPath ディレクトリパス
+     */
+    async _handleNavigateDirectory(dirPath) {
+        try {
+            logger_1.Logger.info(`ディレクトリを開きます: ${dirPath}`);
+            // ディレクトリが存在するか確認
+            if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+                this._showError(`ディレクトリが見つかりません: ${dirPath}`);
+                return;
+            }
+            // ディレクトリ内のファイル一覧を取得
+            const files = await fs.promises.readdir(dirPath);
+            // ファイル情報の配列を作成
+            const fileEntries = await Promise.all(files.map(async (file) => {
+                const fullPath = path.join(dirPath, file);
+                const stats = await fs.promises.stat(fullPath);
+                return {
+                    name: file,
+                    path: fullPath,
+                    isDirectory: stats.isDirectory(),
+                    size: stats.size,
+                    modified: stats.mtime.toISOString()
+                };
+            }));
+            // ディレクトリとファイルを分けてソート
+            const directories = fileEntries.filter(entry => entry.isDirectory)
+                .sort((a, b) => a.name.localeCompare(b.name));
+            const textFiles = fileEntries.filter(entry => !entry.isDirectory)
+                .sort((a, b) => a.name.localeCompare(b.name));
+            // 結合して先頭にディレクトリを配置
+            const sortedEntries = [...directories, ...textFiles];
+            // ファイルブラウザを更新
+            this._panel.webview.postMessage({
+                command: 'updateFileList',
+                currentPath: dirPath,
+                files: sortedEntries,
+                parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
+            });
+            logger_1.Logger.info(`ディレクトリ「${dirPath}」のファイル一覧を表示しました: ${sortedEntries.length}件`);
+        }
+        catch (error) {
+            logger_1.Logger.error(`ディレクトリ内容の取得に失敗しました: ${dirPath}`, error);
+            this._showError(`ディレクトリの内容を表示できませんでした: ${error.message}`);
+        }
+    }
+    /**
+     * タブ状態を保存する
+     */
+    async _handleSaveTabState(tabId) {
+        try {
+            if (!tabId || !this._activeProject || !this._activeProject.id) {
+                logger_1.Logger.warn('タブ状態を保存できません: 有効なアクティブプロジェクトが存在しません');
+                return;
+            }
+            logger_1.Logger.info(`タブ状態を保存します: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
+            // ProjectServiceのsaveTabStateメソッドを使用して保存
+            await this._projectService.saveTabState(this._activeProject.id, tabId);
+            // アクティブプロジェクトを再取得して内部状態を更新
+            this._activeProject = this._projectService.getActiveProject();
+            // WebViewにプロジェクト状態同期メッセージを送信（タブ状態も含める）
+            if (this._activeProject) {
+                this._panel.webview.postMessage({
+                    command: 'syncProjectState',
+                    project: this._activeProject
+                });
+                logger_1.Logger.info(`プロジェクト状態同期メッセージを送信: ${this._activeProject.name}, タブID=${tabId}`);
+            }
+            logger_1.Logger.info(`タブ状態を保存しました: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
+        }
+        catch (error) {
+            logger_1.Logger.error(`タブ状態の保存に失敗しました: ${error.message}`, error);
+        }
+    }
+    /**
+     * マークダウンファイルの内容を取得して表示
+     */
+    async _handleGetMarkdownContent(filePath) {
+        try {
+            // FileSystemServiceを使用してマークダウンファイルを読み込む
+            const content = await this._fileSystemService.readMarkdownFile(filePath);
+            // WebViewにマークダウン内容を送信 - 優先度高で即時処理を要求
+            this._panel.webview.postMessage({
+                command: 'updateMarkdownContent',
+                content: content,
+                timestamp: Date.now(), // タイムスタンプを追加して新しい更新を識別できるように
+                priority: 'high', // 優先度の高い更新であることを示す
+                forScopeProgress: true // 進捗状況タブ用の更新であることを示す
+            });
+            logger_1.Logger.info(`FileSystemServiceを使用してマークダウンコンテンツを読み込みました: ${filePath}`);
+        }
+        catch (error) {
+            logger_1.Logger.error(`マークダウンコンテンツの読み込みに失敗しました: ${filePath}`, error);
+            this._showError(`マークダウンファイルの読み込みに失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * エラーメッセージを表示
+     */
+    _showError(message) {
+        this._panel.webview.postMessage({
             command: 'showError',
-            message
+            message: message
         });
+    }
+    /**
+     * 成功メッセージを表示
+     */
+    _showSuccess(message) {
+        this._panel.webview.postMessage({
+            command: 'showSuccess',
+            message: message
+        });
+    }
+    /**
+     * プロジェクト登録解除処理
+     * ProjectServiceを使用して実装
+     */
+    async _handleRemoveProject(projectName, projectPath, projectId) {
+        try {
+            logger_1.Logger.info(`プロジェクト登録解除: ${projectName}, パス: ${projectPath}, ID: ${projectId || 'なし'}`);
+            if (!projectName && !projectPath && !projectId) {
+                this._showError('プロジェクト情報が不足しています');
+                return;
+            }
+            // ProjectServiceを使用してプロジェクトを登録解除
+            const removed = await this._projectService.removeProject(projectName, projectPath, projectId);
+            if (removed) {
+                logger_1.Logger.info(`プロジェクト「${projectName}」の登録解除に成功しました`);
+                // プロジェクトの最新情報を取得
+                const activeProject = this._projectService.getActiveProject();
+                const allProjects = this._projectService.getAllProjects();
+                // WebViewにプロジェクト一覧と現在のプロジェクトを送信
+                this._panel.webview.postMessage({
+                    command: 'updateProjects',
+                    projects: allProjects,
+                    activeProject: activeProject
+                });
+                // 現在のプロジェクトが削除されたプロジェクトと同じ場合、別のプロジェクトへ切り替え
+                if (this._projectPath === projectPath) {
+                    if (activeProject && activeProject.path) {
+                        await this.setProjectPath(activeProject.path);
+                    }
+                    else if (allProjects.length > 0) {
+                        await this.setProjectPath(allProjects[0].path);
+                    }
+                }
+                this._showSuccess(`プロジェクト「${projectName}」の登録を解除しました`);
+            }
+            else {
+                this._showError(`プロジェクト「${projectName}」の登録解除に失敗しました`);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('プロジェクト登録解除処理エラー', error);
+            this._showError(`プロジェクト登録解除に失敗しました: ${error.message}`);
+        }
     }
     /**
      * WebViewを更新
      */
-    async _update() {
-        if (!this._panel.visible) {
-            return;
-        }
-        this._panel.webview.html = this._getHtmlForWebview();
-        await this._updateWebview();
-    }
-    /**
-     * WebViewの状態を更新
-     */
-    async _updateWebview() {
+    _update() {
         try {
-            // 選択中のスコープを設定
-            let selectedScope = null;
-            if (this._selectedScopeIndex >= 0 && this._selectedScopeIndex < this._scopes.length) {
-                selectedScope = {
-                    ...this._scopes[this._selectedScopeIndex],
-                    files: this._currentScope?.files || []
-                };
-            }
-            // 全体進捗の計算
-            const totalFiles = this._scopes.reduce((sum, scope) => sum + (scope.files?.length || 0), 0);
-            const completedFiles = this._scopes.reduce((sum, scope) => {
-                return sum + (scope.files?.filter((f) => f.completed)?.length || 0);
-            }, 0);
-            const totalProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
-            // WebViewにデータを送信
-            logger_1.Logger.info(`WebViewに状態更新を送信します - スコープ数: ${this._scopes.length}, 実装フェーズ: ${!this._isPreparationMode}`);
-            // メッセージオブジェクトを作成（デバッグ用に変数に格納）
-            const message = {
-                command: 'updateState',
-                scopes: this._scopes,
-                selectedScopeIndex: this._selectedScopeIndex,
-                selectedScope,
-                directoryStructure: this._directoryStructure,
-                projectPath: this._projectPath,
-                isPreparationMode: this._isPreparationMode, // 明示的に追加して確実に送信
-                totalProgress: totalProgress,
-                projectStats: {
-                    totalFiles,
-                    completedFiles,
-                    totalProgress
+            // 処理開始ログ
+            logger_1.Logger.info('ScopeManagerPanel: _update処理を開始します');
+            // 最新のプロジェクト情報を取得
+            const allProjects = this._projectService.getAllProjects();
+            const activeProject = this._projectService.getActiveProject();
+            // アクティブプロジェクト情報をクラスのプロパティに保存
+            this._activeProject = activeProject;
+            // アクティブタブ情報を取得（重要な部分）
+            let activeTabId = 'scope-progress'; // デフォルト値
+            if (activeProject && activeProject.metadata) {
+                // 1. メタデータからタブ情報を正確に抽出
+                if (activeProject.metadata.activeTab) {
+                    activeTabId = activeProject.metadata.activeTab;
+                    logger_1.Logger.info(`ScopeManagerPanel: メタデータからアクティブタブを復元: ${activeTabId}`);
                 }
-            };
-            // 実際にメッセージを送信
-            logger_1.Logger.info(`WebView更新メッセージ送信: ${JSON.stringify(message, (key, value) => key === 'scopes' || key === 'selectedScope' || key === 'directoryStructure'
-                ? '[省略]' : value)}`);
-            await this._panel.webview.postMessage(message);
+                else {
+                    logger_1.Logger.info('ScopeManagerPanel: メタデータにアクティブタブ情報がないためデフォルトを使用');
+                }
+            }
+            else {
+                logger_1.Logger.info('ScopeManagerPanel: プロジェクトメタデータがないためデフォルトタブを使用');
+            }
+            // 2. プロジェクトパスの更新（HTMLレンダリング前）
+            if (activeProject && activeProject.path && this._projectPath !== activeProject.path) {
+                this.setProjectPath(activeProject.path);
+                logger_1.Logger.info(`ScopeManagerPanel: パネル表示時にプロジェクトパスを更新: ${activeProject.path}`);
+            }
+            // 3. HTMLコンテンツを生成（アクティブタブ情報を明示的に渡す）
+            const webview = this._panel.webview;
+            this._panel.webview.html = this._getHtmlForWebview(webview, activeTabId);
+            logger_1.Logger.info(`ScopeManagerPanel: WebView HTMLを生成: アクティブタブID=${activeTabId}`);
+            // 4. メッセージ送信の順序を最適化（先にタブ状態を同期）
+            // WebViewの初期化完了を待ってからメッセージを送信
+            // タイミングの問題を回避するため、2段階の遅延処理を使用
+            setTimeout(() => {
+                if (!activeProject) {
+                    logger_1.Logger.warn('ScopeManagerPanel: アクティブプロジェクトがないため同期をスキップします');
+                    return;
+                }
+                // 第1段階: 基本同期（タブ選択コマンドを最初に送信）
+                logger_1.Logger.info(`ScopeManagerPanel: 基本同期メッセージを送信: タブID=${activeTabId}`);
+                // a. まずタブ選択コマンドを送信
+                this._panel.webview.postMessage({
+                    command: 'selectTab',
+                    tabId: activeTabId
+                });
+                // b. 次にプロジェクト状態を同期（上書きされないようにタブ選択後）
+                this._panel.webview.postMessage({
+                    command: 'syncProjectState',
+                    project: activeProject
+                });
+                // c. プロジェクト一覧を更新
+                this._panel.webview.postMessage({
+                    command: 'updateProjects',
+                    projects: allProjects,
+                    activeProject: activeProject
+                });
+                // 第2段階: 遅延処理でタブ状態を確実に反映（UIの描画完了後）
+                // DOMが完全に構築された後にタブ選択を再確認
+                setTimeout(() => {
+                    // 最後にもう一度タブ選択コマンドを送信（確実な適用のため）
+                    this._panel.webview.postMessage({
+                        command: 'selectTab',
+                        tabId: activeTabId
+                    });
+                    logger_1.Logger.info(`ScopeManagerPanel: 最終確認のタブ選択メッセージを送信: アクティブタブ=${activeTabId}`);
+                }, 200); // UIの描画完了を確実に待つ
+                logger_1.Logger.info(`ScopeManagerPanel: プロジェクト情報の同期が完了: ${activeProject.name}`);
+            }, 100); // WebViewの初期化を待つ最小の遅延
         }
         catch (error) {
-            logger_1.Logger.error('WebViewの状態更新中にエラーが発生しました', error);
-            vscode.window.showErrorMessage(`WebViewの状態更新に失敗しました: ${error.message}`);
+            logger_1.Logger.warn(`ScopeManagerPanel: パネル表示時のプロジェクト情報更新に失敗: ${error}`);
         }
     }
     /**
-     * WebView用のHTMLを生成
+     * WebViewのHTMLを生成
+     * @param webview VSCodeのWebviewインスタンス
+     * @param activeTabId アクティブなタブID（デフォルトは'current-status'）
      */
-    _getHtmlForWebview() {
-        const webview = this._panel.webview;
-        // CSS, JS のURI生成
+    _getHtmlForWebview(webview, activeTabId = 'scope-progress') {
+        // スタイルシートやスクリプトのURIを取得
         const styleResetUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css'));
-        const styleVSCodeUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css'));
-        // モックアップのJS/CSSを使用
-        const scopeManagerCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.css'));
-        const scopeManagerJsUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js'));
-        const designSystemCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css'));
-        const componentsCssUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components.css'));
-        // WebViewのHTMLを構築
-        // ハブ＆スポークデザインを採用したHTML
+        const designSystemStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css'));
+        const styleMainUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.css'));
+        // DialogManagerのスタイルシートを追加
+        const dialogManagerStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'dialogManager', 'dialogManager.css'));
+        // PromptCardsのスタイルシートを追加
+        const promptCardsStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'promptCards', 'promptCards.css'));
+        // ファイルブラウザのスタイルシートを追加
+        const fileBrowserStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.css'));
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js'));
+        const sharingPanelScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'sharingPanel.js'));
+        // ファイルブラウザのスクリプトを追加
+        const fileBrowserScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.js'));
+        // Material Iconsの読み込み
+        const materialIconsUrl = 'https://fonts.googleapis.com/icon?family=Material+Icons';
+        // CSPを設定
+        const nonce = this._getNonce();
+        // インラインスクリプトはnonceを使用して制限
+        const csp = `
+      default-src 'none';
+      style-src ${webview.cspSource} 'unsafe-inline' https://fonts.googleapis.com;
+      font-src https://fonts.gstatic.com;
+      script-src 'nonce-${nonce}';
+      img-src ${webview.cspSource} data:;
+      connect-src ${webview.cspSource};
+    `;
+        // アクティブプロジェクト情報を取得（初期値はクラス変数から）
+        const projectName = this._activeProject?.name || '選択なし';
+        const projectPath = this._activeProject?.path || '';
+        // HTMLを生成
         return `<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>AppGenius ダッシュボード</title>
-  <link href="${styleResetUri}" rel="stylesheet">
-  <link href="${styleVSCodeUri}" rel="stylesheet">
-  <link href="${designSystemCssUri}" rel="stylesheet">
-  <link href="${componentsCssUri}" rel="stylesheet">
-  <link href="${scopeManagerCssUri}" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: var(--vscode-font-family);
-      transition: background-color 0.3s ease, color 0.3s ease;
-    }
-    
-    /* ライトモード (デフォルト) */
-    body {
-      color: #333333;
-      background-color: #f5f5f5;
-    }
-    
-    /* ダークモード */
-    body.theme-dark {
-      color: #e0e0e0;
-      background-color: #1e1e1e;
-    }
-    
-    /* 全体のレイアウト */
-    .layout-container {
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-    
-    /* メインコンテンツ */
-    .main-content {
-      display: flex;
-      flex: 1;
-    }
-    
-    /* サイドバー */
-    .sidebar {
-      width: 280px;
-      padding: 20px;
-      overflow-y: auto;
-      transition: background-color 0.3s ease;
-    }
-    
-    /* ライトモード */
-    .sidebar {
-      background-color: #ffffff;
-      border-right: 1px solid #e0e0e0;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .sidebar {
-      background-color: #252526;
-      border-right: 1px solid #3c3c3c;
-    }
-    
-    .sidebar-header {
-      margin-bottom: 20px;
-    }
-    
-    .sidebar-header h2 {
-      font-size: 1.2rem;
-      margin-bottom: 15px;
-    }
-    
-    .project-buttons {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    
-    .project-buttons button {
-      flex: 1;
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none;
-      border-radius: 4px;
-      padding: 8px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 5px;
-    }
-    
-    .scope-list {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    
-    .scope-item {
-      padding: 15px;
-      background-color: var(--vscode-editor-background);
-      border-radius: 6px;
-      border: 1px solid var(--vscode-panel-border);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-    
-    .scope-item.active {
-      border-left: 4px solid var(--vscode-button-background);
-      background-color: var(--vscode-list-activeSelectionBackground);
-      color: var(--vscode-list-activeSelectionForeground);
-    }
-    
-    .scope-item:hover:not(.active) {
-      background-color: var(--vscode-list-hoverBackground);
-      border-color: var(--vscode-button-background);
-    }
-    
-    .scope-item h3 {
-      font-size: 1.1rem;
-      margin-bottom: 5px;
-    }
-    
-    .scope-progress {
-      height: 8px;
-      border-radius: 4px;
-      margin-top: 8px;
-      overflow: hidden;
-      background-color: var(--vscode-progressBar-background);
-    }
-    
-    .scope-progress-bar {
-      height: 100%;
-      transition: width 0.5s ease;
-    }
-    
-    /* ダッシュボードエリア */
-    .dashboard {
-      flex: 1;
-      padding: 20px;
-      overflow-y: auto;
-    }
-    
-    .project-info {
-      background-color: var(--vscode-editor-background);
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-      border: 1px solid var(--vscode-panel-border);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    }
-    
-    .project-info h2 {
-      font-size: 1.4rem;
-      margin-bottom: 10px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .project-path {
-      font-family: monospace;
-      background-color: var(--vscode-textCodeBlock-background);
-      padding: 10px;
-      border-radius: 4px;
-      font-size: 0.9rem;
-      color: var(--vscode-foreground);
-    }
-    
-    /* グリッドレイアウト */
-    .grid-layout {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
-    
-    /* メインのスコープ詳細 */
-    .main-scope {
-      grid-column: 1;
-      grid-row: 1 / span 2;
-      background-color: var(--vscode-editor-background);
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--vscode-panel-border);
-    }
-    
-    /* 右側のスコープ関連情報 */
-    .scope-info-blocks {
-      grid-column: 2;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 20px;
-    }
-    
-    /* カード共通スタイル */
-    .card {
-      border-radius: 8px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-      transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-    
-    /* ライトモード */
-    .card {
-      background-color: #ffffff;
-      border: 1px solid #e0e0e0;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .card {
-      background-color: #2d2d2d;
-      border: 1px solid #3c3c3c;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
-    }
-    
-    .card-header {
-      padding: 15px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      transition: background-color 0.3s ease, border-color 0.3s ease;
-    }
-    
-    /* ライトモード */
-    .card-header {
-      border-bottom: 1px solid #e0e0e0;
-      background-color: #f8f8f8;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .card-header {
-      border-bottom: 1px solid #3c3c3c;
-      background-color: #333333;
-    }
-    
-    .card-header h3 {
-      margin: 0;
-      font-size: 1.1rem;
-    }
-    
-    .card-content {
-      padding: 15px;
-      flex: 1;
-      overflow-y: auto;
-    }
-    
-    .card-footer {
-      padding: 10px 15px;
-      border-top: 1px solid var(--vscode-panel-border);
-      display: flex;
-      justify-content: flex-end;
-      background-color: var(--vscode-tab-inactiveBackground);
-    }
-    
-    .card-button {
-      background-color: var(--vscode-button-background);
-      color: var(--vscode-button-foreground);
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    
-    .card-button:hover {
-      background-color: var(--vscode-button-hoverBackground);
-    }
-    
-    /* スコープ関連スタイル */
-    /* ライトモード */
-    .main-scope .card-header {
-      background-color: #4a69bd;
-      color: white;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .main-scope .card-header {
-      background-color: #0e639c;
-      color: white;
-    }
-    
-    .files-list {
-      margin-top: 10px;
-    }
-    
-    .file-item {
-      display: flex;
-      align-items: center;
-      padding: 8px;
-      transition: background-color 0.2s ease;
-    }
-    
-    /* ライトモード */
-    .file-item {
-      border-bottom: 1px solid #e0e0e0;
-    }
-    
-    .file-item:hover {
-      background-color: #f0f0f0;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .file-item {
-      border-bottom: 1px solid #3c3c3c;
-    }
-    
-    body.theme-dark .file-item:hover {
-      background-color: #3c3c3c;
-    }
-    
-    .file-item:last-child {
-      border-bottom: none;
-    }
-    
-    .file-checkbox {
-      margin-right: 8px;
-      cursor: pointer;
-    }
-    
-    .progress-bar {
-      height: 8px;
-      background-color: var(--vscode-progressBar-background);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top: 8px;
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
-    }
-    
-    .progress-fill {
-      height: 100%;
-      background-color: var(--vscode-button-background);
-      border-radius: 4px;
-      transition: width 0.5s ease, background-color 0.5s ease;
-    }
-    
-    .status-pending {
-      background-color: var(--vscode-charts-yellow);
-    }
-    
-    .status-in-progress {
-      background-color: var(--vscode-charts-blue);
-    }
-    
-    .status-completed {
-      background-color: var(--vscode-charts-green);
-    }
-    
-    .status-blocked {
-      background-color: var(--vscode-charts-red);
-    }
-    
-    /* 環境変数、ディレクトリ、要件の共通スタイル */
-    /* ライトモード */
-    .env-vars .card-header {
-      background-color: #42a5f5;
-      color: white;
-    }
-    
-    .directory .card-header {
-      background-color: #66bb6a;
-      color: white;
-    }
-    
-    .requirements .card-header {
-      background-color: #ec407a;
-      color: white;
-    }
-    
-    .tools .card-header {
-      background-color: #ffa726;
-      color: white;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .env-vars .card-header {
-      background-color: #1976d2;
-      color: white;
-    }
-    
-    body.theme-dark .directory .card-header {
-      background-color: #2e7d32;
-      color: white;
-    }
-    
-    body.theme-dark .requirements .card-header {
-      background-color: #c2185b;
-      color: white;
-    }
-    
-    body.theme-dark .tools .card-header {
-      background-color: #ef6c00;
-      color: white;
-    }
-    
-    .item-list {
-      list-style: none;
-      padding: 0;
-    }
-    
-    .item-list li {
-      padding: 8px;
-      margin-bottom: 8px;
-      background-color: var(--vscode-editor-background);
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border: 1px solid var(--vscode-panel-border);
-      transition: all 0.2s ease;
-    }
-    
-    .item-list li:hover {
-      background-color: var(--vscode-list-hoverBackground);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    
-    /* 継承情報 */
-    .inheritance-info {
-      margin-top: 20px;
-      padding: 12px;
-      border-radius: 4px;
-      font-size: 14px;
-      line-height: 1.5;
-      transition: all 0.3s ease;
-    }
-    
-    /* ライトモード */
-    .inheritance-info {
-      background-color: #e3f2fd;
-      border-left: 4px solid #2196f3;
-      color: #0d47a1;
-    }
-    
-    /* ダークモード */
-    body.theme-dark .inheritance-info {
-      background-color: rgba(33, 150, 243, 0.1);
-      border-left: 4px solid #1976d2;
-      color: #bbdefb;
-    }
-    
-    /* 開発準備モード用のスタイル */
-    .preparation-step-list {
-      margin-top: 20px;
-    }
-    
-    .preparation-step {
-      margin-bottom: 25px;
-      padding: 15px;
-      border-radius: 8px;
-      background-color: var(--vscode-editor-background);
-      border: 1px solid var(--vscode-panel-border);
-    }
-    
-    .preparation-step h4 {
-      margin-top: 0;
-      margin-bottom: 10px;
-      font-size: 1.1rem;
-      color: var(--vscode-button-foreground);
-      background-color: var(--vscode-button-background);
-      padding: 8px 12px;
-      border-radius: 4px;
-    }
-    
-    .preparation-step p {
-      margin-bottom: 15px;
-    }
-    
-    .preparation-step button {
-      display: inline-block;
-      margin-top: 10px;
-    }
-    
-    /* ダイアログスタイル */
-    .dialog-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    .dialog {
-      background-color: var(--vscode-editor-background);
-      border-radius: 4px;
-      padding: 16px;
-      width: 500px;
-      max-width: 90%;
-      max-height: 90%;
-      overflow-y: auto;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    }
-    
-    .dialog-title {
-      font-size: 18px;
-      margin-bottom: 16px;
-      border-bottom: 1px solid var(--vscode-panel-border);
-      padding-bottom: 8px;
-    }
-    
-    .dialog-footer {
-      display: flex;
-      justify-content: flex-end;
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid var(--vscode-panel-border);
-    }
-    
-    /* レスポンシブデザイン調整 */
-    @media (max-width: 1200px) {
-      .grid-layout {
-        grid-template-columns: 1fr;
-      }
-      
-      .main-scope {
-        grid-column: 1;
-        grid-row: 1;
-        margin-bottom: 20px;
-      }
-      
-      .scope-info-blocks {
-        grid-column: 1;
-        grid-row: 2;
-      }
-    }
-    
-    @media (max-width: 768px) {
-      .main-content {
-        flex-direction: column;
-      }
-      
-      .sidebar {
-        width: 100%;
-        border-right: none;
-        border-bottom: 1px solid var(--vscode-panel-border);
-      }
-      
-      .scope-info-blocks {
-        grid-template-columns: 1fr;
-        grid-template-rows: repeat(4, auto);
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="layout-container">
-    <!-- メインコンテンツ -->
-    <div class="main-content">
-      <!-- サイドバー -->
-      <div class="sidebar">
-        <div class="sidebar-header">
-          <h2 id="panel-header-title">プロジェクトスコープ</h2>
-          <div class="project-buttons">
-            <button id="add-scope-button">
-              <span class="material-icons">add</span> 新規作成
-            </button>
-            <button id="create-scope-button">
-              <span class="material-icons">auto_awesome</span> <span id="ai-button-text">実装計画を立てる</span>
-            </button>
-          </div>
-        </div>
+    <html lang="ja">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <meta http-equiv="Content-Security-Policy" content="${csp}">
+      <link href="${styleResetUri}" rel="stylesheet">
+      <link href="${designSystemStyleUri}" rel="stylesheet">
+      <link href="${styleMainUri}" rel="stylesheet">
+      <link href="${dialogManagerStyleUri}" rel="stylesheet">
+      <link href="${promptCardsStyleUri}" rel="stylesheet">
+      <link href="${fileBrowserStyleUri}" rel="stylesheet">
+      <link href="${materialIconsUrl}" rel="stylesheet">
+      <title>AppGenius スコープマネージャー</title>
+      <style>
+        /* VSCodeのネイティブドラッグ&ドロップメッセージを非表示にする */
+        .monaco-editor .dnd-overlay, 
+        .monaco-editor .dnd-overlay *,
+        .monaco-dnd-overlay,
+        .monaco-dnd-tree-overlay,
+        [role="tooltip"][aria-label*="シフト"],
+        [role="tooltip"][aria-label*="ドロップ"],
+        [role="tooltip"][aria-label*="⌘"],
+        [role="tooltip"][aria-label*="Cmd"] {
+          display: none !important;
+          opacity: 0 !important;
+          visibility: hidden !important;
+          pointer-events: none !important;
+        }
         
-        <!-- 開発準備モード用のビュー -->
-        <div id="preparation-mode-view" style="display: none;">
-          <div class="preparation-step-list">
-            <h3>開発準備フェーズ</h3>
-            <p>AppGeniusプロジェクトを成功させるために、以下のステップに沿って開発準備を進めてください。</p>
+        /* ドラッグ中のデフォルトポインタを変更 */
+        body.dragging * {
+          cursor: copy !important;
+        }
+        
+        /* ドラッグ効果をより目立たせる */
+        .drag-effect.active {
+          background-color: rgba(74, 105, 189, 0.3) !important;
+          z-index: 9999999 !important;
+        }
+        
+        /* 選択中プロジェクトのスタイル */
+        .project-item.active {
+          background-color: rgba(74, 105, 189, 0.1);
+          border-left: 3px solid var(--app-primary);
+        }
+        
+        .file-input {
+          opacity: 0;
+          position: absolute;
+          pointer-events: none;
+        }
+      </style>
+      <script nonce="${nonce}">
+        // 即時関数でVSCodeのドラッグ&ドロップメッセージを抑制
+        (function() {
+          // VSCodeのドラッグ&ドロップメッセージを検出して非表示にする
+          function suppressVSCodeDragDropMessage() {
+            // ドラッグ&ドロップ関連のオーバーレイを監視して非表示にする
+            const observer = new MutationObserver(function(mutations) {
+              document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"], [aria-label*="⌘"]').forEach(function(el) {
+                if (el) {
+                  el.style.display = 'none';
+                  el.style.opacity = '0';
+                  el.style.visibility = 'hidden';
+                  el.style.pointerEvents = 'none';
+                }
+              });
+            });
             
-            <div class="preparation-step">
-              <h4>ステップ1: 要件定義を作成する</h4>
-              <p>要件定義ビジュアライザーを使って、プロジェクトの要件定義を行いましょう。</p>
-              <button id="requirements-button" class="card-button">
-                <span class="material-icons">description</span> 要件定義エディタを開く
-              </button>
-            </div>
+            // document全体を監視
+            observer.observe(document.documentElement, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class']
+            });
             
-            <div class="preparation-step">
-              <h4>ステップ2: モックアップを作成する</h4>
-              <p>要件定義に基づいて、アプリケーションのモックアップを作成しましょう。</p>
-              <button id="mockup-gallery-button" class="card-button">
-                <span class="material-icons">image</span> モックアップギャラリーを開く
-              </button>
-            </div>
-            
-            <div class="preparation-step">
-              <h4>ステップ3: 詳細要件定義を整える</h4>
-              <p>モックアップに基づいて、具体的な要件定義を整えましょう。</p>
-              <button id="requirements-button" class="card-button">
-                <span class="material-icons">article</span> 要件定義エディタを開く
-              </button>
-            </div>
-            
-            <div class="preparation-step">
-              <h4>ステップ4: プロジェクト計画を立てる</h4>
-              <p>実装に向けたプロジェクト計画を立てましょう。</p>
-              <button id="create-scope-button-alt" class="card-button">
-                <span class="material-icons">auto_awesome</span> <span id="ai-button-text-alt">実装計画を立てる</span>
-              </button>
-              <script>
-                // 開発準備フェーズのAIボタンのイベントハンドラー
-                document.getElementById('create-scope-button-alt').addEventListener('click', () => {
-                  const vscode = acquireVsCodeApi();
-                  vscode.postMessage({ command: 'launchScopeCreator' });
+            // ドラッグ&ドロップイベントをキャプチャ
+            ['dragstart', 'dragover', 'dragenter', 'dragleave', 'drop'].forEach(function(eventName) {
+              document.addEventListener(eventName, function(e) {
+                // VSCodeのオーバーレイを強制的に非表示
+                document.querySelectorAll('.monaco-editor .dnd-overlay, .monaco-dnd-overlay, [aria-label*="ドロップする"], [aria-label*="⌘"]').forEach(function(el) {
+                  if (el) el.style.display = 'none';
                 });
-              </script>
+              }, true);
+            });
+          }
+          
+          // DOM読み込み完了時または既に読み込まれている場合に実行
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', suppressVSCodeDragDropMessage);
+          } else {
+            suppressVSCodeDragDropMessage();
+          }
+        })();
+      </script>
+    </head>
+    <body>
+      <div class="scope-manager-container">
+        <div class="main-content">
+          <!-- 左側: プロジェクトナビゲーション -->
+          <div class="project-nav">
+            <button class="toggle-nav-btn" id="toggle-nav-btn" title="パネルを開閉">
+              <span class="material-icons">chevron_left</span>
+            </button>
+            <div class="project-label">PRJ</div>
+            <div class="filter-bar">
+              <input type="text" class="search-input" placeholder="プロジェクト検索...">
             </div>
+            <h3 style="margin-top: 10px;">プロジェクト</h3>
             
-            <div class="preparation-step">
-              <h4>ステップ5: 環境変数を設定する</h4>
-              <p>実装に必要な環境変数を設定しましょう。</p>
-              <button id="env-vars-button" class="card-button">
-                <span class="material-icons">settings</span> 環境変数アシスタントを開く
+            <div class="project-actions">
+              <button class="button button-secondary" id="new-project-btn">
+                <span class="material-icons">add</span>
+                新規作成
+              </button>
+              <button class="button button-secondary" id="load-project-btn">
+                <span class="material-icons">folder_open</span>
+                読み込む
               </button>
             </div>
             
-            <div class="preparation-step">
-              <h4>実装フェーズへ移行</h4>
-              <p>準備が整ったら、実装フェーズに移行しましょう。</p>
-              <button id="switch-to-implementation-button" class="card-button">
-                <span class="material-icons">arrow_forward</span> 実装フェーズに移行
-              </button>
+            <div id="project-list" class="project-list">
+              <!-- プロジェクトリストはJSで動的に生成 -->
             </div>
           </div>
-        </div>
-        
-        <!-- 実装モード用のスコープリスト（通常のビュー） -->
-        <div id="scope-list-container">
-          <div id="scope-list" class="scope-list">
-            <!-- スコープリストがここに動的に生成されます -->
-            <div class="scope-item">
-              <h3>スコープを読み込んでいます...</h3>
-              <div class="scope-progress">
-                <div class="scope-progress-bar status-in-progress" style="width: 50%;"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      
-      <!-- ダッシュボードエリア -->
-      <div class="dashboard">
-        <!-- プロジェクト情報 -->
-        <div class="project-info">
-          <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2><span class="material-icons">folder</span> <span id="project-title">プロジェクト</span></h2>
-            <div class="overall-progress">
-              <div style="font-size: 0.9rem; margin-bottom: 4px; text-align: right;">全体進捗</div>
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <div id="project-progress-text" style="font-weight: bold; font-size: 1.2rem;">0%</div>
-                <div class="progress-bar" style="width: 120px; height: 8px;">
-                  <div id="project-progress-bar" class="progress-fill" style="width: 0%;"></div>
+          
+          <!-- 右側: コンテンツエリア -->
+          <div class="content-area">
+            <!-- タブ付きカード -->
+            <div class="card">
+              <div class="tabs">
+                <div class="project-display">
+                  <span class="project-name">${projectName}</span>
+                  <span class="project-path-display">${projectPath}</span>
+                </div>
+                <div class="tabs-container">
+                  <div class="tab ${activeTabId === 'scope-progress' ? 'active' : ''}" data-tab="scope-progress">進捗状況</div>
+                  <div class="tab ${activeTabId === 'requirements' ? 'active' : ''}" data-tab="requirements">要件定義</div>
+                  <div class="tab ${activeTabId === 'file-browser' ? 'active' : ''}" data-tab="file-browser">ファイル</div>
+                  <div class="tab ${activeTabId === 'claude-code' ? 'active' : ''}" data-tab="claude-code">ClaudeCode連携</div>
+                  <div class="tab ${activeTabId === 'tools' ? 'active' : ''}" data-tab="tools">モックアップギャラリー</div>
                 </div>
               </div>
-            </div>
-          </div>
-          <div id="project-path" class="project-path">/path/to/project</div>
-          
-          <div class="project-stats" style="display: flex; margin-top: 15px; font-size: 0.9rem; background-color: var(--vscode-editor-background); padding: 10px; border-radius: 4px; border: 1px solid var(--vscode-panel-border);">
-            <div style="flex: 1; text-align: center; border-right: 1px solid var(--vscode-panel-border);">
-              <div>総ファイル数</div>
-              <div id="total-files" style="font-weight: bold; margin-top: 4px;">0</div>
-            </div>
-            <div style="flex: 1; text-align: center; border-right: 1px solid var(--vscode-panel-border);">
-              <div>完了ファイル数</div>
-              <div id="completed-files" style="font-weight: bold; margin-top: 4px; color: var(--vscode-charts-green);">0</div>
-            </div>
-            <div style="flex: 1; text-align: center;">
-              <div>スコープ進捗率</div>
-              <div id="scope-completion-rate" style="font-weight: bold; margin-top: 4px;">0%</div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- グリッドレイアウト -->
-        <div class="grid-layout">
-          <!-- メインのスコープ詳細 -->
-          <div class="main-scope">
-            <div class="card">
-              <div class="card-header">
-                <span class="material-icons">assignment</span>
-                <h3 id="scope-title">スコープを選択してください</h3>
-              </div>
               
-              <div id="scope-detail-content" class="card-content" style="display: none;">
-                <p id="scope-description"></p>
-                <div style="margin-top: 12px;">
-                  <div style="font-size: 0.9rem; color: var(--vscode-descriptionForeground);">進捗状況</div>
-                  <div style="display: flex; align-items: center; margin-top: 4px;">
-                    <div id="scope-progress" style="font-weight: bold; margin-right: 10px;">0%</div>
-                    <div class="progress-bar" style="flex-grow: 1;">
-                      <div id="scope-progress-bar" class="progress-fill status-pending" style="width: 0%;"></div>
+              <!-- 進捗状況タブコンテンツ -->
+              <div id="scope-progress-tab" class="tab-content ${activeTabId === 'scope-progress' ? 'active' : ''}">
+                <div class="card-body">
+                  <div class="markdown-content">
+                    <!-- ここにSCOPE_PROGRESS.mdの内容がマークダウン表示される -->
+                    <p>読み込み中...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 要件定義タブコンテンツ -->
+              <div id="requirements-tab" class="tab-content ${activeTabId === 'requirements' ? 'active' : ''}">
+                <div class="card-body">
+                  <div class="markdown-content">
+                    <!-- ここにrequirements.mdの内容がマークダウン表示される -->
+                    <p>読み込み中...</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ファイルブラウザタブコンテンツ -->
+              <div id="file-browser-tab" class="tab-content ${activeTabId === 'file-browser' ? 'active' : ''}">
+                <div class="card-body">
+                  <div class="file-browser-container">
+                    <div class="file-explorer">
+                      <div class="file-explorer-toolbar">
+                        <button class="button button-secondary" id="refresh-files-btn">
+                          <span class="material-icons">refresh</span>
+                          更新
+                        </button>
+                        <div class="file-path-display">
+                          <span id="current-file-path">プロジェクトルート</span>
+                        </div>
+                      </div>
+                      <div class="breadcrumb-container" id="file-breadcrumb">
+                        <!-- パンくずリストはJSで動的に生成 -->
+                      </div>
+                      <div class="file-list-container">
+                        <div id="file-list" class="file-list">
+                          <!-- ファイルリストはJSで動的に生成 -->
+                          <p>読み込み中...</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="file-preview">
+                      <div id="file-preview-content">
+                        <div class="file-preview-placeholder">
+                          <span class="material-icons">description</span>
+                          <p>ファイルを選択してください</p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-                
-                <h4 style="margin-top: 20px;">実装予定ファイル</h4>
-                <div id="implementation-files" class="files-list">
-                  <!-- ファイルリストがここに動的に生成されます -->
-                  <div class="file-item">実装予定ファイルが定義されていません</div>
+              </div>
+
+              <!-- ClaudeCode連携タブコンテンツ -->
+              <div id="claude-code-tab" class="tab-content ${activeTabId === 'claude-code' ? 'active' : ''}">
+                <div class="claude-share-container">
+                  <!-- 左側：テキスト入力エリア -->
+                  <div class="text-input-area">
+                    <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
+                    <!-- ボタンエリア -->
+                    <div class="action-buttons">
+                      <button class="button button-secondary" id="clear-button">クリア</button>
+                      <button class="button" id="share-to-claude">保存</button>
+                    </div>
+                    
+                    <!-- 保存結果通知（成功時のみ表示） -->
+                    <div class="save-notification" id="save-notification" style="display: none;">
+                      <span class="material-icons success-icon">check_circle</span>
+                      <span class="notification-text">保存完了</span>
+                    </div>
+                  </div>
+                  
+                  <!-- 右側：画像アップロードエリアと履歴 -->
+                  <div class="image-upload-area">
+                    <!-- ドロップゾーン -->
+                    <div class="drop-zone" id="drop-zone">
+                      <span class="material-icons">add_photo_alternate</span>
+                      <p>画像をアップロード<br><span style="font-size: 12px; color: var(--app-text-secondary);">（ファイルをドラッグ＆ドロップ）</span></p>
+                      <button class="button-secondary" id="file-select-btn">ブラウズ...</button>
+                      <input type="file" id="file-input" accept="image/*" style="display: none;">
+                    </div>
+                    
+                    <!-- 履歴表示エリア -->
+                    <div class="history-container">
+                      <h4>共有履歴</h4>
+                      <div class="shared-history-list">
+                        <!-- 履歴アイテムはJSで動的に生成 -->
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                
-                <div id="inheritance-info" class="inheritance-info">
-                  引継ぎ情報はありません
-                </div>
               </div>
               
-              <div id="scope-empty-message" class="card-content">
-                <p>左側のリストからスコープを選択してください。</p>
-                <p style="margin-top: 10px;">スコープとは、アプリケーションの機能単位であり、実装の作業範囲を定義します。</p>
-                <p style="margin-top: 10px;">スコープを選択すると、その詳細情報や実装予定ファイル、進捗状況などが表示されます。</p>
-              </div>
-              
-              <div class="card-footer">
-                <button id="implement-button" class="card-button" style="display: none;">
-                  <span class="material-icons">code</span> 実装開始
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 右側のスコープ関連情報 -->
-          <div class="scope-info-blocks">
-            <!-- 要件定義エディタ -->
-            <div class="card requirements">
-              <div class="card-header">
-                <span class="material-icons">description</span>
-                <h3>要件定義エディタ</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>アプリの目的と機能を明確にします</p>
-                
-                <ul class="item-list">
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> ユーザーストーリー</li>
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> 機能要件</li>
-                  <li><span style="color: var(--vscode-charts-blue);">⏳</span> 非機能要件</li>
-                  <li><span style="color: var(--vscode-charts-yellow);">⭕</span> 優先順位設定</li>
-                </ul>
-              </div>
-              
-              <div class="card-footer">
-                <button id="requirements-button" class="card-button">
-                  <span class="material-icons">edit</span> 要件を編集
-                </button>
-              </div>
-            </div>
-            
-            <!-- モックアップギャラリー -->
-            <div class="card directory">
-              <div class="card-header">
-                <span class="material-icons">image</span>
-                <h3>モックアップギャラリー</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>画面デザインのイメージを作成・編集</p>
-                
-                <ul class="item-list">
-                  <li><span>🖼️</span> ログイン画面</li>
-                  <li><span>🖼️</span> ダッシュボード</li>
-                  <li><span>🖼️</span> ユーザープロフィール</li>
-                </ul>
-              </div>
-              
-              <div class="card-footer">
-                <button id="mockup-gallery-button" class="card-button">
-                  <span class="material-icons">collections</span> モックアップを表示
-                </button>
-              </div>
-            </div>
-            
-            <!-- 環境変数アシスタント -->
-            <div class="card env-vars">
-              <div class="card-header">
-                <span class="material-icons">key</span>
-                <h3>環境変数アシスタント</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>環境変数の設定をサポート</p>
-                
-                <ul class="item-list">
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> API認証キー</li>
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> データベース接続</li>
-                  <li><span style="color: var(--vscode-charts-red);">⚠️</span> サーバー設定</li>
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> OAuth認証</li>
-                </ul>
-              </div>
-              
-              <div class="card-footer">
-                <button id="env-vars-button" class="card-button">
-                  <span class="material-icons">settings</span> 環境変数を設定
-                </button>
-              </div>
-            </div>
-            
-            <!-- デバッグ探偵 -->
-            <div class="card tools">
-              <div class="card-header">
-                <span class="material-icons">bug_report</span>
-                <h3>デバッグ探偵</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>エラーを検出し解決します</p>
-                
-                <ul class="item-list">
-                  <li><span style="color: var(--vscode-charts-red);">🐞</span> レンダリングエラー</li>
-                  <li><span style="color: var(--vscode-charts-green);">✅</span> API接続問題</li>
-                  <li><span style="color: var(--vscode-charts-blue);">🔄</span> ステート管理</li>
-                </ul>
-              </div>
-              
-              <div class="card-footer">
-                <button id="debug-detective-button" class="card-button">
-                  <span class="material-icons">search</span> デバッグを開始
-                </button>
-              </div>
-            </div>
-            
-            <!-- リファレンスマネージャー -->
-            <div class="card reference">
-              <div class="card-header">
-                <span class="material-icons">menu_book</span>
-                <h3>リファレンスマネージャー</h3>
-              </div>
-              
-              <div class="card-content">
-                <p>参考資料の管理を行います</p>
-                
-                <ul class="item-list">
-                  <li><span style="color: var(--vscode-charts-green);">📑</span> コード例</li>
-                  <li><span style="color: var(--vscode-charts-green);">📑</span> APIドキュメント</li>
-                  <li><span style="color: var(--vscode-charts-green);">📑</span> 設計資料</li>
-                  <li><span style="color: var(--vscode-charts-yellow);">📑</span> ガイドライン</li>
-                </ul>
-              </div>
-              
-              <div class="card-footer">
-                <button id="reference-manager-button" class="card-button">
-                  <span class="material-icons">bookmark</span> リファレンスを管理
-                </button>
+              <!-- 開発ツールタブコンテンツ (モックアップギャラリー表示用のプレースホルダ) -->
+              <div id="tools-tab" class="tab-content ${activeTabId === 'tools' ? 'active' : ''}">
+                <!-- モックアップギャラリーを表示するための空のコンテナ -->
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
-  
-  <!-- ディレクトリ構造ダイアログ -->
-  <div id="directory-dialog" class="dialog-overlay" style="display: none;">
-    <div class="dialog">
-      <h3 class="dialog-title">ディレクトリ構造</h3>
-      <pre id="directory-structure" style="background-color: var(--vscode-textCodeBlock-background); padding: 10px; overflow: auto; max-height: 400px; white-space: pre-wrap; font-family: monospace;"></pre>
-      <div class="dialog-footer">
-        <button id="directory-close" class="card-button">閉じる</button>
+      
+      <!-- 開発プロンプトモーダル -->
+      <div class="toggle-share-btn" id="toggle-share-btn" style="display: flex;">
+        <span class="material-icons">description</span>
+        <span>開発プロンプト</span>
       </div>
-    </div>
-  </div>
-  
-  <!-- モード切替ボタンを追加 -->
-  <div style="position: fixed; bottom: 20px; right: 20px; z-index: 900;">
-    <button id="reset-to-preparation-button" class="card-button" style="display: none;">
-      <span class="material-icons">settings_backup_restore</span> 開発準備モードに戻る
-    </button>
-  </div>
-  
-  <script src="${scopeManagerJsUri}"></script>
-</body>
-</html>`;
+      
+      <div class="claude-code-share-area" id="claude-code-share">
+        <div class="claude-code-share-header">
+          <h3>開発プロンプト</h3>
+          <div>
+            <button class="button button-secondary" id="minimize-share-btn">
+              <span class="material-icons">expand_more</span>
+            </button>
+          </div>
+        </div>
+        
+        <!-- プロンプトグリッド - 初期表示要素なし、JSで動的に生成 -->
+        <div class="prompt-grid">
+          <!-- プロンプトカードはJSで動的に生成 -->
+        </div>
+      </div>
+      
+      <div id="error-container" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: var(--app-danger); color: white; padding: 10px; border-radius: 4px;"></div>
+      
+      <!-- メインスクリプト -->
+      <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
+      
+      <!-- 共有パネルコンポーネント専用スクリプト -->
+      <script type="module" nonce="${nonce}" src="${sharingPanelScriptUri}"></script>
+      
+      <!-- ファイルブラウザコンポーネント専用スクリプト -->
+      <script type="module" nonce="${nonce}" src="${fileBrowserScriptUri}"></script>
+    </body>
+    </html>`;
     }
     /**
-     * リソースの解放
+     * 進捗ファイルを読み込む - FileSystemServiceに委譲
+     */
+    async _loadProgressFile() {
+        try {
+            if (!this._projectPath) {
+                return;
+            }
+            // FileSystemServiceの新しいメソッドを呼び出す
+            await this._fileSystemService.loadProgressFile(this._projectPath, async (content) => {
+                // マークダウン表示を更新
+                await this._handleGetMarkdownContent(this._progressFilePath);
+            });
+        }
+        catch (error) {
+            logger_1.Logger.error('進捗ファイルの読み込み中にエラーが発生しました', error);
+            this._showError(`進捗ファイルの読み込みに失敗しました: ${error.message}`);
+        }
+    }
+    /**
+     * ディレクトリ構造を更新する - FileSystemServiceに委譲
+     */
+    async _updateDirectoryStructure() {
+        if (!this._projectPath) {
+            return;
+        }
+        try {
+            // FileSystemServiceの新しいメソッドを呼び出す
+            this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
+        }
+        catch (error) {
+            logger_1.Logger.error('ディレクトリ構造の取得中にエラーが発生しました', error);
+            this._directoryStructure = 'ディレクトリ構造の取得に失敗しました。';
+        }
+    }
+    /**
+     * ファイル監視を設定する
+     * FileSystemServiceの拡張機能を利用
+     */
+    async _setupFileWatcher() {
+        try {
+            // 既存の監視があれば破棄
+            if (this._fileWatcher) {
+                this._fileWatcher.dispose();
+                this._fileWatcher = null;
+            }
+            if (!this._projectPath) {
+                return;
+            }
+            // FileSystemServiceの新しいメソッドを呼び出す
+            this._fileWatcher = this._fileSystemService.setupProjectFileWatcher(this._projectPath, async (filePath) => {
+                // ファイル変更を検出したらマークダウンを更新
+                logger_1.Logger.info(`ScopeManagerPanel: ファイル変更を検出して内容を更新: ${filePath}`);
+                await this._handleGetMarkdownContent(filePath);
+            });
+            logger_1.Logger.info('ScopeManagerPanel: ファイル監視設定完了');
+        }
+        catch (error) {
+            logger_1.Logger.error('ファイル監視の設定中にエラーが発生しました', error);
+        }
+    }
+    // FileSystemServiceに移動したメソッド
+    /**
+     * ProjectServiceのイベントリスナーを設定
+     */
+    _setupProjectServiceEventListeners() {
+        try {
+            // ProjectServiceのイベントを購読
+            // プロジェクト選択イベント
+            this._disposables.push(this._projectService.onProjectSelected((projectInfo) => {
+                logger_1.Logger.info(`ProjectServiceからプロジェクト選択イベントを受信: ${projectInfo.name}`);
+                // WebViewにプロジェクト選択状態を通知
+                this._panel.webview.postMessage({
+                    command: 'updateProjectName',
+                    projectName: projectInfo.name
+                });
+                // プロジェクトパスを更新
+                if (projectInfo.path !== this._projectPath) {
+                    this.setProjectPath(projectInfo.path);
+                }
+            }));
+            // プロジェクト作成イベント
+            this._disposables.push(this._projectService.onProjectCreated((projectInfo) => {
+                logger_1.Logger.info(`ProjectServiceからプロジェクト作成イベントを受信: ${projectInfo.name}`);
+                // プロジェクト一覧を更新して表示
+                const allProjects = this._projectService.getAllProjects();
+                this._panel.webview.postMessage({
+                    command: 'updateProjects',
+                    projects: allProjects,
+                    activeProject: projectInfo
+                });
+            }));
+            // プロジェクト削除イベント
+            this._disposables.push(this._projectService.onProjectRemoved((projectInfo) => {
+                logger_1.Logger.info(`ProjectServiceからプロジェクト削除イベントを受信: ${projectInfo.name}`);
+                // プロジェクト一覧を更新して表示
+                const allProjects = this._projectService.getAllProjects();
+                const activeProject = this._projectService.getActiveProject();
+                this._panel.webview.postMessage({
+                    command: 'updateProjects',
+                    projects: allProjects,
+                    activeProject: activeProject
+                });
+                // 現在のプロジェクトが削除されたプロジェクトと同じ場合、別のプロジェクトへ切り替え
+                if (this._projectPath === projectInfo.path) {
+                    if (activeProject && activeProject.path) {
+                        this.setProjectPath(activeProject.path);
+                    }
+                    else if (allProjects.length > 0) {
+                        this.setProjectPath(allProjects[0].path);
+                    }
+                }
+            }));
+            // プロジェクト一覧更新イベント
+            this._disposables.push(this._projectService.onProjectsUpdated((projects) => {
+                logger_1.Logger.info(`ProjectServiceからプロジェクト一覧更新イベントを受信: ${projects.length}件`);
+                // WebViewにプロジェクト一覧を通知
+                const activeProject = this._projectService.getActiveProject();
+                this._panel.webview.postMessage({
+                    command: 'updateProjects',
+                    projects: projects,
+                    activeProject: activeProject
+                });
+            }));
+            // プロジェクトのUI状態更新イベント
+            this._disposables.push(this._projectService.onProjectUIStateUpdated((uiState) => {
+                logger_1.Logger.info(`ProjectServiceからプロジェクトUI状態更新イベントを受信`);
+                // WebViewにプロジェクトUI状態を通知
+                this._panel.webview.postMessage({
+                    command: 'updateProjectUIState',
+                    uiState: uiState
+                });
+            }));
+            logger_1.Logger.info('ProjectServiceのイベントリスナー設定完了');
+        }
+        catch (error) {
+            logger_1.Logger.error('ProjectServiceのイベントリスナー設定中にエラーが発生しました', error);
+        }
+    }
+    /**
+     * nonce値を生成
+     */
+    _getNonce() {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < 32; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+    // 未使用のメソッドを削除しました
+    /**
+     * リソースを解放
      */
     dispose() {
-        ScopeManagerPanel.currentPanel = undefined;
-        this._panel.dispose();
-        // Node.jsのファイルシステムウォッチャーを解放
-        if (this._docsDirWatcher) {
-            this._docsDirWatcher.close();
-            this._docsDirWatcher = null;
+        if (ScopeManagerPanel.currentPanel === this) {
+            ScopeManagerPanel.currentPanel = undefined;
         }
+        // パネル自体を破棄
+        this._panel.dispose();
+        // ファイルウォッチャーを破棄
+        if (this._fileWatcher) {
+            this._fileWatcher.dispose();
+            this._fileWatcher = null;
+        }
+        // FileSystemServiceのリソースを解放
+        if (this._fileSystemService) {
+            this._fileSystemService.dispose();
+        }
+        // 共有サービスのリソースを解放
+        this._sharingService.dispose();
+        // 認証ハンドラーは使い回すので解放しない（シングルトンパターン）
+        // disposable なオブジェクトを破棄
         while (this._disposables.length) {
-            const disposable = this._disposables.pop();
-            if (disposable) {
-                disposable.dispose();
+            const x = this._disposables.pop();
+            if (x) {
+                x.dispose();
             }
+        }
+    }
+    /**
+     * 指定されたプロジェクトがアクティブであることを確認し、必要に応じて選択状態を更新
+     * WebViewとバックエンドの状態を同期する目的で使用
+     * ProjectServiceの新しいensureActiveProjectメソッドを使用して実装
+     */
+    async _handleEnsureActiveProject(projectName, projectPath, activeTab) {
+        try {
+            logger_1.Logger.info(`プロジェクト同期確認: ${projectName}, パス: ${projectPath}${activeTab ? ', タブ: ' + activeTab : ''}`);
+            // ProjectServiceの新しいensureActiveProjectメソッドを使用
+            const success = await this._projectService.ensureActiveProject(projectName, projectPath, activeTab);
+            if (success) {
+                // 成功した場合は、最新のアクティブプロジェクト情報を取得して保存
+                this._activeProject = this._projectService.getActiveProject();
+                logger_1.Logger.info(`プロジェクト同期が完了しました: ${projectName}`);
+            }
+            else {
+                logger_1.Logger.warn(`プロジェクト同期に失敗しました: ${projectName}`);
+                this._showError(`プロジェクト「${projectName}」の同期に失敗しました`);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('プロジェクトの同期に失敗しました', error);
+            this._showError(`プロジェクトの同期中にエラーが発生しました: ${error.message}`);
+        }
+    }
+    /**
+     * 認証状態の監視を設定
+     * AuthenticationHandlerを使って認証状態をチェック
+     */
+    _setupTokenExpirationMonitor() {
+        try {
+            // AuthenticationHandlerを使って認証状態を監視
+            const tokenMonitor = this._authHandler.setupTokenExpirationMonitor(
+            // トークンの有効期限切れ時
+            () => {
+                logger_1.Logger.info('スコープマネージャー: 認証状態が無効になったため、パネルを閉じます');
+                // パネルを閉じる
+                this.dispose();
+                // ログイン画面に直接遷移
+                this._authHandler.showLoginScreen(this._extensionUri);
+            }, 
+            // 権限喪失時
+            () => {
+                logger_1.Logger.warn('スコープマネージャー: 権限が失効したため、パネルを閉じます');
+                // パネルを閉じる
+                this.dispose();
+                vscode.window.showWarningMessage('スコープマネージャーへのアクセス権限がなくなりました。');
+            });
+            // Disposableリストに追加
+            this._disposables.push(tokenMonitor);
+            logger_1.Logger.info('スコープマネージャー: 認証状態監視を開始しました');
+        }
+        catch (error) {
+            logger_1.Logger.error('認証状態監視の設定中にエラーが発生しました', error);
         }
     }
 }

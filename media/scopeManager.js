@@ -16,6 +16,7 @@ import markdownViewer from './components/markdownViewer/markdownViewer.js';
 import projectNavigation from './components/projectNavigation/projectNavigation.js';
 import dialogManager from './components/dialogManager/dialogManager.js';
 import promptCards from './components/promptCards/promptCards.js';
+import fileBrowser from './components/fileBrowser/fileBrowser.js';
 
 // VSCode APIを安全に取得
 let vscode;
@@ -144,6 +145,11 @@ try {
     // 4. マークダウン表示の初期化を委譲
     markdownViewer.init();
     
+    // 5. ファイルブラウザの初期化
+    if (typeof fileBrowser.initialize === 'function') {
+      fileBrowser.initialize();
+    }
+    
     // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
     // 初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
     setTimeout(() => stateManager.restoreProjectState(), 100);
@@ -173,6 +179,18 @@ try {
       case 'showSuccess':
         showSuccess(message.message);
         break;
+      case 'updateFileList':
+        // ファイルブラウザコンポーネントに委譲
+        if (fileBrowser && typeof fileBrowser.updateFileList === 'function') {
+          fileBrowser.updateFileList(message.files);
+        }
+        break;
+      case 'updateFilePreview':
+        // ファイルブラウザのプレビュー更新
+        if (fileBrowser && typeof fileBrowser.updateFilePreview === 'function') {
+          fileBrowser.updateFilePreview(message.content, message.filePath);
+        }
+        break;
       case 'updateProjectPath':
         // 直接Custom Eventを発行
         const pathEvent = new CustomEvent('project-path-updated', {
@@ -188,6 +206,34 @@ try {
         document.dispatchEvent(event);
         break;
       case 'updateMarkdownContent':
+        // 現在アクティブなタブIDを確認
+        const activeTabId = stateManager.getState().activeTab;
+
+        // 進捗状況用のマークダウン更新は、そのタブがアクティブな場合のみ処理
+        if (message.forScopeProgress && activeTabId !== 'scope-progress') {
+          console.log('現在のタブがscope-progressではないため更新をスキップ', {
+            activeTab: activeTabId,
+            messageType: 'forScopeProgress'
+          });
+          return;
+        }
+
+        // 要件定義用のマークダウン更新は、そのタブがアクティブな場合のみ処理
+        if (message.forRequirements && activeTabId !== 'requirements') {
+          console.log('現在のタブがrequirementsではないため更新をスキップ', {
+            activeTab: activeTabId,
+            messageType: 'forRequirements'
+          });
+          return;
+        }
+
+        // 対象タブが指定されていない場合や、現在のタブと一致する場合は更新
+        console.log('マークダウン更新を実行', {
+          activeTab: activeTabId,
+          forRequirements: message.forRequirements,
+          forCurrentStatus: message.forCurrentStatus
+        });
+        
         // 直接markdownViewerに処理を委譲
         markdownViewer.updateContent(message.content);
         break;

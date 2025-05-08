@@ -37,7 +37,6 @@ exports.registerAuthCommands = registerAuthCommands;
 const vscode = __importStar(require("vscode"));
 const AuthenticationService_1 = require("./AuthenticationService");
 const SimpleAuthManager_1 = require("./SimpleAuthManager"); // 新しい認証マネージャーを追加
-const LoginWebviewPanel_1 = require("../../ui/auth/LoginWebviewPanel");
 const AuthStatusBar_1 = require("../../ui/auth/AuthStatusBar");
 const UsageIndicator_1 = require("../../ui/auth/UsageIndicator");
 const LogoutNotification_1 = require("../../ui/auth/LogoutNotification");
@@ -51,10 +50,8 @@ const LogoutNotification_1 = require("../../ui/auth/LogoutNotification");
  */
 function registerAuthCommands(context) {
     const authService = AuthenticationService_1.AuthenticationService.getInstance();
-    // 従来のログインコマンド
-    context.subscriptions.push(vscode.commands.registerCommand('appgenius.login', () => {
-        LoginWebviewPanel_1.LoginWebviewPanel.createOrShow(context.extensionUri);
-    }));
+    // 従来のログインコマンドは削除 - 新認証システムで登録済み
+    // ログインコマンドは AuthModule で登録されるため、ここでは登録しない
     // 従来のログアウトコマンド
     context.subscriptions.push(vscode.commands.registerCommand('appgenius.logout', async () => {
         const answer = await vscode.window.showWarningMessage('AppGeniusからログアウトしますか？', 'ログアウト', 'キャンセル');

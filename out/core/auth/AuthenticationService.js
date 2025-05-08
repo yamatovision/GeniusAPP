@@ -175,46 +175,37 @@ class AuthenticationService {
         }
     }
     /**
-     * ユーザーログイン
+     * ユーザーログイン - SimpleAuth APIを使用
      */
     async login(email, password) {
         try {
-            logger_1.Logger.info('ログイン処理を開始します');
-            // 環境変数から認証APIのエンドポイントを取得
+            logger_1.Logger.info('SimpleAuthログイン処理を開始します');
+            // 環境変数から認証APIのエンドポイントを取得 - SimpleAuthパスを使用
             const apiUrl = this._getAuthApiUrl();
-            const clientId = this._getClientId();
-            const clientSecret = this._getClientSecret();
-            if (!clientId || !clientSecret) {
-                this._setLastError({
-                    code: 'missing_credentials',
-                    message: 'クライアントID/シークレットが設定されていません'
-                });
-                return false;
-            }
-            // 認証APIを呼び出し
-            const response = await axios_1.default.post(`${apiUrl}/auth/login`, {
+            // SimpleAuth認証APIを呼び出し - /simple/auth/loginエンドポイントを使用
+            const response = await axios_1.default.post(`${apiUrl}/simple/auth/login`, {
                 email,
-                password,
-                clientId,
-                clientSecret
+                password
             }, {
                 timeout: 10000
             });
-            if (response.status === 200 && response.data.accessToken && response.data.refreshToken) {
-                // トークンの有効期限を取得
-                const expiresIn = response.data.expiresIn || 86400;
+            if (response.status === 200 && response.data.success && response.data.data.accessToken) {
+                // SimpleAuthレスポンスからデータを取得
+                const responseData = response.data.data;
+                // トークンの有効期限を取得 - 標準の1日を使用
+                const expiresIn = 86400;
                 // トークンを保存
-                await this._tokenManager.setAccessToken(response.data.accessToken, expiresIn);
-                await this._tokenManager.setRefreshToken(response.data.refreshToken);
+                await this._tokenManager.setAccessToken(responseData.accessToken, expiresIn);
+                await this._tokenManager.setRefreshToken(responseData.refreshToken);
                 // ユーザーデータを保存
-                await this._storageManager.setUserData(response.data.user);
+                await this._storageManager.setUserData(responseData.user);
                 // 認証状態を更新
                 const newState = AuthState_1.AuthStateBuilder.fromState(this._currentState)
                     .setAuthenticated(true)
-                    .setUserId(response.data.user.id)
-                    .setUsername(response.data.user.name)
-                    .setRole(this._mapUserRole(response.data.user.role))
-                    .setPermissions(response.data.user.permissions || [])
+                    .setUserId(responseData.user.id)
+                    .setUsername(responseData.user.name)
+                    .setRole(this._mapUserRole(responseData.user.role))
+                    .setPermissions(responseData.user.permissions || [])
                     .setExpiresAt(Math.floor(Date.now() / 1000) + expiresIn)
                     .build();
                 // 状態を更新し、イベントを発行
@@ -223,21 +214,25 @@ class AuthenticationService {
                 this._startAuthCheckInterval();
                 // ログイン成功イベントを発行
                 this._onLoginSuccess.fire();
-                logger_1.Logger.info(`ログインに成功しました: ${response.data.user.name}`);
+                logger_1.Logger.info(`SimpleAuthログインに成功しました: ${responseData.user.name}`);
                 return true;
             }
-            logger_1.Logger.warn('ログインに失敗しました: レスポンスが無効です');
+            logger_1.Logger.warn('SimpleAuthログインに失敗しました: レスポンスが無効です');
             return false;
         }
         catch (error) {
-            logger_1.Logger.error('ログイン中にエラーが発生しました', error);
+            logger_1.Logger.error('SimpleAuthログイン中にエラーが発生しました', error);
             // エラー情報を設定
             if (axios_1.default.isAxiosError(error)) {
                 const statusCode = error.response?.status;
                 let errorMessage = '認証に失敗しました';
                 let errorCode = 'login_failed';
+                // SimpleAuthのエラーメッセージを取得
+                if (error.response?.data?.message) {
+                    errorMessage = error.response.data.message;
+                }
                 // ステータスコードに応じたメッセージ
-                if (statusCode === 401) {
+                else if (statusCode === 401) {
                     errorMessage = 'メールアドレスまたはパスワードが正しくありません';
                     errorCode = 'invalid_credentials';
                 }
@@ -265,11 +260,12 @@ class AuthenticationService {
         }
     }
     /**
-     * ユーザーログアウト
+     * ユーザーログアウト - SimpleAuth APIを使用
      */
     async logout() {
         try {
-            // ログアウトイベントをサーバーに送信（省略可能）
+            logger_1.Logger.info('SimpleAuthログアウト処理を開始します');
+            // ログアウトイベントをサーバーに送信
             const refreshToken = await this._tokenManager.getRefreshToken();
             const apiUrl = this._getAuthApiUrl();
             if (refreshToken) {
@@ -278,17 +274,19 @@ class AuthenticationService {
                     const isValidToken = refreshToken.split('.').length === 3; // JWTの基本的な形式チェック
                     if (isValidToken) {
                         try {
-                            await axios_1.default.post(`${apiUrl}/auth/logout`, { refreshToken }, {
+                            // SimpleAuth ログアウトエンドポイントを使用
+                            await axios_1.default.post(`${apiUrl}/simple/auth/logout`, { refreshToken }, {
                                 timeout: 5000 // タイムアウトを5秒に設定
                             });
+                            logger_1.Logger.info('SimpleAuthサーバーへのログアウトリクエストが成功しました');
                         }
                         catch (error) {
                             // エラーをログに記録するだけで、ログアウト処理は続行
                             if (axios_1.default.isAxiosError(error) && error.response?.status === 400) {
-                                logger_1.Logger.warn('サーバーへのログアウトリクエストが拒否されました（既にログアウト済みの可能性があります）');
+                                logger_1.Logger.warn('SimpleAuthサーバーへのログアウトリクエストが拒否されました（既にログアウト済みの可能性があります）');
                             }
                             else {
-                                logger_1.Logger.warn('サーバーへのログアウトリクエスト送信中にエラーが発生しました', error);
+                                logger_1.Logger.warn('SimpleAuthサーバーへのログアウトリクエスト送信中にエラーが発生しました', error);
                             }
                         }
                     }
@@ -298,8 +296,11 @@ class AuthenticationService {
                 }
                 catch (error) {
                     // トークン形式チェックでエラーが発生した場合も、ログアウト処理は続行
-                    logger_1.Logger.warn('リフレッシュトークンの検証中にエラーが発生しました', error);
+                    logger_1.Logger.warn('SimpleAuthリフレッシュトークンの検証中にエラーが発生しました', error);
                 }
+            }
+            else {
+                logger_1.Logger.warn('リフレッシュトークンが見つからないため、サーバーへのログアウトリクエストをスキップします');
             }
             // 認証チェックインターバルを停止
             this._stopAuthCheckInterval();
@@ -310,59 +311,55 @@ class AuthenticationService {
             this._updateState(newState);
             // ログアウトイベントを発行
             this._onLogout.fire();
-            logger_1.Logger.info('ログアウトが完了しました');
+            logger_1.Logger.info('SimpleAuthログアウトが完了しました');
         }
         catch (error) {
-            logger_1.Logger.error('ログアウト中にエラーが発生しました', error);
+            logger_1.Logger.error('SimpleAuthログアウト中にエラーが発生しました', error);
             // 致命的なエラーが発生しても、トークンと認証状態のクリアを試みる
             try {
                 await this._tokenManager.clearTokens();
                 const newState = AuthState_1.AuthStateBuilder.guest().build();
                 this._updateState(newState);
                 this._onLogout.fire();
-                logger_1.Logger.info('エラー発生後、強制的にログアウト処理を完了しました');
+                logger_1.Logger.info('エラー発生後、強制的にSimpleAuthログアウト処理を完了しました');
             }
             catch (clearError) {
-                logger_1.Logger.error('強制ログアウト処理中にエラーが発生しました', clearError);
+                logger_1.Logger.error('強制SimpleAuthログアウト処理中にエラーが発生しました', clearError);
             }
         }
     }
     /**
-     * トークンのリフレッシュ
+     * トークンのリフレッシュ - SimpleAuth APIを使用
      * @param {boolean} silentOnError - エラー時に静かに失敗するかどうか
      * @param {number} retryCount - リトライ回数（最大3回まで）
      */
     async refreshToken(silentOnError = false, retryCount = 0) {
         try {
-            logger_1.Logger.info('トークンのリフレッシュを開始します');
+            logger_1.Logger.info('SimpleAuthトークンのリフレッシュを開始します');
             const refreshToken = await this._tokenManager.getRefreshToken();
             if (!refreshToken) {
                 logger_1.Logger.warn('リフレッシュトークンが見つかりません');
                 return false;
             }
             const apiUrl = this._getAuthApiUrl();
-            const clientId = this._getClientId();
-            const clientSecret = this._getClientSecret();
-            logger_1.Logger.debug(`認証情報確認: リフレッシュトークン長=${refreshToken.length}, クライアントID=${clientId}`);
-            // トークンリフレッシュAPIを呼び出し
-            const response = await axios_1.default.post(`${apiUrl}/auth/refresh-token`, {
-                refreshToken,
-                clientId,
-                clientSecret
+            logger_1.Logger.debug(`SimpleAuth認証情報確認: リフレッシュトークン長=${refreshToken.length}`);
+            // SimpleAuth トークンリフレッシュAPIを呼び出し
+            const response = await axios_1.default.post(`${apiUrl}/simple/auth/refresh-token`, {
+                refreshToken
             }, {
                 // タイムアウト設定を増やして信頼性を向上
                 timeout: 30000
             });
-            if (response.status === 200 && response.data.accessToken) {
-                // トークンの有効期限を取得 - バックエンドから提供されるようになった
-                const expiresIn = response.data.expiresIn || 86400;
+            if (response.status === 200 && response.data.success && response.data.data) {
+                // SimpleAuth APIからトークン情報を取得
+                const responseData = response.data.data;
+                // トークンの有効期限を取得 - 標準の1日を使用
+                const expiresIn = 86400;
                 // 新しいアクセストークンを保存
-                await this._tokenManager.setAccessToken(response.data.accessToken, expiresIn);
-                // リフレッシュトークンも更新される場合は保存（セキュリティのためローテーション）
-                if (response.data.refreshToken) {
-                    logger_1.Logger.info('新しいリフレッシュトークンを保存します');
-                    await this._tokenManager.setRefreshToken(response.data.refreshToken);
-                }
+                await this._tokenManager.setAccessToken(responseData.accessToken, expiresIn);
+                // 新しいリフレッシュトークンを保存
+                logger_1.Logger.info('新しいリフレッシュトークンを保存します');
+                await this._tokenManager.setRefreshToken(responseData.refreshToken);
                 // 有効期限を更新
                 const newState = AuthState_1.AuthStateBuilder.fromState(this._currentState)
                     .setExpiresAt(Math.floor(Date.now() / 1000) + expiresIn)
@@ -370,14 +367,14 @@ class AuthenticationService {
                 this._updateState(newState);
                 // トークンリフレッシュイベントを発行
                 this._onTokenRefreshed.fire();
-                logger_1.Logger.info(`トークンのリフレッシュに成功しました（有効期限: ${new Date((Math.floor(Date.now() / 1000) + expiresIn) * 1000).toLocaleString()}）`);
+                logger_1.Logger.info(`SimpleAuthトークンのリフレッシュに成功しました（有効期限: ${new Date((Math.floor(Date.now() / 1000) + expiresIn) * 1000).toLocaleString()}）`);
                 return true;
             }
-            logger_1.Logger.warn('トークンリフレッシュのレスポンスが無効です');
+            logger_1.Logger.warn('SimpleAuthトークンリフレッシュのレスポンスが無効です');
             return false;
         }
         catch (error) {
-            logger_1.Logger.error('トークンリフレッシュ中にエラーが発生しました', error);
+            logger_1.Logger.error('SimpleAuthトークンリフレッシュ中にエラーが発生しました', error);
             // ネットワークエラーの場合はリトライを試みる（最大5回まで - 増加）
             if (axios_1.default.isAxiosError(error) && !error.response && retryCount < 5) {
                 const retryDelayMs = 1000 * Math.pow(2, retryCount); // 指数バックオフ（1秒、2秒、4秒、8秒、16秒）
@@ -390,9 +387,7 @@ class AuthenticationService {
                 // エラーレスポンスの詳細を分析
                 const errorData = error.response.data;
                 // アカウント無効化エラーの検出
-                if (errorData?.error?.code === 'ACCOUNT_DISABLED' ||
-                    (errorData?.error?.message && errorData?.error?.message.includes('無効化')) ||
-                    errorData?.error?.requireRelogin === true) {
+                if (errorData?.message && errorData?.message.includes('無効')) {
                     logger_1.Logger.warn('アカウントが無効化されているか、永続的な認証エラーが発生しました');
                     logger_1.Logger.error('API Error Details:', errorData);
                     // ユーザーに明確な通知
@@ -441,10 +436,7 @@ class AuthenticationService {
                 // エラーレスポンスの詳細を分析
                 const errorData = error.response.data;
                 // サーバーエラーの原因がアカウント無効化の場合
-                if (errorData?.error?.code === 'ACCOUNT_DISABLED' ||
-                    (errorData?.error?.message && errorData?.error?.message.includes('無効化')) ||
-                    errorData?.error?.requireRelogin === true ||
-                    errorData?.error?.details === 'アカウントが無効化されています') {
+                if (errorData?.message && errorData?.message.includes('無効')) {
                     logger_1.Logger.warn('アカウントが無効化されています。ログアウトします');
                     logger_1.Logger.error('API Error Details:', errorData);
                     if (!silentOnError) {
@@ -539,81 +531,83 @@ class AuthenticationService {
         }, delayMs);
     }
     /**
-     * ユーザー情報を取得
+     * ユーザー情報を取得 - SimpleAuth APIを使用
      * @param retryCount リトライ回数
      */
     async _fetchUserInfo(retryCount = 0) {
         try {
-            logger_1.Logger.info('ユーザー情報の取得を開始します');
+            logger_1.Logger.info('SimpleAuth ユーザー情報の取得を開始します');
             const token = await this._tokenManager.getAccessToken();
             if (!token) {
                 logger_1.Logger.warn('アクセストークンが見つかりません');
                 return;
             }
             const apiUrl = this._getAuthApiUrl();
-            // ユーザー情報取得APIを呼び出し - 正しいパスを使用（/auth/users/me）
-            const response = await axios_1.default.get(`${apiUrl}/auth/users/me`, {
+            // SimpleAuth ユーザー情報取得APIを呼び出し - SimpleAuth の認証チェックエンドポイントを使用
+            const response = await axios_1.default.get(`${apiUrl}/simple/auth/check`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
                 // タイムアウト設定を追加
                 timeout: 10000
             });
-            if (response.status === 200 && response.data.user) {
+            if (response.status === 200 && response.data.success && response.data.data?.user) {
+                // SimpleAuth APIからのレスポンス形式でユーザーデータを取得
+                const userData = response.data.data.user;
                 // ユーザーデータを保存
-                await this._storageManager.setUserData(response.data.user);
+                await this._storageManager.setUserData(userData);
                 // 認証状態を更新
                 const newState = AuthState_1.AuthStateBuilder.fromState(this._currentState)
                     .setAuthenticated(true)
-                    .setUserId(response.data.user.id)
-                    .setUsername(response.data.user.name)
-                    .setRole(this._mapUserRole(response.data.user.role))
-                    .setPermissions(response.data.user.permissions || [])
+                    .setUserId(userData.id)
+                    .setUsername(userData.name)
+                    .setRole(this._mapUserRole(userData.role))
+                    .setPermissions(userData.permissions || [])
                     .build();
                 this._updateState(newState);
-                logger_1.Logger.info(`ユーザー情報を取得しました: ${response.data.user.name}`);
+                logger_1.Logger.info(`SimpleAuth ユーザー情報を取得しました: ${userData.name}`);
             }
             else {
-                logger_1.Logger.warn('ユーザー情報の取得に失敗しました: レスポンスが無効です');
+                logger_1.Logger.warn('SimpleAuth ユーザー情報の取得に失敗しました: レスポンスが無効です');
                 await this._tryFallbackAuthentication();
             }
         }
         catch (error) {
-            logger_1.Logger.error('ユーザー情報取得中にエラーが発生しました', error);
+            logger_1.Logger.error('SimpleAuth ユーザー情報取得中にエラーが発生しました', error);
             // トークンが無効な場合はリフレッシュを試みる
             if (axios_1.default.isAxiosError(error) && error.response?.status === 401) {
-                logger_1.Logger.info('アクセストークンが無効です。リフレッシュを試みます');
+                logger_1.Logger.info('SimpleAuth アクセストークンが無効です。リフレッシュを試みます');
                 const refreshed = await this.refreshToken(true); // 静かに失敗するように変更
                 if (refreshed) {
-                    logger_1.Logger.info('トークンリフレッシュに成功しました。ユーザー情報を再取得します');
+                    logger_1.Logger.info('SimpleAuth トークンリフレッシュに成功しました。ユーザー情報を再取得します');
                     await this._fetchUserInfo();
                 }
                 else {
-                    logger_1.Logger.warn('トークンリフレッシュに失敗しました。ローカルデータによるフォールバック認証を試みます');
+                    logger_1.Logger.warn('SimpleAuth トークンリフレッシュに失敗しました。ローカルデータによるフォールバック認証を試みます');
                     // ローカルデータによるフォールバック認証を試みる
                     const fallbackSuccess = await this._tryFallbackAuthentication();
                     if (!fallbackSuccess) {
-                        logger_1.Logger.warn('フォールバック認証に失敗しました。認証状態は未認証になります');
+                        logger_1.Logger.warn('SimpleAuth フォールバック認証に失敗しました。認証状態は未認証になります');
                     }
                 }
             }
             // サーバーエラーの場合、一定回数リトライ
             else if (axios_1.default.isAxiosError(error) && error.response?.status === 500 && retryCount < 3) {
-                logger_1.Logger.info(`サーバーエラーが発生しました。リトライします (${retryCount + 1}/3)`);
+                logger_1.Logger.info(`SimpleAuth サーバーエラーが発生しました。リトライします (${retryCount + 1}/3)`);
                 // 指数バックオフでリトライ（1秒、2秒、4秒）
                 await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
                 return this._fetchUserInfo(retryCount + 1);
             }
             // ネットワークエラーの場合も、リトライを試みる
             else if (axios_1.default.isAxiosError(error) && !error.response && retryCount < 3) {
-                logger_1.Logger.info(`ネットワークエラーが発生しました。リトライします (${retryCount + 1}/3)`);
+                logger_1.Logger.info(`SimpleAuth ネットワークエラーが発生しました。リトライします (${retryCount + 1}/3)`);
                 // 指数バックオフでリトライ（1秒、2秒、4秒）
                 await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)));
                 return this._fetchUserInfo(retryCount + 1);
             }
             // すべてのリトライが失敗、または他のエラーの場合はフォールバック認証を試みる
             else {
-                logger_1.Logger.info('サーバーとの通信に失敗しました。ローカルデータを使用して認証状態を維持します');
+                logger_1.Logger.info('SimpleAuth サーバーとの通信に失敗しました。ローカルデータを使用して認証状態を維持します');
                 await this._tryFallbackAuthentication();
             }
         }
@@ -776,24 +770,47 @@ class AuthenticationService {
     }
     /**
      * ユーザーロールのマッピング
-     * すべての可能なロール値に対応
+     * SimpleAuth のロール値を含むすべての可能なロール値に対応
      */
     _mapUserRole(roleStr) {
         if (!roleStr) {
             return roles_1.Role.GUEST;
         }
-        switch (roleStr) {
+        // ロールが文字列でない場合の対策
+        const role = String(roleStr).toLowerCase();
+        // ログ出力 (デバッグ用)
+        logger_1.Logger.debug(`ロールマッピング: 元の値="${roleStr}", 変換後="${role}"`);
+        switch (role) {
+            // 標準ロール
             case 'admin':
                 return roles_1.Role.ADMIN;
             case 'user':
                 return roles_1.Role.USER;
             case 'super_admin':
-                return roles_1.Role.SUPER_ADMIN; // super_adminを正しく扱う
-            // 他のロール値も適切に処理
+            case 'superadmin':
+                return roles_1.Role.SUPER_ADMIN;
+            // SimpleAuth 特有のロール (キャメルケースと大文字の両方に対応)
+            case 'superadmin':
+                return roles_1.Role.SUPER_ADMIN;
+            // その他のロール値も適切に処理
             case 'unpaid':
             case 'unsubscribed':
                 return roles_1.Role.USER; // 制限付きユーザーとして扱う
             default:
+                // 文字列に"admin"が含まれるならADMIN、"super"ならSUPER_ADMIN
+                if (role.includes('super') && role.includes('admin')) {
+                    logger_1.Logger.info(`"super"と"admin"を含むロール "${roleStr}" をSUPER_ADMINとして処理します`);
+                    return roles_1.Role.SUPER_ADMIN;
+                }
+                else if (role.includes('admin')) {
+                    logger_1.Logger.info(`"admin"を含むロール "${roleStr}" をADMINとして処理します`);
+                    return roles_1.Role.ADMIN;
+                }
+                else if (role.includes('user')) {
+                    logger_1.Logger.info(`"user"を含むロール "${roleStr}" をUSERとして処理します`);
+                    return roles_1.Role.USER;
+                }
+                logger_1.Logger.warn(`不明なロール「${roleStr}」をゲストとして処理します`);
                 return roles_1.Role.GUEST;
         }
     }
@@ -842,7 +859,7 @@ class AuthenticationService {
         return this.onStateChanged;
     }
     /**
-     * ユーザー情報を取得するAPI呼び出し
+     * ユーザー情報を取得するAPI呼び出し - SimpleAuth APIを使用
      */
     async getUserInfo() {
         try {
@@ -851,15 +868,20 @@ class AuthenticationService {
                 throw new Error('認証されていません');
             }
             const apiUrl = this._getAuthApiUrl();
-            const response = await axios_1.default.get(`${apiUrl}/auth/users/me`, {
+            const response = await axios_1.default.get(`${apiUrl}/simple/auth/check`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            return response.data.user;
+            if (response.status === 200 && response.data.success && response.data.data?.user) {
+                return response.data.data.user;
+            }
+            else {
+                throw new Error('ユーザー情報の取得に失敗しました: レスポンスが無効です');
+            }
         }
         catch (error) {
-            logger_1.Logger.error('ユーザー情報の取得に失敗しました', error);
+            logger_1.Logger.error('SimpleAuth ユーザー情報の取得に失敗しました', error);
             throw error;
         }
     }
@@ -965,42 +987,42 @@ class AuthenticationService {
         }
     }
     /**
-     * サーバーに対してトークンの有効性を確認
+     * SimpleAuth サーバーに対してトークンの有効性を確認
      * @returns トークンが有効な場合はtrue、それ以外はfalse
      */
     async _verifyTokenWithServer() {
         try {
             const token = await this._tokenManager.getAccessToken();
             if (!token) {
-                logger_1.Logger.warn('_verifyTokenWithServer: アクセストークンが見つかりません');
+                logger_1.Logger.warn('_verifyTokenWithServer: SimpleAuth アクセストークンが見つかりません');
                 return false;
             }
             const apiUrl = this._getAuthApiUrl();
-            logger_1.Logger.info(`トークン検証リクエスト実行: ${apiUrl}/auth/users/me`);
-            const response = await axios_1.default.get(`${apiUrl}/auth/users/me`, {
+            logger_1.Logger.info(`SimpleAuth トークン検証リクエスト実行: ${apiUrl}/simple/auth/check`);
+            const response = await axios_1.default.get(`${apiUrl}/simple/auth/check`, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 },
                 timeout: 10000 // タイムアウト設定を10秒に延長
             });
-            const isValid = response.status === 200 && !!response.data.user;
-            logger_1.Logger.info(`トークン検証結果: ${isValid ? '有効' : '無効'}, ステータス: ${response.status}, ユーザー情報: ${!!response.data.user}`);
+            const isValid = response.status === 200 && response.data.success && !!response.data.data?.user;
+            logger_1.Logger.info(`SimpleAuth トークン検証結果: ${isValid ? '有効' : '無効'}, ステータス: ${response.status}, ユーザー情報: ${!!response.data.data?.user}`);
             return isValid;
         }
         catch (error) {
             if (axios_1.default.isAxiosError(error)) {
                 if (error.response?.status === 401) {
-                    logger_1.Logger.warn('トークンが無効です（401）');
+                    logger_1.Logger.warn('SimpleAuth トークンが無効です（401）');
                 }
                 else if (error.response) {
-                    logger_1.Logger.error(`サーバー接続確認中にエラーが発生しました: HTTP ${error.response.status} - ${error.response.statusText}`, error);
+                    logger_1.Logger.error(`SimpleAuth サーバー接続確認中にエラーが発生しました: HTTP ${error.response.status} - ${error.response.statusText}`, error);
                 }
                 else {
-                    logger_1.Logger.error(`ネットワークエラーが発生しました: ${error.message}`, error);
+                    logger_1.Logger.error(`SimpleAuth ネットワークエラーが発生しました: ${error.message}`, error);
                 }
             }
             else {
-                logger_1.Logger.error(`サーバー接続確認中に予期しないエラーが発生しました: ${error.message}`, error);
+                logger_1.Logger.error(`SimpleAuth サーバー接続確認中に予期しないエラーが発生しました: ${error.message}`, error);
             }
             return false;
         }

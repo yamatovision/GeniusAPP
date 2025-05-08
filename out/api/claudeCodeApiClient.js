@@ -68,7 +68,7 @@ class ClaudeCodeApiClient {
         }
         this._errorHandler = ErrorHandler_1.ErrorHandler.getInstance();
         // API URLを環境変数から取得、またはデフォルト値を使用
-        this._baseUrl = process.env.PORTAL_API_URL || 'https://geniemon-portal-backend-production.up.railway.app/api';
+        this._baseUrl = process.env.PORTAL_API_URL || 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
         logger_1.Logger.info('ClaudeCodeApiClient initialized with baseUrl: ' + this._baseUrl);
     }
     /**
@@ -87,8 +87,8 @@ class ClaudeCodeApiClient {
         let authHeader = {};
         // SimpleAuthを使用している場合は直接ヘッダーを取得
         if (this._useSimpleAuth && this._simpleAuthService) {
-            // APIキーの有無を確認
-            const apiKey = this._simpleAuthService.getApiKey();
+            // APIキーの有無を確認 (非同期で取得)
+            const apiKey = await this._simpleAuthService.getApiKey();
             if (apiKey) {
                 // APIキーがある場合はAPIキーヘッダーを設定
                 authHeader = {
@@ -392,8 +392,9 @@ class ClaudeCodeApiClient {
                 }
                 // トークンを使用して公開APIからプロンプト情報を取得
                 // 認証不要のため、通常のaxiosインスタンスを使用
-                const baseUrl = new URL(url).origin + '/api';
-                logger_1.Logger.info(`【API連携】公開プロンプトの取得を開始: ${baseUrl}/prompts/public/${token}`);
+                // URLからベースURLを抽出せず、代わりにデフォルトのAPIエンドポイントを使用する
+                const baseUrl = this._baseUrl;
+                logger_1.Logger.info(`【API連携】公開プロンプトの取得を開始: ${baseUrl}/prompts/public/${token} (元URL: ${url})`);
                 const response = await axios_1.default.get(`${baseUrl}/prompts/public/${token}`);
                 if (response.status === 200 && response.data) {
                     logger_1.Logger.info('【API連携】公開プロンプトの取得が成功しました');
@@ -411,14 +412,52 @@ class ClaudeCodeApiClient {
     /**
      * API接続テスト
      * このメソッドは認証状態を確認し、APIサーバーとの接続性をテストします
+     * シンプル認証方式に対応
      * @returns テスト成功の場合はtrue、失敗の場合はfalse
      */
     async testApiConnection() {
         try {
+            logger_1.Logger.info('【API連携】API接続テストを開始');
+            // SimpleAuthを使用している場合は、認証状態とアクセストークンを両方チェック
+            if (this._useSimpleAuth && this._simpleAuthService) {
+                logger_1.Logger.info('【API連携】シンプル認証を使用してAPI接続テスト');
+                // SimpleAuthServiceの認証状態を直接確認
+                const isAuthenticated = this._simpleAuthService.isAuthenticated();
+                // アクセストークンの有効性も確認
+                const accessToken = this._simpleAuthService.getAccessToken();
+                // 詳細なデバッグ情報を出力
+                logger_1.Logger.debug(`【API連携】SimpleAuthService認証状態: ${isAuthenticated}, トークン存在: ${!!accessToken}`);
+                if (accessToken) {
+                    logger_1.Logger.debug(`【API連携】トークンプレビュー: ${accessToken.substring(0, 10)}...${accessToken.substring(accessToken.length - 5)}`);
+                }
+                // 詳細な認証状態を出力（デバッグ用）
+                try {
+                    // 現在の認証状態の詳細を出力
+                    const currentState = this._simpleAuthService.getCurrentState();
+                    logger_1.Logger.debug(`【API連携】現在の認証状態詳細: isAuthenticated=${currentState.isAuthenticated}, userName=${currentState.username || 'なし'}, userId=${currentState.userId || 'なし'}, role=${currentState.role}`);
+                    // API BASE URLを出力
+                    logger_1.Logger.debug(`【API連携】APIベースURL検証: ${this._baseUrl}`);
+                }
+                catch (debugError) {
+                    logger_1.Logger.error('【API連携】デバッグ情報取得エラー:', debugError);
+                }
+                // 認証状態とアクセストークンの両方が有効な場合に成功とみなす
+                if (isAuthenticated && accessToken) {
+                    logger_1.Logger.info('【API連携】シンプル認証状態とトークンは有効です。API接続テストに成功したとみなします');
+                    return true;
+                }
+                else {
+                    logger_1.Logger.warn('【API連携】シンプル認証状態またはトークンが無効です');
+                    return false;
+                }
+            }
+            // レガシー認証の場合は従来のエンドポイントを使用
+            logger_1.Logger.info('【API連携】レガシー認証を使用してAPI接続テスト');
             // 認証ヘッダーを取得
             const config = await this._getApiConfig();
             // 認証ヘッダーの存在を確認
-            const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
+            const headers = config?.headers;
+            const hasAuthHeader = headers && (headers['Authorization'] || headers['authorization'] || headers['x-api-key']);
             if (!hasAuthHeader) {
                 logger_1.Logger.warn('【API連携】認証ヘッダーが不足しています');
                 return false;
@@ -460,204 +499,78 @@ class ClaudeCodeApiClient {
      * @param tokenCount 使用されたトークン数
      * @param modelId モデルID (例: "claude-3-opus-20240229")
      * @param context 使用コンテキスト (オプション)
-     * @returns 記録が成功したかどうか
+     * @returns 常にtrueを返す（使用履歴記録機能は削除済み）
+     * @deprecated 使用量記録機能は削除されました。互換性のために空の実装を維持しています。
      */
     async recordTokenUsage(tokenCount, modelId, context) {
+        // トークン使用量記録機能は削除されました
+        // 互換性のために常にtrueを返すだけのメソッドとして維持しています
+        logger_1.Logger.debug(`【API連携】トークン使用履歴記録は無効化されています (${modelId}, ${context || 'no-context'})`);
+        return true;
+    }
+    /**
+     * ClaudeCode起動カウンターをインクリメント
+     * @param userId ユーザーID
+     */
+    async incrementClaudeCodeLaunchCount(userId) {
         try {
-            // 認証状態の事前確認
-            let isAuthenticated = false;
-            // SimpleAuthを使用している場合
-            if (this._useSimpleAuth && this._simpleAuthService) {
-                isAuthenticated = this._simpleAuthService.isAuthenticated();
-                logger_1.Logger.debug('【API連携】SimpleAuthService認証状態: ' + isAuthenticated);
-            }
-            // レガシー認証の場合
-            else if (this._legacyAuthService) {
-                isAuthenticated = await this._legacyAuthService.isAuthenticated();
-                logger_1.Logger.debug('【API連携】レガシー認証状態: ' + isAuthenticated);
-            }
-            if (!isAuthenticated) {
-                logger_1.Logger.warn('【API連携】認証されていません。トークン使用履歴の記録をスキップします');
-                return false;
-            }
-            // 401エラーの場合は、即座にトークンリフレッシュを実行
-            let hasRefreshedToken = false;
-            return await this._retryWithExponentialBackoff(async () => {
-                try {
-                    // トークンリフレッシュが試行済みでない場合、先にリフレッシュを試みる
-                    // これにより401エラーを事前に防止
-                    if (!hasRefreshedToken) {
-                        try {
-                            logger_1.Logger.info(`【API連携】事前にトークンリフレッシュを試みます (トークン使用履歴記録の前に)`);
-                            let refreshed = false;
-                            // SimpleAuthを使用している場合
-                            if (this._useSimpleAuth && this._simpleAuthService) {
-                                const verified = await this._simpleAuthService.verifyAuthState();
-                                refreshed = verified;
-                                logger_1.Logger.info(`【API連携】SimpleAuthService検証結果: ${verified}`);
-                            }
-                            // レガシー認証の場合
-                            else if (this._legacyAuthService) {
-                                refreshed = await this._legacyAuthService.refreshToken();
-                                logger_1.Logger.info(`【API連携】レガシー認証リフレッシュ結果: ${refreshed}`);
-                            }
-                            if (refreshed) {
-                                logger_1.Logger.info('【API連携】トークンのリフレッシュに成功しました');
-                                hasRefreshedToken = true;
-                            }
-                            else {
-                                logger_1.Logger.warn('【API連携】トークンのリフレッシュに失敗しました。既存のトークンを使用します');
-                            }
-                        }
-                        catch (refreshError) {
-                            logger_1.Logger.warn('【API連携】トークンのリフレッシュ中にエラーが発生しました', refreshError);
-                        }
-                    }
-                    // リフレッシュ後に認証ヘッダーを取得
-                    const config = await this._getApiConfig();
-                    // API呼び出し前にログ
-                    logger_1.Logger.info(`【API連携】トークン使用履歴の記録を開始: ${tokenCount}トークン, モデル: ${modelId}`);
-                    // デバッグ情報として認証ヘッダーの存在を確認（トークン自体は表示しない）
-                    const hasAuthHeader = config && config.headers && (config.headers.Authorization || config.headers.authorization);
-                    if (!hasAuthHeader) {
-                        logger_1.Logger.warn('【API連携】認証ヘッダーが不足しています');
-                        // 認証ヘッダーがない場合は処理を続行しない
-                        return false;
-                    }
-                    else {
-                        logger_1.Logger.debug('【API連携】認証ヘッダーが設定されています');
-                    }
-                    // 主要APIエンドポイント - proxy/usageを使用
-                    const primaryEndpoint = `${this._baseUrl}/proxy/usage/record`;
-                    try {
-                        // 主要エンドポイントで記録を試みる
-                        const response = await axios_1.default.post(primaryEndpoint, {
-                            tokenCount,
-                            modelId,
-                            context: context || 'vscode-extension'
-                        }, {
-                            ...config,
-                            timeout: 20000 // 20秒タイムアウト（増加）
-                        });
-                        logger_1.Logger.info(`【API連携】トークン使用履歴の記録に成功しました: ステータス ${response.status}`);
-                        return response.status === 201 || response.status === 200;
-                    }
-                    catch (error) {
-                        // 主要エンドポイントが404の場合、フォールバックエンドポイントを試す
-                        if (axios_1.default.isAxiosError(error) && error.response?.status === 404) {
-                            logger_1.Logger.warn('【API連携】主要エンドポイントが見つかりません。フォールバックエンドポイントを試みます');
-                            // フォールバックエンドポイント - 既存のusage/meエンドポイントと同じパスを使用
-                            const fallbackEndpoint = `${this._baseUrl}/proxy/usage/me/record`;
-                            try {
-                                const fallbackResponse = await axios_1.default.post(fallbackEndpoint, {
-                                    tokenCount,
-                                    modelId,
-                                    context: context || 'vscode-extension'
-                                }, {
-                                    ...config,
-                                    timeout: 20000
-                                });
-                                logger_1.Logger.info(`【API連携】フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${fallbackResponse.status}`);
-                                return fallbackResponse.status === 201 || fallbackResponse.status === 200;
-                            }
-                            catch (fallbackError) {
-                                // フォールバックも失敗した場合、デバッグのために詳細なエラーログを記録
-                                if (axios_1.default.isAxiosError(fallbackError)) {
-                                    logger_1.Logger.error(`【API連携】フォールバックエンドポイントでの記録に失敗: ${fallbackError.response?.status || 'ネットワークエラー'}`, fallbackError);
-                                    // 最終フォールバックとして /api/proxy/claude/chat と同じパスベースを試す
-                                    const lastResortEndpoint = `${this._baseUrl}/proxy/claude/usage`;
-                                    try {
-                                        const lastResortResponse = await axios_1.default.post(lastResortEndpoint, {
-                                            tokenCount,
-                                            modelId,
-                                            context: context || 'vscode-extension'
-                                        }, {
-                                            ...config,
-                                            timeout: 15000
-                                        });
-                                        logger_1.Logger.info(`【API連携】最終フォールバックエンドポイントでトークン使用履歴の記録に成功しました: ステータス ${lastResortResponse.status}`);
-                                        return lastResortResponse.status === 201 || lastResortResponse.status === 200;
-                                    }
-                                    catch (lastError) {
-                                        // 全てのエンドポイントが失敗した場合
-                                        logger_1.Logger.warn('【API連携】全てのエンドポイントが失敗しました。使用履歴記録はスキップします');
-                                        if (axios_1.default.isAxiosError(lastError) && lastError.response) {
-                                            logger_1.Logger.error('【API連携】最終エンドポイントでのエラー詳細:', lastError.response.data);
-                                            logger_1.Logger.error(`【API連携】HTTP状態コード: ${lastError.response.status}`);
-                                        }
-                                        return false;
-                                    }
-                                }
-                                throw fallbackError;
-                            }
-                        }
-                        // 認証エラーの特別処理
-                        if (axios_1.default.isAxiosError(error) && error.response?.status === 401) {
-                            logger_1.Logger.warn('【API連携】認証エラーが発生しました。トークンのリフレッシュを試みます');
-                            if (!hasRefreshedToken) {
-                                let refreshed = false;
-                                // SimpleAuthを使用している場合
-                                if (this._useSimpleAuth && this._simpleAuthService) {
-                                    const verified = await this._simpleAuthService.verifyAuthState();
-                                    refreshed = verified;
-                                    logger_1.Logger.info(`【API連携】SimpleAuthService検証結果: ${verified}`);
-                                }
-                                // レガシー認証の場合
-                                else if (this._legacyAuthService) {
-                                    refreshed = await this._legacyAuthService.refreshToken(true); // 静かに失敗する
-                                    logger_1.Logger.info(`【API連携】レガシー認証リフレッシュ結果: ${refreshed}`);
-                                }
-                                hasRefreshedToken = true;
-                                if (!refreshed) {
-                                    logger_1.Logger.error('【API連携】トークンのリフレッシュに失敗しました。トークン使用履歴の記録をスキップします');
-                                    return false; // リフレッシュに失敗した場合は記録をスキップ
-                                }
-                                else {
-                                    logger_1.Logger.info('【API連携】トークンのリフレッシュに成功しました。再試行します');
-                                    throw error; // リトライさせるためにエラーを再スロー 
-                                }
-                            }
-                            else {
-                                // すでにリフレッシュを試みた場合
-                                logger_1.Logger.error('【API連携】トークンは既にリフレッシュされましたが、認証は依然として失敗しています');
-                                // エラーレスポンスの詳細をログに記録
-                                if (error.response?.data) {
-                                    logger_1.Logger.error('【API連携】認証エラーの詳細:', error.response.data);
-                                }
-                                return false; // 再試行を停止
-                            }
-                        }
-                        // その他のエラーは再スロー
-                        throw error;
-                    }
+            logger_1.Logger.info(`【API連携】ClaudeCode起動カウンターを更新します: ユーザーID ${userId}`);
+            logger_1.Logger.info(`【デバッグ】API呼び出し準備: ユーザーID=${userId}, APIベースURL=${this._baseUrl}`);
+            // API設定を取得して詳細をログに出力
+            const config = await this._getApiConfig();
+            const hasAuthHeader = config?.headers && (config.headers['Authorization'] || config.headers['authorization'] || config.headers['x-api-key']);
+            logger_1.Logger.info(`【デバッグ】API認証ヘッダー: ${hasAuthHeader ? '存在します' : '存在しません'}`);
+            if (hasAuthHeader && config.headers) {
+                // ヘッダーの種類と先頭部分を出力（セキュリティのため全体は出力しない）
+                if (config.headers['Authorization']) {
+                    logger_1.Logger.info(`【デバッグ】Authorization ヘッダー: ${config.headers['Authorization'].substring(0, 15)}...`);
                 }
-                catch (error) {
-                    // 詳細なエラーログを追加
-                    if (axios_1.default.isAxiosError(error)) {
-                        logger_1.Logger.error(`【API連携】APIエラー: ${error.message}`, error);
-                        if (error.response) {
-                            logger_1.Logger.error(`【API連携】ステータスコード: ${error.response.status}`);
-                            logger_1.Logger.error('【API連携】レスポンス:', error.response.data);
-                        }
-                        if (error.request) {
-                            logger_1.Logger.error('【API連携】リクエスト情報あり、レスポンスなし (タイムアウトの可能性)');
-                        }
-                    }
-                    else {
-                        logger_1.Logger.error(`【API連携】非Axiosエラー: ${error.message}`);
-                    }
-                    throw error;
+                else if (config.headers['authorization']) {
+                    logger_1.Logger.info(`【デバッグ】authorization ヘッダー: ${config.headers['authorization'].substring(0, 15)}...`);
                 }
-            }, 5, [401, 429, 500, 502, 503, 504], 'トークン使用履歴記録'); // リトライ回数を増やし、401もリトライ対象に
+                else if (config.headers['x-api-key']) {
+                    logger_1.Logger.info(`【デバッグ】x-api-key ヘッダー: ${config.headers['x-api-key'].substring(0, 10)}...`);
+                }
+            }
+            // APIエンドポイントURL
+            const url = `${this._baseUrl}/simple/users/${userId}/increment-claude-code-launch`;
+            logger_1.Logger.info(`【デバッグ】API呼び出しURL: ${url}`);
+            // APIリクエスト送信
+            logger_1.Logger.info(`【デバッグ】API呼び出し開始: POST ${url}`);
+            const response = await axios_1.default.post(url, {}, config);
+            // レスポンス分析
+            logger_1.Logger.info(`【デバッグ】API呼び出しステータス: ${response.status} ${response.statusText}`);
+            logger_1.Logger.info(`【デバッグ】APIレスポンス: ${JSON.stringify(response.data)}`);
+            if (response.status === 200) {
+                // 詳細なレスポンス情報をログ出力
+                const newCount = response.data?.data?.claudeCodeLaunchCount || 'N/A';
+                const isSuccess = response.data?.success === true;
+                logger_1.Logger.info(`【API連携】ClaudeCode起動カウンター更新成功: 新しい値=${newCount}, 成功フラグ=${isSuccess}`);
+                return response.data;
+            }
+            logger_1.Logger.warn(`【API連携】ClaudeCode起動カウンター更新：予期しないレスポンス (${response.status})`);
+            return null;
         }
         catch (error) {
-            // エラーの詳細をログに記録（ユーザーには通知しない）
-            logger_1.Logger.error('【API連携】トークン使用履歴の記録に失敗しました', error);
-            // 使用履歴記録の失敗はユーザー体験に影響しないため、エラーメッセージは表示せず
-            // ただしエラーはログに残す
-            // 必要に応じて認証情報を修復するための処理を提案
-            logger_1.Logger.info('【API連携】認証情報の再同期を実行することで問題が解決する可能性があります。次回起動時に実行されます。');
-            return false;
+            logger_1.Logger.error('【API連携】ClaudeCode起動カウンター更新エラー:', error);
+            // エラーの詳細を分析
+            if (axios_1.default.isAxiosError(error)) {
+                if (error.response) {
+                    logger_1.Logger.error(`【デバッグ】APIエラー: ステータス=${error.response.status}, データ=${JSON.stringify(error.response.data)}`);
+                }
+                else if (error.request) {
+                    logger_1.Logger.error(`【デバッグ】APIエラー: リクエストは送信されましたがレスポンスがありません`);
+                }
+                else {
+                    logger_1.Logger.error(`【デバッグ】APIエラー: リクエスト設定中にエラーが発生しました: ${error.message}`);
+                }
+                // URL情報
+                if (error.config?.url) {
+                    logger_1.Logger.error(`【デバッグ】APIエラー: URL=${error.config.url}`);
+                }
+            }
+            this._handleApiError(error);
+            return null;
         }
     }
 }

@@ -60,19 +60,47 @@ class ClaudeCodeIntegrationService {
         // 設定パラメータ
         this.SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5分
         this.PROMPT_SYNC_FILE = 'prompt-sync.json';
-        this._authSync = ClaudeCodeAuthSync_1.ClaudeCodeAuthSync.getInstance();
-        this._launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
-        this._proxyManager = ProxyManager_1.ProxyManager.getInstance();
-        this._apiClient = claudeCodeApiClient_1.ClaudeCodeApiClient.getInstance();
-        this._authService = AuthenticationService_1.AuthenticationService.getInstance();
-        this._eventBus = AppGeniusEventBus_1.AppGeniusEventBus.getInstance();
-        this._initialize();
+        try {
+            // extentionContextの参照を確保
+            const context = global.extensionContext;
+            if (context) {
+                this._authSync = ClaudeCodeAuthSync_1.ClaudeCodeAuthSync.getInstance(context);
+            }
+            else {
+                // コンテキストがない場合はログと警告
+                logger_1.Logger.warn('ExtensionContextが見つかりません。ClaudeCodeAuthSyncは後で初期化されます。');
+                this._authSync = null; // 後で適切に初期化
+            }
+            this._launcher = ClaudeCodeLauncherService_1.ClaudeCodeLauncherService.getInstance();
+            this._proxyManager = ProxyManager_1.ProxyManager.getInstance();
+            this._apiClient = claudeCodeApiClient_1.ClaudeCodeApiClient.getInstance();
+            this._authService = AuthenticationService_1.AuthenticationService.getInstance();
+            this._eventBus = AppGeniusEventBus_1.AppGeniusEventBus.getInstance();
+            this._initialize();
+        }
+        catch (error) {
+            logger_1.Logger.error('ClaudeCodeIntegrationServiceの初期化中にエラーが発生しました', error);
+        }
     }
     /**
      * シングルトンインスタンスを取得
      */
     static getInstance() {
         if (!ClaudeCodeIntegrationService.instance) {
+            // インスタンス生成前にClaudeCodeAuthSyncの初期化を試行
+            try {
+                const context = global.extensionContext || global.__extensionContext;
+                if (context) {
+                    // ClaudeCodeAuthSyncを先に初期化
+                    const { ClaudeCodeAuthSync } = require('./ClaudeCodeAuthSync');
+                    ClaudeCodeAuthSync.getInstance(context);
+                    logger_1.Logger.info('ClaudeCodeIntegrationService: ClaudeCodeAuthSyncを初期化しました');
+                }
+            }
+            catch (error) {
+                logger_1.Logger.warn('ClaudeCodeAuthSyncの事前初期化に失敗しました', error);
+                // エラーでも続行（コンストラクタでも初期化を試みる）
+            }
             ClaudeCodeIntegrationService.instance = new ClaudeCodeIntegrationService();
         }
         return ClaudeCodeIntegrationService.instance;
@@ -354,8 +382,15 @@ class ClaudeCodeIntegrationService {
             }
             // 使用履歴を記録
             await this._apiClient.recordPromptUsage(promptId, prompt.currentVersion || prompt.versionId, 'vscode-extension');
-            // ClaudeCodeを起動
-            return await this._launcher.launchClaudeCodeWithPrompt(projectPath, promptFilePath, { title: `ClaudeCode - ${prompt.title}` });
+            // プロンプトタイプとタイトルを組み合わせたターミナルタイトルを生成
+            const terminalTitle = prompt.type
+                ? `${prompt.type} - ${prompt.title}`
+                : `ClaudeCode - ${prompt.title}`;
+            // ClaudeCodeを起動（プロンプトタイプも渡す）
+            return await this._launcher.launchClaudeCodeWithPrompt(projectPath, promptFilePath, {
+                title: terminalTitle,
+                promptType: prompt.type || undefined
+            });
         }
         catch (error) {
             logger_1.Logger.error('プロンプト指定のClaudeCode起動に失敗しました', error);
@@ -410,11 +445,11 @@ class ClaudeCodeIntegrationService {
      * @param promptUrl 公開プロンプトURL
      * @param projectPath プロジェクトパス
      * @param additionalContent 追加コンテンツ（オプション）
-     * @param splitView 分割表示を使用するかどうか（オプション）
+     * @param splitTerminal ターミナル分割表示を使用するかどうか（オプション）
      * @param location ターミナルの表示位置（オプション）
      * @returns 起動成功したかどうか
      */
-    async launchWithPublicUrl(promptUrl, projectPath, additionalContent, splitView, location) {
+    async launchWithPublicUrl(promptUrl, projectPath, additionalContent, splitTerminal, location) {
         try {
             // URLからプロンプト情報を取得
             const prompt = await this._apiClient.getPromptFromPublicUrl(promptUrl);
@@ -544,6 +579,92 @@ class ClaudeCodeIntegrationService {
         catch (error) {
             logger_1.Logger.error('複合プロンプトでのClaudeCode起動に失敗しました', error);
             vscode.window.showErrorMessage(`AIアシスタントの起動に失敗しました: ${error.message}`);
+            return false;
+        }
+    }
+    /**
+     * ローカルファイルを使用してClaudeCodeを起動
+     * @param promptFilePath ローカルプロンプトファイルのパス
+     * @param projectPath プロジェクトパス
+     * @param additionalContent 追加コンテンツ（オプション）
+     * @param splitView 分割表示を使用するかどうか（オプション）
+     * @param options その他のオプション（タイトルなど）
+     * @returns 起動成功したかどうか
+     */
+    async launchWithFile(promptFilePath, projectPath, additionalContent, splitView, options) {
+        try {
+            logger_1.Logger.info(`ローカルファイルでClaudeCodeを起動: ${promptFilePath}`);
+            // プロンプトファイルが存在するか確認
+            if (!fs.existsSync(promptFilePath)) {
+                throw new Error(`プロンプトファイルが見つかりません: ${promptFilePath}`);
+            }
+            // プロンプト内容を読み込む
+            let content = fs.readFileSync(promptFilePath, 'utf8');
+            // 追加コンテンツがあれば追加
+            if (additionalContent) {
+                content += '\n\n---\n\n';
+                content += additionalContent;
+            }
+            // 一時ファイルを作成
+            const tempDir = path.join(projectPath, '.appgenius_temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+            // ランダムな文字列を生成
+            const randomStr = Math.random().toString(36).substring(2, 15);
+            const tempFileName = `.vq${randomStr}`;
+            const tempFilePath = path.join(tempDir, tempFileName);
+            // 一時ファイルに書き込み
+            fs.writeFileSync(tempFilePath, content, 'utf8');
+            logger_1.Logger.info(`セキュアな一時ファイルを作成しました: ${tempFilePath}`);
+            // ClaudeCodeを起動
+            return await this._launcher.launchClaudeCodeWithPrompt(projectPath, tempFilePath, {
+                title: options?.title || 'ClaudeCode',
+                deletePromptFile: options?.deletePromptFile || true,
+                splitView: splitView,
+                location: options?.location
+            });
+        }
+        catch (error) {
+            logger_1.Logger.error('ローカルファイルでのClaudeCode起動に失敗しました', error);
+            vscode.window.showErrorMessage(`ローカルファイルでのClaudeCode起動に失敗しました: ${error.message}`);
+            return false;
+        }
+    }
+    /**
+     * 直接プロンプト内容を使用してClaudeCodeを起動
+     * @param promptContent プロンプト内容
+     * @param projectPath プロジェクトパス
+     * @param splitView 分割表示を使用するかどうか（オプション）
+     * @param options その他のオプション（タイトルなど）
+     * @returns 起動成功したかどうか
+     */
+    async launchWithDirectPrompt(promptContent, projectPath, splitView, options) {
+        try {
+            logger_1.Logger.info(`ダイレクトプロンプトでClaudeCodeを起動`);
+            // 一時ファイルを作成
+            const tempDir = path.join(projectPath, '.appgenius_temp');
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+            // ランダムな文字列を生成
+            const randomStr = Math.random().toString(36).substring(2, 15);
+            const tempFileName = `.vq${randomStr}`;
+            const tempFilePath = path.join(tempDir, tempFileName);
+            // 一時ファイルに書き込み
+            fs.writeFileSync(tempFilePath, promptContent, 'utf8');
+            logger_1.Logger.info(`セキュアな一時ファイルを作成しました: ${tempFilePath}`);
+            // ClaudeCodeを起動
+            return await this._launcher.launchClaudeCodeWithPrompt(projectPath, tempFilePath, {
+                title: options?.title || 'ClaudeCode',
+                deletePromptFile: options?.deletePromptFile || true,
+                splitView: splitView,
+                location: options?.location
+            });
+        }
+        catch (error) {
+            logger_1.Logger.error('ダイレクトプロンプトでのClaudeCode起動に失敗しました', error);
+            vscode.window.showErrorMessage(`ダイレクトプロンプトでのClaudeCode起動に失敗しました: ${error.message}`);
             return false;
         }
     }

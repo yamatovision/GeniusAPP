@@ -131,7 +131,8 @@ class SecurityAuditor {
         }
         catch (error) {
             const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditAuthentication');
-            logger_1.Logger.error('認証セキュリティ監査中にエラーが発生しました', appError);
+            const errorObj = new Error(appError.message);
+            logger_1.Logger.error('認証セキュリティ監査中にエラーが発生しました', errorObj);
             // エラー発生時も部分的な結果を返す
             this._processResults(results);
             return results;
@@ -160,7 +161,8 @@ class SecurityAuditor {
         }
         catch (error) {
             const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditApiSecurity');
-            logger_1.Logger.error('API通信セキュリティ監査中にエラーが発生しました', appError);
+            const apiErrorObj = new Error(appError.message);
+            logger_1.Logger.error('API通信セキュリティ監査中にエラーが発生しました', apiErrorObj);
             // エラー発生時も部分的な結果を返す
             this._processResults(results);
             return results;
@@ -187,7 +189,8 @@ class SecurityAuditor {
         }
         catch (error) {
             const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditFrontendSecurity');
-            logger_1.Logger.error('フロントエンドセキュリティ監査中にエラーが発生しました', appError);
+            const frontendErrorObj = new Error(appError.message);
+            logger_1.Logger.error('フロントエンドセキュリティ監査中にエラーが発生しました', frontendErrorObj);
             // エラー発生時も部分的な結果を返す
             this._processResults(results);
             return results;
@@ -221,7 +224,8 @@ class SecurityAuditor {
         }
         catch (error) {
             const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditAll');
-            logger_1.Logger.error('セキュリティ監査中にエラーが発生しました', appError);
+            const securityErrorObj = new Error(appError.message);
+            logger_1.Logger.error('セキュリティ監査中にエラーが発生しました', securityErrorObj);
             return [];
         }
     }
@@ -826,7 +830,7 @@ class SecurityAuditor {
                     }
                 }
                 if (!webviewFound) {
-                    status = 'info';
+                    status = 'warning';
                     message = 'WebViewが使用されていないため、XSS対策は該当しません';
                 }
                 else if (!contentSecurityFound) {
@@ -854,7 +858,7 @@ class SecurityAuditor {
             status,
             message,
             details,
-            recommendations: (status !== 'pass' && status !== 'info') ? [
+            recommendations: (status !== 'pass') ? [
                 'WebViewでContent Security Policyを設定する',
                 'ユーザー入力をエスケープして表示する',
                 'localResourceRootsを適切に設定してリソースアクセスを制限する'
@@ -882,13 +886,13 @@ class SecurityAuditor {
                         !authServiceCode.includes('xsrf') &&
                         !authServiceCode.includes('XSRF')) {
                         // VS Code拡張では一般的なWebページと異なりCSRFのリスクは低いため、警告ではなく情報として表示
-                        status = 'info';
+                        status = 'warning';
                         message = 'CSRFトークンは見つかりませんが、VS Code拡張ではCSRFリスクは限定的です';
                         details = 'VS Code WebViewは一般的なWebページとは異なり、CSRFのリスクが低いため、トークンが見つからなくても問題ない場合があります。';
                     }
                 }
                 else {
-                    status = 'info';
+                    status = 'warning';
                     message = 'AuthenticationService.tsが見つからないため、CSRF対策は評価できません';
                 }
             }
@@ -911,7 +915,7 @@ class SecurityAuditor {
             status,
             message,
             details,
-            recommendations: (status !== 'pass' && status !== 'info') ? [
+            recommendations: (status !== 'pass') ? [
                 '状態変更を伴うリクエストにCSRFトークンを使用する',
                 'カスタムHTTPヘッダーを使用して制御する',
                 'SameSite Cookieポリシーを実装する'

@@ -50,19 +50,21 @@ var AppGeniusEventType;
     AppGeniusEventType["PROJECT_CREATED"] = "project-created";
     AppGeniusEventType["PROJECT_SELECTED"] = "project-selected";
     AppGeniusEventType["PROJECT_DELETED"] = "project-deleted";
+    AppGeniusEventType["PROJECT_REMOVED"] = "project-removed";
     AppGeniusEventType["PROJECT_UPDATED"] = "project-updated";
     AppGeniusEventType["PROJECT_PATH_UPDATED"] = "project-path-updated";
     AppGeniusEventType["PHASE_COMPLETED"] = "phase-completed";
     // 環境変数関連イベント
     AppGeniusEventType["ENV_VARIABLES_UPDATED"] = "env-variables-updated";
     AppGeniusEventType["ENV_FILE_CREATED"] = "env-file-created";
-    AppGeniusEventType["CURRENT_STATUS_UPDATED"] = "current-status-updated";
+    AppGeniusEventType["SCOPE_PROGRESS_UPDATED"] = "scope-progress-updated";
     // ClaudeCode関連イベント
     AppGeniusEventType["CLAUDE_CODE_STARTED"] = "claude-code-started";
     AppGeniusEventType["CLAUDE_CODE_PROGRESS"] = "claude-code-progress";
     AppGeniusEventType["CLAUDE_CODE_COMPLETED"] = "claude-code-completed";
     AppGeniusEventType["CLAUDE_CODE_ERROR"] = "claude-code-error";
     AppGeniusEventType["CLAUDE_CODE_STOPPED"] = "claude-code-stopped";
+    AppGeniusEventType["CLAUDE_CODE_LAUNCH_COUNTED"] = "claude-code-launch-counted";
 })(AppGeniusEventType || (exports.AppGeniusEventType = AppGeniusEventType = {}));
 /**
  * AppGenius イベントバス

@@ -49,6 +49,9 @@ class SimpleAuthManager {
      */
     constructor(context) {
         this._disposables = [];
+        // トークン検証のスロットリング用
+        this._lastVerificationTime = 0;
+        this._VERIFICATION_THROTTLE_MS = 5000; // 5秒以内の再検証を防止
         this._authService = SimpleAuthService_1.SimpleAuthService.getInstance(context);
         // ステータスバーアイテム作成
         this._statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -116,8 +119,22 @@ class SimpleAuthManager {
      * 認証状態変更を通知
      */
     _notifyStateChange(state) {
-        // イベント発火
-        vscode.commands.executeCommand('appgenius.onAuthStateChanged', state);
+        try {
+            // イベント発火 - 認証状態のbooleanのみを渡す
+            const isAuthenticated = state.isAuthenticated;
+            // コマンドが登録されているかチェックせずに直接実行
+            try {
+                logger_1.Logger.info(`【デバッグ】SimpleAuthManager: 認証状態通知を直接実行 - isAuthenticated=${isAuthenticated}`);
+                vscode.commands.executeCommand('appgenius.onAuthStateChanged', isAuthenticated);
+                logger_1.Logger.info(`SimpleAuthManager: 認証状態通知完了`);
+            }
+            catch (cmdError) {
+                logger_1.Logger.error('SimpleAuthManager: 認証状態通知コマンド実行中にエラーが発生しました', cmdError);
+            }
+        }
+        catch (error) {
+            logger_1.Logger.error('認証状態通知中にエラーが発生しました', error);
+        }
     }
     /**
      * メニューコマンドの登録
@@ -214,6 +231,15 @@ class SimpleAuthManager {
      */
     async _verifyAuthState() {
         try {
+            // スロットリング: 直近の検証から5秒以内なら実行しない
+            const now = Date.now();
+            if (now - this._lastVerificationTime < this._VERIFICATION_THROTTLE_MS) {
+                logger_1.Logger.info(`SimpleAuthManager: 直近${this._VERIFICATION_THROTTLE_MS / 1000}秒以内に検証済みのため、スキップします`);
+                vscode.window.showInformationMessage('認証状態は直近に確認済みです');
+                return;
+            }
+            // 今回の検証時刻を記録
+            this._lastVerificationTime = now;
             vscode.window.withProgress({
                 location: vscode.ProgressLocation.Notification,
                 title: '認証状態確認中...',
@@ -244,8 +270,8 @@ class SimpleAuthManager {
     /**
      * 認証ヘッダー取得
      */
-    getAuthHeader() {
-        return this._authService.getAuthHeader();
+    async getAuthHeader() {
+        return await this._authService.getAuthHeader();
     }
     /**
      * 認証状態チェック

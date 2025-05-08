@@ -22,7 +22,6 @@ export enum AppGeniusEventType {
   // 環境変数関連イベント
   ENV_VARIABLES_UPDATED = 'env-variables-updated',
   ENV_FILE_CREATED = 'env-file-created',
-  CURRENT_STATUS_UPDATED = 'current-status-updated',
   SCOPE_PROGRESS_UPDATED = 'scope-progress-updated',
   
   // ClaudeCode関連イベント

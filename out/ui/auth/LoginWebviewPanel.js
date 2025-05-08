@@ -38,6 +38,8 @@ const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
 const AuthenticationService_1 = require("../../core/auth/AuthenticationService");
+const SimpleAuthService_1 = require("../../core/auth/SimpleAuthService");
+const logger_1 = require("../../utils/logger");
 /**
  * LoginWebviewPanel - VSCode内でのログインUI
  *
@@ -75,6 +77,7 @@ class LoginWebviewPanel {
         this._panel = panel;
         this._extensionUri = extensionUri;
         this._authService = AuthenticationService_1.AuthenticationService.getInstance();
+        this._simpleAuthService = SimpleAuthService_1.SimpleAuthService.getInstance(); // SimpleAuthServiceを初期化
         // コンテンツの設定
         this._update();
         // イベントリスナーの設定
@@ -494,15 +497,51 @@ class LoginWebviewPanel {
      */
     async _handleLogin(email, password) {
         try {
-            const success = await this._authService.login(email, password);
-            if (success) {
+            logger_1.Logger.info('LoginWebviewPanel: SimpleAuthServiceを使用してログイン処理を開始します');
+            // SimpleAuthServiceでログイン処理を実行
+            try {
+                // ログイン処理を実行
+                await this._simpleAuthService.login(email, password);
+                // 認証状態を確認
+                const isAuthenticated = this._simpleAuthService.isAuthenticated();
+                if (isAuthenticated) {
+                    // ログイン成功メッセージ
+                    this._panel.webview.postMessage({
+                        type: 'login-result',
+                        success: true
+                    });
+                    // 成功通知
+                    vscode.window.showInformationMessage('AppGeniusにログインしました');
+                    // APIキー表示は不要なので削除
+                    // setTimeout(async () => {
+                    //   await this._showApiKeyAfterLogin();
+                    // }, 1000);
+                    // 少し待ってからパネルを閉じる
+                    setTimeout(() => {
+                        this._panel.dispose();
+                    }, 1500);
+                    return;
+                }
+            }
+            catch (simpleAuthError) {
+                logger_1.Logger.error('SimpleAuthServiceログイン処理エラー:', simpleAuthError);
+                // エラーが発生した場合は、後続の処理でメッセージを表示
+            }
+            // SimpleAuthServiceが失敗した場合や成功しなかった場合、レガシーのAuthenticationServiceでのログインを試行
+            logger_1.Logger.info('SimpleAuthServiceログイン失敗、レガシー認証を試行します');
+            const legacySuccess = await this._authService.login(email, password);
+            if (legacySuccess) {
                 // ログイン成功メッセージ
                 this._panel.webview.postMessage({
                     type: 'login-result',
                     success: true
                 });
                 // 成功通知
-                vscode.window.showInformationMessage('AppGeniusにログインしました');
+                vscode.window.showInformationMessage('AppGeniusにログインしました（レガシー認証）');
+                // APIキー表示は不要なので削除
+                // setTimeout(async () => {
+                //   await this._showApiKeyAfterLogin();
+                // }, 1000);
                 // 少し待ってからパネルを閉じる
                 setTimeout(() => {
                     this._panel.dispose();
@@ -546,6 +585,7 @@ class LoginWebviewPanel {
         }
         catch (error) {
             console.error('ログイン処理中にエラーが発生しました:', error);
+            logger_1.Logger.error('ログイン処理中にエラーが発生しました:', error);
             // エラーメッセージ
             this._panel.webview.postMessage({
                 type: 'login-result',
@@ -570,6 +610,55 @@ class LoginWebviewPanel {
             error: 'パスワードリセット機能は現在実装中です'
         });
     }
+    /**
+     * ログイン後にAPIキーを表示 (不要なので削除)
+     * この機能は不要になったためコメントアウト
+     */
+    /*
+    private async _showApiKeyAfterLogin(): Promise<void> {
+      try {
+        // 直接インスタンス変数のSimpleAuthServiceからAPIキーを取得
+        const apiKey = await this._simpleAuthService.getApiKey();
+        
+        if (!apiKey) {
+          Logger.warn('ログイン後のAPIキー表示: APIキーが見つかりません');
+          // APIキーが見つからない場合でもエラーメッセージを表示
+          vscode.window.showWarningMessage(
+            'APIキーが見つかりませんでした。ClaudeCode連携には別途APIキーの設定が必要になる場合があります。',
+            { modal: true }
+          );
+          return;
+        }
+        
+        // APIキーが文字列であることを確認
+        if (typeof apiKey !== 'string') {
+          Logger.error(`APIキーの型が正しくありません: ${typeof apiKey}`);
+          return;
+        }
+        
+        // APIキーをマスク処理（先頭5文字と末尾4文字のみ表示）
+        const maskedApiKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
+        
+        // ユーザー情報を取得
+        const userData = this._simpleAuthService.getCurrentUser();
+        const userName = userData?.name || 'ユーザー';
+        
+        // APIキー情報をメッセージボックスで表示
+        vscode.window.showInformationMessage(
+          `${userName}さんのClaudeAPIキー: ${maskedApiKey}`,
+          { modal: true, detail: 'このAPIキーはClaudeCode連携に使用されます。' }
+        );
+        
+        Logger.info('APIキー情報をログイン成功後に表示しました');
+      } catch (error) {
+        Logger.error('APIキー表示中にエラーが発生しました', error as Error);
+        // エラーが発生した場合でもユーザーに通知
+        vscode.window.showErrorMessage(
+          'APIキー情報の表示中にエラーが発生しました。ClaudeCode連携には別途APIキーの設定が必要になる場合があります。'
+        );
+      }
+    }
+    */
     /**
      * リソースの解放
      */

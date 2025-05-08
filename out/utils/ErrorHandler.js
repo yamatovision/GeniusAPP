@@ -286,14 +286,17 @@ class ErrorHandler {
         const logMessage = `[${error.category.toUpperCase()}] ${error.code}: ${error.message}`;
         switch (error.severity) {
             case ErrorSeverity.INFO:
-                logger_1.Logger.info(logMessage, error);
+                const errorObj = new Error(error.message);
+                logger_1.Logger.info(logMessage, errorObj);
                 break;
             case ErrorSeverity.WARNING:
-                logger_1.Logger.warn(logMessage, error);
+                const warnErrorObj = new Error(error.message);
+                logger_1.Logger.warn(logMessage, warnErrorObj);
                 break;
             case ErrorSeverity.ERROR:
             case ErrorSeverity.CRITICAL:
-                logger_1.Logger.error(logMessage, error);
+                const criticalErrorObj = new Error(error.message);
+                logger_1.Logger.error(logMessage, criticalErrorObj);
                 if (error.detail) {
                     logger_1.Logger.debug(`エラー詳細: ${error.detail}`);
                 }

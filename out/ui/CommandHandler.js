@@ -81,6 +81,18 @@ class CommandHandler {
             this.terminalInterface.showTerminal();
             await this.terminalInterface.processQuery('/help');
         }));
+        // ターミナルからログアウト
+        this.disposables.push(vscode.commands.registerCommand('appgenius-ai.logout', async () => {
+            try {
+                logger_1.Logger.info('ターミナルからログアウトコマンドが実行されました');
+                this.terminalInterface.showTerminal();
+                await this.terminalInterface.processLogout();
+            }
+            catch (error) {
+                logger_1.Logger.error(`ログアウトコマンド実行エラー: ${error.message}`);
+                vscode.window.showErrorMessage(`ログアウトエラー: ${error.message}`);
+            }
+        }));
     }
     /**
      * リソースを解放

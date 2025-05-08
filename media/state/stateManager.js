@@ -123,26 +123,26 @@ class StateManager {
       const newState = { ...prevState, ...data };
       this.setState(newState, false); // リスナー通知は後で行うため、ここではfalse
       
-      // CURRENT_STATUS.mdのマークダウン表示（バックエンドから受け取っている場合）
+      // SCOPE_PROGRESS.mdのマークダウン表示（バックエンドから受け取っている場合）
       // 前回と同じ内容の場合は再レンダリングしない
-      if (data.currentStatusMarkdown && 
-          data.currentStatusMarkdown !== prevState.currentStatusMarkdown) {
+      if (data.scopeProgressMarkdown && 
+          data.scopeProgressMarkdown !== prevState.scopeProgressMarkdown) {
         // マークダウン表示処理のイベントを発火
         const event = new CustomEvent('markdown-updated', {
-          detail: { content: data.currentStatusMarkdown }
+          detail: { content: data.scopeProgressMarkdown }
         });
         document.dispatchEvent(event);
-      } else if (data.statusFilePath && 
-                !data.currentStatusMarkdown && 
-                data.statusFilePath !== prevState.lastRequestedStatusFile) {
+      } else if (data.progressFilePath && 
+                !data.scopeProgressMarkdown && 
+                data.progressFilePath !== prevState.lastRequestedProgressFile) {
         // マークダウンデータがない場合はファイル取得メッセージを送信
         // 以前と同じファイルを再度リクエストするのを防止
-        console.log('マークダウンコンテンツをリクエスト:', data.statusFilePath);
-        newState.lastRequestedStatusFile = data.statusFilePath;
+        console.log('マークダウンコンテンツをリクエスト:', data.progressFilePath);
+        newState.lastRequestedProgressFile = data.progressFilePath;
         this.setState(newState, false);
         
         this.sendMessage('getMarkdownContent', {
-          filePath: data.statusFilePath
+          filePath: data.progressFilePath
         });
       }
       
@@ -217,7 +217,7 @@ class StateManager {
         
         const pathData = {
           projectPath: project.path,
-          statusFilePath: project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '',
+          statusFilePath: project.path ? `${project.path}/docs/SCOPE_PROGRESS.md` : '',
           statusFileExists: true,
           forceRefresh: isNewProject || isExplicitRefresh // 新しいプロジェクトか明示的リフレッシュ時のみ
         };
@@ -300,7 +300,7 @@ class StateManager {
           const pathEvent = new CustomEvent('project-path-updated', {
             detail: { 
               projectPath: activeProjectPath,
-              statusFilePath: activeProjectPath ? `${activeProjectPath}/docs/CURRENT_STATUS.md` : '',
+              statusFilePath: activeProjectPath ? `${activeProjectPath}/docs/SCOPE_PROGRESS.md` : '',
               statusFileExists: true,
               forceRefresh: false // 復元時は強制更新しない
             }

@@ -40,7 +40,8 @@ var Feature;
 exports.RoleFeatureMap = {
     // ゲストは限定的な機能のみアクセス可能
     [Role.GUEST]: [
-        Feature.DASHBOARD
+        Feature.DASHBOARD,
+        Feature.SIMPLE_CHAT
     ],
     // 一般ユーザーは標準機能にアクセス可能
     [Role.USER]: [

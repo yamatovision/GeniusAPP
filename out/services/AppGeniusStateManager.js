@@ -297,7 +297,8 @@ class AppGeniusStateManager {
             if (project) {
                 // 変更が十分であれば完了とマーク
                 const updatePhase = true; // 常にtrueとして処理（以前の条件は削除）
-                await this.projectService.updateProjectPhase(projectId, 'requirements', updatePhase);
+                // フェーズ更新機能は削除されました
+                // await this.projectService.updateProjectPhase(projectId, 'requirements', updatePhase);
                 // イベント発火
                 this.eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.REQUIREMENTS_UPDATED, requirements, 'AppGeniusStateManager', projectId);
             }
@@ -358,7 +359,8 @@ class AppGeniusStateManager {
             // 変更されていればフェーズを更新
             if (isChanged) {
                 // directoryStructureは直接のフェーズではないため、設計(design)フェーズとして扱う
-                await this.projectService.updateProjectPhase(projectId, 'design', true);
+                // フェーズ更新機能は削除されました
+                // await this.projectService.updateProjectPhase(projectId, 'design', true);
                 // CLAUDE.mdのセクションも更新
                 try {
                     const { ClaudeMdService } = await Promise.resolve().then(() => __importStar(require('../utils/ClaudeMdService')));
@@ -608,7 +610,8 @@ project/
         if (mockups.length > 0) {
             const project = this.projectService.getProject(projectId);
             if (project) {
-                await this.projectService.updateProjectPhase(projectId, 'design', true);
+                // フェーズ更新機能は削除されました
+                // await this.projectService.updateProjectPhase(projectId, 'design', true);
             }
         }
         // イベント発火
@@ -703,7 +706,8 @@ project/
             // 進捗状況に基づいて実装フェーズの完了状態を更新
             if (project) {
                 const isCompleted = scope.totalProgress >= 100;
-                await this.projectService.updateProjectPhase(projectId, 'implementation', isCompleted);
+                // フェーズ更新機能は削除されました
+                // await this.projectService.updateProjectPhase(projectId, 'implementation', isCompleted);
             }
             // イベント発火
             this.eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.SCOPE_UPDATED, scope, 'AppGeniusStateManager', projectId);
@@ -980,7 +984,8 @@ project/
         if (project) {
             // 全ての項目が完了したら実装フェーズ完了
             const isImplementationCompleted = totalProgress >= 100;
-            await this.projectService.updateProjectPhase(projectId, 'implementation', isImplementationCompleted);
+            // フェーズ更新機能は削除されました
+            // await this.projectService.updateProjectPhase(projectId, 'implementation', isImplementationCompleted);
             // イベント発火
             this.eventBus.emit(AppGeniusEventBus_1.AppGeniusEventType.IMPLEMENTATION_PROGRESS, { items, totalProgress }, 'AppGeniusStateManager', projectId);
         }
@@ -1087,7 +1092,8 @@ project/
             if (projectId && phase) {
                 logger_1.Logger.info(`Phase completed event received: ${projectId}.${phase} = ${isCompleted}`);
                 // プロジェクトのフェーズ状態を更新
-                await this.projectService.updateProjectPhase(projectId, phase, isCompleted);
+                // フェーズ更新機能は削除されました
+                // await this.projectService.updateProjectPhase(projectId, phase, isCompleted);
             }
         });
     }

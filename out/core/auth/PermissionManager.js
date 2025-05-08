@@ -40,9 +40,8 @@ const logger_1 = require("../../utils/logger");
 /**
  * PermissionManager - 機能へのアクセス権限をチェックするクラス
  *
- * 認証サービスの状態に基づいて、
- * ユーザーが特定の機能にアクセスできるかどうかをチェックします。
- * SimpleAuthServiceとAuthenticationServiceの両方に対応しています。
+ * 新認証システムのラッパー。後方互換性のために提供されるが、内部的には
+ * PermissionServiceを使用する。
  */
 class PermissionManager {
     /**
@@ -53,11 +52,24 @@ class PermissionManager {
         // 公開イベント
         this.onPermissionsChanged = this._onPermissionsChanged.event;
         this._authService = authService;
-        // SimpleAuthServiceかどうかを判定
-        this._isSimpleAuth = 'getAccessToken' in authService;
         // 認証状態変更イベントをリッスン
-        this._authService.onStateChanged(this._handleAuthStateChanged.bind(this));
-        logger_1.Logger.info(`PermissionManager: 初期化完了 (SimpleAuth: ${this._isSimpleAuth})`);
+        this._authService.onStateChanged(() => {
+            this._onPermissionsChanged.fire();
+        });
+        // 新認証システムの初期化
+        try {
+            this._permissionService = (global._appgenius_auth_module?.getPermissionService) ?
+                global._appgenius_auth_module.getPermissionService() : undefined;
+            if (this._permissionService) {
+                // 権限変更イベントを購読して既存システムと同期
+                this._permissionService.onPermissionsChanged(() => {
+                    this._onPermissionsChanged.fire();
+                });
+            }
+        }
+        catch (error) {
+            logger_1.Logger.warn('PermissionManager: 新認証システムの初期化に失敗しました', error);
+        }
     }
     /**
      * シングルトンインスタンスの取得
@@ -72,43 +84,50 @@ class PermissionManager {
         return PermissionManager.instance;
     }
     /**
-     * 認証状態変更ハンドラー
-     */
-    _handleAuthStateChanged() {
-        // 権限変更イベントを発行
-        this._onPermissionsChanged.fire();
-        logger_1.Logger.debug('PermissionManager: 権限変更イベントを発行しました');
-    }
-    /**
      * 特定機能へのアクセス権限を確認
      */
     canAccess(feature) {
-        // 現在の認証状態を取得
-        const state = this._authService.getCurrentState();
-        // 認証されていない場合はゲストロールとして扱う
-        const role = state.isAuthenticated ? state.role : roles_1.Role.GUEST;
-        // 管理者は常にアクセス可能
-        if (role === roles_1.Role.ADMIN) {
-            return true;
+        try {
+            // 新認証システムが利用可能な場合はそちらを使用
+            if (this._permissionService) {
+                return this._permissionService.canAccess(feature);
+            }
+            // 認証状態を取得
+            const state = this._authService.getCurrentState();
+            const role = state.isAuthenticated ? state.role : roles_1.Role.GUEST;
+            // 管理者は常にアクセス可能
+            if (role === roles_1.Role.ADMIN || role === roles_1.Role.SUPER_ADMIN) {
+                return true;
+            }
+            // 権限チェック
+            const allowedFeatures = roles_1.RoleFeatureMap[role] || [];
+            return allowedFeatures.includes(feature);
         }
-        // 現在のロールでアクセス可能な機能リストをチェック
-        const allowedFeatures = roles_1.RoleFeatureMap[role] || [];
-        return allowedFeatures.includes(feature);
+        catch (error) {
+            logger_1.Logger.error(`PermissionManager: 権限チェック中にエラーが発生しました`, error);
+            return false;
+        }
     }
     /**
      * 指定された機能へのアクセス権限をチェックし、
      * 権限がなければエラーメッセージを表示
      */
     checkAccessWithFeedback(feature) {
+        // 新認証システムが利用可能な場合はそちらを使用
+        if (this._permissionService) {
+            return this._permissionService.checkAccessWithFeedback(feature);
+        }
+        // 以下は従来の処理
         const hasAccess = this.canAccess(feature);
         if (!hasAccess) {
             const action = this.getAccessDeniedAction(feature);
             // メッセージ表示とアクション
             if (action.action === 'login') {
-                vscode.window.showInformationMessage(action.message, 'ログイン')
+                vscode.window.showInformationMessage(action.message, 'ログインページを開く')
                     .then(selection => {
-                    if (selection === 'ログイン' && action.command) {
-                        vscode.commands.executeCommand(action.command);
+                    if (selection === 'ログインページを開く' && action.command) {
+                        // ログインコマンドを実行
+                        vscode.commands.executeCommand('appgenius-ai.login');
                     }
                 });
             }
@@ -129,7 +148,7 @@ class PermissionManager {
             return {
                 message: `「${featureName}」を使用するにはログインが必要です。`,
                 action: 'login',
-                command: 'appgenius.login'
+                command: 'appgenius-ai.login'
             };
         }
         // 認証されているが、権限がない場合
@@ -142,19 +161,32 @@ class PermissionManager {
      * 現在のユーザーが管理者かどうかを確認
      */
     isAdmin() {
+        // 新認証システムが利用可能な場合はそちらを使用
+        if (this._permissionService) {
+            return this._permissionService.isAdmin();
+        }
+        // 認証状態を取得
         const state = this._authService.getCurrentState();
-        return state.isAuthenticated && state.role === roles_1.Role.ADMIN;
+        return state.isAuthenticated && (state.role === roles_1.Role.ADMIN || state.role === roles_1.Role.SUPER_ADMIN);
     }
     /**
      * 現在ログイン中かどうかを確認
      */
     isLoggedIn() {
+        // 新認証システムが利用可能な場合はそちらを使用
+        if (this._permissionService) {
+            return this._permissionService.isLoggedIn();
+        }
         return this._authService.isAuthenticated();
     }
     /**
      * 現在のロールを取得
      */
     getCurrentRole() {
+        // 新認証システムが利用可能な場合はそちらを使用
+        if (this._permissionService) {
+            return this._permissionService.getCurrentRole();
+        }
         const state = this._authService.getCurrentState();
         return state.role;
     }

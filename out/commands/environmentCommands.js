@@ -37,6 +37,7 @@ exports.registerEnvironmentCommands = registerEnvironmentCommands;
 const vscode = __importStar(require("vscode"));
 const path = __importStar(require("path"));
 const EnvVariablesPanel_1 = require("../ui/environmentVariables/EnvVariablesPanel");
+const EnvironmentVariablesAssistantPanel_1 = require("../ui/environmentVariablesAssistant/EnvironmentVariablesAssistantPanel");
 const logger_1 = require("../utils/logger");
 /**
  * 環境変数管理関連のコマンドを登録する
@@ -140,11 +141,35 @@ function registerEnvironmentCommands(context) {
             vscode.window.showErrorMessage(`env.mdファイルの更新に失敗しました: ${error.message}`);
         }
     });
+    // 環境変数アシスタントを開くコマンド
+    const openEnvironmentVariablesAssistantCommand = vscode.commands.registerCommand('appgenius-ai.openEnvironmentVariablesAssistant', async () => {
+        logger_1.Logger.info('環境変数アシスタントを開きます');
+        try {
+            // アクティブなワークスペースを取得
+            let projectPath;
+            if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+                projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            }
+            // パネルを表示
+            EnvironmentVariablesAssistantPanel_1.EnvironmentVariablesAssistantPanel.createOrShow(context.extensionUri, projectPath);
+        }
+        catch (error) {
+            logger_1.Logger.error('環境変数アシスタントのオープンに失敗しました', error);
+            vscode.window.showErrorMessage(`環境変数アシスタントの表示に失敗しました: ${error.message}`);
+        }
+    });
+    // コマンドIDが一致していることを確認(appgenius-ai.openEnvironmentVariablesAssistant)
+    context.subscriptions.push(vscode.commands.registerCommand('appgenius.ai.openEnvironmentVariablesAssistant', async () => {
+        // エイリアスコマンド - 正しいコマンドにリダイレクト
+        logger_1.Logger.info('エイリアスコマンドからリダイレクトします: appgenius.ai.openEnvironmentVariablesAssistant -> appgenius-ai.openEnvironmentVariablesAssistant');
+        await vscode.commands.executeCommand('appgenius-ai.openEnvironmentVariablesAssistant');
+    }));
     // コマンドを登録
     context.subscriptions.push(openEnvVariablesPanelCommand);
     context.subscriptions.push(createEnvFileCommand);
     context.subscriptions.push(validateEnvVariablesCommand);
     context.subscriptions.push(updateEnvMdCommand);
+    context.subscriptions.push(openEnvironmentVariablesAssistantCommand);
     logger_1.Logger.info('環境変数管理コマンドの登録が完了しました');
 }
 //# sourceMappingURL=environmentCommands.js.map
