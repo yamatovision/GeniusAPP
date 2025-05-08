@@ -16,8 +16,8 @@
   overflow-x: hidden;
 }
 
-/* 固定ライトテーマ定義 */
-:root {
+/* 固定ライトテーマ定義 - VSCodeのテーマ設定に依存しない */
+:root, .vscode-dark, .vscode-light, .vscode-high-contrast {
   --app-background: #f8f9fa;
   --app-text: #333333;
   --app-text-secondary: #718096;
@@ -53,6 +53,12 @@
   --app-border-radius-sm: 4px;
   --app-border-radius-lg: 12px;
   --app-transition: 0.2s ease;
+}
+
+/* 強制的にライトテーマのスタイルを適用 */
+.scope-manager-container {
+  background-color: #f8f9fa !important;
+  color: #333333 !important;
 }
 
 .panel-header {
@@ -679,6 +685,7 @@ pre.code-block.directory-structure br {
   height: 100%;
   transition: width 0.5s ease;
   background-image: linear-gradient(to right, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
+  border-radius: 5px;
 }
 
 .status-pending {
@@ -1332,9 +1339,9 @@ pre.code-block.directory-structure br {
   font-style: italic;
   padding: 20px 10px;
   height: 80px;
-  background-color: rgba(20, 20, 20, 0.2);
+  background-color: rgba(240, 240, 240, 0.3);
   border-radius: var(--app-border-radius-sm);
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px dashed rgba(0, 0, 0, 0.1);
   margin: 5px 0;
 }
 
@@ -1343,7 +1350,7 @@ pre.code-block.directory-structure br {
   font-family: "Material Icons";
   font-size: 24px;
   margin-bottom: 10px;
-  color: rgba(255, 255, 255, 0.2);
+  color: rgba(0, 0, 0, 0.2);
 }
 
 .toggle-share-btn {
