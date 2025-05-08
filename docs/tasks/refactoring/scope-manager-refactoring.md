@@ -54,6 +54,73 @@ ScopeManagerPanel.tsが機能追加により肥大化し、管理や拡張が困
    - モックアップギャラリーの表示
    - モックアップファイルの管理
 
+## ScopeManagerPanel.tsのメソッド一覧
+
+詳細な分析の結果、以下のメソッドが確認されました：
+
+### 1. 初期化と基本構造
+
+- `public static createOrShow(extensionUri, context, projectPath?)`: パネルの作成・表示
+- `constructor(panel, extensionUri, context, projectPath?)`: コンストラクタ
+- `private _setupTokenExpirationMonitor()`: トークン期限監視設定
+- `private _setupProjectServiceEventListeners()`: プロジェクトサービスのイベント監視設定
+- `private _getNonce()`: セキュリティノンス生成
+- `private _update()`: WebViewの内容更新
+- `private _getHtmlForWebview(webview, activeTabId)`: WebView用HTML生成
+- `public dispose()`: リソースの解放
+
+### 2. UI管理と表示
+
+- `private _showError(message)`: エラーメッセージを表示
+- `private _showSuccess(message)`: 成功メッセージを表示
+- `private async _handleShowDirectoryStructure()`: ディレクトリ構造を表示
+
+### 3. プロジェクト管理
+
+- `public async setProjectPath(projectPath)`: プロジェクトパスを設定
+- `private async _handleCreateProject(projectName, description)`: 新規プロジェクト作成
+- `private async _handleLoadExistingProject()`: 既存プロジェクト読み込み
+- `private async _handleSelectProject(projectName, projectPath, activeTab?)`: プロジェクト選択
+- `private async _handleRemoveProject(projectName, projectPath, projectId?)`: プロジェクト登録解除
+- `private async _handleEnsureActiveProject(projectName, projectPath, activeTab?)`: プロジェクト同期確認
+
+### 4. ファイル操作
+
+- `private async _handleRefreshFileBrowser()`: ファイルブラウザ更新
+- `private async _handleListDirectory(dirPath?)`: ディレクトリ内容のリストアップ
+- `private async _handleOpenFileInEditor(filePath)`: ファイルをエディタで開く
+- `private async _handleNavigateDirectory(dirPath)`: ディレクトリに移動
+- `private async _handleOpenFile(filePath)`: ファイルを開いてプレビュー表示
+- `private async _handleGetMarkdownContent(filePath)`: マークダウンファイル内容を取得
+
+### 5. タブとコンテンツ管理
+
+- `private async _handleInitialize()`: 初期化処理
+- `private async _handleLoadRequirementsFile()`: 要件定義ファイル読み込み
+- `private async _handleLoadFileToTab(tabId, filePath)`: タブにファイルを読み込み
+- `private async _handleSaveTabState(tabId)`: タブ状態を保存
+
+### 6. 共有機能
+
+- `private async _handleShareText(text, suggestedFilename?)`: テキスト共有
+- `private async _handleShareImage(imageData, fileName)`: 画像共有
+- `private async _handleGetHistory()`: 共有履歴取得
+- `private async _handleDeleteFromHistory(fileId)`: 履歴から削除
+- `private async _handleCopyCommand(fileId)`: ファイルのコマンドをコピー
+- `private async _handleCopyToClipboard(text)`: テキストをクリップボードにコピー
+- `private async _handleReuseHistoryItem(fileId)`: 履歴アイテムを再利用
+
+### 7. ClaudeCode連携
+
+- `private async _handleLaunchPromptFromURL(url, index, name?, splitTerminal?)`: プロンプトURLからClaudeCode起動
+
+### 8. モックアップ管理
+
+- `private async _handleOpenMockupGallery(filePath?)`: モックアップギャラリーを開く
+- `private async _handleOpenOriginalMockupGallery(filePath?)`: 旧メソッドでの互換性維持
+- `private async _handleSelectMockup(filePath)`: モックアップファイル選択
+- `private async _handleOpenMockupInBrowser(filePath)`: モックアップをブラウザで開く
+
 ## 新サービス構造
 
 これらの責務を以下の新しいサービスに分割します：
@@ -166,6 +233,36 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
 scopeManager.jsは既にコンポーネント分割が進んでいるため、バックエンド（ScopeManagerPanel.ts）のリファクタリングに合わせてメッセージの送受信部分を適応させます。基本的にはscopeManager.jsはそのままの構成で、バックエンドからのメッセージ処理を調整します。
 
+## 新サービスへの関数移行計画
+
+### 1. UIStateService への移行メソッド
+- `_showError`
+- `_showSuccess`
+- `_update`
+- `_getHtmlForWebview`
+- `_handleShowDirectoryStructure`
+
+### 2. MessageDispatchService への移行メソッド
+- WebViewからのメッセージ受信処理
+- WebViewへのメッセージ送信処理
+- `_handleInitialize`
+
+### 3. TabStateService への移行メソッド
+- `_handleSaveTabState`
+- `_handleLoadFileToTab`
+- タブの選択・切り替え処理
+
+### 4. MarkdownService への移行メソッド
+- `_handleGetMarkdownContent`
+- `_handleLoadRequirementsFile`
+- マークダウン更新関連処理
+
+### 5. 既存サービスへの機能拡充
+- **FileSystemService**: ファイルブラウザ関連のメソッド
+- **ProjectService**: プロジェクト管理関連のメソッド
+- **SharingService**: 共有機能関連のメソッド
+- **AuthenticationHandler**: 認証関連のメソッド
+
 ## 詳細実装ステップ
 
 ### フェーズ1: 準備と分析 (2日)
@@ -183,6 +280,7 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
    - [ ] _showError
    - [ ] _showSuccess
    - [ ] _update
+   - [ ] _getHtmlForWebview
    - [ ] _handleShowDirectoryStructure
 4. [ ] ScopeManagerPanelとUIStateServiceの連携テスト
 
@@ -194,6 +292,7 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
    - [ ] WebViewからのメッセージ受信処理
    - [ ] コマンドタイプ別の処理振り分け
    - [ ] WebViewへのメッセージ送信処理
+   - [ ] _handleInitialize
 4. [ ] ScopeManagerPanelとMessageDispatchServiceの連携テスト
 
 ### フェーズ4: TabStateServiceの実装 (2日)
@@ -203,7 +302,8 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
 3. [ ] タブ関連メソッドの移行:
    - [ ] _handleSaveTabState
    - [ ] _handleLoadFileToTab
-   - [ ] selectTabメソッドの実装
+   - [ ] タブの選択処理
+   - [ ] _handleLoadRequirementsFile（タブ切り替え部分）
 4. [ ] ScopeManagerPanelとTabStateServiceの連携テスト
 
 ### フェーズ5: MarkdownServiceの実装 (2日)
@@ -212,7 +312,7 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
 2. [ ] MarkdownService実装クラス作成
 3. [ ] マークダウン関連メソッドの移行:
    - [ ] _handleGetMarkdownContent
-   - [ ] _handleLoadRequirementsFile
+   - [ ] _handleLoadRequirementsFile（マークダウン部分）
    - [ ] _loadStatusFile
 4. [ ] ScopeManagerPanelとMarkdownServiceの連携テスト
 

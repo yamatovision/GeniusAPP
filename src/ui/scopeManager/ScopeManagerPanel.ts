@@ -17,6 +17,7 @@ import { IFileSystemService, FileSystemService } from './services/FileSystemServ
 import { IProjectService, ProjectService } from './services/ProjectService';
 import { ISharingService, SharingService } from './services/SharingService';
 import { IAuthenticationHandler, AuthenticationHandler } from './services/AuthenticationHandler';
+import { IUIStateService, UIStateService } from './services/UIStateService';
 import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
@@ -49,6 +50,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _fileSystemService: IFileSystemService; // FileSystemServiceのインスタンス
   private _projectService: IProjectService; // ProjectServiceのインスタンス
   private _authHandler: IAuthenticationHandler; // AuthenticationHandlerのインスタンス
+  private _uiStateService: IUIStateService; // UI状態管理サービス
 
   /**
    * 実際のパネル作成・表示ロジック
@@ -139,6 +141,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // 認証ハンドラーを初期化
     this._authHandler = AuthenticationHandler.getInstance();
+    
+    // UI状態管理サービスを初期化
+    this._uiStateService = UIStateService.getInstance(panel, extensionUri);
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -1233,10 +1238,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       await this._updateDirectoryStructure();
     }
     
-    this._panel.webview.postMessage({
-      command: 'showDirectoryStructure',
-      structure: this._directoryStructure
-    });
+    this._uiStateService.showDirectoryStructure(this._directoryStructure);
   }
   
   /**
@@ -1463,20 +1465,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * エラーメッセージを表示
    */
   private _showError(message: string): void {
-    this._panel.webview.postMessage({
-      command: 'showError',
-      message: message
-    });
+    this._uiStateService.showError(message);
   }
   
   /**
    * 成功メッセージを表示
    */
   private _showSuccess(message: string): void {
-    this._panel.webview.postMessage({
-      command: 'showSuccess',
-      message: message
-    });
+    this._uiStateService.showSuccess(message);
   }
   
   /**
