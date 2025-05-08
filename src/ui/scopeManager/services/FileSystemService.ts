@@ -40,6 +40,13 @@ export interface IFileSystemService {
   readFile(filePath: string, fileType?: string): Promise<string>;
   getFileType(filePath: string): string;
   
+  // ScopeManagerPanelから移行するファイル操作メソッド
+  openFileInEditor(filePath: string): Promise<void>;
+  navigateDirectory(dirPath: string, panel: vscode.WebviewPanel): Promise<void>;
+  openFile(filePath: string, panel: vscode.WebviewPanel): Promise<void>;
+  refreshFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void>;
+  initializeFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void>;
+  
   // イベント
   onProgressFileChanged: vscode.Event<string>;
   onDirectoryStructureUpdated: vscode.Event<string>;
@@ -1082,6 +1089,199 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
     } catch (error) {
       Logger.error(`FileSystemService: ファイル読み込みエラー: ${filePath}`, error as Error);
       return `ファイルの読み込みに失敗しました: ${(error as Error).message}`;
+    }
+  }
+
+  /**
+   * ファイルをVSCodeエディタで開く
+   * @param filePath 開くファイルのパス
+   */
+  public async openFileInEditor(filePath: string): Promise<void> {
+    try {
+      Logger.info(`FileSystemService: ファイルをエディタで開きます: ${filePath}`);
+      
+      // ファイルの存在確認
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`ファイルが見つかりません: ${filePath}`);
+      }
+      
+      // VSCodeのOpen APIを使用してファイルを開く
+      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
+      await vscode.window.showTextDocument(document);
+      
+      Logger.info(`FileSystemService: ファイルをエディタで開きました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`FileSystemService: ファイルをエディタで開く際にエラーが発生しました: ${filePath}`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * 指定されたディレクトリに移動する
+   * @param dirPath 移動先のディレクトリパス
+   * @param panel WebViewパネル（ファイル一覧の更新に使用）
+   */
+  public async navigateDirectory(dirPath: string, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+      Logger.info(`FileSystemService: ディレクトリに移動します: ${dirPath}`);
+      
+      // ディレクトリの存在確認
+      if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+        throw new Error(`ディレクトリが見つかりません: ${dirPath}`);
+      }
+      
+      // ディレクトリの内容をリストアップ
+      const files = await this.listDirectory(dirPath);
+      
+      // ファイルリストを送信
+      panel.webview.postMessage({
+        command: 'updateFileList',
+        files: files,
+        currentPath: dirPath,
+        parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
+      });
+      
+      // イベント発火
+      this._onFileBrowserUpdated.fire(files);
+      
+      Logger.info(`FileSystemService: ディレクトリ内容を取得しました: ${dirPath}, ${files.length}件`);
+    } catch (error) {
+      Logger.error(`FileSystemService: ディレクトリの移動に失敗しました: ${dirPath}`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * ファイルを開いてプレビュー表示する
+   * @param filePath 開くファイルのパス
+   * @param panel WebViewパネル（コンテンツの表示に使用）
+   */
+  public async openFile(filePath: string, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+      Logger.info(`FileSystemService: ファイルを開きます: ${filePath}`);
+      
+      // ファイルの存在確認
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`ファイルが見つかりません: ${filePath}`);
+      }
+      
+      // ファイルの種類を判定
+      const fileExt = path.extname(filePath).toLowerCase();
+      
+      // テキストファイルかどうかを判断
+      if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
+        // テキストファイルの場合は内容を読み込んで表示
+        const content = await this.readFile(filePath);
+        
+        panel.webview.postMessage({
+          command: 'updateFilePreview',
+          filePath: filePath,
+          content: content,
+          type: 'text',
+          extension: fileExt
+        });
+      } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
+        // 画像ファイルの場合は画像として表示
+        panel.webview.postMessage({
+          command: 'updateFilePreview',
+          filePath: filePath,
+          type: 'image',
+          extension: fileExt,
+          // ファイルURIをWebView用に変換
+          uri: panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
+        });
+      } else {
+        // その他のファイルはVSCodeで開く
+        await this.openFileInEditor(filePath);
+        
+        // 成功メッセージを表示
+        panel.webview.postMessage({
+          command: 'showSuccess',
+          message: `ファイル「${path.basename(filePath)}」をVSCodeで開きました`
+        });
+      }
+      
+      Logger.info(`FileSystemService: ファイル「${path.basename(filePath)}」を開きました`);
+    } catch (error) {
+      Logger.error(`FileSystemService: ファイルを開く際にエラーが発生しました: ${filePath}`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * ファイルブラウザを更新
+   * @param projectPath プロジェクトパス
+   * @param panel WebViewパネル（ファイル一覧の更新に使用）
+   */
+  public async refreshFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+      Logger.info(`FileSystemService: ファイルブラウザを更新します: ${projectPath}`);
+      
+      // ディレクトリ構造を更新
+      const structure = await this.updateDirectoryStructure(projectPath);
+      
+      // WebViewにディレクトリ構造を送信
+      panel.webview.postMessage({
+        command: 'updateFileBrowser',
+        structure: structure
+      });
+      
+      // イベント発火
+      this._onDirectoryStructureUpdated.fire(structure);
+      
+      Logger.info(`FileSystemService: ファイルブラウザを更新しました`);
+    } catch (error) {
+      Logger.error(`FileSystemService: ファイルブラウザの更新に失敗しました: ${projectPath}`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * ファイルブラウザの初期化
+   * @param projectPath プロジェクトパス
+   * @param panel WebViewパネル（ファイル一覧の更新に使用）
+   */
+  public async initializeFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+      Logger.info(`FileSystemService: ファイルブラウザの初期化を開始します: ${projectPath}`);
+      
+      // プロジェクトパスが設定されていない場合は処理しない
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが設定されていません');
+      }
+      
+      // docsディレクトリのパスを生成
+      const docsPath = path.join(projectPath, 'docs');
+      
+      // docsディレクトリの存在確認と作成
+      await this.ensureDirectoryExists(docsPath);
+      
+      // ディレクトリ構造を更新
+      const structure = await this.updateDirectoryStructure(projectPath);
+      
+      // ファイルブラウザ用のディレクトリ構造を送信
+      panel.webview.postMessage({
+        command: 'updateFileBrowser',
+        structure: structure
+      });
+      
+      // ディレクトリの内容をリストアップ
+      const files = await this.listDirectory(docsPath);
+      
+      // ファイルリストを送信
+      panel.webview.postMessage({
+        command: 'updateFileList',
+        files: files,
+        currentPath: docsPath
+      });
+      
+      // イベント発火
+      this._onFileBrowserUpdated.fire(files);
+      
+      Logger.info(`FileSystemService: ファイルブラウザを初期化しました: ${docsPath}`);
+    } catch (error) {
+      Logger.error(`FileSystemService: ファイルブラウザの初期化中にエラーが発生しました: ${projectPath}`, error as Error);
+      throw error;
     }
   }
 }

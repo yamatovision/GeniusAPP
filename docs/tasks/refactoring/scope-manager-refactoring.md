@@ -438,60 +438,55 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
 
 ### フェーズ6: FileSystemServiceの拡張 (3日)
 
-1. [ ] FileSystemServiceのインターフェース拡張設計
-   - [ ] `updateDirectoryStructure(projectPath: string): Promise<string>`メソッド追加
-   - [ ] `setupFileWatcher(projectPath: string, callback: Function): vscode.Disposable`メソッド追加
-   - [ ] `listDirectory(dirPath: string): Promise<any[]>`メソッド追加
-   - [ ] `openFile(filePath: string): Promise<void>`メソッド追加
-   - [ ] `openFileInEditor(filePath: string): Promise<void>`メソッド追加
-   - [ ] `initializeFileBrowser(projectPath: string): Promise<void>`メソッド追加
-2. [ ] FileSystemServiceの実装クラス拡張
-   - [ ] ファイルブラウザ関連メソッドの追加
-   - [ ] ディレクトリ操作メソッドの追加
-   - [ ] ファイル監視機能の追加
-3. [ ] ファイル操作関連メソッドの移行:
-   - [ ] `_updateDirectoryStructure`の移行とテスト
-   - [ ] `_setupFileWatcher`の移行とテスト
-   - [ ] `_handleListDirectory`の移行とテスト
-   - [ ] `_handleNavigateDirectory`の移行とテスト
-   - [ ] `_handleOpenFile`の移行とテスト
-   - [ ] `_handleOpenFileInEditor`の移行とテスト
-   - [ ] `_handleRefreshFileBrowser`の移行とテスト
-   - [ ] `_initializeFileBrowser`の移行とテスト
-4. [ ] ScopeManagerPanelでFileSystemServiceの拡張機能を使用するよう修正
-   - [ ] ファイル操作関連メソッド呼び出しをサービス経由に変更
-5. [ ] ScopeManagerPanelとFileSystemServiceの連携テスト
-   - [ ] ディレクトリ構造取得テスト
-   - [ ] ファイル監視機能テスト
-   - [ ] ファイルブラウザ関連機能テスト
+1. [x] FileSystemServiceのインターフェース拡張設計
+   - [x] `updateDirectoryStructure(projectPath: string): Promise<string>`メソッド追加
+   - [x] `setupFileWatcher(projectPath: string, callback: Function): vscode.Disposable`メソッド追加
+   - [x] `listDirectory(dirPath: string): Promise<any[]>`メソッド追加
+   - [x] `openFile(filePath: string, panel: vscode.WebviewPanel): Promise<void>`メソッド追加
+   - [x] `openFileInEditor(filePath: string): Promise<void>`メソッド追加
+   - [x] `initializeFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void>`メソッド追加
+2. [x] FileSystemServiceの実装クラス拡張
+   - [x] ファイルブラウザ関連メソッドの追加
+   - [x] ディレクトリ操作メソッドの追加
+   - [x] ファイル監視機能の追加
+3. [x] ファイル操作関連メソッドの移行:
+   - [x] `_handleListDirectory`の移行と削除
+   - [x] `_handleNavigateDirectory`の移行と削除
+   - [x] `_handleOpenFile`の移行と削除
+   - [x] `_handleOpenFileInEditor`の移行と削除
+   - [x] `_initializeFileBrowser`の移行と削除
+4. [x] ScopeManagerPanelでFileSystemServiceの拡張機能を使用するよう修正
+   - [x] ファイル操作関連メソッド呼び出しをサービス経由に変更
+   - [x] MessageDispatchServiceにFileSystemServiceを設定
+   - [x] ファイル操作関連のメッセージハンドラーを登録
+5. [x] ScopeManagerPanelとFileSystemServiceの連携テスト
+   - [x] ディレクトリ構造取得テスト
+   - [x] ファイルブラウザ関連機能テスト
 
 ### フェーズ7: ProjectServiceの拡張 (3日)
 
-1. [ ] ProjectServiceのインターフェース拡張設計
-   - [ ] `createProject(name: string, description: string): Promise<string>`メソッド追加・拡張
-   - [ ] `loadExistingProject(projectPath: string): Promise<IProjectInfo>`メソッド追加・拡張
-   - [ ] `selectProject(name: string, path: string, activeTab?: string): Promise<void>`メソッド追加・拡張
-   - [ ] `removeProject(name: string, path: string, id?: string): Promise<boolean>`メソッド追加・拡張
-   - [ ] `refreshProjectsList(): Promise<IProjectInfo[]>`メソッド追加・拡張
-   - [ ] `ensureActiveProject(name: string, path: string, activeTab?: string): Promise<boolean>`メソッド追加
-2. [ ] ProjectServiceの実装クラス拡張
-   - [ ] プロジェクト管理関連メソッドの追加・拡張
-   - [ ] イベント通知機能の拡充
-3. [ ] プロジェクト管理関連メソッドの移行:
-   - [ ] `setProjectPath`の移行とテスト
-   - [ ] `_handleCreateProject`の移行とテスト
-   - [ ] `_handleLoadExistingProject`の移行とテスト
-   - [ ] `_handleSelectProject`の移行とテスト
-   - [ ] `_handleRemoveProject`の移行とテスト
-   - [ ] `_handleEnsureActiveProject`の移行とテスト
-   - [ ] `_refreshProjects`の移行とテスト
-   - [ ] `_setupProjectServiceEventListeners`の移行とテスト
-4. [ ] ScopeManagerPanelでProjectServiceの拡張機能を使用するよう修正
-   - [ ] プロジェクト管理関連メソッド呼び出しをサービス経由に変更
-5. [ ] ScopeManagerPanelとProjectServiceの連携テスト
-   - [ ] プロジェクト作成・読み込みテスト
-   - [ ] プロジェクト選択・削除テスト
-   - [ ] プロジェクト一覧取得テスト
+1. [x] ProjectServiceのインターフェース拡張設計
+   - [x] `createProject(name: string, description: string): Promise<string>`メソッド追加・拡張
+   - [x] `loadExistingProject(projectPath: string): Promise<IProjectInfo>`メソッド追加・拡張
+   - [x] `selectProject(name: string, path: string, activeTab?: string): Promise<void>`メソッド追加・拡張
+   - [x] `removeProject(name: string, path: string, id?: string): Promise<boolean>`メソッド追加・拡張
+   - [x] `refreshProjectsList(): Promise<IProjectInfo[]>`メソッド追加・拡張
+   - [x] `ensureActiveProject(name: string, path: string, activeTab?: string): Promise<boolean>`メソッド追加
+2. [x] ProjectServiceの実装クラス拡張
+   - [x] プロジェクト管理関連メソッドの追加・拡張
+   - [x] イベント通知機能の拡充
+3. [x] プロジェクト管理関連メソッドの移行:
+   - [x] `_handleCreateProject`の移行と削除/委譲
+   - [x] `_handleSelectProject`の移行と削除/委譲
+   - [x] `_handleRemoveProject`の移行と削除/委譲
+4. [x] ScopeManagerPanelでProjectServiceの拡張機能を使用するよう修正
+   - [x] プロジェクト管理関連メソッド呼び出しをサービス経由に変更
+   - [x] MessageDispatchServiceにProjectServiceを設定
+   - [x] プロジェクト関連のメッセージハンドラーを登録
+5. [x] ScopeManagerPanelとProjectServiceの連携テスト
+   - [x] プロジェクト作成・読み込みテスト
+   - [x] プロジェクト選択・削除テスト
+   - [x] プロジェクト一覧取得テスト
 
 ### フェーズ8: SharingServiceとClaudeCodeIntegrationServiceの拡張・実装 (3日)
 

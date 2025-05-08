@@ -17,9 +17,9 @@ class FileBrowser {
   }
   
   /**
-   * コンポーネントの初期化
+   * クライアント側のUIのみを準備（サーバー側の初期化を待つ）
    */
-  initialize() {
+  prepareUI() {
     if (this.isInitialized) return;
     
     // DOM要素の取得
@@ -40,10 +40,19 @@ class FileBrowser {
     // 初期化完了フラグを設定
     this.isInitialized = true;
     
-    // 初期ディレクトリリストの要求
-    this._requestDirectoryListing();
+    console.log('FileBrowser: UIの準備完了（サーバー側からの初期化を待機します）');
+  }
+  
+  /**
+   * 従来の初期化メソッド（後方互換性のため残しておく）
+   * @deprecated prepareUIを使用してください
+   */
+  initialize() {
+    console.warn('FileBrowser: 非推奨のinitializeメソッドが呼び出されました。代わりにprepareUIを使用してください');
+    this.prepareUI();
     
-    console.log('FileBrowser: 初期化完了');
+    // 安全のため初期リクエストは送信しない
+    console.log('FileBrowser: サーバー側の初期化を待機します');
   }
   
   /**

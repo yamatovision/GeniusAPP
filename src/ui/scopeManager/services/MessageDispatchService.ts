@@ -40,6 +40,7 @@ export class MessageDispatchService implements IMessageDispatchService {
   private _sharingService?: any;
   private _projectService?: any;
   private _fileSystemService?: any;
+  private _uiStateService?: any;
   
   private static _instance: MessageDispatchService;
   
@@ -62,6 +63,7 @@ export class MessageDispatchService implements IMessageDispatchService {
     sharingService?: any;
     projectService?: any;
     fileSystemService?: any;
+    uiStateService?: any;
   }): void {
     if (services.sharingService) {
       this._sharingService = services.sharingService;
@@ -71,6 +73,9 @@ export class MessageDispatchService implements IMessageDispatchService {
     }
     if (services.fileSystemService) {
       this._fileSystemService = services.fileSystemService;
+    }
+    if (services.uiStateService) {
+      this._uiStateService = services.uiStateService;
     }
   }
   
@@ -551,6 +556,120 @@ export class MessageDispatchService implements IMessageDispatchService {
     });
     
     Logger.info('MessageDispatchService: プロジェクト関連のメッセージハンドラーを登録しました');
+  }
+  
+  /**
+   * ファイル操作関連のメッセージハンドラーを登録
+   */
+  public registerFileHandlers(): void {
+    if (!this._fileSystemService) {
+      Logger.error('MessageDispatchService: FileSystemServiceが設定されていないため、ファイル操作ハンドラーは登録できません');
+      return;
+    }
+    
+    // openFileInEditor ハンドラー
+    this.registerHandler('openFileInEditor', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.filePath) {
+        try {
+          await this._fileSystemService.openFileInEditor(message.filePath);
+          // 成功メッセージ
+          if (this._uiStateService) {
+            this._uiStateService.showSuccess(`ファイルをエディタで開きました: ${path.basename(message.filePath)}`);
+          }
+        } catch (error) {
+          // エラーメッセージ
+          if (this._uiStateService) {
+            this._uiStateService.showError(`ファイルを開けませんでした: ${(error as Error).message}`);
+          }
+        }
+      } else {
+        Logger.warn('MessageDispatchService: openFileInEditorメッセージにfilePath必須パラメータがありません');
+      }
+    });
+    
+    // navigateDirectory ハンドラー
+    this.registerHandler('navigateDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.dirPath) {
+        try {
+          await this._fileSystemService.navigateDirectory(message.dirPath, panel);
+        } catch (error) {
+          // エラーメッセージ
+          if (this._uiStateService) {
+            this._uiStateService.showError(`ディレクトリの移動に失敗しました: ${(error as Error).message}`);
+          }
+        }
+      } else {
+        Logger.warn('MessageDispatchService: navigateDirectoryメッセージにdirPath必須パラメータがありません');
+      }
+    });
+    
+    // openFile ハンドラー
+    this.registerHandler('openFile', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.filePath) {
+        try {
+          await this._fileSystemService.openFile(message.filePath, panel);
+        } catch (error) {
+          // エラーメッセージ
+          if (this._uiStateService) {
+            this._uiStateService.showError(`ファイルを開けませんでした: ${(error as Error).message}`);
+          }
+        }
+      } else {
+        Logger.warn('MessageDispatchService: openFileメッセージにfilePath必須パラメータがありません');
+      }
+    });
+    
+    // refreshFileBrowser ハンドラー
+    this.registerHandler('refreshFileBrowser', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.projectPath) {
+        try {
+          await this._fileSystemService.refreshFileBrowser(message.projectPath, panel);
+        } catch (error) {
+          // エラーメッセージ
+          if (this._uiStateService) {
+            this._uiStateService.showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
+          }
+        }
+      } else {
+        // プロジェクトパスが指定されていない場合はエラー
+        Logger.warn('MessageDispatchService: refreshFileBrowserメッセージにprojectPath必須パラメータがありません');
+      }
+    });
+    
+    // listDirectory ハンドラー
+    this.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
+      const dirPath = message.path || (message.projectPath ? path.join(message.projectPath, 'docs') : '');
+      if (dirPath) {
+        try {
+          // ディレクトリが存在するか確認
+          if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+            if (this._uiStateService) {
+              this._uiStateService.showError(`ディレクトリが見つかりません: ${dirPath}`);
+            }
+            return;
+          }
+          
+          // ディレクトリの内容をリストアップ
+          const files = await this._fileSystemService.listDirectory(dirPath);
+          
+          // ファイルリストを送信
+          panel.webview.postMessage({
+            command: 'updateFileList',
+            files: files,
+            currentPath: dirPath,
+            parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
+          });
+        } catch (error) {
+          if (this._uiStateService) {
+            this._uiStateService.showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
+          }
+        }
+      } else {
+        Logger.warn('MessageDispatchService: listDirectoryメッセージにdirPathが指定されていません');
+      }
+    });
+    
+    Logger.info('MessageDispatchService: ファイル操作関連のメッセージハンドラーを登録しました');
   }
 
   /**

@@ -157,11 +157,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
     messageDispatchService.setDependencies({
       sharingService: this._sharingService,
       projectService: this._projectService,
-      fileSystemService: this._fileSystemService
+      fileSystemService: this._fileSystemService,
+      uiStateService: this._uiStateService
     });
     
     // プロジェクト関連のメッセージハンドラーを登録
     messageDispatchService.registerProjectHandlers();
+    
+    // ファイル操作関連のメッセージハンドラーを登録
+    messageDispatchService.registerFileHandlers();
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -277,74 +281,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             // ファイルブラウザ関連
             case 'refreshFileBrowser':
-              // MessageDispatchServiceを使って更新
-              this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
-              const messageService = MessageDispatchService.getInstance();
-              messageService.sendMessage(this._panel, {
-                command: 'updateFileBrowser',
-                structure: this._directoryStructure
-              });
+              // MessageDispatchServiceが処理するため何もしない
               break;
+            // ファイル操作関連はすべてFileSystemServiceへ移行済み
             case 'openFile':
-              await this._handleOpenFile(message.filePath);
-              break;
             case 'navigateDirectory':
-              // FileSystemServiceを使用して実装
-              try {
-                const dirPath = message.dirPath;
-                Logger.info(`ディレクトリを開きます: ${dirPath}`);
-                
-                // ディレクトリが存在するか確認
-                if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
-                  this._showError(`ディレクトリが見つかりません: ${dirPath}`);
-                  return;
-                }
-                
-                // FileSystemServiceを使ってディレクトリ内容を取得
-                const sortedEntries = await this._fileSystemService.listDirectory(dirPath);
-                
-                // ファイルブラウザを更新
-                this._panel.webview.postMessage({
-                  command: 'updateFileList',
-                  currentPath: dirPath,
-                  files: sortedEntries,
-                  parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
-                });
-              } catch (error) {
-                Logger.error(`ディレクトリ内容の取得に失敗しました: ${message.dirPath}`, error as Error);
-                this._showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
-              }
-              break;
             case 'listDirectory':
-              // ディレクトリ内容の取得と表示
-              try {
-                // プロジェクトパスが設定されていない場合は処理しない
-                if (!this._projectPath) {
-                  this._showError('プロジェクトが選択されていません');
-                  return;
-                }
-                
-                // デフォルトパスはプロジェクトのdocsディレクトリ
-                const dirPath = message.path || path.join(this._projectPath, 'docs');
-                
-                // ディレクトリの内容をリストアップ
-                const files = await this._fileSystemService.listDirectory(dirPath);
-                
-                // ファイルリストを送信
-                this._panel.webview.postMessage({
-                  command: 'updateFileList',
-                  files: files,
-                  currentPath: dirPath
-                });
-                
-                Logger.info(`ディレクトリの内容をリストアップしました: ${dirPath}`);
-              } catch (error) {
-                Logger.error(`ディレクトリ内容の取得に失敗しました: ${message.path}`, error as Error);
-                this._showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
-              }
-              break;
             case 'openFileInEditor':
-              await this._handleOpenFileInEditor(message.filePath);
+              // MessageDispatchServiceが処理するため何もしない
               break;
             // 新しいコマンド
             case 'launchPromptFromURL':
@@ -562,30 +506,38 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 初期化処理
    */
   private async _handleInitialize(): Promise<void> {
-    // 最新のプロジェクト一覧を取得して送信
-    await this._refreshProjects();
-    
-    await this._loadProgressFile();
+    try {
+      // 最新のプロジェクト一覧を取得して送信
+      await this._refreshProjects();
+      
+      await this._loadProgressFile();
 
-    // ディレクトリ構造を更新
-    this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
-    
-    // 共有履歴を初期化
-    await this._handleGetHistory();
-    
-    // 進捗ファイル(SCOPE_PROGRESS.md)の内容を読み込む
-    if (this._progressFilePath && fs.existsSync(this._progressFilePath)) {
-      await this._handleGetMarkdownContent(this._progressFilePath);
+      // ディレクトリ構造を更新
+      this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
+      
+      // 共有履歴を初期化
+      await this._handleGetHistory();
+      
+      // 進捗ファイル(SCOPE_PROGRESS.md)の内容を読み込む
+      if (this._progressFilePath && fs.existsSync(this._progressFilePath)) {
+        await this._handleGetMarkdownContent(this._progressFilePath);
+      }
+      
+      // 要件定義ファイル(requirements.md)がある場合は読み込む
+      const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
+      if (fs.existsSync(requirementsFilePath)) {
+        await this._handleLoadRequirementsFile();
+      }
+      
+      // ファイルブラウザの初期化（FileSystemService経由）
+      if (this._fileSystemService && this._projectPath) {
+        await this._fileSystemService.initializeFileBrowser(this._projectPath, this._panel);
+        Logger.info('ScopeManagerPanel: ファイルブラウザを初期化しました（FileSystemService経由）');
+      }
+    } catch (error) {
+      Logger.error('ScopeManagerPanel: 初期化処理中にエラーが発生しました', error as Error);
+      this._showError(`初期化に失敗しました: ${(error as Error).message}`);
     }
-    
-    // 要件定義ファイル(requirements.md)がある場合は読み込む
-    const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
-    if (fs.existsSync(requirementsFilePath)) {
-      await this._handleLoadRequirementsFile();
-    }
-    
-    // ファイルブラウザの初期化
-    await this._initializeFileBrowser();
   }
   
   /**
@@ -600,189 +552,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
     await this._tabStateService.loadRequirementsFile(this._panel);
   }
   
-  /**
-   * ファイルブラウザの初期化
-   * docsディレクトリの内容をリストアップして表示
-   */
-  private async _initializeFileBrowser(): Promise<void> {
-    try {
-      Logger.info('ファイルブラウザの初期化を開始します');
-      
-      // プロジェクトパスが設定されていない場合は処理しない
-      if (!this._projectPath) {
-        Logger.warn('プロジェクトパスが設定されていません。ファイルブラウザの初期化をスキップします。');
-        return;
-      }
-      
-      // docsディレクトリのパスを生成
-      const docsPath = path.join(this._projectPath, 'docs');
-      
-      // docsディレクトリの存在確認と作成
-      await this._fileSystemService.ensureDirectoryExists(docsPath);
-      
-      // ファイルブラウザ用のディレクトリ構造を送信
-      this._panel.webview.postMessage({
-        command: 'updateFileBrowser',
-        structure: this._directoryStructure
-      });
-      
-      // ディレクトリの内容をリストアップ
-      const files = await this._fileSystemService.listDirectory(docsPath);
-      
-      // ファイルリストを送信
-      this._panel.webview.postMessage({
-        command: 'updateFileList',
-        files: files,
-        currentPath: docsPath
-      });
-      
-      Logger.info(`ファイルブラウザを初期化しました: ${docsPath}`);
-    } catch (error) {
-      Logger.error('ファイルブラウザの初期化中にエラーが発生しました', error as Error);
-      this._showError(`ファイルブラウザの初期化に失敗しました: ${(error as Error).message}`);
-    }
-  }
+  // _initializeFileBrowserメソッドはFileSystemServiceに完全移行されました
   
   
-  /**
-   * 指定されたディレクトリの内容をリストアップする
-   * @param dirPath ディレクトリパス（未指定の場合はプロジェクトのdocsディレクトリ）
-   */
-  private async _handleListDirectory(dirPath?: string): Promise<void> {
-    try {
-      Logger.info(`ディレクトリ内容のリストアップ: ${dirPath || 'プロジェクトdocsディレクトリ'}`);
-      
-      // ディレクトリパスが指定されていない場合はプロジェクトのdocsディレクトリを使用
-      const targetPath = dirPath || (this._projectPath ? path.join(this._projectPath, 'docs') : '');
-      
-      if (!targetPath) {
-        Logger.warn('ディレクトリパスが指定されていません。');
-        return;
-      }
-      
-      // ディレクトリの存在確認
-      if (!fs.existsSync(targetPath)) {
-        Logger.warn(`指定されたディレクトリが存在しません: ${targetPath}`);
-        return;
-      }
-      
-      // ディレクトリの内容をリストアップ
-      const files = await this._fileSystemService.listDirectory(targetPath);
-      
-      // ファイルリストを送信
-      this._panel.webview.postMessage({
-        command: 'updateFileList',
-        files: files,
-        currentPath: targetPath,
-        parentPath: path.dirname(targetPath) !== targetPath ? path.dirname(targetPath) : null
-      });
-      
-      Logger.info(`ディレクトリ内容をリストアップしました: ${targetPath}, ${files.length}件`);
-    } catch (error) {
-      Logger.error('ディレクトリ内容のリストアップに失敗しました', error as Error);
-      this._showError(`ディレクトリ内容の取得に失敗しました: ${(error as Error).message}`);
-    }
-  }
+  // _handleListDirectoryメソッドはFileSystemServiceに完全移行されました
   
-  /**
-   * ファイルをVSCodeエディタで開く
-   * @param filePath 開くファイルのパス
-   */
-  private async _handleOpenFileInEditor(filePath: string): Promise<void> {
-    try {
-      Logger.info(`ファイルをエディタで開きます: ${filePath}`);
-      
-      // ファイルの存在確認
-      if (!fs.existsSync(filePath)) {
-        this._showError(`ファイルが見つかりません: ${filePath}`);
-        return;
-      }
-      
-      // VSCodeのOpen APIを使用してファイルを開く
-      const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-      await vscode.window.showTextDocument(document);
-      
-      Logger.info(`ファイルをエディタで開きました: ${filePath}`);
-    } catch (error) {
-      Logger.error(`ファイルをエディタで開く際にエラーが発生しました: ${filePath}`, error as Error);
-      this._showError(`ファイルをエディタで開けませんでした: ${(error as Error).message}`);
-    }
-  }
+  // _handleOpenFileInEditorメソッドはFileSystemServiceに完全移行されました
   
-  /**
-   * 指定されたディレクトリに移動する
-   * @param dirPath 移動先のディレクトリパス
-   */
-  private async _handleNavigateDirectory(dirPath: string): Promise<void> {
-    try {
-      Logger.info(`ディレクトリに移動します: ${dirPath}`);
-      
-      // ディレクトリの存在確認
-      if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
-        this._showError(`ディレクトリが見つかりません: ${dirPath}`);
-        return;
-      }
-      
-      // ディレクトリの内容をリストアップして送信
-      await this._handleListDirectory(dirPath);
-    } catch (error) {
-      Logger.error(`ディレクトリの移動に失敗しました: ${dirPath}`, error as Error);
-      this._showError(`ディレクトリの移動に失敗しました: ${(error as Error).message}`);
-    }
-  }
+  // _handleNavigateDirectoryメソッドはFileSystemServiceに完全移行されました
   
-  /**
-   * ファイルを開いてプレビュー表示する
-   * @param filePath 開くファイルのパス
-   */
-  private async _handleOpenFile(filePath: string): Promise<void> {
-    try {
-      Logger.info(`ファイルを開きます: ${filePath}`);
-      
-      // ファイルの存在確認
-      if (!fs.existsSync(filePath)) {
-        this._showError(`ファイルが見つかりません: ${filePath}`);
-        return;
-      }
-      
-      // ファイルの種類を判定
-      const fileExt = path.extname(filePath).toLowerCase();
-      
-      // テキストファイルかどうかを判断
-      if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
-        // テキストファイルの場合は内容を読み込んで表示
-        const content = await this._fileSystemService.readFile(filePath);
-        
-        this._panel.webview.postMessage({
-          command: 'updateFilePreview',
-          filePath: filePath,
-          content: content,
-          type: 'text',
-          extension: fileExt
-        });
-      } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
-        // 画像ファイルの場合は画像として表示
-        // Base64エンコードなしでUriとして送信
-        this._panel.webview.postMessage({
-          command: 'updateFilePreview',
-          filePath: filePath,
-          type: 'image',
-          extension: fileExt,
-          // ファイルURIをWebView用に変換
-          uri: this._panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
-        });
-      } else {
-        // その他のファイルはVSCodeで開く
-        await this._handleOpenFileInEditor(filePath);
-        this._showSuccess(`ファイル「${path.basename(filePath)}」をVSCodeで開きました`);
-      }
-      
-      Logger.info(`ファイル「${path.basename(filePath)}」を開きました`);
-    } catch (error) {
-      Logger.error(`ファイルを開く際にエラーが発生しました: ${filePath}`, error as Error);
-      this._showError(`ファイルを開けませんでした: ${(error as Error).message}`);
-    }
-  }
+  // _handleOpenFileメソッドはFileSystemServiceに完全移行されました
   
   /**
    * プロジェクト一覧を更新

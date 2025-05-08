@@ -145,8 +145,13 @@ try {
     // 4. マークダウン表示の初期化を委譲
     markdownViewer.init();
     
-    // 5. ファイルブラウザの初期化
-    if (typeof fileBrowser.initialize === 'function') {
+    // 5. クライアント側のファイルブラウザUIの準備
+    // 注：実際の初期化とファイル読み込みはサーバーサイド(VSCode拡張)で処理
+    if (typeof fileBrowser.prepareUI === 'function') {
+      fileBrowser.prepareUI(); 
+    } else if (typeof fileBrowser.initialize === 'function') {
+      // 後方互換性のため
+      console.log('警告: fileBrowser.prepareUIが見つからないため、代わりにinitializeを使用します');
       fileBrowser.initialize();
     }
     
