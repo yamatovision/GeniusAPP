@@ -82,6 +82,31 @@ class FileBrowser {
         case 'updateFilePreview':
           this.updateFilePreview(message.content, message.filePath);
           break;
+        case 'updateFileBrowser':
+          // サーバーからのupdateFileBrowserコマンドを処理
+          console.log('FileBrowser: updateFileBrowserコマンドを受信しました', message);
+          if (message.files) {
+            // filesパラメータがある場合は通常のupdateFileListとして処理
+            this.updateFileList(message.files);
+          } else if (message.structure) {
+            // 構造情報がある場合で、filesパラメータがない場合
+            console.log('FileBrowser: 構造情報を受信しました。ファイルリストを自動的に取得します');
+            
+            // 現在のパスでディレクトリリストを要求（ファイル一覧を更新）
+            this._requestDirectoryListing(this.currentPath);
+            
+            if (this.fileListElement) {
+              // 一時的なロード中メッセージを表示
+              this.fileListElement.innerHTML = '<div class="loading-state">ファイルを読み込み中...</div>';
+            }
+          }
+          break;
+        case 'updateDirectoryStructure':
+          // ディレクトリ構造更新メッセージを処理
+          console.log('FileBrowser: ディレクトリ構造更新メッセージを受信しました');
+          // 必要に応じてディレクトリリストの更新をリクエスト
+          this._requestDirectoryListing();
+          break;
       }
     });
   }
@@ -91,13 +116,137 @@ class FileBrowser {
    * @param {string} path 表示するディレクトリパス（省略時は現在のプロジェクトのdocsディレクトリ）
    */
   _requestDirectoryListing(path) {
-    // パスが指定されていない場合は現在のパスを使用
-    const directoryPath = path || this.currentPath || null;
+    try {
+      // vscode APIが利用可能か確認
+      if (!this.vscode) {
+        console.error('FileBrowser: VSCode APIが利用できないためディレクトリリストを要求できません');
+        return;
+      }
+      
+      // パスが指定されていない場合は現在のパスを使用
+      let directoryPath = path || this.currentPath || null;
+      
+      // パスがない場合は静かに終了（エラーにしない）
+      if (!directoryPath) {
+        console.log('FileBrowser: ディレクトリパスが指定されていません、スキップします');
+        
+        // 空のファイルリストを表示
+        if (this.fileListElement) {
+          this.fileListElement.innerHTML = '<div class="empty-state">プロジェクトを選択してください</div>';
+        }
+        return;
+      }
+      
+      // パスの正規化: .DS_Storeなどの特殊ファイルを処理
+      directoryPath = this._normalizePath(directoryPath);
+      
+      // ディレクトリリスト要求をVSCodeに送信
+      console.log(`FileBrowser: ディレクトリリストを要求: ${directoryPath}`);
+      this.vscode.postMessage({
+        command: 'listDirectory',
+        path: directoryPath
+      });
+      
+      // 現在のパスを更新
+      this.currentPath = directoryPath;
+    } catch (error) {
+      console.error('FileBrowser: ディレクトリリスト要求中にエラーが発生しました', error);
+      
+      // ファイルリスト表示領域にエラーメッセージを表示
+      if (this.fileListElement) {
+        this.fileListElement.innerHTML = '<div class="error-state">エラーが発生しました</div>';
+      }
+    }
+  }
+  
+  /**
+   * パスを正規化するヘルパーメソッド
+   * @param {string} path 正規化するパス
+   * @returns {string} 正規化されたパス
+   * @private
+   */
+  _normalizePath(path) {
+    if (!path) return path;
     
-    this.vscode.postMessage({
-      command: 'listDirectory',
-      path: directoryPath
-    });
+    // 特殊ファイルの処理
+    const specialFiles = ['.DS_Store', 'Thumbs.db', '.localized'];
+    for (const file of specialFiles) {
+      if (path.endsWith(file)) {
+        // 親ディレクトリを返す
+        const parentPath = path.substring(0, path.lastIndexOf('/'));
+        console.log(`FileBrowser: 特殊ファイル「${file}」を除外し、親ディレクトリを使用: ${parentPath}`);
+        return parentPath;
+      }
+    }
+    
+    return path;
+  }
+  
+  /**
+   * ディレクトリ構造を更新処理
+   * @param {string} structureJson ディレクトリ構造のJSON文字列
+   */
+  updateDirectoryStructure(structureJson) {
+    console.log('FileBrowser: ディレクトリ構造を更新します');
+    
+    try {
+      // vscode APIが利用可能か確認
+      if (!this.vscode) {
+        console.error('FileBrowser: VSCode APIが利用できないためディレクトリ構造の更新をスキップします');
+        return;
+      }
+      
+      // デフォルトのプロジェクトパスを取得（初回用）
+      let projectPath = null;
+      
+      // 現在のパスが設定されている場合はそれを使用
+      if (this.currentPath) {
+        projectPath = this.currentPath;
+      } else {
+        // structureJsonからプロジェクトパスを抽出してみる
+        try {
+          if (structureJson && typeof structureJson === 'string' && structureJson.startsWith('/')) {
+            // 構造JSONが実際にはパス文字列の場合
+            projectPath = structureJson.split('\n')[0].trim();
+            console.log(`FileBrowser: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
+            
+            // .DS_Storeなどの隠しファイルをパスから検出して除外
+            if (projectPath.endsWith('.DS_Store')) {
+              // 親ディレクトリを取得
+              projectPath = projectPath.substring(0, projectPath.lastIndexOf('/'));
+              console.log(`FileBrowser: .DS_Storeを除外し、親ディレクトリを使用: ${projectPath}`);
+            }
+          }
+        } catch (parseError) {
+          console.warn('FileBrowser: 構造情報の解析に失敗しました', parseError);
+        }
+      }
+      
+      // パスが取得できない場合はエラーではなく静かに終了
+      if (!projectPath) {
+        console.warn('FileBrowser: 有効なプロジェクトパスが見つからないためディレクトリ構造更新をスキップします');
+        
+        // 空のファイルリストを表示
+        if (this.fileListElement) {
+          this.fileListElement.innerHTML = '<div class="empty-state">プロジェクトを選択してください</div>';
+        }
+        return;
+      }
+      
+      // 現在のパスでディレクトリリストを要求
+      console.log(`FileBrowser: ディレクトリリストを要求します: ${projectPath}`);
+      this.vscode.postMessage({
+        command: 'listDirectory',
+        path: projectPath
+      });
+      
+      // ファイルリスト表示領域にローディングメッセージを表示
+      if (this.fileListElement) {
+        this.fileListElement.innerHTML = '<div class="loading-state">ファイルを読み込み中...</div>';
+      }
+    } catch (error) {
+      console.error('FileBrowser: ディレクトリ構造更新中にエラーが発生しました', error);
+    }
   }
   
   /**
@@ -153,7 +302,22 @@ class FileBrowser {
    * @param {string} filePath ファイルパス
    */
   updateFilePreview(content, filePath) {
-    if (!this.previewElement) return;
+    console.log('FileBrowser: ファイルプレビュー更新開始', { filePath });
+    
+    // プレビュー要素の再取得（タブ切り替え後に要素が再描画される可能性があるため）
+    this.previewElement = document.getElementById('file-preview');
+    
+    if (!this.previewElement) {
+      console.error('FileBrowser: file-preview要素が見つかりません');
+      // file-preview-content要素を代わりに試す
+      this.previewElement = document.getElementById('file-preview-content');
+      if (!this.previewElement) {
+        console.error('FileBrowser: file-preview-content要素も見つかりません');
+        return;
+      }
+    }
+    
+    console.log('FileBrowser: プレビュー要素が見つかりました', this.previewElement);
     
     // ファイルパスから名前を取得
     const fileName = filePath.split('/').pop();
@@ -188,6 +352,8 @@ class FileBrowser {
     this.previewElement.innerHTML = '';
     this.previewElement.appendChild(previewHeader);
     this.previewElement.appendChild(previewContent);
+    
+    console.log('FileBrowser: プレビュー内容を更新しました');
     
     // 「エディタで開く」ボタンのイベントリスナー
     const openButton = document.getElementById('open-in-editor');

@@ -775,6 +775,14 @@ export class FileSystemServiceImpl implements IFileSystemService {
       const files = await this.listDirectory(projectPath);
       
       // WebViewにディレクトリ内容を送信
+      // 1. 標準のupdateFileListコマンドとして送信（ファイルブラウザが直接処理できる形式）
+      panel.webview.postMessage({
+        command: 'updateFileList',
+        files: files,
+        currentPath: projectPath
+      });
+      
+      // 2. 互換性のためupdateFileBrowserコマンドも送信
       panel.webview.postMessage({
         command: 'updateFileBrowser',
         files: files,

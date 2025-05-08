@@ -51,12 +51,21 @@
   window.addEventListener('message', event => {
     const message = event.data;
     
-    // displayModelMockupメッセージは処理しない（scopeManager.jsに任せる）
-    if (message.command === 'displayModelMockup') {
-      console.log('メッセージをスキップ: displayModelMockup (scopeManager.jsが処理)');
+    // 処理しないメッセージリスト（他のコンポーネントに処理を任せる）
+    const skipCommands = [
+      'displayModelMockup',        // モックアップ表示（scopeManager.js担当）
+      'updateDirectoryStructure',  // ディレクトリ構造更新（fileBrowser.js担当）
+      'updateFileBrowser',         // ファイルブラウザ更新（fileBrowser.js担当）
+      'listDirectory',             // ディレクトリリスト要求（VSCode拡張担当）
+      'initFileBrowser'            // ファイルブラウザ初期化（fileBrowser.js担当）
+    ];
+    
+    // スキップリストに含まれるコマンドは処理しない
+    if (skipCommands.includes(message.command)) {
       return;
     }
     
+    // 処理するメッセージのみログに出力
     console.log('メッセージ受信:', message.command, message);
     
     switch (message.command) {

@@ -21,6 +21,8 @@ import { IAuthenticationHandler, AuthenticationHandler } from './services/Authen
 import { IUIStateService, UIStateService } from './services/UIStateService';
 import { MessageDispatchService } from './services/MessageDispatchService';
 import { ITabStateService, TabStateService } from './services/TabStateService';
+import { IPanelService } from './services/PanelService';
+import { ServiceRegistry } from './services/ServiceRegistry';
 import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
@@ -85,44 +87,87 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
     // すでにパネルが存在する場合は、それを表示
     if (ScopeManagerPanel.currentPanel) {
-      ScopeManagerPanel.currentPanel._panel.reveal(column);
-      
-      // プロジェクトパスが指定されている場合は更新
-      if (projectPath) {
-        Logger.info(`既存のスコープマネージャーパネルを使用して、プロジェクトパスを更新: ${projectPath}`);
-        ScopeManagerPanel.currentPanel.setProjectPath(projectPath);
+      // ServiceRegistryからPanelServiceを取得
+      try {
+        const serviceRegistry = ServiceRegistry.getInstance();
+        const panelService = serviceRegistry.panelService;
+        
+        // パネルを表示
+        panelService.showPanel(column);
+        
+        // プロジェクトパスが指定されている場合は更新
+        if (projectPath) {
+          Logger.info(`既存のスコープマネージャーパネルを使用して、プロジェクトパスを更新: ${projectPath}`);
+          ScopeManagerPanel.currentPanel.setProjectPath(projectPath);
+        }
+        
+        return ScopeManagerPanel.currentPanel;
+      } catch (error) {
+        // ServiceRegistryが初期化されていない場合
+        Logger.info('ServiceRegistryが初期化されていません。従来の方法でパネルを表示します。');
+        ScopeManagerPanel.currentPanel._panel.reveal(column);
+        
+        // プロジェクトパスが指定されている場合は更新
+        if (projectPath) {
+          Logger.info(`既存のスコープマネージャーパネルを使用して、プロジェクトパスを更新: ${projectPath}`);
+          ScopeManagerPanel.currentPanel.setProjectPath(projectPath);
+        }
+        
+        return ScopeManagerPanel.currentPanel;
       }
-      
-      return ScopeManagerPanel.currentPanel;
     }
 
-    // 新しいパネルを作成
-    const panel = vscode.window.createWebviewPanel(
-      ScopeManagerPanel.viewType,
-      'AppGenius スコープマネージャー',
-      column || vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        // カスタムCSP設定を削除し、VSCodeのデフォルト設定を使用
-        // contentSecurityPolicy: "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src *;",
-        localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, 'media'),
-          vscode.Uri.joinPath(extensionUri, 'dist'),
-          vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons')
-        ]
-      }
-    );
-    
-    Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}`);
-    ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, context, projectPath);
-    return ScopeManagerPanel.currentPanel;
+    try {
+      // ServiceRegistryを初期化
+      const serviceRegistry = ServiceRegistry.initialize(extensionUri, context);
+      
+      // PanelServiceを使ってパネルを作成
+      const panelService = serviceRegistry.panelService;
+      panelService.createPanel(column);
+      
+      // 標準ハンドラーを登録
+      serviceRegistry.registerStandardHandlers();
+      
+      // 新しいパネルインスタンスを作成
+      Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}, ServiceRegistryを使用`);
+      ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panelService.getPanel()!, extensionUri, context, projectPath, serviceRegistry);
+      return ScopeManagerPanel.currentPanel;
+    } catch (error) {
+      // ServiceRegistryの初期化に失敗した場合、従来の方法でパネルを作成
+      Logger.warn('ServiceRegistryの初期化に失敗しました。従来の方法でパネルを作成します。', error as Error);
+      
+      // 新しいパネルを作成
+      const panel = vscode.window.createWebviewPanel(
+        ScopeManagerPanel.viewType,
+        'AppGenius スコープマネージャー',
+        column || vscode.ViewColumn.One,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [
+            vscode.Uri.joinPath(extensionUri, 'media'),
+            vscode.Uri.joinPath(extensionUri, 'dist'),
+            vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons')
+          ]
+        }
+      );
+      
+      Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}, 従来の方法`);
+      ScopeManagerPanel.currentPanel = new ScopeManagerPanel(panel, extensionUri, context, projectPath);
+      return ScopeManagerPanel.currentPanel;
+    }
   }
 
   /**
    * コンストラクタ
    */
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string) {
+  private constructor(
+    panel: vscode.WebviewPanel, 
+    extensionUri: vscode.Uri, 
+    context: vscode.ExtensionContext, 
+    projectPath?: string,
+    serviceRegistry?: ServiceRegistry
+  ) {
     super();
     
     this._panel = panel;
@@ -131,41 +176,56 @@ export class ScopeManagerPanel extends ProtectedPanel {
     this._fileManager = FileOperationManager.getInstance();
     this._promptServiceClient = PromptServiceClient.getInstance();
     
-    // FileSystemServiceのインスタンスを取得
-    this._fileSystemService = FileSystemService.getInstance();
-    
-    // ProjectServiceのインスタンスを取得
-    this._projectService = ProjectService.getInstance(this._fileSystemService);
-    
-    // ProjectServiceのイベントリスナーを設定
-    this._setupProjectServiceEventListeners();
-    
-    // 共有サービスを初期化
-    this._sharingService = SharingService.getInstance(context);
-    
-    // 認証ハンドラーを初期化
-    this._authHandler = AuthenticationHandler.getInstance();
-    
-    // UI状態管理サービスを初期化
-    this._uiStateService = UIStateService.getInstance(panel, extensionUri);
-    
-    // タブ状態管理サービスを初期化
-    this._tabStateService = TabStateService.getInstance();
-    
-    // MessageDispatchServiceを初期化し、依存関係を設定
-    const messageDispatchService = MessageDispatchService.getInstance();
-    messageDispatchService.setDependencies({
-      sharingService: this._sharingService,
-      projectService: this._projectService,
-      fileSystemService: this._fileSystemService,
-      uiStateService: this._uiStateService
-    });
-    
-    // プロジェクト関連のメッセージハンドラーを登録
-    messageDispatchService.registerProjectHandlers();
-    
-    // ファイル操作関連のメッセージハンドラーを登録
-    messageDispatchService.registerFileHandlers();
+    // ServiceRegistryが提供されている場合は、そこからサービスを取得
+    if (serviceRegistry) {
+      Logger.info('ScopeManagerPanel: ServiceRegistryからサービスを取得');
+      
+      // 各サービスを取得
+      this._fileSystemService = serviceRegistry.fileSystemService;
+      this._projectService = serviceRegistry.projectService;
+      this._sharingService = serviceRegistry.sharingService;
+      this._authHandler = serviceRegistry.authHandler;
+      this._uiStateService = serviceRegistry.uiStateService;
+      this._tabStateService = serviceRegistry.tabStateService;
+      
+      // メッセージングはServiceRegistryが設定済み
+    } else {
+      // 従来の方法でサービスを個別に初期化
+      Logger.info('ScopeManagerPanel: 従来の方法でサービスを初期化');
+      
+      // FileSystemServiceのインスタンスを取得
+      this._fileSystemService = FileSystemService.getInstance();
+      
+      // ProjectServiceのインスタンスを取得
+      this._projectService = ProjectService.getInstance(this._fileSystemService);
+      
+      // 共有サービスを初期化
+      this._sharingService = SharingService.getInstance(context);
+      
+      // 認証ハンドラーを初期化
+      this._authHandler = AuthenticationHandler.getInstance();
+      
+      // UI状態管理サービスを初期化
+      this._uiStateService = UIStateService.getInstance(panel, extensionUri);
+      
+      // タブ状態管理サービスを初期化
+      this._tabStateService = TabStateService.getInstance();
+      
+      // MessageDispatchServiceを初期化し、依存関係を設定
+      const messageDispatchService = MessageDispatchService.getInstance();
+      messageDispatchService.setDependencies({
+        sharingService: this._sharingService,
+        projectService: this._projectService,
+        fileSystemService: this._fileSystemService,
+        uiStateService: this._uiStateService
+      });
+      
+      // プロジェクト関連のメッセージハンドラーを登録
+      messageDispatchService.registerProjectHandlers();
+      
+      // ファイル操作関連のメッセージハンドラーを登録
+      messageDispatchService.registerFileHandlers();
+    }
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -363,17 +423,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     );
   }
 
-  /**
-   * 新規プロジェクト作成処理
-   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.createProjectを使用してください。
-   */
-  private async _handleCreateProject(projectName: string, description: string): Promise<void> {
-    Logger.warn('_handleCreateProjectは非推奨です。MessageDispatchService.createProjectを使用してください。');
-    
-    // MessageDispatchServiceのcreateProjectメソッドを呼び出す
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.createProject(this._panel, projectName, description);
-  }
+  // _handleCreateProject メソッドは MessageDispatchService.createProject に移行済みのため削除
   
   /**
    * 既存プロジェクトの読み込み処理
@@ -426,14 +476,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
         const progressFilePath = this._projectService.getProgressFilePath();
         if (progressFilePath && fs.existsSync(progressFilePath)) {
           await this._handleGetMarkdownContent(progressFilePath);
-          
-          // 進捗状況タブを選択状態にする
-          this._panel.webview.postMessage({
-            command: 'selectTab',
-            tabId: 'scope-progress'
-          });
-          
-          Logger.info('プロジェクト読み込み後に進捗状況タブを選択状態にしました');
         }
         
         // 成功メッセージを表示
@@ -511,46 +553,84 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * 初期化処理 - 必要最小限のプロジェクト初期化のみを行う
+   * 初期化処理
    */
   private async _handleInitialize(): Promise<void> {
     try {
-      Logger.info('ScopeManagerPanel: 初期化処理を開始（最適化版）');
-      
-      // 最新のプロジェクト一覧を取得して送信（これは必須）
+      // 最新のプロジェクト一覧を取得して送信
       await this._refreshProjects();
       
-      // ActiveProject情報を最新化
-      const activeProject = this._projectService.getActiveProject();
-      const activeTab = activeProject?.metadata?.activeTab || 'scope-progress';
+      await this._loadProgressFile();
+
+      // ディレクトリ構造を更新
+      this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
       
-      Logger.info(`ScopeManagerPanel: 初期化時のアクティブタブ=${activeTab}`);
-      
-      // 選択されたタブに応じた初期化のみを実行（タブ固有の処理）
-      if (activeTab === 'scope-progress' && this._progressFilePath && fs.existsSync(this._progressFilePath)) {
-        // 進捗ファイルのみ読み込み（その他のタブは選択時に読み込む）
-        await this._handleGetMarkdownContent(this._progressFilePath);
-        Logger.info('進捗ファイルを初期読み込みしました');
+      // 共有履歴を初期化
+      // this._handleGetHistory()は削除済みのため、MessageDispatchServiceを使用
+      try {
+        const messageDispatchService = MessageDispatchService.getInstance();
+        if (messageDispatchService && this._panel) {
+          await messageDispatchService.getHistory(this._panel);
+          Logger.info('ScopeManagerPanel: MessageDispatchServiceを使用して共有履歴を初期化しました');
+        } else {
+          Logger.warn('ScopeManagerPanel: 共有履歴の初期化をスキップします（MessageDispatchServiceが利用できません）');
+        }
+      } catch (historyError) {
+        // 共有履歴の初期化失敗は致命的ではないので警告のみ
+        Logger.warn('ScopeManagerPanel: 共有履歴の初期化に失敗しましたが、処理を続行します', historyError as Error);
       }
       
-      // この時点で強制的なタブ選択は行わない（UIが自動的に処理）
+      // 進捗ファイル(SCOPE_PROGRESS.md)の内容を読み込む
+      if (this._progressFilePath && fs.existsSync(this._progressFilePath)) {
+        await this._handleGetMarkdownContent(this._progressFilePath);
+      }
+      
+      // 要件定義ファイル(requirements.md)がある場合は読み込む
+      const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
+      if (fs.existsSync(requirementsFilePath)) {
+        Logger.info(`ScopeManagerPanel: 要件定義ファイルを検出しました: ${requirementsFilePath}`);
+        
+        try {
+          // 直接ファイル内容を読み込む（もっとも単純な方法）
+          if (this._fileSystemService) {
+            const content = await this._fileSystemService.readMarkdownFile(requirementsFilePath);
+            
+            // 'requirements'タブに内容を表示
+            this._panel.webview.postMessage({
+              command: 'updateTabContent',
+              tabId: 'requirements',
+              content: content,
+              filePath: requirementsFilePath,
+              timestamp: Date.now()
+            });
+            
+            // タブを選択
+            this._panel.webview.postMessage({
+              command: 'selectTab',
+              tabId: 'requirements'
+            });
+            
+            Logger.info('ScopeManagerPanel: 要件定義ファイルを直接読み込みました');
+          } else {
+            Logger.warn('ScopeManagerPanel: FileSystemServiceが利用できないため要件定義ファイルの読み込みをスキップします');
+          }
+        } catch (error) {
+          Logger.error('ScopeManagerPanel: 要件定義ファイルの読み込みに失敗しました', error as Error);
+        }
+      }
+      
+      // ファイルブラウザの初期化（FileSystemService経由）
+      if (this._fileSystemService && this._projectPath) {
+        await this._fileSystemService.initializeFileBrowser(this._projectPath, this._panel);
+        Logger.info('ScopeManagerPanel: ファイルブラウザを初期化しました（FileSystemService経由）');
+      }
     } catch (error) {
       Logger.error('ScopeManagerPanel: 初期化処理中にエラーが発生しました', error as Error);
       this._showError(`初期化に失敗しました: ${(error as Error).message}`);
     }
   }
   
-  /**
-   * 要件定義ファイルの読み込み
-   * docsディレクトリ内のrequirements.mdファイルを読み込んで表示
-   */
-  /**
-   * @deprecated TabStateServiceに移行済み
-   */
-  private async _handleLoadRequirementsFile(): Promise<void> {
-    // TabStateServiceに移行済み
-    await this._tabStateService.loadRequirementsFile(this._panel);
-  }
+  // _handleLoadRequirementsFile メソッドは TabStateService.loadRequirementsFile に移行済みのため削除
   
   // _initializeFileBrowserメソッドはFileSystemServiceに完全移行されました
   
@@ -701,17 +781,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
 
-  /**
-   * 共有履歴を取得してWebViewに送信
-   */
-  /**
-   * @deprecated MessageDispatchServiceに移行済み
-   */
-  private async _handleGetHistory(): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.getHistory(this._panel);
-  }
+  // _handleGetHistory メソッドは MessageDispatchService.getHistory に移行済みのため削除
 
   /**
    * テキストを共有サービスで共有 - SharingServiceに委譲
@@ -736,8 +806,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
       
-      // 履歴を取得
-      await this._handleGetHistory();
+      // 履歴を取得 (MessageDispatchServiceを使用)
+      try {
+        const messageDispatchService = MessageDispatchService.getInstance();
+        if (messageDispatchService && this._panel) {
+          await messageDispatchService.getHistory(this._panel);
+        }
+      } catch (historyError) {
+        Logger.warn('共有履歴の取得に失敗しましたが、処理を続行します', historyError as Error);
+      }
       
       // 結果をUIに通知
       setTimeout(() => {
@@ -752,8 +829,17 @@ export class ScopeManagerPanel extends ProtectedPanel {
           }
         });
         
-        // 履歴更新
-        setTimeout(() => this._handleGetHistory(), 500);
+        // 履歴更新 (MessageDispatchServiceを使用)
+        setTimeout(() => {
+          try {
+            const messageDispatchService = MessageDispatchService.getInstance();
+            if (messageDispatchService && this._panel) {
+              messageDispatchService.getHistory(this._panel);
+            }
+          } catch (historyError) {
+            Logger.warn('共有履歴の更新に失敗しましたが、処理を続行します', historyError as Error);
+          }
+        }, 500);
       }, 100);
       
     } catch (error) {
@@ -773,8 +859,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
       
-      // 履歴を更新
-      await this._handleGetHistory();
+      // 履歴を更新 (MessageDispatchServiceを使用)
+      try {
+        const messageDispatchService = MessageDispatchService.getInstance();
+        if (messageDispatchService && this._panel) {
+          await messageDispatchService.getHistory(this._panel);
+        }
+      } catch (historyError) {
+        Logger.warn('共有履歴の更新に失敗しましたが、処理を続行します', historyError as Error);
+      }
       
       // UIをリセット
       this._panel.webview.postMessage({
@@ -803,8 +896,17 @@ export class ScopeManagerPanel extends ProtectedPanel {
           }
         });
         
-        // 履歴更新
-        setTimeout(() => this._handleGetHistory(), 500);
+        // 履歴更新 (MessageDispatchServiceを使用)
+        setTimeout(() => {
+          try {
+            const messageDispatchService = MessageDispatchService.getInstance();
+            if (messageDispatchService && this._panel) {
+              messageDispatchService.getHistory(this._panel);
+            }
+          } catch (historyError) {
+            Logger.warn('共有履歴の更新に失敗しましたが、処理を続行します', historyError as Error);
+          }
+        }, 500);
       }, 100);
       
     } catch (error) {
@@ -812,41 +914,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * 履歴からアイテムを削除
-   */
-  /**
-   * @deprecated MessageDispatchServiceに移行済み
-   */
-  private async _handleDeleteFromHistory(fileId: string): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.deleteFromHistory(this._panel, fileId);
-  }
+  // _handleDeleteFromHistory メソッドは MessageDispatchService.deleteFromHistory に移行済みのため削除
 
-  /**
-   * ファイルのコマンドをクリップボードにコピー
-   */
-  /**
-   * @deprecated MessageDispatchServiceに移行済み
-   */
-  private async _handleCopyCommand(fileId: string): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.copyCommand(this._panel, fileId);
-  }
+  // _handleCopyCommand メソッドは MessageDispatchService.copyCommand に移行済みのため削除
 
-  /**
-   * テキストをクリップボードにコピー
-   */
-  /**
-   * @deprecated MessageDispatchServiceに移行済み
-   */
-  private async _handleCopyToClipboard(text: string): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.copyToClipboard(this._panel, text);
-  }
+  // _handleCopyToClipboard メソッドは MessageDispatchService.copyToClipboard に移行済みのため削除
 
   /**
    * 履歴アイテムを再利用
@@ -884,34 +956,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
   
-  /**
-   * プロジェクト選択処理
-   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.selectProjectを使用してください。
-   * @param projectName プロジェクト名
-   * @param projectPath プロジェクトパス
-   * @param activeTab 現在のアクティブタブID（オプション）
-   */
-  private async _handleSelectProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
-    Logger.warn('_handleSelectProjectは非推奨です。MessageDispatchService.selectProjectを使用してください。');
-    
-    // MessageDispatchServiceのselectProjectメソッドを呼び出す
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.selectProject(this._panel, projectName, projectPath, activeTab);
-  }
+  // _handleSelectProject メソッドは MessageDispatchService.selectProject に移行済みのため削除
 
   
-  /**
-   * 特定のタブにファイルを読み込んで表示
-   * @param tabId 表示対象のタブID
-   * @param filePath 読み込むファイルパス
-   */
-  /**
-   * @deprecated TabStateServiceに移行済み
-   */
-  private async _handleLoadFileToTab(tabId: string, filePath: string): Promise<void> {
-    // TabStateServiceに移行済み
-    await this._tabStateService.loadFileToTab(this._panel, tabId, filePath);
-  }
+  // _handleLoadFileToTab メソッドは TabStateService.loadFileToTab に移行済みのため削除
   
   /**
    * ファイルブラウザを更新は別メソッドに統合
@@ -922,40 +970,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * @param dirPath ディレクトリパス
    */
 
-  /**
-   * @deprecated TabStateServiceに移行済み
-   */
-  private async _handleSaveTabState(tabId: string): Promise<void> {
-    if (this._activeProject && this._activeProject.id) {
-      // TabStateServiceに移行済み
-      await this._tabStateService.saveTabState(this._activeProject.id, tabId);
-      
-      // アクティブプロジェクトを再取得して内部状態を更新
-      this._activeProject = this._projectService.getActiveProject();
-      
-      // WebViewにプロジェクト状態同期メッセージを送信
-      if (this._activeProject) {
-        this._panel.webview.postMessage({
-          command: 'syncProjectState',
-          project: this._activeProject
-        });
-      }
-    }
-  }
+  // _handleSaveTabState メソッドは TabStateService.saveTabState に移行済みのため削除
 
   /**
    * マークダウンファイルの内容を取得して表示
-   * @param filePath ファイルパス
-   * @param options オプション（forceRefreshなど）
    */
-  private async _handleGetMarkdownContent(filePath: string, options: { forceRefresh?: boolean, forRequirements?: boolean } = {}): Promise<void> {
+  private async _handleGetMarkdownContent(filePath: string): Promise<void> {
     try {
       // FileSystemServiceを使用してマークダウンファイルを読み込む
       const content = await this._fileSystemService.readMarkdownFile(filePath);
-      
-      // 進捗ファイルかどうかを判定
-      const isScopeProgressFile = filePath.endsWith('SCOPE_PROGRESS.md');
-      const isRequirementsFile = filePath.endsWith('requirements.md');
       
       // WebViewにマークダウン内容を送信 - 優先度高で即時処理を要求
       this._panel.webview.postMessage({
@@ -963,9 +986,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         content: content,
         timestamp: Date.now(), // タイムスタンプを追加して新しい更新を識別できるように
         priority: 'high',      // 優先度の高い更新であることを示す
-        forScopeProgress: isScopeProgressFile, // 進捗状況タブ用の更新であることを示す
-        forRequirements: isRequirementsFile || options.forRequirements, // 要件定義タブ用の更新
-        forceRefresh: options.forceRefresh // 強制更新フラグ
+        forScopeProgress: true // 進捗状況タブ用の更新であることを示す
       });
       
       Logger.info(`FileSystemServiceを使用してマークダウンコンテンツを読み込みました: ${filePath}`);
@@ -1000,26 +1021,49 @@ export class ScopeManagerPanel extends ProtectedPanel {
     this._uiStateService.showSuccess(message);
   }
   
-  /**
-   * プロジェクト登録解除処理
-   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.removeProjectを使用してください。
-   */
-  private async _handleRemoveProject(projectName: string, projectPath: string, projectId?: string): Promise<void> {
-    Logger.warn('_handleRemoveProjectは非推奨です。MessageDispatchService.removeProjectを使用してください。');
-    
-    // MessageDispatchServiceのremoveProjectメソッドを呼び出す
-    const messageService = MessageDispatchService.getInstance();
-    await messageService.removeProject(this._panel, projectName, projectPath, projectId);
-  }
+  // _handleRemoveProject メソッドは MessageDispatchService.removeProject に移行済みのため削除
 
   /**
    * WebViewを更新
+   * @deprecated PanelServiceクラスのupdatePanelを使用してください
    */
   private _update(): void {
     try {
       // 処理開始ログ
       Logger.info('ScopeManagerPanel: _update処理を開始します');
       
+      // PanelServiceの利用を試みる
+      try {
+        const serviceRegistry = ServiceRegistry.getInstance();
+        if (serviceRegistry && serviceRegistry.panelService) {
+          // 最新のプロジェクト情報を取得
+          const activeProject = this._projectService.getActiveProject();
+          
+          // アクティブプロジェクト情報をクラスのプロパティに保存
+          this._activeProject = activeProject;
+          
+          // アクティブタブ情報を取得
+          let activeTabId = 'scope-progress'; // デフォルト値
+          if (activeProject && activeProject.metadata && activeProject.metadata.activeTab) {
+            activeTabId = activeProject.metadata.activeTab;
+          }
+          
+          // プロジェクトパスの更新（HTMLレンダリング前）
+          if (activeProject && activeProject.path && this._projectPath !== activeProject.path) {
+            this.setProjectPath(activeProject.path);
+          }
+          
+          // PanelServiceのupdatePanelメソッドを使用
+          serviceRegistry.panelService.updatePanel(activeProject, activeTabId);
+          Logger.info('ScopeManagerPanel: PanelServiceを使用してパネルを更新しました');
+          return;
+        }
+      } catch (error) {
+        // ServiceRegistryが利用できない場合は従来の方法で更新
+        Logger.warn('ScopeManagerPanel: ServiceRegistryが利用できないため従来の方法でパネルを更新します', error as Error);
+      }
+      
+      // 従来の方法でパネルを更新（ServiceRegistryが利用できない場合のフォールバック）
       // 最新のプロジェクト情報を取得
       const allProjects = this._projectService.getAllProjects();
       const activeProject = this._projectService.getActiveProject();
@@ -1036,10 +1080,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
           activeTabId = activeProject.metadata.activeTab;
           Logger.info(`ScopeManagerPanel: メタデータからアクティブタブを復元: ${activeTabId}`);
         } else {
-          Logger.info('ScopeManagerPanel: メタデータにアクティブタブ情報がないためデフォルト(scope-progress)を使用');
+          Logger.info('ScopeManagerPanel: メタデータにアクティブタブ情報がないためデフォルトを使用');
         }
       } else {
-        Logger.info('ScopeManagerPanel: プロジェクトメタデータがないためデフォルトタブ(scope-progress)を使用');
+        Logger.info('ScopeManagerPanel: プロジェクトメタデータがないためデフォルトタブを使用');
       }
       
       // 2. プロジェクトパスの更新（HTMLレンダリング前）
@@ -1106,7 +1150,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * WebViewのHTMLを生成
    * @param webview VSCodeのWebviewインスタンス
-   * @param activeTabId アクティブなタブID（デフォルトは'scope-progress'）
+   * @param activeTabId アクティブなタブID（デフォルトは'current-status'）
    */
   private _getHtmlForWebview(webview: vscode.Webview, activeTabId: string = 'scope-progress'): string {
     // スタイルシートやスクリプトのURIを取得

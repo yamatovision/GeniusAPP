@@ -176,6 +176,100 @@ try {
           fileBrowser.updateFileList(message.files);
         }
         break;
+      case 'updateFileBrowser':
+        // updateFileBrowserコマンドを処理
+        if (fileBrowser) {
+          console.log('scopeManager: updateFileBrowserメッセージを受信しました');
+          
+          if (typeof fileBrowser.updateFileList === 'function' && message.files) {
+            // ファイルリストがある場合はそのまま渡す
+            console.log('scopeManager: updateFileBrowser -> updateFileListに変換して処理します');
+            fileBrowser.updateFileList(message.files);
+            
+            // 現在のパスを更新（必要であれば）
+            if (message.currentPath && !fileBrowser.currentPath) {
+              fileBrowser.currentPath = message.currentPath;
+              console.log(`scopeManager: ファイルブラウザの現在のパスを更新: ${message.currentPath}`);
+            }
+          } else if (message.structure) {
+            // 構造情報がある場合は直接構造情報を処理
+            console.log('scopeManager: ファイルブラウザの構造情報を処理します');
+            
+            // プロジェクトパスを特定
+            let projectPath = null;
+            
+            // structureからパスを抽出
+            if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
+              projectPath = message.structure.split('\n')[0].trim();
+              console.log(`scopeManager: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
+              
+              // .DS_Storeなどの隠しファイルをパスから検出して除外
+              if (projectPath.endsWith('.DS_Store')) {
+                // 親ディレクトリを取得
+                projectPath = projectPath.substring(0, projectPath.lastIndexOf('/'));
+                console.log(`scopeManager: .DS_Storeを除外し、親ディレクトリを使用: ${projectPath}`);
+              }
+              
+              // fileBrowserの現在のパスを更新
+              fileBrowser.currentPath = projectPath;
+            }
+            
+            // 抽出したパスでディレクトリリストを要求
+            if (projectPath && typeof fileBrowser._requestDirectoryListing === 'function') {
+              console.log(`scopeManager: プロジェクトパスでディレクトリリストを要求: ${projectPath}`);
+              fileBrowser._requestDirectoryListing(projectPath);
+            } else if (typeof fileBrowser.updateDirectoryStructure === 'function') {
+              // 直接構造情報を処理
+              fileBrowser.updateDirectoryStructure(message.structure);
+            }
+          }
+        }
+        break;
+      case 'updateDirectoryStructure':
+        // ディレクトリ構造更新処理（必要に応じてファイルブラウザに反映）
+        if (fileBrowser) {
+          console.log('scopeManager: ディレクトリ構造の更新メッセージを受信しました');
+          
+          // プロジェクトパスを特定
+          let projectPath = null;
+          
+          // structureからパスを抽出
+          if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
+            projectPath = message.structure.split('\n')[0].trim();
+            console.log(`scopeManager: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
+            
+            // .DS_Storeなどの隠しファイルをパスから検出して除外
+            if (projectPath.endsWith('.DS_Store')) {
+              // 親ディレクトリを取得
+              projectPath = projectPath.substring(0, projectPath.lastIndexOf('/'));
+              console.log(`scopeManager: .DS_Storeを除外し、親ディレクトリを使用: ${projectPath}`);
+            }
+            
+            // fileBrowserの現在のパスを更新（まだ設定されていなければ）
+            if (!fileBrowser.currentPath) {
+              fileBrowser.currentPath = projectPath;
+              console.log(`scopeManager: ファイルブラウザの現在のパスを設定: ${projectPath}`);
+            }
+          } else {
+            // 現在のパスを取得
+            projectPath = fileBrowser.currentPath;
+          }
+          
+          // ファイルブラウザのタブがアクティブな場合、自動的にディレクトリリストを更新
+          const activeTabId = stateManager.getState().activeTab;
+          if (activeTabId === 'file-browser' && typeof fileBrowser._requestDirectoryListing === 'function' && projectPath) {
+            // 現在のプロジェクトパスでファイル一覧を再取得
+            console.log(`scopeManager: ファイルブラウザのリストを更新します (パス: ${projectPath})`);
+            fileBrowser._requestDirectoryListing(projectPath);
+          } else if (typeof fileBrowser.updateDirectoryStructure === 'function') {
+            // 直接構造情報を処理
+            fileBrowser.updateDirectoryStructure(message.structure);
+          }
+        }
+        break;
+      case 'showError':
+        showError(message.message);
+        break;
       case 'updateFilePreview':
         // ファイルブラウザのプレビュー更新
         if (fileBrowser && typeof fileBrowser.updateFilePreview === 'function') {
@@ -200,17 +294,27 @@ try {
         // 現在アクティブなタブIDを確認
         const activeTabId = stateManager.getState().activeTab;
 
+        // 強制更新フラグがある場合は常に処理
+        if (message.forceRefresh) {
+          console.log('マークダウン強制更新が要求されました');
+          markdownViewer.updateContent(message.content);
+          break;
+        }
+
         // 進捗状況用のマークダウン更新は、そのタブがアクティブな場合のみ処理
         if (message.forScopeProgress && activeTabId !== 'scope-progress') {
+          console.log(`進捗状況タブがアクティブでないため更新をスキップします (現在のタブ: ${activeTabId})`);
           return;
         }
 
         // 要件定義用のマークダウン更新は、そのタブがアクティブな場合のみ処理
         if (message.forRequirements && activeTabId !== 'requirements') {
+          console.log(`要件定義タブがアクティブでないため更新をスキップします (現在のタブ: ${activeTabId})`);
           return;
         }
 
         // 直接markdownViewerに処理を委譲
+        console.log(`マークダウン更新: タブID=${activeTabId}, 長さ=${message.content ? message.content.length : 0}文字`);
         markdownViewer.updateContent(message.content);
         break;
         

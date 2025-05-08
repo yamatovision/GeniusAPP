@@ -40,7 +40,7 @@ class StateManager {
 
   _getDefaultState() {
     return {
-      activeTab: 'current-status',
+      activeTab: 'scope-progress',
       projects: [],
       activeProject: null,
       directoryStructure: '',

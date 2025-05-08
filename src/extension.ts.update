@@ -1,0 +1,361 @@
+/**
+ * AppGenius VSCode Extension メインエントリーポイント
+ * 
+ * 【認証システムリファクタリング 2025/03/23】
+ * - 現在、2つの認証システムが並行して存在しています：
+ *   1. 従来の認証システム: AuthenticationService + TokenManager
+ *   2. 新しい認証システム: SimpleAuthManager + SimpleAuthService
+ * 
+ * - 認証システムリファクタリングにより、SimpleAuthManagerとSimpleAuthServiceを優先使用します
+ * - 後方互換性のため、古い認証サービスも維持していますが、将来的には完全に削除します
+ * - PermissionManagerは両方の認証サービスに対応するよう更新されています
+ * - パネル/コンポーネントは、AuthGuardを通じてPermissionManagerを使用します
+ * 
+ * 詳細は auth-system-refactoring-scope.md を参照
+ */
+
+import * as vscode from 'vscode';
+import * as path from 'path';
+import { StatusBar } from './ui/statusBar';
+import { Logger, LogLevel } from './utils/logger';
+import { AIService } from './core/aiService';
+import { ProjectAnalyzer } from './core/projectAnalyzer';
+import { CodeGenerator } from './core/codeGenerator';
+import { GitManager } from './core/gitManager';
+import { TerminalInterface } from './ui/TerminalInterface';
+import { CommandHandler } from './ui/CommandHandler';
+import { FileOperationManager } from './utils/fileOperationManager';
+import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
+import { SimpleChatPanel } from './ui/simpleChat';
+import { DashboardPanel } from './ui/dashboard/DashboardPanel';
+import { AppGeniusEventBus, AppGeniusEventType } from './services/AppGeniusEventBus';
+import { ClaudeCodeApiClient } from './api/claudeCodeApiClient';
+import { ClaudeMdEditorPanel } from './ui/claudeMd/ClaudeMdEditorPanel';
+import { ProjectManagementService } from './services/ProjectManagementService';
+import { PlatformManager } from './utils/PlatformManager';
+import { ScopeExporter } from './utils/ScopeExporter';
+import { MessageBroker } from './utils/MessageBroker';
+import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
+import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
+// 環境変数アシスタントは不要になったため削除
+import { TokenManager } from './core/auth/TokenManager';
+import { AuthenticationService } from './core/auth/AuthenticationService';
+import { SimpleAuthManager } from './core/auth/SimpleAuthManager'; // 新しい認証マネージャー
+import { SimpleAuthService } from './core/auth/SimpleAuthService'; // 新しい認証サービス
+import { PermissionManager } from './core/auth/PermissionManager';
+import { registerAuthCommands } from './core/auth/authCommands';
+import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
+import { registerEnvironmentCommands } from './commands/environmentCommands';
+import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
+import { AuthGuard } from './ui/auth/AuthGuard';
+import { Feature } from './core/auth/roles';
+import { AuthStorageManager } from './utils/AuthStorageManager';
+// ServiceFactoryの新しい実装を使用するためにインポート
+import { ServiceFactory } from './ui/scopeManager/services/ServiceFactory';
+
+// グローバル変数としてExtensionContextを保持（安全対策）
+declare global {
+	// eslint-disable-next-line no-var
+	var __extensionContext: vscode.ExtensionContext;
+	// SimpleAuthServiceインスタンスをグローバルに保持
+	// eslint-disable-next-line no-var
+	var _appgenius_simple_auth_service: any;
+	// AIServiceインスタンスをグローバルに保持
+	// eslint-disable-next-line no-var
+	var _appgenius_ai_service: any;
+	// 認証トークンをグローバルに保持
+	// eslint-disable-next-line no-var
+	var _appgenius_auth_token: string;
+	// 認証状態をグローバルに保持
+	// eslint-disable-next-line no-var
+	var _appgenius_auth_state: any;
+	// 新認証システムのモジュールをグローバルに保持
+	// eslint-disable-next-line no-var
+	var _appgenius_auth_module: any;
+}
+
+export function activate(context: vscode.ExtensionContext) {
+	// グローバルコンテキストを設定（安全対策）
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(global as any).__extensionContext = context;
+	// 互換性のために両方の変数名を設定
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(global as any).extensionContext = context;
+	
+	// ロガーの初期化（自動表示をオンにする）
+	Logger.initialize('AppGenius AI', LogLevel.DEBUG, true);
+	Logger.info('AppGenius AI が起動しました');
+	
+	// ScopeManagerでの新しいサービス実装を有効化
+	// 新しいFileSystemServiceとProjectServiceを使用するように設定
+	ServiceFactory.initialize(context.extensionUri, context);
+	// 新しい実装を使用するようにフラグを設定（ここがポイント）
+	ServiceFactory.setImplementationFlags(true, true);
+	Logger.info('ScopeManager: 新しいFileSystemServiceImplとProjectServiceImplを有効化しました');
+	
+	// AppGenius AI クイックアクセスステータスバーアイテムを追加
+	const appGeniusStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	appGeniusStatusBarItem.text = "$(rocket) AppGenius";
+	appGeniusStatusBarItem.tooltip = "AppGenius AIスコープマネージャーを開く";
+	appGeniusStatusBarItem.command = "appgenius-ai.openScopeManager";
+	appGeniusStatusBarItem.show();
+	context.subscriptions.push(appGeniusStatusBarItem);
+	
+	// AIServiceの初期化（グローバルで利用できるように）
+	const aiService = new AIService();
+	// グローバル変数に保存してどこからでも参照できるようにする
+	(global as any)._appgenius_ai_service = aiService;
+	
+	// 認証サービスの初期化 (両方のサービスを並行して維持)
+	// 1. 従来の認証サービス（後方互換性のため）
+	const tokenManager = new TokenManager(context.globalState);
+	const authService = new AuthenticationService(tokenManager);
+	// 2. 新しい認証サービス（簡素化されたOAuth認証フロー）
+	const simpleAuthManager = SimpleAuthManager.getInstance(context);
+	const simpleAuthService = SimpleAuthService.getInstance(context, simpleAuthManager);
+	// 新しい認証サービスをグローバル変数に保存
+	(global as any)._appgenius_simple_auth_service = simpleAuthService;
+	// 認証の状態を監視して、変更があればUIを更新
+	const authStorageManager = AuthStorageManager.getInstance(context.globalState);
+	
+	// 認証コマンドを登録
+	registerAuthCommands(context, authService, simpleAuthService);
+	
+	// PermissionManagerの初期化（認証システムに依存）
+	// すべての認証サービスをPermissionManagerにアタッチ
+	const permissionManager = PermissionManager.getInstance();
+	permissionManager.setAuthenticationService(authService); 
+	permissionManager.setSimpleAuthService(simpleAuthService);
+	
+	// UI用のステータスバーを初期化（認証状態を表示）
+	const statusBar = new StatusBar(context, authService, simpleAuthService);
+	
+	// AuthGuardの初期化（PermissionManagerを使用）
+	AuthGuard.initialize(permissionManager);
+	
+	// コマンドの登録
+	// プロンプトライブラリ関連コマンド
+	registerPromptLibraryCommands(context);
+	// 環境変数関連コマンド
+	registerEnvironmentCommands(context);
+	
+	// ファイル操作マネージャーを初期化
+	const fileOperationManager = FileOperationManager.getInstance();
+	
+	// イベントバスを初期化
+	const eventBus = AppGeniusEventBus.getInstance();
+	
+	// コマンドハンドラーを初期化
+	const commandHandler = new CommandHandler(context);
+	
+	// プロジェクト管理サービスを初期化
+	const projectManagementService = ProjectManagementService.getInstance(context.globalState);
+	
+	// ClaudeCodeクライアントAPIを初期化
+	const claudeCodeClient = ClaudeCodeApiClient.getInstance();
+	
+	// VSCode拡張機能の各種コマンドを登録
+	registerCommands(context, aiService, projectManagementService);
+	
+	Logger.info('AppGenius AI をロードしました。');
+}
+
+/**
+ * VSCode拡張機能の各種コマンドを登録する
+ */
+function registerCommands(
+	context: vscode.ExtensionContext,
+	aiService: AIService,
+	projectManagementService: ProjectManagementService
+) {
+	// スコープマネージャーを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openScopeManager', async (projectPath) => {
+			try {
+				ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
+			} catch (error) {
+				Logger.error("スコープマネージャーを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`スコープマネージャーを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// デバッグディテクティブを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openDebugDetective', () => {
+			try {
+				DebugDetectivePanel.createOrShow(context.extensionUri, context);
+			} catch (error) {
+				Logger.error("デバッグディテクティブを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`デバッグディテクティブを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// ClaudeMdエディターを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openClaudeMd', (mdFilePath) => {
+			try {
+				// MDファイルを指定して開く
+				ClaudeMdEditorPanel.createOrShow(context.extensionUri, context, mdFilePath);
+			} catch (error) {
+				Logger.error("ClaudeMdエディターを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`ClaudeMdエディターを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// モックアップギャラリーを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openMockupGallery', (projectPath) => {
+			try {
+				// モックアップギャラリーを開く（プロジェクトパスを指定可能）
+				MockupGalleryPanel.createOrShow(context.extensionUri, context, projectPath);
+			} catch (error) {
+				Logger.error("モックアップギャラリーを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`モックアップギャラリーを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// シンプルチャットを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openSimpleChat', () => {
+			try {
+				SimpleChatPanel.createOrShow(context.extensionUri, context);
+			} catch (error) {
+				Logger.error("シンプルチャットを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`シンプルチャットを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// ダッシュボードを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openDashboard', () => {
+			try {
+				DashboardPanel.createOrShow(context.extensionUri, context);
+			} catch (error) {
+				Logger.error("ダッシュボードを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`ダッシュボードを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// 環境変数アシスタントを開くコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.openEnvVariables', () => {
+			try {
+				EnvVariablesPanel.createOrShow(context.extensionUri, context);
+			} catch (error) {
+				Logger.error("環境変数アシスタントを開く際にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`環境変数アシスタントを開けませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// プロジェクトを解析するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.analyzeProject', async () => {
+			try {
+				const projectAnalyzer = new ProjectAnalyzer();
+				await projectAnalyzer.analyze();
+			} catch (error) {
+				Logger.error("プロジェクト解析中にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`プロジェクトを解析できませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// Gitをクローンするコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.cloneRepository', async () => {
+			try {
+				const gitManager = new GitManager();
+				await gitManager.cloneRepository();
+			} catch (error) {
+				Logger.error("レポジトリのクローン中にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`レポジトリをクローンできませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// テキスト選択領域からクラス/関数を生成するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.generateFromSelection', async () => {
+			try {
+				const codeGenerator = new CodeGenerator(aiService);
+				await codeGenerator.generateFromSelection();
+			} catch (error) {
+				Logger.error("コード生成中にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`コードを生成できませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// コマンドパレットからAIアシスタントを起動するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.showCommandPalette', async () => {
+			try {
+				// 現在のコンテキストに応じたコマンドを表示するパレットを開く
+				// 実装はCommandHandlerクラスに委譲
+				await CommandHandler.showCommandPalette();
+			} catch (error) {
+				Logger.error("コマンドパレットの表示中にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`コマンドパレットを表示できませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// プロジェクトを選択するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.selectProject', async () => {
+			try {
+				// プロジェクト一覧から選択するUIを表示
+				const project = await projectManagementService.selectProject();
+				if (project) {
+					// 選択されたプロジェクトをスコープマネージャーに読み込む
+					ScopeManagerPanel.createOrShow(context.extensionUri, context, project.path);
+				}
+			} catch (error) {
+				Logger.error("プロジェクト選択中にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`プロジェクトを選択できませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+	
+	// スコープエクスポーターを使ってSCOPE_PROGRESS.mdを生成するコマンド
+	context.subscriptions.push(
+		vscode.commands.registerCommand('appgenius-ai.createScopeProgress', async () => {
+			try {
+				// 選択されたプロジェクトパスでSCOPE_PROGRESS.mdを生成
+				const scopeExporter = new ScopeExporter();
+				const projectPath = await projectManagementService.getCurrentProjectPath();
+				if (projectPath) {
+					const success = await scopeExporter.createScopeProgress(projectPath);
+					if (success) {
+						const result = await vscode.window.showInformationMessage(
+							"スコープ進捗ファイルを作成しました。スコープマネージャーで開きますか？",
+							"はい", "いいえ"
+						);
+						if (result === "はい") {
+							ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
+						}
+					} else {
+						vscode.window.showWarningMessage("スコープ進捗ファイルの作成に失敗しました。");
+					}
+				} else {
+					vscode.window.showWarningMessage("アクティブなプロジェクトがありません。プロジェクトを選択してください。");
+				}
+			} catch (error) {
+				Logger.error("スコープ進捗ファイルの作成中にエラーが発生しました。", error as Error);
+				vscode.window.showErrorMessage(`スコープ進捗ファイルを作成できませんでした: ${(error as Error).message}`);
+			}
+		})
+	);
+}
+
+// この関数は、拡張機能が無効化されたときに呼び出される
+export function deactivate() {
+	Logger.info('AppGenius AI を無効化しました。');
+}

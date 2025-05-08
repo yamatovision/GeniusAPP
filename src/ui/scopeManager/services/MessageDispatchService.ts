@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { Logger } from '../../../utils/logger';
 
 export interface Message {
@@ -621,51 +622,57 @@ export class MessageDispatchService implements IMessageDispatchService {
     
     // refreshFileBrowser ハンドラー
     this.registerHandler('refreshFileBrowser', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.projectPath) {
-        try {
-          await this._fileSystemService.refreshFileBrowser(message.projectPath, panel);
-        } catch (error) {
-          // エラーメッセージ
+      try {
+        // プロジェクトパスが明示的に指定されていない場合は、現在のプロジェクトパスを使用
+        let projectPath = message.projectPath;
+        
+        if (!projectPath && this._projectService) {
+          const activeProject = this._projectService.getActiveProject();
+          projectPath = activeProject?.path;
+          Logger.info(`refreshFileBrowser: プロジェクトパスが指定されていないため、現在のアクティブプロジェクトパスを使用: ${projectPath}`);
+        }
+        
+        if (projectPath) {
+          await this._fileSystemService.refreshFileBrowser(projectPath, panel);
+          Logger.info(`ファイルブラウザを更新しました: ${projectPath}`);
+        } else {
+          Logger.warn('MessageDispatchService: プロジェクトパスが特定できないためファイルブラウザの更新をスキップします');
           if (this._uiStateService) {
-            this._uiStateService.showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
+            this._uiStateService.showError('プロジェクトが選択されていないため、ファイルブラウザを更新できません');
           }
         }
-      } else {
-        // プロジェクトパスが指定されていない場合はエラー
-        Logger.warn('MessageDispatchService: refreshFileBrowserメッセージにprojectPath必須パラメータがありません');
+      } catch (error) {
+        // エラーメッセージ
+        Logger.error(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`, error as Error);
+        if (this._uiStateService) {
+          this._uiStateService.showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
+        }
       }
     });
     
     // listDirectory ハンドラー
     this.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
-      const dirPath = message.path || (message.projectPath ? path.join(message.projectPath, 'docs') : '');
-      if (dirPath) {
-        try {
-          // ディレクトリが存在するか確認
-          if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
-            if (this._uiStateService) {
-              this._uiStateService.showError(`ディレクトリが見つかりません: ${dirPath}`);
-            }
-            return;
-          }
-          
-          // ディレクトリの内容をリストアップ
-          const files = await this._fileSystemService.listDirectory(dirPath);
-          
-          // ファイルリストを送信
-          panel.webview.postMessage({
-            command: 'updateFileList',
-            files: files,
-            currentPath: dirPath,
-            parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
-          });
-        } catch (error) {
-          if (this._uiStateService) {
-            this._uiStateService.showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
-          }
+      try {
+        const dirPath = message.path || (message.projectPath ? path.join(message.projectPath, 'docs') : '');
+        if (!dirPath) {
+          Logger.warn('MessageDispatchService: listDirectoryメッセージにdirPathが指定されていません');
+          this.showError(panel, 'ディレクトリパスが指定されていません');
+          return;
         }
-      } else {
-        Logger.warn('MessageDispatchService: listDirectoryメッセージにdirPathが指定されていません');
+
+        // ディレクトリの内容をリストアップ（存在確認はFileSystemService内部で行う）
+        const files = await this._fileSystemService.listDirectory(dirPath);
+        
+        // ファイルリストを送信
+        panel.webview.postMessage({
+          command: 'updateFileList',
+          files: files,
+          currentPath: dirPath,
+          parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
+        });
+      } catch (error) {
+        Logger.error(`MessageDispatchService: listDirectory処理中にエラー: ${(error as Error).message}`, error as Error);
+        this.showError(panel, `ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
       }
     });
     
