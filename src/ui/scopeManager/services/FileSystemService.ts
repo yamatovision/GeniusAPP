@@ -28,6 +28,7 @@ export interface IFileSystemService {
   
   // ファイルパスとテンプレート取得
   getProgressFilePath(projectPath: string): string;
+  findRequirementsFile(projectPath: string): Promise<string | null>;
   
   // 新規メソッド
   loadProgressFile(projectPath: string, outputCallback?: (content: string) => void): Promise<string>;
@@ -942,6 +943,98 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
     } catch (error) {
       Logger.warn(`FileSystemService: ファイルタイプ判別エラー: ${filePath}`, error as Error);
       return 'unknown';
+    }
+  }
+  
+  /**
+   * 要件定義ファイルを検索して見つける
+   * @param projectPath プロジェクトパス
+   * @returns 要件定義ファイルのパス（見つからない場合はnull）
+   */
+  public async findRequirementsFile(projectPath: string): Promise<string | null> {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+      
+      // 優先順位付きの候補ファイル名一覧
+      const candidateNames = [
+        'requirements.md', 
+        'REQUIREMENTS.md',
+        'Requirements.md',
+        'requirement.md',
+        'REQUIREMENT.md',
+        'Requirement.md'
+      ];
+      
+      // 優先順位付きの検索ディレクトリ
+      const searchDirs = [
+        path.join(projectPath, 'docs'),     // 最優先: docs/
+        projectPath,                        // 次優先: プロジェクトルート
+        path.join(projectPath, 'doc'),      // 代替: doc/
+        path.join(projectPath, 'documents') // 代替: documents/
+      ];
+      
+      // 各ディレクトリで候補ファイルを検索
+      for (const dir of searchDirs) {
+        if (fs.existsSync(dir)) {
+          for (const fileName of candidateNames) {
+            const filePath = path.join(dir, fileName);
+            if (await this.fileExists(filePath)) {
+              Logger.info(`FileSystemService: 要件定義ファイルを見つけました: ${filePath}`);
+              return filePath;
+            }
+          }
+          
+          // ディレクトリ内のすべての.mdファイルをチェック
+          try {
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+              if (path.extname(file).toLowerCase() === '.md') {
+                const filePath = path.join(dir, file);
+                
+                // ファイル名に「要件」「requirement」が含まれているかチェック
+                const fileName = path.basename(file).toLowerCase();
+                if (
+                  fileName.includes('要件') || 
+                  fileName.includes('requirement') ||
+                  fileName.includes('youken')
+                ) {
+                  Logger.info(`FileSystemService: 要件関連のマークダウンファイルを見つけました: ${filePath}`);
+                  return filePath;
+                }
+                
+                // ファイル内容をチェック（最初の数行だけ）
+                try {
+                  const content = fs.readFileSync(filePath, 'utf8').slice(0, 1000).toLowerCase();
+                  if (
+                    content.includes('# 要件') || 
+                    content.includes('# requirement') || 
+                    content.includes('要件定義') || 
+                    content.includes('requirements definition')
+                  ) {
+                    Logger.info(`FileSystemService: 内容から要件定義ファイルと判断: ${filePath}`);
+                    return filePath;
+                  }
+                } catch (readError) {
+                  // ファイル読み込みエラーは無視して次のファイルへ
+                  continue;
+                }
+              }
+            }
+          } catch (readDirError) {
+            // ディレクトリ読み込みエラーは無視して次のディレクトリへ
+            continue;
+          }
+        }
+      }
+      
+      // 見つからなかった場合
+      Logger.warn('FileSystemService: 要件定義ファイルが見つかりませんでした');
+      return null;
+    } catch (error) {
+      Logger.error(`FileSystemService: 要件定義ファイル検索中にエラー: ${(error as Error).message}`, error as Error);
+      return null;
     }
   }
 

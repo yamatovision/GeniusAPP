@@ -350,27 +350,31 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
 
 ### フェーズ3: MessageDispatchServiceの実装 (3日)
 
-1. [ ] IMessageDispatchServiceインターフェース詳細設計
+1. [x] IMessageDispatchServiceインターフェース詳細設計
    - [ ] `initialize(): Promise<void>`メソッド設計
-   - [ ] `registerMessageHandlers(): void`メソッド設計
-   - [ ] `handleMessage(message: any): Promise<void>`メソッド設計
-   - [ ] `sendMessage(command: string, payload: any): void`メソッド設計
-   - [ ] イベント定義の設計（`onMessageReceived`）
-2. [ ] MessageDispatchService実装クラス作成
-   - [ ] シングルトンパターンの実装
-   - [ ] メッセージハンドラーマップの実装
-   - [ ] メッセージディスパッチロジックの実装
-3. [ ] メッセージハンドラーの移行:
-   - [ ] WebViewからのメッセージ受信処理の移行
+   - [x] `registerMessageHandlers(): void`メソッド設計
+   - [x] `handleMessage(message: any): Promise<void>`メソッド設計
+   - [x] `sendMessage(command: string, payload: any): void`メソッド設計
+   - [x] イベント定義の設計（`onMessageProcessed`）
+   - [x] `setupMessageReceiver(panel: vscode.WebviewPanel): vscode.Disposable`メソッド設計
+2. [x] MessageDispatchService実装クラス作成
+   - [x] シングルトンパターンの実装
+   - [x] メッセージハンドラーマップの実装
+   - [x] メッセージディスパッチロジックの実装
+   - [x] リソース解放処理の実装（dispose）
+3. [x] 基本的なメッセージハンドラーの移行:
+   - [x] 基本的なメッセージハンドラー（showError/showSuccess）の登録
+   - [ ] WebViewからのメッセージ受信処理の完全な移行
    - [ ] コマンドタイプ別の処理振り分けロジックの移行
    - [ ] WebViewへのメッセージ送信処理の移行
    - [ ] `_handleInitialize`メソッドの移行
-4. [ ] ScopeManagerPanelでMessageDispatchServiceを使用するよう修正
-   - [ ] コンストラクタでのサービス初期化処理の追加
-   - [ ] `onDidReceiveMessage`の処理をサービスに委譲するよう変更
+4. [x] ScopeManagerPanelで基本的なMessageDispatchServiceを使用するよう修正
+   - [x] コンストラクタでのサービス初期化処理の追加
+   - [x] 基本ハンドラーの登録処理の実装
+   - [ ] `onDidReceiveMessage`の処理をサービスに完全に委譲する変更
 5. [ ] ScopeManagerPanelとMessageDispatchServiceの連携テスト
-   - [ ] メッセージ受信処理テスト
-   - [ ] メッセージ送信処理テスト
+   - [x] 基本的なメッセージ送信処理テスト
+   - [ ] 全メッセージ受信処理テスト
    - [ ] 初期化処理テスト
 
 ### フェーズ4: TabStateServiceの実装 (2日)
@@ -581,20 +585,36 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
 ### 完了した作業
 - **フェーズ1: 準備と分析** - 全ての項目が完了
 - **フェーズ2: UIStateServiceの実装** - 主要部分が完了
-  - UI関連のエラー表示・成功メッセージ表示・ディレクトリ構造表示のメソッドを移行済み
+  - UI関連のエラー表示・成功メッセージ表示のメソッドを移行済み
   - ScopeManagerPanelから呼び出す形でUIStateServiceを導入済み
   - 基本的なUI連携機能のテストを実施
+- **フェーズ3: MessageDispatchServiceの実装** - 一部完了
+  - 基本的なメッセージングインターフェースの実装と導入
+  - 基本的なメッセージハンドラー（showError/showSuccess）の登録
+  - インライン化によるコード整理（未使用/重複メソッドの削除と整理）
+  - ScopeManagerPanelの行数を2236行から2138行に削減（-98行）
 
 ### 次に進めるべき作業
-1. **フェーズ2の残り**:
-   - `_update`メソッドと`_getHtmlForWebview`メソッドの移行
-   - HTML生成機能の連携テスト
+1. **フェーズ3の残り**:
+   - より多くのメッセージハンドラーをMessageDispatchServiceに移行
+   - インラインコードをさらに適切なサービスに移行
+   - WebViewとのメッセージ処理の完全な分離を目指す
 
-2. **フェーズ3: MessageDispatchServiceの実装**:
-   - WebViewとのメッセージ処理の分離は、UIStateServiceの移行後の次のステップとして理想的
-   - インターフェース設計とサービス実装、メッセージハンドラー移行へと進める
+2. **フェーズ4: TabStateServiceの実装**:
+   - タブ状態管理を分離し、独立したサービスとして実装
+   - タブ関連のメッセージハンドラーを移行
 
-3. **次のリファクタリング進行方針**:
-   - 各コンポーネントを独立して段階的に進める
-   - 各フェーズの完了後にテストを実施して機能が正常に動作することを確認
-   - 必要に応じてサービス間のインターフェース調整を検討
+3. **フェーズ5: MarkdownServiceの実装**:
+   - マークダウン処理関連の機能を分離
+   - コンテンツ表示関連の処理を統合
+
+4. **次のリファクタリング進行方針**:
+   - 引き続き段階的にリファクタリングを進める
+   - 機能単位で移行し、移行後は必ずUIテストを実施して検証
+   - 最終的にScopeManagerPanelを1600行以下にすることを目指す
+
+### 現在の状況
+- ScopeManagerPanelの現在の行数: 2138行（初期状態から98行削減）
+- サービス分離: UIStateService、MessageDispatchServiceの基本実装を完了
+- 削除したメソッド: 未使用・重複の`_handleShowDirectoryStructure`、`_updateDirectoryStructure`、`_handleRefreshFileBrowser`、`_handleNavigateDirectory`、`_handleListDirectory`、`_handleOpenFile`
+- TypeScriptエラー: ScopeManagerPanel関連のエラーは解消済み

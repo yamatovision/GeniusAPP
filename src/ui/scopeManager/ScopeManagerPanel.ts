@@ -1,3 +1,4 @@
+
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -19,6 +20,7 @@ import { ISharingService, SharingService } from './services/SharingService';
 import { IAuthenticationHandler, AuthenticationHandler } from './services/AuthenticationHandler';
 import { IUIStateService, UIStateService } from './services/UIStateService';
 import { MessageDispatchService } from './services/MessageDispatchService';
+import { ITabStateService, TabStateService } from './services/TabStateService';
 import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
@@ -52,6 +54,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _projectService: IProjectService; // ProjectServiceのインスタンス
   private _authHandler: IAuthenticationHandler; // AuthenticationHandlerのインスタンス
   private _uiStateService: IUIStateService; // UI状態管理サービス
+  private _tabStateService: ITabStateService; // タブ状態管理サービス
 
   /**
    * 実際のパネル作成・表示ロジック
@@ -146,6 +149,15 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // UI状態管理サービスを初期化
     this._uiStateService = UIStateService.getInstance(panel, extensionUri);
     
+    // タブ状態管理サービスを初期化
+    this._tabStateService = TabStateService.getInstance();
+    
+    // MessageDispatchServiceを初期化し、依存関係を設定
+    const messageDispatchService = MessageDispatchService.getInstance();
+    messageDispatchService.setDependencies({
+      sharingService: this._sharingService
+    });
+    
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
     
@@ -218,14 +230,20 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._disposables
     );
     
-    // MessageDispatchServiceのインスタンスを取得して設定
-    const messageDispatchService = MessageDispatchService.getInstance();
+    // MessageDispatchServiceのインスタンスを使用
+    const dispatchService = MessageDispatchService.getInstance();
     this._disposables.push(
-      messageDispatchService.setupMessageReceiver(this._panel)
+      dispatchService.setupMessageReceiver(this._panel)
     );
     
     // 基本ハンドラーを登録
     this._registerBasicMessageHandlers();
+    
+    // タブ状態サービスのメッセージハンドラーを登録
+    this._tabStateService.registerMessageHandlers(dispatchService);
+    
+    // 共有関連のメッセージハンドラーを登録
+    dispatchService.registerSharingHandlers();
     
     // 残りのメッセージハンドラーは個別に登録（段階的に移行予定）
     this._panel.webview.onDidReceiveMessage(
@@ -245,15 +263,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'getMarkdownContent':
               await this._handleGetMarkdownContent(message.filePath);
               break;
+            // タブ関連処理はTabStateServiceに移行済み
+            // これらのケースはTabStateServiceがハンドリングするため、ここでは何もしない
             case 'saveTabState':
-              await this._handleSaveTabState(message.tabId);
-              break;
-            // タブ関連
             case 'loadFileToTab':
-              await this._handleLoadFileToTab(message.tabId, message.filePath);
-              break;
             case 'loadRequirementsFile':
-              await this._handleLoadRequirementsFile();
+              // TabStateServiceが処理するため何もしない
               break;
             // ファイルブラウザ関連
             case 'refreshFileBrowser':
@@ -361,17 +376,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
               await this._handleOpenOriginalMockupGallery(message.filePath);
               break;
             
+            // 共有関連処理はMessageDispatchServiceに移行済み
             case 'getHistory':
-              await this._handleGetHistory();
-              break;
             case 'deleteFromHistory':
-              await this._handleDeleteFromHistory(message.fileId);
-              break;
             case 'copyCommand':
-              await this._handleCopyCommand(message.fileId);
-              break;
             case 'copyToClipboard':
-              await this._handleCopyToClipboard(message.text);
+              // MessageDispatchServiceが処理するため何もしない
               break;
             case 'reuseHistoryItem':
               await this._handleReuseHistoryItem(message.fileId);
@@ -620,51 +630,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 要件定義ファイルの読み込み
    * docsディレクトリ内のrequirements.mdファイルを読み込んで表示
    */
+  /**
+   * @deprecated TabStateServiceに移行済み
+   */
   private async _handleLoadRequirementsFile(): Promise<void> {
-    try {
-      Logger.info('要件定義ファイルの読み込みを開始します');
-      
-      // プロジェクトパスが設定されていない場合は処理しない
-      if (!this._projectPath) {
-        Logger.warn('プロジェクトパスが設定されていません。要件定義ファイルの読み込みをスキップします。');
-        return;
-      }
-      
-      // 要件定義ファイルのパスを生成
-      const requirementsFilePath = path.join(this._projectPath, 'docs', 'requirements.md');
-      
-      // ファイルの存在確認
-      if (!fs.existsSync(requirementsFilePath)) {
-        Logger.info(`要件定義ファイルが見つかりません: ${requirementsFilePath}`);
-        
-        // 要件定義ファイルが存在しない場合は、空のメッセージを表示
-        this._panel.webview.postMessage({
-          command: 'updateTabContent',
-          tabId: 'requirements',
-          content: '# 要件定義\n\n要件定義ファイルが見つかりません。プロジェクトの `docs/requirements.md` ファイルを作成してください。',
-          filePath: requirementsFilePath,
-          forRequirements: true // 要件定義タブ用の更新であることを示す
-        });
-        return;
-      }
-      
-      // FileSystemServiceを使用してファイルを読み込む
-      const content = await this._fileSystemService.readMarkdownFile(requirementsFilePath);
-      
-      // タブ内容を更新
-      this._panel.webview.postMessage({
-        command: 'updateTabContent',
-        tabId: 'requirements',
-        content: content,
-        filePath: requirementsFilePath,
-        forRequirements: true // 要件定義タブ用の更新であることを示す
-      });
-      
-      Logger.info(`要件定義ファイルを読み込みました: ${requirementsFilePath}`);
-    } catch (error) {
-      Logger.error('要件定義ファイルの読み込み中にエラーが発生しました', error as Error);
-      this._showError(`要件定義ファイルの読み込みに失敗しました: ${(error as Error).message}`);
-    }
+    // TabStateServiceに移行済み
+    await this._tabStateService.loadRequirementsFile(this._panel);
   }
   
   /**
@@ -992,18 +963,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * 共有履歴を取得してWebViewに送信
    */
+  /**
+   * @deprecated MessageDispatchServiceに移行済み
+   */
   private async _handleGetHistory(): Promise<void> {
-    try {
-      const history = this._sharingService.getHistory();
-      Logger.debug('共有履歴を取得しました', { count: history.length });
-      
-      this._panel.webview.postMessage({
-        command: 'updateSharingHistory',
-        history: history || []
-      });
-    } catch (error) {
-      Logger.error('履歴取得エラー', error as Error);
-    }
+    // MessageDispatchServiceに移行済み
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.getHistory(this._panel);
   }
 
   /**
@@ -1108,63 +1074,37 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * 履歴からアイテムを削除
    */
+  /**
+   * @deprecated MessageDispatchServiceに移行済み
+   */
   private async _handleDeleteFromHistory(fileId: string): Promise<void> {
-    const success = this._sharingService.deleteFromHistory(fileId);
-    
-    if (success) {
-      Logger.info(`共有履歴から項目を削除しました: ${fileId}`);
-      // 履歴を更新して送信
-      await this._handleGetHistory();
-    } else {
-      Logger.warn(`共有履歴からの項目削除に失敗しました: ${fileId}`);
-    }
+    // MessageDispatchServiceに移行済み
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.deleteFromHistory(this._panel, fileId);
   }
 
   /**
    * ファイルのコマンドをクリップボードにコピー
    */
+  /**
+   * @deprecated MessageDispatchServiceに移行済み
+   */
   private async _handleCopyCommand(fileId: string): Promise<void> {
-    try {
-      // ファイルを履歴から検索
-      const history = this._sharingService.getHistory();
-      const file = history.find(item => item.id === fileId);
-      
-      if (file) {
-        // コマンドを生成
-        const command = this._sharingService.generateCommand(file);
-        
-        // VSCodeのクリップボード機能を使用
-        await vscode.env.clipboard.writeText(command);
-        
-        // アクセスカウントを増やす
-        this._sharingService.recordAccess(fileId);
-        
-        // 成功メッセージを送信 - 特定のファイルIDを明示
-        this._panel.webview.postMessage({
-          command: 'commandCopied',
-          fileId: fileId,
-          fileName: file.title || file.originalName || file.fileName
-        });
-        
-        // VSCodeの通知も表示（オプション）
-        vscode.window.showInformationMessage(`コマンド "${command}" をコピーしました！`);
-        
-        Logger.info(`コマンドをコピーしました: ${fileId}, ファイル: ${file.fileName}`);
-      } else {
-        Logger.warn(`コピー対象のファイルが見つかりません: ${fileId}`);
-      }
-    } catch (error) {
-      Logger.error(`コピーコマンド実行中にエラーが発生しました: ${fileId}`, error as Error);
-      this._showError(`コピーに失敗しました: ${(error as Error).message}`);
-    }
+    // MessageDispatchServiceに移行済み
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.copyCommand(this._panel, fileId);
   }
 
   /**
    * テキストをクリップボードにコピー
    */
+  /**
+   * @deprecated MessageDispatchServiceに移行済み
+   */
   private async _handleCopyToClipboard(text: string): Promise<void> {
-    // VSCodeのクリップボード機能を使用
-    vscode.env.clipboard.writeText(text);
+    // MessageDispatchServiceに移行済み
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.copyToClipboard(this._panel, text);
   }
 
   /**
@@ -1267,32 +1207,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * @param tabId 表示対象のタブID
    * @param filePath 読み込むファイルパス
    */
+  /**
+   * @deprecated TabStateServiceに移行済み
+   */
   private async _handleLoadFileToTab(tabId: string, filePath: string): Promise<void> {
-    try {
-      Logger.info(`タブにファイルを読み込みます: タブID=${tabId}, ファイル=${filePath}`);
-      
-      // ファイルが存在するか確認
-      if (!fs.existsSync(filePath)) {
-        this._showError(`ファイルが見つかりません: ${filePath}`);
-        return;
-      }
-      
-      // ファイルの内容を読み込む
-      const content = await this._fileSystemService.readMarkdownFile(filePath);
-      
-      // タブ内の.markdown-contentにコンテンツを表示
-      this._panel.webview.postMessage({
-        command: 'updateTabContent',
-        tabId: tabId,
-        content: content,
-        filePath: filePath
-      });
-      
-      Logger.info(`タブ「${tabId}」にファイル内容を読み込みました: ${filePath}`);
-    } catch (error) {
-      Logger.error(`タブへのファイル読み込みに失敗しました: ${filePath}`, error as Error);
-      this._showError(`ファイルの読み込みに失敗しました: ${(error as Error).message}`);
-    }
+    // TabStateServiceに移行済み
+    await this._tabStateService.loadFileToTab(this._panel, tabId, filePath);
   }
   
   /**
@@ -1305,35 +1225,23 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
 
   /**
-   * タブ状態を保存する
+   * @deprecated TabStateServiceに移行済み
    */
   private async _handleSaveTabState(tabId: string): Promise<void> {
-    try {
-      if (!tabId || !this._activeProject || !this._activeProject.id) {
-        Logger.warn('タブ状態を保存できません: 有効なアクティブプロジェクトが存在しません');
-        return;
-      }
-      
-      Logger.info(`タブ状態を保存します: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
-      
-      // ProjectServiceのsaveTabStateメソッドを使用して保存
-      await this._projectService.saveTabState(this._activeProject.id, tabId);
+    if (this._activeProject && this._activeProject.id) {
+      // TabStateServiceに移行済み
+      await this._tabStateService.saveTabState(this._activeProject.id, tabId);
       
       // アクティブプロジェクトを再取得して内部状態を更新
       this._activeProject = this._projectService.getActiveProject();
       
-      // WebViewにプロジェクト状態同期メッセージを送信（タブ状態も含める）
+      // WebViewにプロジェクト状態同期メッセージを送信
       if (this._activeProject) {
         this._panel.webview.postMessage({
           command: 'syncProjectState',
           project: this._activeProject
         });
-        Logger.info(`プロジェクト状態同期メッセージを送信: ${this._activeProject.name}, タブID=${tabId}`);
       }
-      
-      Logger.info(`タブ状態を保存しました: プロジェクト=${this._activeProject.name}, タブID=${tabId}`);
-    } catch (error) {
-      Logger.error(`タブ状態の保存に失敗しました: ${(error as Error).message}`, error as Error);
     }
   }
 
