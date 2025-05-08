@@ -24,16 +24,13 @@ try {
   // グローバル変数として既に存在するか確認
   if (typeof window.vsCodeApi !== 'undefined') {
     vscode = window.vsCodeApi;
-    console.log('scopeManager: 既存のVSCode APIを使用します');
   } else {
     // 新規取得
     vscode = acquireVsCodeApi();
-    console.log('scopeManager: VSCode APIを新規取得しました');
     // グローバル変数として保存して他のスクリプトでも使えるように
     window.vsCodeApi = vscode;
   }
 } catch (e) {
-  console.error('scopeManager: VSCode API取得エラー:', e);
   // エラー時のフォールバック
   vscode = {
     postMessage: function(msg) { 
@@ -60,8 +57,6 @@ try {
       // markdownViewerに直接処理を委譲
       markdownViewer.updateContent(event.detail.content);
     });
-    
-    console.log('StateManagerのイベントリスナーを設定しました');
   }
 
   /**
@@ -94,8 +89,6 @@ try {
 
     // 開発プロンプトカードを初期化 (promptCards.jsコンポーネントが担当)
     promptCards.initializePromptCardsInModal();
-    
-    console.log('scopeManager.js: 基本的なClaudeCode連携エリアの初期化を完了しました');
   }
   
   /**
@@ -121,8 +114,6 @@ try {
 
   // ページ読み込み完了時の処理
   document.addEventListener('DOMContentLoaded', () => {
-    console.log('ScopeManager: DOMContentLoaded - コンポーネントの初期化を開始します');
-    
     // 初期化メッセージの送信
     vscode.postMessage({ command: 'initialize' });
     
@@ -151,15 +142,12 @@ try {
       fileBrowser.prepareUI(); 
     } else if (typeof fileBrowser.initialize === 'function') {
       // 後方互換性のため
-      console.log('警告: fileBrowser.prepareUIが見つからないため、代わりにinitializeを使用します');
       fileBrowser.initialize();
     }
     
     // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
     // 初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
     setTimeout(() => stateManager.restoreProjectState(), 100);
-    
-    console.log('ScopeManager: すべてのコンポーネントの初期化が完了しました');
   });
   
   // メッセージハンドラー
@@ -170,8 +158,6 @@ try {
     if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
       return; // sharingPanel.jsに処理を任せる
     }
-    
-    console.log('メッセージ受信:', message.command);
     
     switch (message.command) {
       case 'updateState':
@@ -216,31 +202,42 @@ try {
 
         // 進捗状況用のマークダウン更新は、そのタブがアクティブな場合のみ処理
         if (message.forScopeProgress && activeTabId !== 'scope-progress') {
-          console.log('現在のタブがscope-progressではないため更新をスキップ', {
-            activeTab: activeTabId,
-            messageType: 'forScopeProgress'
-          });
           return;
         }
 
         // 要件定義用のマークダウン更新は、そのタブがアクティブな場合のみ処理
         if (message.forRequirements && activeTabId !== 'requirements') {
-          console.log('現在のタブがrequirementsではないため更新をスキップ', {
-            activeTab: activeTabId,
-            messageType: 'forRequirements'
-          });
           return;
         }
 
-        // 対象タブが指定されていない場合や、現在のタブと一致する場合は更新
-        console.log('マークダウン更新を実行', {
-          activeTab: activeTabId,
-          forRequirements: message.forRequirements,
-          forCurrentStatus: message.forCurrentStatus
-        });
-        
         // 直接markdownViewerに処理を委譲
         markdownViewer.updateContent(message.content);
+        break;
+        
+      case 'updateTabContent':
+        // 特定のタブに対するコンテンツ更新
+        if (message.tabId && message.content) {
+          // 現在アクティブなタブIDを確認
+          const currentActiveTab = stateManager.getState().activeTab;
+          
+          // 対象のタブがアクティブな場合のみ処理
+          if (currentActiveTab === message.tabId) {
+            // コンテナ要素を直接取得
+            const tabContentEl = document.querySelector(`#${message.tabId}-tab .markdown-content`);
+            
+            if (tabContentEl) {
+              // 更新したコンテナをmarkdownViewerのupdateContentに渡す
+              markdownViewer.updateContent(message.content, tabContentEl);
+              
+              // デバッグログ
+              console.log(`タブ ${message.tabId} のコンテンツを更新しました`);
+            } else {
+              console.error(`タブ ${message.tabId} のコンテナが見つかりません`);
+            }
+          } else {
+            console.log(`現在のアクティブタブ (${currentActiveTab}) と異なるタブ (${message.tabId}) の更新はスキップします`);
+          }
+        }
         break;
       case 'updateProjects':
         // 直接Custom Eventを発行

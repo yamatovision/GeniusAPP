@@ -34,8 +34,6 @@ class TabManager {
         this.pendingTabId = null;
       }, 50);
     }
-    
-    console.log('TabManager initialized with tab:', savedTab);
   }
 
   _handleTabClick(event, tab) {
@@ -73,16 +71,17 @@ class TabManager {
     // 初期化前の呼び出しは保留する
     if (!this.isInitialized) {
       this.pendingTabId = tabId;
-      console.log(`TabManager: 初期化前のタブ選択を保留: ${tabId}`);
       return;
     }
     
-    console.log(`TabManager: selectTab(${tabId}, saveToServer=${saveToServer})`);
-    
     // 既に選択中のタブなら何もしない（冗長な処理を防止）
     if (this.activeTab === tabId) {
-      console.log(`TabManager: タブ ${tabId} は既に選択中です`);
       return;
+    }
+
+    // 要件定義タブが選択された場合、ファイルの読み込みをリクエスト
+    if (tabId === 'requirements') {
+      stateManager.sendMessage('loadRequirementsFile');
     }
     
     // UIの更新

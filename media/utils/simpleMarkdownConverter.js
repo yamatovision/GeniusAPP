@@ -38,8 +38,7 @@ class SimpleMarkdownConverter {
    * マークダウンテキストをHTMLに変換
    */
   convertMarkdownToHtml(markdown) {
-    console.log('======= マークダウン変換処理開始 =======');
-    console.log('入力:', markdown);
+    // ログ出力を削除
     
     if (!markdown) return '';
     
@@ -51,7 +50,6 @@ class SimpleMarkdownConverter {
     let html = markdown.replace(/```([\s\S]*?)```/g, (match, code) => {
       const id = `CODE_BLOCK_${codeBlocks.length}`;
       codeBlocks.push(code);
-      console.log(`コードブロック保護: ${match.substring(0, 30)}... → ${id}`);
       return id;
     });
     
@@ -59,16 +57,11 @@ class SimpleMarkdownConverter {
     html = html.replace(/\|(.+)\|\s*\n\|(?:[-:]+\|)+\s*\n(\|(?:.+)\|\s*\n)+/g, (match) => {
       const id = `TABLE_BLOCK_${tables.length}`;
       tables.push(match);
-      console.log(`テーブル保護: ${match.substring(0, 30)}... → ${id}`);
       return id;
     });
     
-    console.log('保護処理後:', html);
-    
     // エスケープ処理はコメントアウト（マークダウン構文を保持するため）
-    // console.log('エスケープ前:', html);
     // html = this._escapeHtml(html);
-    // console.log('エスケープ後:', html);
     
     // マークダウン要素の変換
     // 見出し処理 - インラインスタイルを使用
@@ -80,19 +73,13 @@ class SimpleMarkdownConverter {
     // インラインコード処理 - インラインスタイルを使用
     html = html.replace(/`([^`]+)`/g, '<code style="font-family:var(--vscode-editor-font-family,monospace); background-color:#1E1E1E; color:#FFFFFF; padding:0.2em 0.4em; border-radius:3px; font-size:0.85em; border:1px solid #3E3E3E;">$1</code>');
     
-    // 太字部分のデバッグ
-    console.log('太字処理前:', html);
-    // 太字を検出するための正規表現テスト
+    // 太字処理
     const boldPattern = /\*\*(.*?)\*\*/g;
-    const boldMatches = html.match(boldPattern);
-    console.log('太字検出結果:', boldMatches);
-
+    
     // 太字処理 - インラインスタイルを使用して適切なスタイリング
     html = html.replace(boldPattern, (match, content) => {
-      console.log(`太字変換: "${match}" → <span style="font-weight:700; color:#003366;">${content}</span>`);
       return `<span style="font-weight:700; color:#003366;">${content}</span>`;
     });
-    console.log('太字処理後:', html);
     
     // チェックボックス処理 - シンプルにチェックボックス部分だけを置換
     html = html.replace(/\[x\]/g, '<input type="checkbox" checked>');
@@ -125,18 +112,13 @@ class SimpleMarkdownConverter {
     
     // コードブロックの復元 - インラインスタイルを使用
     result = result.replace(/CODE_BLOCK_(\d+)/g, (match, index) => {
-      console.log(`コードブロック復元: ${match} → <pre><code>...</code></pre>`);
       return `<pre style="background-color:#1E1E1E; padding:16px; border-radius:6px; overflow-x:auto; margin:1em 0; border:1px solid #3E3E3E; box-shadow:0 2px 8px rgba(0,0,0,0.15);"><code style="background-color:transparent; padding:0; color:#E0E0E0; display:block; line-height:1.5;">${codeBlocks[Number(index)]}</code></pre>`;
     });
     
     // テーブルの復元
     result = result.replace(/TABLE_BLOCK_(\d+)/g, (match, index) => {
-      console.log(`テーブル復元: ${match}`);
       return this._renderTable(tables[Number(index)]);
     });
-    
-    console.log('最終変換結果 (一部):', result.substring(0, 300));
-    console.log('======= マークダウン変換処理終了 =======');
     
     return result;
   }
@@ -233,4 +215,4 @@ export default markdownConverter;
 export const convertMarkdownToHtml = markdown => markdownConverter.convertMarkdownToHtml(markdown);
 export const setupCheckboxes = () => markdownConverter.setupCheckboxes();
 // 互換性のために空関数を提供
-export const enhanceSpecialElements = () => { console.log('enhanceSpecialElements: 何もしません'); };
+export const enhanceSpecialElements = () => {};
