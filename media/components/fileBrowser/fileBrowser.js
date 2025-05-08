@@ -93,7 +93,7 @@ class FileBrowser {
     
     // ファイルリストが空の場合はローディングメッセージを表示
     if (!this.fileListElement.innerHTML || this.fileListElement.innerHTML.trim() === '') {
-      this.fileListElement.innerHTML = '<div class="loading-state" style="padding: 20px; text-align: center;">ファイルを読み込み中...<div class="spinner" style="margin-top: 10px; border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--vscode-progressBar-background); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block;"></div></div>';
+      this.fileListElement.innerHTML = '<div class="loading-state" style="padding: 20px; text-align: center; color: #333333;">ファイルを読み込み中...<div class="spinner" style="margin-top: 10px; border: 3px solid rgba(0,0,0,0.1); border-top-color: #4a69bd; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block;"></div></div>';
       
       // スピナーアニメーションのスタイルを追加
       const style = document.createElement('style');
@@ -301,7 +301,7 @@ class FileBrowser {
       
       // ファイルリストにローディング表示を追加
       if (this.fileListElement && (!this.fileListElement.innerHTML || !this.fileListElement.innerHTML.includes('file-item'))) {
-        this.fileListElement.innerHTML = '<div class="loading-state" style="padding: 20px; text-align: center;">ファイルを読み込み中...<div class="spinner" style="margin-top: 10px; border: 3px solid rgba(0,0,0,0.1); border-top-color: var(--vscode-progressBar-background); border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block;"></div></div>';
+        this.fileListElement.innerHTML = '<div class="loading-state" style="padding: 20px; text-align: center; color: #333333;">ファイルを読み込み中...<div class="spinner" style="margin-top: 10px; border: 3px solid rgba(0,0,0,0.1); border-top-color: #4a69bd; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block;"></div></div>';
       }
       
       // リクエストをバッチ処理に追加
@@ -571,6 +571,11 @@ class FileBrowser {
       // 最上位docsディレクトリのフォルダセクションを作成
       const docsSection = document.createElement('div');
       docsSection.className = 'folder-section main-folder';
+      docsSection.style.backgroundColor = '#f8f9fa';
+      docsSection.style.color = '#333333';
+      docsSection.style.padding = '8px';
+      docsSection.style.borderRadius = '6px';
+      docsSection.style.marginBottom = '15px';
       
       // ディレクトリ名を取得（パスの最後の部分）
       const dirName = this.currentPath.split('/').filter(Boolean).pop() || 'docs';
@@ -578,9 +583,19 @@ class FileBrowser {
       // docsフォルダヘッダーの作成
       const folderHeader = document.createElement('div');
       folderHeader.className = 'folder-header';
+      folderHeader.style.display = 'flex';
+      folderHeader.style.alignItems = 'center';
+      folderHeader.style.gap = '8px';
+      folderHeader.style.padding = '8px 12px';
+      folderHeader.style.borderRadius = '4px';
+      folderHeader.style.backgroundColor = '#ffffff';
+      folderHeader.style.border = '1px solid #e2e8f0';
+      folderHeader.style.marginBottom = '10px';
+      folderHeader.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+      
       folderHeader.innerHTML = `
-        <span class="material-icons folder-icon" style="color: #ffc107;">folder_open</span>
-        <span style="font-weight: 500;">${dirName}</span>
+        <span class="material-icons folder-icon" style="color: #ffc107; font-size: 20px;">folder_open</span>
+        <span style="font-weight: 600; color: #2d3748;">${dirName}</span>
       `;
       
       docsSection.appendChild(folderHeader);
@@ -588,6 +603,13 @@ class FileBrowser {
       // 全ファイルをリスト表示用のコンテナ
       const fileList = document.createElement('div');
       fileList.className = 'file-list';
+      fileList.style.display = 'flex';
+      fileList.style.flexDirection = 'column';
+      fileList.style.gap = '5px';
+      fileList.style.backgroundColor = '#ffffff';
+      fileList.style.padding = '8px';
+      fileList.style.borderRadius = '4px';
+      fileList.style.border = '1px solid #e2e8f0';
       
       // ファイルとディレクトリを分類（フィルタリング済みリストを使用）
       const directories = filteredFiles.filter(file => file.isDirectory);
@@ -613,9 +635,9 @@ class FileBrowser {
           <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
             <div style="display: flex; align-items: center; gap: 10px;">
               <span class="material-icons file-icon" style="color: #42a5f5;">${icon}</span>
-              <span class="file-name">${file.name}</span>
+              <span class="file-name" style="color: #333333;">${file.name}</span>
             </div>
-            <span style="font-size: 11px; color: var(--vscode-descriptionForeground);">${dateStr}</span>
+            <span style="font-size: 11px; color: #718096; background-color: #f5f5f5; padding: 2px 6px; border-radius: 10px;">${dateStr}</span>
           </div>
         `;
         
@@ -653,7 +675,7 @@ class FileBrowser {
         fileItem.innerHTML = `
           <div style="display: flex; align-items: center; gap: 10px;">
             <span class="material-icons folder-icon" style="color: #ffc107;">folder</span>
-            <span class="file-name">${dir.name}</span>
+            <span class="file-name" style="color: #333333; font-weight: 500;">${dir.name}</span>
           </div>
         `;
         
@@ -672,6 +694,13 @@ class FileBrowser {
       if (regularFiles.length > 0 || directories.length > 0) {
         const subList = document.createElement('div');
         subList.className = 'sub-file-list';
+        subList.style.marginLeft = '15px';
+        subList.style.borderLeft = '1px dashed #e2e8f0';
+        subList.style.paddingLeft = '15px';
+        subList.style.display = 'flex';
+        subList.style.flexDirection = 'column';
+        subList.style.gap = '5px';
+        subList.style.backgroundColor = '#f8f9fa';
         subList.appendChild(fileList);
         docsSection.appendChild(subList);
       }
@@ -698,7 +727,7 @@ class FileBrowser {
         
         folderHeader.innerHTML = `
           <span class="material-icons folder-icon" style="color: #ffc107;">${icon}</span>
-          <span>${dir.name}</span>
+          <span style="color: #333333; font-weight: 500;">${dir.name}</span>
         `;
         
         // フォルダヘッダーのクリックイベント
@@ -718,6 +747,12 @@ class FileBrowser {
       if (regularFiles.length > 0) {
         const filesList = document.createElement('div');
         filesList.className = 'file-list';
+        filesList.style.display = 'flex';
+        filesList.style.flexDirection = 'column';
+        filesList.style.gap = '5px';
+        filesList.style.backgroundColor = '#f8f9fa';
+        filesList.style.padding = '5px';
+        filesList.style.borderRadius = '4px';
         
         regularFiles.forEach(file => {
           const fileItem = this._createFileItem(file);
@@ -796,9 +831,9 @@ class FileBrowser {
     if (isError) {
       // エラーメッセージの表示
       previewContent.innerHTML = `
-        <div style="padding: 20px; text-align: center; color: var(--vscode-errorForeground);">
-          <span class="material-icons" style="font-size: 48px; margin-bottom: 16px;">error_outline</span>
-          <p>${content || 'ファイルを開けませんでした。'}</p>
+        <div style="padding: 20px; text-align: center; color: #e74c3c;">
+          <span class="material-icons" style="font-size: 48px; margin-bottom: 16px; color: #e74c3c;">error_outline</span>
+          <p style="color: #333333;">${content || 'ファイルを開けませんでした。'}</p>
         </div>
       `;
     } else if (filePath.endsWith('.md')) {
@@ -855,7 +890,26 @@ class FileBrowser {
     // ホームリンク（ルート）を追加
     const homeLink = document.createElement('span');
     homeLink.className = 'breadcrumb-item';
-    homeLink.innerHTML = '<span class="material-icons" style="font-size: 16px; color: var(--vscode-foreground);">home</span>';
+    homeLink.innerHTML = '<span class="material-icons" style="font-size: 16px; color: #333333;">home</span>';
+    homeLink.style.cursor = 'pointer';
+    homeLink.style.display = 'flex';
+    homeLink.style.alignItems = 'center';
+    homeLink.style.backgroundColor = '#ffffff';
+    homeLink.style.padding = '4px 8px';
+    homeLink.style.borderRadius = '4px';
+    homeLink.style.border = '1px solid #e2e8f0';
+    
+    // ホバーエフェクト
+    homeLink.addEventListener('mouseenter', () => {
+      homeLink.style.backgroundColor = '#f1f5fd';
+      homeLink.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.1)';
+    });
+    
+    homeLink.addEventListener('mouseleave', () => {
+      homeLink.style.backgroundColor = '#ffffff';
+      homeLink.style.boxShadow = 'none';
+    });
+    
     homeLink.addEventListener('click', () => {
       this._requestDirectoryListing(null); // ルートディレクトリの表示
     });
@@ -887,7 +941,7 @@ class FileBrowser {
       const openButton = document.createElement('button');
       openButton.className = 'button-secondary';
       openButton.id = 'open-in-editor';
-      openButton.style.cssText = 'padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px; background-color: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; border-radius: 4px; cursor: pointer;';
+      openButton.style.cssText = 'padding: 4px 8px; font-size: 12px; display: flex; align-items: center; gap: 4px; background-color: #4a69bd; color: #ffffff; border: none; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);';
       openButton.innerHTML = `
         <span class="material-icons" style="font-size: 14px;">open_in_new</span>
         <span>VSCodeで開く</span>
@@ -895,7 +949,7 @@ class FileBrowser {
       
       // 最終更新日情報
       const fileInfoElement = document.createElement('div');
-      fileInfoElement.style.cssText = 'font-size: 12px; color: var(--vscode-descriptionForeground); display: flex; align-items: center; gap: 5px;';
+      fileInfoElement.style.cssText = 'font-size: 12px; color: #718096; display: flex; align-items: center; gap: 5px;';
       fileInfoElement.innerHTML = `
         <span class="material-icons" style="font-size: 16px; color: ${iconColor};">${iconName}</span>
         <span>${fileInfo.fileName}</span>
@@ -928,8 +982,9 @@ class FileBrowser {
       const separator = document.createElement('span');
       separator.className = 'breadcrumb-separator';
       separator.textContent = '/';
-      separator.style.color = 'var(--vscode-descriptionForeground)';
+      separator.style.color = '#718096';
       separator.style.margin = '0 5px';
+      separator.style.fontSize = '14px';
       this.breadcrumbElement.appendChild(separator.cloneNode(true));
       
       // docsディレクトリへのリンク
@@ -992,8 +1047,9 @@ class FileBrowser {
       const separator = document.createElement('span');
       separator.className = 'breadcrumb-separator';
       separator.textContent = '/';
-      separator.style.color = 'var(--vscode-descriptionForeground)';
+      separator.style.color = '#718096';
       separator.style.margin = '0 5px';
+      separator.style.fontSize = '14px';
       this.breadcrumbElement.appendChild(separator.cloneNode(true));
       
       // パスをセグメントに分割
@@ -1043,6 +1099,13 @@ class FileBrowser {
     item.className = 'file-item';
     item.dataset.path = file.path;
     
+    // ライトモード強制のスタイルを追加
+    item.style.backgroundColor = '#ffffff';
+    item.style.border = '1px solid #e2e8f0';
+    item.style.color = '#333333';
+    item.style.borderRadius = '4px';
+    item.style.marginBottom = '4px';
+    
     // 最終更新日を取得（ない場合は現在の日付）
     const lastModified = file.lastModified ? new Date(file.lastModified) : new Date();
     const dateStr = `${lastModified.getFullYear()}/${String(lastModified.getMonth() + 1).padStart(2, '0')}/${String(lastModified.getDate()).padStart(2, '0')}`;
@@ -1057,8 +1120,8 @@ class FileBrowser {
       
       item.innerHTML = `
         <div style="display: flex; align-items: center; gap: 10px;">
-          <i class="material-icons folder-icon">${icon}</i>
-          <span class="file-name">${file.name}</span>
+          <i class="material-icons folder-icon" style="color: #ffc107;">${icon}</i>
+          <span class="file-name" style="color: #333333;">${file.name}</span>
         </div>
       `;
       
@@ -1081,35 +1144,70 @@ class FileBrowser {
         // ファイルリストを再描画
         this.updateFileList(this.fileList);
       });
+      
+      // ホバーエフェクト
+      item.addEventListener('mouseenter', () => {
+        item.style.backgroundColor = '#f1f5fd';
+        item.style.transform = 'translateY(-1px)';
+        item.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.1)';
+      });
+      
+      item.addEventListener('mouseleave', () => {
+        item.style.backgroundColor = '#ffffff';
+        item.style.transform = 'translateY(0)';
+        item.style.boxShadow = 'none';
+      });
     } 
     // 通常のファイルの場合
     else {
       // ファイル種別に応じたアイコンを設定
       let icon = 'insert_drive_file';
-      if (file.type === 'markdown') icon = 'description';
-      else if (file.type === 'image') icon = 'image';
-      else if (file.type === 'javascript' || file.type === 'typescript') icon = 'code';
+      let iconColor = '#42a5f5'; // 青系のアイコン色
+      
+      if (file.type === 'markdown') {
+        icon = 'description';
+        iconColor = '#4a69bd'; // ブランドカラー
+      }
+      else if (file.type === 'image') {
+        icon = 'image';
+        iconColor = '#6c71c4'; // 紫系
+      }
+      else if (file.type === 'javascript' || file.type === 'typescript') {
+        icon = 'code';
+        iconColor = '#d33682'; // ピンク系
+      }
       
       item.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
           <div style="display: flex; align-items: center; gap: 10px;">
-            <i class="material-icons file-icon">${icon}</i>
-            <span class="file-name">${file.name}</span>
+            <i class="material-icons file-icon" style="color: ${iconColor};">${icon}</i>
+            <span class="file-name" style="color: #333333;">${file.name}</span>
           </div>
-          <span style="font-size: 11px; color: var(--vscode-descriptionForeground);">${dateStr}</span>
+          <span style="font-size: 11px; color: #718096; background-color: #f5f5f5; padding: 2px 6px; border-radius: 10px;">${dateStr}</span>
         </div>
       `;
       
       // 現在選択中のファイルであればスタイルを適用
       if (this.selectedFile === file.path) {
-        item.className += ' selected';
+        item.style.backgroundColor = 'rgba(74, 105, 189, 0.1)';
+        item.style.borderLeft = '3px solid #4a69bd';
+        item.style.paddingLeft = '7px';
       }
       
       // クリックイベント: ファイルをタブで開く
       item.addEventListener('click', () => {
         // 選択状態を更新
-        document.querySelectorAll('.file-item.selected').forEach(el => el.classList.remove('selected'));
+        document.querySelectorAll('.file-item.selected').forEach(el => {
+          el.classList.remove('selected');
+          el.style.backgroundColor = '#ffffff';
+          el.style.borderLeft = '1px solid #e2e8f0';
+          el.style.paddingLeft = '10px';
+        });
+        
         item.classList.add('selected');
+        item.style.backgroundColor = 'rgba(74, 105, 189, 0.1)';
+        item.style.borderLeft = '3px solid #4a69bd';
+        item.style.paddingLeft = '7px';
         
         // ファイルタブとして開く
         this.vscode.postMessage({
@@ -1119,6 +1217,23 @@ class FileBrowser {
           fileType: file.type || this.getFileType(file.path),
           lastModified: file.lastModified ? new Date(file.lastModified).toISOString() : new Date().toISOString()
         });
+      });
+      
+      // ホバーエフェクト
+      item.addEventListener('mouseenter', () => {
+        if (!item.classList.contains('selected')) {
+          item.style.backgroundColor = '#f1f5fd';
+          item.style.transform = 'translateY(-1px)';
+          item.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.1)';
+        }
+      });
+      
+      item.addEventListener('mouseleave', () => {
+        if (!item.classList.contains('selected')) {
+          item.style.backgroundColor = '#ffffff';
+          item.style.transform = 'translateY(0)';
+          item.style.boxShadow = 'none';
+        }
       });
     }
     
@@ -1134,13 +1249,25 @@ class FileBrowser {
   _enhancedMarkdownToHtml(markdown) {
     if (!markdown) return '';
     
+    // シンプルマークダウンコンバーターをインポートして使用する
+    // グローバルスコープからアクセス
+    if (window.simpleMarkdownConverter && typeof window.simpleMarkdownConverter.convertMarkdownToHtml === 'function') {
+      return window.simpleMarkdownConverter.convertMarkdownToHtml(markdown);
+    }
+    
+    // フォールバック: import がないため直接markdownViewerを呼び出す
+    if (window.markdownViewer && typeof window.markdownViewer.convertContent === 'function') {
+      return window.markdownViewer.convertContent(markdown);
+    }
+    
+    // 最終的なフォールバック: 以前の実装をそのまま使用
     // 安全のためHTMLエスケープ
     let html = this._escapeHtml(markdown);
     
     // 見出し
-    html = html.replace(/^# (.+)$/gm, '<h1 style="font-size: 1.7em; margin-top: 0.8em; margin-bottom: 0.5em; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 0.3em; color: var(--vscode-panelTitle-activeForeground);">$1</h1>');
-    html = html.replace(/^## (.+)$/gm, '<h2 style="font-size: 1.4em; margin-top: 1em; margin-bottom: 0.5em; color: var(--vscode-foreground);">$1</h2>');
-    html = html.replace(/^### (.+)$/gm, '<h3 style="font-size: 1.2em; margin-top: 1em; margin-bottom: 0.5em; color: var(--vscode-foreground);">$1</h3>');
+    html = html.replace(/^# (.+)$/gm, '<h1 style="font-size: 1.7em; margin-top: 0.8em; margin-bottom: 0.5em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.3em; color: #2d3748;">$1</h1>');
+    html = html.replace(/^## (.+)$/gm, '<h2 style="font-size: 1.4em; margin-top: 1em; margin-bottom: 0.5em; color: #2d3748;">$1</h2>');
+    html = html.replace(/^### (.+)$/gm, '<h3 style="font-size: 1.2em; margin-top: 1em; margin-bottom: 0.5em; color: #2d3748;">$1</h3>');
     
     // 段落
     html = html.replace(/\n\n([^#-].*?)\n\n/gs, '\n\n<p style="margin-bottom: 1em;">$1</p>\n\n');
@@ -1150,7 +1277,7 @@ class FileBrowser {
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     
     // リンク
-    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color: var(--vscode-textLink-foreground); text-decoration: none;">$1</a>');
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" style="color: #4a69bd; text-decoration: none;">$1</a>');
     
     // テーブル
     const tablePattern = /^\|(.*)\|\s*\n\|\s*[:\-]+\s*\|(.*)\|\s*\n((?:\|.*\|\s*\n)+)/gm;
@@ -1208,16 +1335,16 @@ class FileBrowser {
     html = html.replace(/(<li.*>.+<\/li>)+/gs, '<ul style="margin-bottom: 1em; padding-left: 2em;">$&</ul>');
     
     // コードブロック
-    html = html.replace(/```(\w*)\n([\s\S]*?)\n```/g, '<pre style="background-color: var(--vscode-editor-background); border-radius: 6px; padding: 16px; overflow: auto; margin: 1em 0; font-family: \'Courier New\', monospace; font-size: 13px; line-height: 1.5;">$2</pre>');
+    html = html.replace(/```(\w*)\n([\s\S]*?)\n```/g, '<pre style="background-color: #f8f9fa; border-radius: 6px; padding: 16px; overflow: auto; margin: 1em 0; font-family: \'Courier New\', monospace; font-size: 13px; line-height: 1.5; border: 1px solid #e2e8f0; color: #333333;">$2</pre>');
     
     // インラインコード
-    html = html.replace(/`([^`]+)`/g, '<code style="background-color: var(--vscode-editor-background); padding: 2px 4px; border-radius: 3px; font-family: \'Courier New\', monospace; font-size: 0.9em;">$1</code>');
+    html = html.replace(/`([^`]+)`/g, '<code style="background-color: #f8f9fa; padding: 2px 4px; border-radius: 3px; font-family: \'Courier New\', monospace; font-size: 0.9em; color: #333333; border: 1px solid #e2e8f0;">$1</code>');
     
     // 水平線
-    html = html.replace(/^---+$/gm, '<hr style="border: none; border-top: 1px solid var(--vscode-panel-border); margin: 1.5em 0;">');
+    html = html.replace(/^---+$/gm, '<hr style="border: none; border-top: 1px solid #e2e8f0; margin: 1.5em 0;">');
     
     // 引用
-    html = html.replace(/^> (.+)$/gm, '<blockquote style="border-left: 4px solid var(--vscode-textLink-foreground); padding-left: 16px; margin-left: 0; margin-right: 0; color: var(--vscode-descriptionForeground);">$1</blockquote>');
+    html = html.replace(/^> (.+)$/gm, '<blockquote style="border-left: 4px solid #4a69bd; padding-left: 16px; margin-left: 0; margin-right: 0; color: #718096; background-color: #f8f9fa; padding: 8px 8px 8px 16px; border-radius: 4px;">$1</blockquote>');
     
     // 改行は段落に変換
     html = html.replace(/\n\n/g, '</p><p style="margin-bottom: 1em;">');
@@ -1226,7 +1353,7 @@ class FileBrowser {
     html = html.replace(/\n/g, '<br>');
     
     // 全体を段落で囲む
-    html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;">${html}</div>`;
+    html = `<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: #333333; background-color: #f8f9fa;">${html}</div>`;
     
     return html;
   }

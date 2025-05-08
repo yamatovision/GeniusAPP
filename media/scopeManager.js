@@ -17,6 +17,7 @@ import projectNavigation from './components/projectNavigation/projectNavigation.
 import dialogManager from './components/dialogManager/dialogManager.js';
 import promptCards from './components/promptCards/promptCards.js';
 import fileBrowser from './components/fileBrowser/fileBrowser.js';
+import simpleMarkdownConverter from './utils/simpleMarkdownConverter.js';
 
 // VSCode APIを安全に取得
 let vscode;
@@ -116,6 +117,11 @@ try {
   document.addEventListener('DOMContentLoaded', () => {
     // 初期化メッセージの送信
     vscode.postMessage({ command: 'initialize' });
+    
+    // シンプルマークダウンコンバーターをグローバル変数として公開
+    // これにより、ファイルブラウザなどの他のコンポーネントから利用可能になる
+    window.simpleMarkdownConverter = simpleMarkdownConverter;
+    window.markdownViewer = markdownViewer;
     
     // イベントリスナー設定
     setupEventListeners();
@@ -251,20 +257,44 @@ try {
           // ファイルブラウザのタブがアクティブかどうかを確認
           const activeTabId = stateManager.getState().activeTab;
           
-          if (activeTabId === 'file-browser') {
-            // アクティブな場合は優先的に更新処理
-            console.log('scopeManager: ファイルブラウザタブがアクティブなため、ディレクトリ構造を更新します');
-            fileBrowser.updateDirectoryStructure(message.structure);
-          } else {
-            // 非アクティブな場合は静かに状態のみ保持（表示更新はスキップ）
-            console.log('scopeManager: ファイルブラウザタブが非アクティブのため、状態のみ更新します');
-            // 内部状態の更新のみ行う
-            if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
-              const path = message.structure.split('\n')[0].trim();
+          // プロジェクトパスを抽出
+          let projectPath = '';
+          if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
+            projectPath = message.structure.split('\n')[0].trim();
+          } else if (message.projectPath) {
+            projectPath = message.projectPath;
+          }
+          
+          // docsディレクトリを優先する処理
+          if (projectPath) {
+            const docsPath = `${projectPath}/docs`;
+            
+            // docsパスに変更
+            if (activeTabId === 'file-browser') {
+              // アクティブな場合は、直接docsディレクトリをリクエスト
+              console.log('scopeManager: ファイルブラウザタブがアクティブなため、docsディレクトリを表示します');
+              
+              setTimeout(() => {
+                if (fileBrowser && fileBrowser.vscode) {
+                  fileBrowser.vscode.postMessage({
+                    command: 'listDirectory',
+                    path: docsPath
+                  });
+                }
+              }, 300); // 少し遅延させて他のリクエストより後に実行
+            } else {
+              // 非アクティブな場合は静かに状態のみ保持（表示更新はスキップ）
+              console.log('scopeManager: ファイルブラウザタブが非アクティブのため、状態のみ更新します');
               // 内部的にパスを記録しておく
-              if (!fileBrowser.currentPath) {
-                fileBrowser.currentPath = path;
+              if (fileBrowser) {
+                fileBrowser.currentPath = docsPath;
               }
+            }
+          } else {
+            // プロジェクトパスがない場合、通常の更新処理
+            if (activeTabId === 'file-browser') {
+              console.log('scopeManager: ファイルブラウザタブがアクティブなため、ディレクトリ構造を更新します');
+              fileBrowser.updateDirectoryStructure(message.structure);
             }
           }
         }

@@ -1,10 +1,37 @@
 /* ファイルブラウザコンポーネントのスタイル */
+/* ライトテーマを強制適用 */
+
+/* ライトテーマの色定義 */
+.file-browser,
+.file-browser * {
+  --fb-background: #f8f9fa;
+  --fb-text: #333333;
+  --fb-text-secondary: #718096;
+  --fb-heading-color: #2d3748;
+  --fb-card-background: #ffffff;
+  --fb-input-background: #ffffff;
+  --fb-border-color: #e2e8f0;
+  --fb-hover-background: #f1f5fd;
+  --fb-selected-background: rgba(74, 105, 189, 0.1);
+  --fb-selected-text: #333333;
+  --fb-primary: #4a69bd;
+  --fb-primary-dark: #3a5a9e;
+  --fb-primary-light: rgba(74, 105, 189, 0.2);
+  --fb-secondary: #00b894;
+  --fb-warning: #fdcb6e;
+  --fb-danger: #e17055;
+  --fb-gray-100: #f8f9fa;
+  --fb-gray-200: #e9ecef;
+  --fb-gray-300: #dee2e6;
+}
 
 .file-browser-container {
   display: flex;
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+  background-color: var(--fb-background);
+  color: var(--fb-text);
 }
 
 /* ヘッダー部分 */
@@ -14,7 +41,8 @@
   align-items: center;
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--fb-border-color);
+  background-color: var(--fb-background);
 }
 
 /* パンくずリスト */
@@ -28,20 +56,21 @@
   white-space: nowrap;
   padding: 8px 0;
   max-width: 100%;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--fb-border-color);
   margin-bottom: 15px;
+  background-color: var(--fb-background);
 }
 
 .breadcrumb-item {
   font-size: 13px;
-  color: var(--vscode-foreground);
+  color: var(--fb-text);
   display: flex;
   align-items: center;
 }
 
 .breadcrumb-item.clickable {
   cursor: pointer;
-  color: var(--vscode-textLink-foreground);
+  color: var(--fb-primary);
 }
 
 .breadcrumb-item.clickable:hover {
@@ -53,7 +82,7 @@
 }
 
 .breadcrumb-separator {
-  color: var(--vscode-descriptionForeground);
+  color: var(--fb-text-secondary);
   margin: 0 2px;
 }
 
@@ -63,21 +92,24 @@
   display: flex;
   overflow: hidden;
   height: calc(100% - 40px); /* パンくずリストの高さを考慮 */
+  background-color: var(--fb-background);
 }
 
 .file-list-panel {
   flex: 1;
   overflow-y: auto;
   padding-right: 10px;
-  border-right: 1px solid var(--vscode-panel-border);
+  border-right: 1px solid var(--fb-border-color);
   /* プレビューでなくタブになるので、マージンは必要ない */
   width: 100%;
+  background-color: var(--fb-background);
 }
 
 .file-list {
   display: flex;
   flex-direction: column;
   gap: 5px;
+  background-color: var(--fb-background);
 }
 
 /* ファイルアイテム */
@@ -89,20 +121,22 @@
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background-color: var(--vscode-editor-background);
-  border: 1px solid transparent;
+  background-color: var(--fb-card-background);
+  border: 1px solid var(--fb-border-color);
+  margin-bottom: 3px;
+  color: var(--fb-text);
 }
 
 .file-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--fb-hover-background);
   transform: translateY(-1px);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .file-item.selected {
-  background-color: var(--vscode-list-activeSelectionBackground);
-  color: var(--vscode-list-activeSelectionForeground);
-  border-left: 3px solid var(--vscode-activityBarBadge-background);
+  background-color: var(--fb-selected-background);
+  color: var(--fb-selected-text);
+  border-left: 3px solid var(--fb-primary);
   padding-left: 7px;
 }
 
@@ -111,11 +145,11 @@
 }
 
 .file-item .folder-icon {
-  color: var(--vscode-terminal-ansiYellow);
+  color: #ffc107; /* フォルダアイコンは黄色系 */
 }
 
 .file-item .file-icon {
-  color: var(--vscode-terminal-ansiBlue);
+  color: var(--fb-primary); /* ファイルアイコンは青系 */
 }
 
 .file-name {
@@ -123,21 +157,24 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--fb-text);
 }
 
 /* サブディレクトリのファイルリスト */
 .sub-file-list {
   margin-left: 15px;
-  border-left: 1px dashed var(--vscode-panel-border);
+  border-left: 1px dashed var(--fb-border-color);
   padding-left: 15px;
   display: flex;
   flex-direction: column;
   gap: 5px;
+  background-color: var(--fb-background);
 }
 
 /* フォルダセクション */
 .folder-section {
   margin-bottom: 15px;
+  background-color: var(--fb-background);
 }
 
 .folder-header {
@@ -146,17 +183,21 @@
   gap: 8px;
   margin-bottom: 8px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 8px 12px;
   border-radius: 4px;
+  background-color: var(--fb-card-background);
+  border: 1px solid var(--fb-border-color);
+  color: var(--fb-text);
 }
 
 .folder-header:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--fb-hover-background);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .folder-header .material-icons {
   font-size: 18px;
-  color: var(--vscode-terminal-ansiYellow);
+  color: #ffc107; /* フォルダは黄色系 */
 }
 
 /* プレビュー領域 */
@@ -166,9 +207,10 @@
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
-  border-left: 1px solid var(--vscode-panel-border);
+  border-left: 1px solid var(--fb-border-color);
   padding-left: 20px;
   margin-left: 10px;
+  background-color: var(--fb-background);
 }
 
 .preview-header {
@@ -177,13 +219,16 @@
   align-items: center;
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--fb-border-color);
+  background-color: var(--fb-background);
+  color: var(--fb-text);
 }
 
 .preview-file-name {
   font-weight: 500;
   font-size: 14px;
   margin-bottom: 4px;
+  color: var(--fb-heading-color);
 }
 
 .preview-content {
@@ -191,10 +236,11 @@
   overflow-y: auto;
   max-height: 400px;
   padding: 15px;
-  background-color: var(--vscode-editor-background);
+  background-color: var(--fb-card-background);
   border-radius: 8px;
-  border: 1px solid var(--vscode-panel-border);
+  border: 1px solid var(--fb-border-color);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  color: var(--fb-text);
 }
 
 /* プレビューコンテナ（ファイルセクション） */
@@ -204,6 +250,8 @@
   overflow: hidden;
   max-height: 600px;
   margin-top: 20px;
+  background-color: var(--fb-background);
+  color: var(--fb-text);
 }
 
 /* ファイルプレビューコンテナ */
@@ -211,8 +259,10 @@
   flex: 1;
   overflow-y: auto;
   max-height: 400px;
-  border: 1px solid var(--vscode-panel-border);
+  border: 1px solid var(--fb-border-color);
   border-radius: 4px;
+  background-color: var(--fb-card-background);
+  color: var(--fb-text);
 }
 
 /* コードプレビュー */
@@ -222,20 +272,25 @@
   line-height: 1.5;
   white-space: pre-wrap;
   margin: 0;
+  color: var(--fb-text);
+  background-color: var(--fb-card-background);
 }
 
 /* マークダウンプレビュー - 強化版 */
 .markdown-preview {
   font-size: 14px;
   line-height: 1.6;
+  color: var(--fb-text);
+  background-color: var(--fb-background);
 }
 
 /* 要件定義や進捗状況と同様のスタイル */
 .enhanced-markdown {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
   line-height: 1.6;
-  color: var(--vscode-foreground);
+  color: var(--fb-text);
   padding: 0 10px;
+  background-color: var(--fb-background);
 }
 
 .enhanced-markdown h1,
@@ -243,9 +298,9 @@
   font-size: 1.7em;
   margin-top: 0.8em;
   margin-bottom: 0.5em;
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--fb-border-color);
   padding-bottom: 0.3em;
-  color: var(--vscode-panelTitle-activeForeground);
+  color: var(--fb-heading-color);
 }
 
 .enhanced-markdown h2,
@@ -253,6 +308,7 @@
   font-size: 1.4em;
   margin-top: 1em;
   margin-bottom: 0.5em;
+  color: var(--fb-heading-color);
 }
 
 .enhanced-markdown h3,
@@ -260,6 +316,7 @@
   font-size: 1.2em;
   margin-top: 1em;
   margin-bottom: 0.5em;
+  color: var(--fb-heading-color);
 }
 
 .enhanced-markdown table,
@@ -267,6 +324,7 @@
   border-collapse: collapse;
   width: 100%;
   margin: 1em 0;
+  background-color: var(--fb-card-background);
 }
 
 .enhanced-markdown th,
@@ -275,22 +333,24 @@
 .markdown-preview td {
   padding: 8px;
   text-align: left;
+  color: var(--fb-text);
 }
 
 .enhanced-markdown th,
 .markdown-preview th {
   font-weight: 600;
-  border-bottom: 2px solid var(--vscode-panel-border);
+  border-bottom: 2px solid var(--fb-border-color);
+  background-color: var(--fb-primary-light);
 }
 
 .enhanced-markdown tr,
 .markdown-preview tr {
-  border-bottom: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--fb-border-color);
 }
 
 .enhanced-markdown pre,
 .markdown-preview pre {
-  background-color: var(--vscode-editor-background);
+  background-color: var(--fb-card-background);
   border-radius: 6px;
   padding: 16px;
   overflow: auto;
@@ -298,34 +358,38 @@
   font-family: 'Courier New', monospace;
   font-size: 13px;
   line-height: 1.5;
+  border: 1px solid var(--fb-border-color);
 }
 
 .enhanced-markdown code,
 .markdown-preview code {
-  background-color: var(--vscode-editor-background);
+  background-color: var(--fb-gray-100);
   padding: 2px 4px;
   border-radius: 3px;
   font-family: 'Courier New', monospace;
   font-size: 0.9em;
+  color: var(--fb-text);
 }
 
 .enhanced-markdown blockquote,
 .markdown-preview blockquote {
-  border-left: 4px solid var(--vscode-textLink-foreground);
+  border-left: 4px solid var(--fb-primary);
   padding-left: 16px;
   margin-left: 0;
   margin-right: 0;
-  color: var(--vscode-descriptionForeground);
+  color: var(--fb-text-secondary);
+  background-color: var(--fb-gray-100);
 }
 
 .enhanced-markdown p,
 .markdown-preview p {
   margin-bottom: 1em;
+  color: var(--fb-text);
 }
 
 .enhanced-markdown a,
 .markdown-preview a {
-  color: var(--vscode-textLink-foreground);
+  color: var(--fb-primary);
   text-decoration: none;
 }
 
@@ -340,17 +404,19 @@
 .markdown-preview ol {
   margin-bottom: 1em;
   padding-left: 2em;
+  color: var(--fb-text);
 }
 
 .enhanced-markdown li,
 .markdown-preview li {
   margin-bottom: 0.3em;
+  color: var(--fb-text);
 }
 
 .enhanced-markdown hr,
 .markdown-preview hr {
   border: none;
-  border-top: 1px solid var(--vscode-panel-border);
+  border-top: 1px solid var(--fb-border-color);
   margin: 1.5em 0;
 }
 
@@ -358,20 +424,31 @@
   width: 100%;
   max-width: 100%;
   overflow-x: auto;
+  background-color: var(--fb-background);
 }
 
 /* 空の状態表示 */
 .empty-state {
   padding: 20px;
   text-align: center;
-  color: var(--vscode-descriptionForeground);
+  color: var(--fb-text-secondary);
   font-style: italic;
+  background-color: var(--fb-gray-100);
+  border-radius: 4px;
+  border: 1px dashed var(--fb-border-color);
 }
 
 /* アクションボタン */
 .file-actions {
   display: flex;
   gap: 8px;
+}
+
+/* ファイルブラウザのスタイルを確実に上書き（タブ選択時に追加） */
+.tab-content.active #file-browser-tab, 
+.tab-content.active .file-browser {
+  background-color: var(--fb-background) !important;
+  color: var(--fb-text) !important;
 }
 
 /* レスポンシブ対応 */
@@ -382,7 +459,7 @@
   
   .file-list-panel {
     border-right: none;
-    border-bottom: 1px solid var(--vscode-panel-border);
+    border-bottom: 1px solid var(--fb-border-color);
     margin-right: 0;
     margin-bottom: 15px;
     padding-bottom: 15px;

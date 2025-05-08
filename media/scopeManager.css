@@ -61,6 +61,27 @@
   color: #333333 !important;
 }
 
+/* ファイルブラウザ用のライトテーマ強制適用 */
+.scope-manager-container .tab-content.active #file-browser-tab,
+.scope-manager-container .file-browser,
+.scope-manager-container .file-browser * {
+  --fb-background: #f8f9fa;
+  --fb-text: #333333;
+  --fb-text-secondary: #718096;
+  --fb-heading-color: #2d3748;
+  --fb-card-background: #ffffff;
+  --fb-input-background: #ffffff;
+  --fb-border-color: #e2e8f0;
+  --fb-hover-background: #f1f5fd;
+  --fb-selected-background: rgba(74, 105, 189, 0.1);
+  --fb-selected-text: #333333;
+  --fb-primary: #4a69bd;
+  --fb-primary-dark: #3a5a9e;
+  --fb-primary-light: rgba(74, 105, 189, 0.2);
+  background-color: #f8f9fa !important;
+  color: #333333 !important;
+}
+
 .panel-header {
   display: flex;
   justify-content: space-between;
