@@ -155,8 +155,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // MessageDispatchServiceを初期化し、依存関係を設定
     const messageDispatchService = MessageDispatchService.getInstance();
     messageDispatchService.setDependencies({
-      sharingService: this._sharingService
+      sharingService: this._sharingService,
+      projectService: this._projectService,
+      fileSystemService: this._fileSystemService
     });
+    
+    // プロジェクト関連のメッセージハンドラーを登録
+    messageDispatchService.registerProjectHandlers();
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -386,17 +391,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'reuseHistoryItem':
               await this._handleReuseHistoryItem(message.fileId);
               break;
+            // プロジェクト関連処理はMessageDispatchServiceに移行済み
             case 'selectProject':
-              await this._handleSelectProject(message.projectName, message.projectPath);
+            case 'createProject':
+            case 'removeProject':
+              // MessageDispatchServiceが処理するため何もしない
               break;
             case 'loadExistingProject':
               await this._handleLoadExistingProject();
-              break;
-            case 'createProject':
-              await this._handleCreateProject(message.name, message.description);
-              break;
-            case 'removeProject':
-              await this._handleRemoveProject(message.projectName, message.projectPath, message.projectId);
               break;
             // モックアップビューア関連のコマンド
             case 'selectMockup':
@@ -419,54 +421,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   /**
    * 新規プロジェクト作成処理
-   * ProjectServiceを使用して実装
+   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.createProjectを使用してください。
    */
   private async _handleCreateProject(projectName: string, description: string): Promise<void> {
-    try {
-      Logger.info(`新規プロジェクト作成: ${projectName}`);
-      
-      // ProjectServiceを使用してプロジェクトを作成
-      const projectId = await this._projectService.createProject(projectName, description);
-      
-      Logger.info(`プロジェクト「${projectName}」の作成が完了しました: ID=${projectId}`);
-      
-      // プロジェクトの最新情報を取得
-      const activeProject = this._projectService.getActiveProject();
-      const allProjects = this._projectService.getAllProjects();
-      
-      // プロジェクトパスを更新
-      if (activeProject && activeProject.path) {
-        this.setProjectPath(activeProject.path);
-        
-        // 進捗ファイルの内容も読み込んで表示
-        const progressFilePath = this._projectService.getProgressFilePath();
-        if (progressFilePath && fs.existsSync(progressFilePath)) {
-          await this._handleGetMarkdownContent(progressFilePath);
-        }
-      }
-      
-      // WebViewにプロジェクト一覧を更新
-      this._panel.webview.postMessage({
-        command: 'updateProjects',
-        projects: allProjects,
-        activeProject: activeProject
-      });
-      
-      // 成功メッセージを表示
-      this._panel.webview.postMessage({
-        command: 'showSuccess',
-        message: `プロジェクト「${projectName}」を作成しました`
-      });
-      
-      // プロジェクト名を更新
-      this._panel.webview.postMessage({
-        command: 'updateProjectName',
-        projectName: projectName
-      });
-    } catch (error) {
-      Logger.error(`プロジェクト作成中にエラーが発生しました: ${projectName}`, error as Error);
-      this._showError(`プロジェクトの作成に失敗しました: ${(error as Error).message}`);
-    }
+    Logger.warn('_handleCreateProjectは非推奨です。MessageDispatchService.createProjectを使用してください。');
+    
+    // MessageDispatchServiceのcreateProjectメソッドを呼び出す
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.createProject(this._panel, projectName, description);
   }
   
   /**
@@ -1145,60 +1107,17 @@ export class ScopeManagerPanel extends ProtectedPanel {
   
   /**
    * プロジェクト選択処理
-   * ProjectServiceを使用して実装
+   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.selectProjectを使用してください。
    * @param projectName プロジェクト名
    * @param projectPath プロジェクトパス
    * @param activeTab 現在のアクティブタブID（オプション）
    */
   private async _handleSelectProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
-    try {
-      Logger.info(`プロジェクト選択: ${projectName}, パス: ${projectPath}`);
-      
-      // ProjectServiceを使用してプロジェクトを選択
-      await this._projectService.selectProject(projectName, projectPath, activeTab);
-      
-      // プロジェクトパスを更新
-      this.setProjectPath(projectPath);
-      
-      // プロジェクトの最新情報を取得
-      const activeProject = this._projectService.getActiveProject();
-      this._activeProject = activeProject; // インスタンス変数にも保存
-      const allProjects = this._projectService.getAllProjects();
-      
-      // WebViewにプロジェクト状態同期メッセージを送信
-      if (activeProject) {
-        this._panel.webview.postMessage({
-          command: 'syncProjectState',
-          project: activeProject
-        });
-        Logger.info(`プロジェクト状態同期メッセージを送信: ${activeProject.name}`);
-      }
-      
-      // WebViewにプロジェクト一覧を更新
-      this._panel.webview.postMessage({
-        command: 'updateProjects',
-        projects: allProjects,
-        activeProject: activeProject
-      });
-      
-      // 進捗ファイルの内容も読み込んで表示
-      const progressFilePath = this._projectService.getProgressFilePath();
-      if (progressFilePath && fs.existsSync(progressFilePath)) {
-        await this._handleGetMarkdownContent(progressFilePath);
-      }
-      
-      // WebViewに成功メッセージを送信
-      this._panel.webview.postMessage({
-        command: 'showSuccess',
-        message: `プロジェクト「${projectName}」を開きました`
-      });
-      
-      // VSCodeの通知も表示
-      vscode.window.showInformationMessage(`プロジェクト「${projectName}」を開きました`);
-    } catch (error) {
-      Logger.error(`プロジェクトを開く際にエラーが発生しました`, error as Error);
-      this._showError(`プロジェクトを開けませんでした: ${(error as Error).message}`);
-    }
+    Logger.warn('_handleSelectProjectは非推奨です。MessageDispatchService.selectProjectを使用してください。');
+    
+    // MessageDispatchServiceのselectProjectメソッドを呼び出す
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.selectProject(this._panel, projectName, projectPath, activeTab);
   }
 
   
@@ -1296,51 +1215,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
   
   /**
    * プロジェクト登録解除処理
-   * ProjectServiceを使用して実装
+   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.removeProjectを使用してください。
    */
   private async _handleRemoveProject(projectName: string, projectPath: string, projectId?: string): Promise<void> {
-    try {
-      Logger.info(`プロジェクト登録解除: ${projectName}, パス: ${projectPath}, ID: ${projectId || 'なし'}`);
-      
-      if (!projectName && !projectPath && !projectId) {
-        this._showError('プロジェクト情報が不足しています');
-        return;
-      }
-      
-      // ProjectServiceを使用してプロジェクトを登録解除
-      const removed = await this._projectService.removeProject(projectName, projectPath, projectId);
-      
-      if (removed) {
-        Logger.info(`プロジェクト「${projectName}」の登録解除に成功しました`);
-        
-        // プロジェクトの最新情報を取得
-        const activeProject = this._projectService.getActiveProject();
-        const allProjects = this._projectService.getAllProjects();
-        
-        // WebViewにプロジェクト一覧と現在のプロジェクトを送信
-        this._panel.webview.postMessage({
-          command: 'updateProjects',
-          projects: allProjects,
-          activeProject: activeProject
-        });
-        
-        // 現在のプロジェクトが削除されたプロジェクトと同じ場合、別のプロジェクトへ切り替え
-        if (this._projectPath === projectPath) {
-          if (activeProject && activeProject.path) {
-            await this.setProjectPath(activeProject.path);
-          } else if (allProjects.length > 0) {
-            await this.setProjectPath(allProjects[0].path);
-          }
-        }
-        
-        this._showSuccess(`プロジェクト「${projectName}」の登録を解除しました`);
-      } else {
-        this._showError(`プロジェクト「${projectName}」の登録解除に失敗しました`);
-      }
-    } catch (error) {
-      Logger.error('プロジェクト登録解除処理エラー', error as Error);
-      this._showError(`プロジェクト登録解除に失敗しました: ${(error as Error).message}`);
-    }
+    Logger.warn('_handleRemoveProjectは非推奨です。MessageDispatchService.removeProjectを使用してください。');
+    
+    // MessageDispatchServiceのremoveProjectメソッドを呼び出す
+    const messageService = MessageDispatchService.getInstance();
+    await messageService.removeProject(this._panel, projectName, projectPath, projectId);
   }
 
   /**

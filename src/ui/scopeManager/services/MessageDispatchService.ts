@@ -19,6 +19,11 @@ export interface IMessageDispatchService {
   // WebViewからのメッセージ処理設定
   setupMessageReceiver(panel: vscode.WebviewPanel): vscode.Disposable;
   
+  // プロジェクト管理メッセージハンドラー
+  selectProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, activeTab?: string): Promise<void>;
+  createProject(panel: vscode.WebviewPanel, projectName: string, description: string): Promise<void>;
+  removeProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, projectId?: string): Promise<void>;
+  
   // イベント
   onMessageProcessed: vscode.Event<{command: string, success: boolean}>;
 }
@@ -33,6 +38,8 @@ export class MessageDispatchService implements IMessageDispatchService {
   
   // 依存サービスの参照（必要に応じて設定）
   private _sharingService?: any;
+  private _projectService?: any;
+  private _fileSystemService?: any;
   
   private static _instance: MessageDispatchService;
   
@@ -52,10 +59,18 @@ export class MessageDispatchService implements IMessageDispatchService {
    * @param services 依存サービス
    */
   public setDependencies(services: {
-    sharingService?: any
+    sharingService?: any;
+    projectService?: any;
+    fileSystemService?: any;
   }): void {
     if (services.sharingService) {
       this._sharingService = services.sharingService;
+    }
+    if (services.projectService) {
+      this._projectService = services.projectService;
+    }
+    if (services.fileSystemService) {
+      this._fileSystemService = services.fileSystemService;
     }
   }
   
@@ -305,6 +320,239 @@ export class MessageDispatchService implements IMessageDispatchService {
     Logger.info('MessageDispatchService: 共有関連のメッセージハンドラーを登録しました');
   }
   
+  /**
+   * プロジェクト選択
+   * @param panel WebViewパネル
+   * @param projectName プロジェクト名
+   * @param projectPath プロジェクトパス
+   * @param activeTab アクティブタブID（オプション）
+   */
+  public async selectProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, activeTab?: string): Promise<void> {
+    try {
+      Logger.info(`MessageDispatchService: プロジェクト選択処理: ${projectName}, パス: ${projectPath}`);
+      
+      if (!this._projectService) {
+        throw new Error('ProjectServiceが設定されていません');
+      }
+      
+      // ProjectServiceを使用してプロジェクトを選択
+      await this._projectService.selectProject(projectName, projectPath, activeTab);
+      
+      // WebViewにプロジェクト状態同期メッセージを送信
+      const activeProject = this._projectService.getActiveProject();
+      if (activeProject) {
+        this.sendMessage(panel, {
+          command: 'syncProjectState',
+          project: activeProject
+        });
+        Logger.info(`MessageDispatchService: プロジェクト状態同期メッセージを送信: ${activeProject.name}`);
+      }
+      
+      // WebViewにプロジェクト一覧を更新
+      const allProjects = this._projectService.getAllProjects();
+      this.sendMessage(panel, {
+        command: 'updateProjects',
+        projects: allProjects,
+        activeProject: activeProject
+      });
+      
+      // 進捗ファイルの内容も読み込んで表示
+      const progressFilePath = this._projectService.getProgressFilePath();
+      if (progressFilePath && require('fs').existsSync(progressFilePath)) {
+        // ファイルシステムサービスでマークダウンファイルを読み込む
+        if (this._fileSystemService) {
+          const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
+          this.sendMessage(panel, {
+            command: 'updateMarkdownContent',
+            content: content,
+            timestamp: Date.now(),
+            priority: 'high',
+            forScopeProgress: true
+          });
+        }
+      }
+      
+      // WebViewに成功メッセージを送信
+      this.showSuccess(panel, `プロジェクト「${projectName}」を開きました`);
+      
+      // イベント発行
+      this._onMessageProcessed.fire({
+        command: 'selectProject',
+        success: true
+      });
+    } catch (error) {
+      Logger.error(`MessageDispatchService: プロジェクト選択エラー: ${(error as Error).message}`, error as Error);
+      this.showError(panel, `プロジェクトを開けませんでした: ${(error as Error).message}`);
+      
+      this._onMessageProcessed.fire({
+        command: 'selectProject',
+        success: false
+      });
+    }
+  }
+  
+  /**
+   * 新規プロジェクト作成
+   * @param panel WebViewパネル
+   * @param projectName プロジェクト名
+   * @param description プロジェクト説明
+   */
+  public async createProject(panel: vscode.WebviewPanel, projectName: string, description: string): Promise<void> {
+    try {
+      Logger.info(`MessageDispatchService: プロジェクト作成処理: ${projectName}`);
+      
+      if (!this._projectService) {
+        throw new Error('ProjectServiceが設定されていません');
+      }
+      
+      // ProjectServiceを使用してプロジェクトを作成
+      const projectId = await this._projectService.createProject(projectName, description);
+      
+      // プロジェクトの最新情報を取得
+      const activeProject = this._projectService.getActiveProject();
+      const allProjects = this._projectService.getAllProjects();
+      
+      // WebViewにプロジェクト一覧を更新
+      this.sendMessage(panel, {
+        command: 'updateProjects',
+        projects: allProjects,
+        activeProject: activeProject
+      });
+      
+      // プロジェクト名を更新
+      this.sendMessage(panel, {
+        command: 'updateProjectName',
+        projectName: projectName
+      });
+      
+      // 進捗ファイルの内容も読み込んで表示
+      if (activeProject && activeProject.path) {
+        const progressFilePath = this._projectService.getProgressFilePath();
+        if (progressFilePath && require('fs').existsSync(progressFilePath) && this._fileSystemService) {
+          const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
+          this.sendMessage(panel, {
+            command: 'updateMarkdownContent',
+            content: content,
+            timestamp: Date.now(),
+            priority: 'high',
+            forScopeProgress: true
+          });
+        }
+      }
+      
+      // 成功メッセージを表示
+      this.showSuccess(panel, `プロジェクト「${projectName}」を作成しました`);
+      
+      // イベント発行
+      this._onMessageProcessed.fire({
+        command: 'createProject',
+        success: true
+      });
+    } catch (error) {
+      Logger.error(`MessageDispatchService: プロジェクト作成エラー: ${(error as Error).message}`, error as Error);
+      this.showError(panel, `プロジェクトの作成に失敗しました: ${(error as Error).message}`);
+      
+      this._onMessageProcessed.fire({
+        command: 'createProject',
+        success: false
+      });
+    }
+  }
+  
+  /**
+   * プロジェクト削除（登録解除）
+   * @param panel WebViewパネル
+   * @param projectName プロジェクト名
+   * @param projectPath プロジェクトパス
+   * @param projectId プロジェクトID（オプション）
+   */
+  public async removeProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, projectId?: string): Promise<void> {
+    try {
+      Logger.info(`MessageDispatchService: プロジェクト削除処理: ${projectName}, パス: ${projectPath}, ID: ${projectId || 'なし'}`);
+      
+      if (!this._projectService) {
+        throw new Error('ProjectServiceが設定されていません');
+      }
+      
+      if (!projectName && !projectPath && !projectId) {
+        throw new Error('プロジェクト情報が不足しています');
+      }
+      
+      // ProjectServiceを使用してプロジェクトを登録解除
+      const removed = await this._projectService.removeProject(projectName, projectPath, projectId);
+      
+      if (removed) {
+        // プロジェクトの最新情報を取得
+        const activeProject = this._projectService.getActiveProject();
+        const allProjects = this._projectService.getAllProjects();
+        
+        // WebViewにプロジェクト一覧と現在のプロジェクトを送信
+        this.sendMessage(panel, {
+          command: 'updateProjects',
+          projects: allProjects,
+          activeProject: activeProject
+        });
+        
+        this.showSuccess(panel, `プロジェクト「${projectName}」の登録を解除しました`);
+        
+        // イベント発行
+        this._onMessageProcessed.fire({
+          command: 'removeProject',
+          success: true
+        });
+      } else {
+        this.showError(panel, `プロジェクト「${projectName}」の登録解除に失敗しました`);
+        
+        this._onMessageProcessed.fire({
+          command: 'removeProject',
+          success: false
+        });
+      }
+    } catch (error) {
+      Logger.error(`MessageDispatchService: プロジェクト削除エラー: ${(error as Error).message}`, error as Error);
+      this.showError(panel, `プロジェクト登録解除に失敗しました: ${(error as Error).message}`);
+      
+      this._onMessageProcessed.fire({
+        command: 'removeProject',
+        success: false
+      });
+    }
+  }
+  
+  /**
+   * プロジェクト関連のメッセージハンドラーを登録
+   */
+  public registerProjectHandlers(): void {
+    // selectProject ハンドラー
+    this.registerHandler('selectProject', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.projectName && message.projectPath) {
+        await this.selectProject(panel, message.projectName, message.projectPath, message.activeTab);
+      } else {
+        Logger.warn('MessageDispatchService: selectProjectメッセージに必要なパラメータがありません');
+      }
+    });
+    
+    // createProject ハンドラー
+    this.registerHandler('createProject', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.projectName) {
+        await this.createProject(panel, message.projectName, message.description || '');
+      } else {
+        Logger.warn('MessageDispatchService: createProjectメッセージに必要なパラメータがありません');
+      }
+    });
+    
+    // removeProject ハンドラー
+    this.registerHandler('removeProject', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.projectName && message.projectPath) {
+        await this.removeProject(panel, message.projectName, message.projectPath, message.projectId);
+      } else {
+        Logger.warn('MessageDispatchService: removeProjectメッセージに必要なパラメータがありません');
+      }
+    });
+    
+    Logger.info('MessageDispatchService: プロジェクト関連のメッセージハンドラーを登録しました');
+  }
+
   /**
    * リソースを解放
    */

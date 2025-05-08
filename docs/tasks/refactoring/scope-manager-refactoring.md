@@ -351,56 +351,66 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
 ### フェーズ3: MessageDispatchServiceの実装 (3日)
 
 1. [x] IMessageDispatchServiceインターフェース詳細設計
-   - [ ] `initialize(): Promise<void>`メソッド設計
-   - [x] `registerMessageHandlers(): void`メソッド設計
-   - [x] `handleMessage(message: any): Promise<void>`メソッド設計
-   - [x] `sendMessage(command: string, payload: any): void`メソッド設計
-   - [x] イベント定義の設計（`onMessageProcessed`）
+   - [x] `sendMessage(panel: vscode.WebviewPanel, message: Message): void`メソッド設計
+   - [x] `registerHandler(command: string, handler: Function): void`メソッド設計
+   - [x] `registerHandlers(handlers: Map<string, Function>): void`メソッド設計 
+   - [x] `handleMessage(message: Message, panel: vscode.WebviewPanel): Promise<void>`メソッド設計
    - [x] `setupMessageReceiver(panel: vscode.WebviewPanel): vscode.Disposable`メソッド設計
+   - [x] `showError(panel: vscode.WebviewPanel, message: string): void`メソッド設計
+   - [x] `showSuccess(panel: vscode.WebviewPanel, message: string): void`メソッド設計
+   - [x] 共有関連メソッド設計（getHistory, deleteFromHistory, copyCommand, copyToClipboard）
+   - [x] イベント定義の設計（`onMessageProcessed`）
 2. [x] MessageDispatchService実装クラス作成
    - [x] シングルトンパターンの実装
    - [x] メッセージハンドラーマップの実装
    - [x] メッセージディスパッチロジックの実装
    - [x] リソース解放処理の実装（dispose）
-3. [x] 基本的なメッセージハンドラーの移行:
+   - [x] 依存サービス設定機能の実装（SharingServiceとの連携）
+3. [x] 様々なメッセージハンドラーの移行:
    - [x] 基本的なメッセージハンドラー（showError/showSuccess）の登録
+   - [x] 共有関連のメッセージハンドラー（getHistory, deleteFromHistory, copyCommand, copyToClipboard）の実装
+   - [x] タブ関連メッセージハンドラーとの連携
    - [ ] WebViewからのメッセージ受信処理の完全な移行
-   - [ ] コマンドタイプ別の処理振り分けロジックの移行
-   - [ ] WebViewへのメッセージ送信処理の移行
    - [ ] `_handleInitialize`メソッドの移行
-4. [x] ScopeManagerPanelで基本的なMessageDispatchServiceを使用するよう修正
-   - [x] コンストラクタでのサービス初期化処理の追加
-   - [x] 基本ハンドラーの登録処理の実装
+4. [x] ScopeManagerPanelでMessageDispatchServiceを使用するよう修正
+   - [x] コンストラクタでのサービス初期化と依存関係の設定
+   - [x] 基本ハンドラーと共有ハンドラーの登録
+   - [x] 重複変数宣言の修正
    - [ ] `onDidReceiveMessage`の処理をサービスに完全に委譲する変更
-5. [ ] ScopeManagerPanelとMessageDispatchServiceの連携テスト
-   - [x] 基本的なメッセージ送信処理テスト
+5. [x] ScopeManagerPanelとMessageDispatchServiceの連携テスト
+   - [x] メッセージ送信処理テスト
+   - [x] 基本機能（エラー表示、成功表示）の動作確認
+   - [x] 共有関連機能の動作確認
    - [ ] 全メッセージ受信処理テスト
-   - [ ] 初期化処理テスト
 
 ### フェーズ4: TabStateServiceの実装 (2日)
 
-1. [ ] ITabStateServiceインターフェース詳細設計
-   - [ ] `saveTabState(tabId: string): Promise<void>`メソッド設計
-   - [ ] `loadTabContent(tabId: string, filePath: string): Promise<void>`メソッド設計
-   - [ ] `selectTab(tabId: string): Promise<void>`メソッド設計
-   - [ ] `updateTabContent(tabId: string, content: string, filePath?: string): Promise<void>`メソッド設計
-   - [ ] イベント定義の設計（`onTabStateChanged`）
-2. [ ] TabStateService実装クラス作成
-   - [ ] シングルトンパターンの実装
-   - [ ] タブ状態管理ロジックの実装
-   - [ ] タブ操作メソッドの実装
-3. [ ] タブ関連メソッドの移行:
-   - [ ] `_handleSaveTabState`の移行とテスト
-   - [ ] `_handleLoadFileToTab`の移行とテスト
-   - [ ] `_handleLoadRequirementsFile`のタブ切り替え部分の移行
-   - [ ] タブの選択・切り替え処理の実装
-4. [ ] ScopeManagerPanelでTabStateServiceを使用するよう修正
-   - [ ] コンストラクタでのサービス初期化処理の追加
-   - [ ] タブ関連メソッド呼び出しをサービス経由に変更
-5. [ ] ScopeManagerPanelとTabStateServiceの連携テスト
-   - [ ] タブ状態保存処理テスト
-   - [ ] タブへのファイル読み込みテスト
-   - [ ] タブ選択・切り替え処理テスト
+1. [x] ITabStateServiceインターフェース詳細設計
+   - [x] `saveTabState(projectId: string, tabId: string): Promise<void>`メソッド設計
+   - [x] `getActiveTab(projectId: string): string | undefined`メソッド設計
+   - [x] `loadFileToTab(panel: vscode.WebviewPanel, tabId: string, filePath: string): Promise<void>`メソッド設計
+   - [x] `loadRequirementsFile(panel: vscode.WebviewPanel): Promise<void>`メソッド設計
+   - [x] `updateTabContent(panel: vscode.WebviewPanel, tabId: string, content: string, filePath?: string): Promise<void>`メソッド設計
+   - [x] `registerMessageHandlers(messageService: MessageDispatchService): void`メソッド設計
+   - [x] イベント定義の設計（`onTabStateChanged`）
+2. [x] TabStateService実装クラス作成
+   - [x] シングルトンパターンの実装
+   - [x] タブ状態管理ロジックの実装
+   - [x] タブ操作メソッドの実装
+   - [x] メッセージハンドラー登録機能の実装
+3. [x] タブ関連メソッドの移行:
+   - [x] `_handleSaveTabState`の移行とテスト
+   - [x] `_handleLoadFileToTab`の移行とテスト
+   - [x] `_handleLoadRequirementsFile`の移行とテスト
+   - [x] メッセージハンドラーへの統合
+4. [x] ScopeManagerPanelでTabStateServiceを使用するよう修正
+   - [x] コンストラクタでのサービス初期化処理の追加
+   - [x] タブ関連メソッド呼び出しをサービス経由に変更
+   - [x] メッセージハンドラーの登録
+5. [x] ScopeManagerPanelとTabStateServiceの連携テスト
+   - [x] タブ状態保存処理の動作確認
+   - [x] タブへのファイル読み込み機能の動作確認
+   - [x] 要件定義ファイル読み込み機能の動作確認
 
 ### フェーズ5: MarkdownServiceの実装 (2日)
 
@@ -614,7 +624,17 @@ scopeManager.jsは既にコンポーネント分割が進んでいるため、�
    - 最終的にScopeManagerPanelを1600行以下にすることを目指す
 
 ### 現在の状況
-- ScopeManagerPanelの現在の行数: 2138行（初期状態から98行削減）
-- サービス分離: UIStateService、MessageDispatchServiceの基本実装を完了
-- 削除したメソッド: 未使用・重複の`_handleShowDirectoryStructure`、`_updateDirectoryStructure`、`_handleRefreshFileBrowser`、`_handleNavigateDirectory`、`_handleListDirectory`、`_handleOpenFile`
-- TypeScriptエラー: ScopeManagerPanel関連のエラーは解消済み
+- ScopeManagerPanelの現在の行数: 2047行（初期状態から139行削減）
+- サービス分離:
+  - UIStateService: 基本実装を完了
+  - MessageDispatchService: 基本実装を完了し、共有関連ハンドラーを実装
+  - TabStateService: 基本実装を完了
+  - FileSystemService: findRequirementsFileメソッドを追加実装
+- 主な移行済み機能:
+  - タブ関連: saveTabState, loadFileToTab, loadRequirementsFileをTabStateServiceに移行
+  - 共有関連: getHistory, deleteFromHistory, copyCommand, copyToClipboardをMessageDispatchServiceに移行
+  - UI関連: showError, showSuccessをUIStateServiceに移行
+- 次のステップ:
+  - ファイル操作関連のメソッドをさらにFileSystemServiceに移行
+  - プロジェクト管理関連のメソッドをProjectServiceに移行
+  - 残りの共有処理をSharingServiceに完全移行
