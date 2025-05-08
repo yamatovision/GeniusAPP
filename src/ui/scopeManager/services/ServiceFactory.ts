@@ -5,18 +5,37 @@ import { Logger } from '../../../utils/logger';
 import {
   IFileSystemService,
   IProjectService,
-  IPanelService,
-  IMessageDispatchService,
   ITabStateService,
   IUIStateService,
   ISharingService,
 } from './interfaces';
 
+// ダミーパネルサービスインターフェイス（暫定）
+interface IPanelService {
+  createPanel: (column?: vscode.ViewColumn) => void;
+  showPanel: (column?: vscode.ViewColumn) => void;
+  updatePanelContent: () => void;
+  disposePanel: () => void;
+  sendMessage: (message: any) => void;
+  broadcastMessage: (message: any) => void;
+  onPanelCreated: vscode.Event<vscode.WebviewPanel>;
+  onPanelDisposed: vscode.Event<void>;
+  onMessageReceived: vscode.Event<any>;
+  isPanelVisible: () => boolean;
+  getPanel: () => vscode.WebviewPanel | undefined;
+  dispose: () => void;
+  setProjectService?: (projectService: any) => void;
+  setMessageService?: (messageService: any) => void;
+  setFileSystemService?: (fileSystemService: any) => void;
+  setTabStateService?: (tabStateService: any) => void;
+  initializePanel?: (projectPath?: string) => Promise<void>;
+  syncActiveProject?: (project: any) => Promise<void>;
+};
+
 // 既存の実装クラス
 import { FileSystemService } from './FileSystemService';
 import { ProjectService } from './ProjectService';
-import { PanelService } from './PanelService';
-import { MessageDispatchService } from './MessageDispatchService';
+// import { PanelService } from './PanelService'; // 現在存在しない - PanelService_リファクタリング計画.mdに基づいて実装予定
 import { TabStateService } from './TabStateService';
 import { UIStateService } from './UIStateService';
 import { SharingService } from './SharingService';
@@ -103,24 +122,34 @@ export class ServiceFactory {
   
   /**
    * PanelServiceの取得
+   * 注意: PanelServiceは現在実装されていません。PanelService_リファクタリング計画.mdに基づいて今後実装予定です。
    */
   public static getPanelService(): IPanelService {
     if (!ServiceFactory._panelService) {
-      const uiStateService = ServiceFactory.getUIStateService();
-      ServiceFactory._panelService = PanelService.getInstance(
-        ServiceFactory._extensionUri,
-        ServiceFactory._context,
-        uiStateService,
-        {
-          // WebViewオプションにTreeInput初期化プロパティを追加
-          webviewOptions: {
-            enableScripts: true,
-            retainContextWhenHidden: true,
-            // @ts-ignore - VSCodeの内部APIにアクセス
-            treeInput: {} // DebugReplのTree入力を事前に初期化
-          }
-        }
-      );
+      // PanelServiceが実装されるまでのダミー実装を返す
+      const dummyPanelService: IPanelService = {
+        createPanel: () => {},
+        showPanel: () => {},
+        updatePanelContent: () => {},
+        disposePanel: () => {},
+        sendMessage: () => {},
+        broadcastMessage: () => {},
+        onPanelCreated: new vscode.EventEmitter<vscode.WebviewPanel>().event,
+        onPanelDisposed: new vscode.EventEmitter<void>().event,
+        onMessageReceived: new vscode.EventEmitter<any>().event,
+        isPanelVisible: () => false,
+        getPanel: () => undefined,
+        dispose: () => {},
+        // 拡張メソッド
+        setProjectService: () => {},
+        setMessageService: () => {},
+        setFileSystemService: () => {},
+        setTabStateService: () => {},
+        initializePanel: async () => {},
+        syncActiveProject: async () => {}
+      };
+      ServiceFactory._panelService = dummyPanelService;
+      Logger.info('ServiceFactory: PanelServiceは未実装のため、ダミー実装を使用します');
     }
     return ServiceFactory._panelService;
   }
@@ -131,13 +160,9 @@ export class ServiceFactory {
    */
   public static getMessageService(): IMessageDispatchService {
     if (!ServiceFactory._messageService) {
-      if (ServiceFactory._useNewMessageService) {
-        Logger.info('ServiceFactory: 新しいMessageDispatchServiceImplを使用');
-        ServiceFactory._messageService = MessageDispatchServiceImpl.getInstance();
-      } else {
-        Logger.info('ServiceFactory: 従来のMessageDispatchServiceを使用');
-        ServiceFactory._messageService = MessageDispatchService.getInstance();
-      }
+      // 常に新しい実装を使用する
+      Logger.info('ServiceFactory: MessageDispatchServiceImplを使用');
+      ServiceFactory._messageService = MessageDispatchServiceImpl.getInstance();
     }
     return ServiceFactory._messageService;
   }
@@ -221,6 +246,9 @@ export class ServiceFactory {
         }
       }
       
+      // TabStateServiceのメッセージハンドラを登録
+      tabStateService.registerMessageHandlers(messageService);
+      
       // 各サービスのイベントリスナーを設定
       ServiceFactory.setupEventListeners();
       
@@ -296,30 +324,15 @@ export class ServiceFactory {
       const messageService = ServiceFactory.getMessageService();
       const tabStateService = ServiceFactory.getTabStateService();
       
-      // メッセージディスパッチャーが持つハンドラー登録
-      // 明示的に各ハンドラーを登録（新しいMessageDispatchServiceImplでは自動登録されるが、念のため）
-      if (ServiceFactory._useNewMessageService) {
-        Logger.info('ServiceFactory: 新しいMessageDispatchServiceImplのハンドラーを登録');
-        // 新実装では初期化時にすでに登録されているはずだが、念のため明示的に呼び出す
-        messageService.registerProjectHandlers();
-        messageService.registerFileHandlers();
-        messageService.registerSharingHandlers();
-      } else {
-        Logger.info('ServiceFactory: 従来のMessageDispatchServiceのハンドラーを登録');
-        messageService.registerProjectHandlers();
-        messageService.registerFileHandlers();
-        messageService.registerSharingHandlers();
-      }
+      // MessageDispatchServiceImplのハンドラー登録
+      Logger.info('ServiceFactory: MessageDispatchServiceImplのハンドラーを登録');
+      // 初期化時にすでに登録されているはずだが、念のため明示的に呼び出す
+      messageService.registerProjectHandlers();
+      messageService.registerFileHandlers();
+      messageService.registerSharingHandlers();
       
       // タブ状態サービスのメッセージハンドラーを登録
       tabStateService.registerMessageHandlers(messageService);
-      
-      // ハンドラー登録状況のログ出力（デバッグ用）
-      if (messageService instanceof MessageDispatchServiceImpl) {
-        Logger.info('ServiceFactory: MessageDispatchServiceImplのハンドラーが登録されました');
-      } else {
-        Logger.info('ServiceFactory: 従来のMessageDispatchServiceのハンドラーが登録されました');
-      }
       
       Logger.info('ServiceFactory: 標準メッセージハンドラーを登録しました');
     } catch (error) {
@@ -332,12 +345,10 @@ export class ServiceFactory {
    * 新実装への切り替えフラグを設定
    * @param useNewFileSystem 新しいFileSystemServiceを使用する場合はtrue
    * @param useNewProject 新しいProjectServiceを使用する場合はtrue
-   * @param useNewMessage 新しいMessageDispatchServiceを使用する場合はtrue
    */
   public static setImplementationFlags(
     useNewFileSystem: boolean, 
-    useNewProject: boolean, 
-    useNewMessage: boolean = true
+    useNewProject: boolean
   ): void {
     // すでにインスタンスが作成されている場合は変更を許可しない
     if (ServiceFactory._fileSystemService) {
@@ -354,12 +365,7 @@ export class ServiceFactory {
       Logger.info(`ServiceFactory: ProjectService切り替えフラグを ${useNewProject} に設定しました`);
     }
     
-    if (ServiceFactory._messageService) {
-      Logger.warn('ServiceFactory: MessageDispatchServiceはすでに初期化されています。フラグは無視されます。');
-    } else {
-      ServiceFactory._useNewMessageService = useNewMessage;
-      Logger.info(`ServiceFactory: MessageDispatchService切り替えフラグを ${useNewMessage} に設定しました`);
-    }
+    // MessageDispatchServiceは常に新実装を使用するため、設定は不要
   }
   
   /**

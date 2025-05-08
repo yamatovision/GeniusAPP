@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { IService } from './common';
-import { MessageDispatchService } from '../MessageDispatchService';
+import { IMessageDispatchService } from './IMessageDispatchService';
 
 /**
  * タブ状態管理サービスインターフェース
@@ -13,7 +13,7 @@ export interface ITabStateService extends IService {
   saveTabState(projectId: string, tabId: string): Promise<void>;
   
   // メッセージハンドラー登録
-  registerMessageHandlers(messageService: MessageDispatchService): void;
+  registerMessageHandlers(messageService: IMessageDispatchService): void;
   
   // イベント
   onTabChanged: vscode.Event<string>;

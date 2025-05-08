@@ -19,8 +19,9 @@ import { IProjectService, ProjectService } from './services/ProjectService';
 import { ISharingService, SharingService } from './services/SharingService';
 import { IAuthenticationHandler, AuthenticationHandler } from './services/AuthenticationHandler';
 import { IUIStateService, UIStateService } from './services/UIStateService';
-import { MessageDispatchService } from './services/MessageDispatchService';
+import { ServiceFactory } from './services/ServiceFactory';
 import { ITabStateService, TabStateService } from './services/TabStateService';
+import { IMessageDispatchService } from './services/interfaces/IMessageDispatchService';
 import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
@@ -156,20 +157,14 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // タブ状態管理サービスを初期化
     this._tabStateService = TabStateService.getInstance();
     
-    // MessageDispatchServiceを初期化し、依存関係を設定
-    const messageDispatchService = MessageDispatchService.getInstance();
-    messageDispatchService.setDependencies({
-      sharingService: this._sharingService,
-      projectService: this._projectService,
-      fileSystemService: this._fileSystemService,
-      uiStateService: this._uiStateService
-    });
+    // ServiceFactoryを通じてサービスを初期化
+    ServiceFactory.initialize(extensionUri, context);
     
-    // プロジェクト関連のメッセージハンドラーを登録
-    messageDispatchService.registerProjectHandlers();
+    // すべての依存関係を設定
+    ServiceFactory.setupDependencies();
     
-    // ファイル操作関連のメッセージハンドラーを登録
-    messageDispatchService.registerFileHandlers();
+    // 標準メッセージハンドラを登録
+    ServiceFactory.registerStandardHandlers();
     
     // 一時ディレクトリはプロジェクトパス設定時に作成されるため、ここでは初期化のみ
     this._tempShareDir = '';
@@ -243,8 +238,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._disposables
     );
     
-    // MessageDispatchServiceのインスタンスを使用
-    const dispatchService = MessageDispatchService.getInstance();
+    // MessageDispatchServiceのインスタンスをServiceFactory経由で取得
+    const dispatchService = ServiceFactory.getMessageService();
     this._disposables.push(
       dispatchService.setupMessageReceiver(this._panel)
     );
@@ -369,13 +364,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
   /**
    * 新規プロジェクト作成処理
-   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.createProjectを使用してください。
+   * @deprecated ServiceFactory.getMessageService().createProjectを使用してください。
    */
   private async _handleCreateProject(projectName: string, description: string): Promise<void> {
-    Logger.warn('_handleCreateProjectは非推奨です。MessageDispatchService.createProjectを使用してください。');
+    Logger.warn('_handleCreateProjectは非推奨です。ServiceFactory経由でサービスにアクセスしてください。');
     
-    // MessageDispatchServiceのcreateProjectメソッドを呼び出す
-    const messageService = MessageDispatchService.getInstance();
+    // ServiceFactory経由でMessageServiceを取得
+    const messageService = ServiceFactory.getMessageService();
     await messageService.createProject(this._panel, projectName, description);
   }
   
@@ -709,11 +704,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 共有履歴を取得してWebViewに送信
    */
   /**
-   * @deprecated MessageDispatchServiceに移行済み
+   * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleGetHistory(): Promise<void> {
     // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
+    const messageService = ServiceFactory.getMessageService();
     await messageService.getHistory(this._panel);
   }
 
@@ -820,11 +815,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * 履歴からアイテムを削除
    */
   /**
-   * @deprecated MessageDispatchServiceに移行済み
+   * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleDeleteFromHistory(fileId: string): Promise<void> {
     // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
+    const messageService = ServiceFactory.getMessageService();
     await messageService.deleteFromHistory(this._panel, fileId);
   }
 
@@ -832,11 +827,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * ファイルのコマンドをクリップボードにコピー
    */
   /**
-   * @deprecated MessageDispatchServiceに移行済み
+   * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleCopyCommand(fileId: string): Promise<void> {
     // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
+    const messageService = ServiceFactory.getMessageService();
     await messageService.copyCommand(this._panel, fileId);
   }
 
@@ -844,11 +839,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * テキストをクリップボードにコピー
    */
   /**
-   * @deprecated MessageDispatchServiceに移行済み
+   * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleCopyToClipboard(text: string): Promise<void> {
     // MessageDispatchServiceに移行済み
-    const messageService = MessageDispatchService.getInstance();
+    const messageService = ServiceFactory.getMessageService();
     await messageService.copyToClipboard(this._panel, text);
   }
 
@@ -890,16 +885,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
   
   /**
    * プロジェクト選択処理
-   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.selectProjectを使用してください。
+   * @deprecated ServiceFactory.getMessageService().selectProjectを使用してください。
    * @param projectName プロジェクト名
    * @param projectPath プロジェクトパス
    * @param activeTab 現在のアクティブタブID（オプション）
    */
   private async _handleSelectProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
-    Logger.warn('_handleSelectProjectは非推奨です。MessageDispatchService.selectProjectを使用してください。');
+    Logger.warn('_handleSelectProjectは非推奨です。ServiceFactory経由でサービスにアクセスしてください。');
     
-    // MessageDispatchServiceのselectProjectメソッドを呼び出す
-    const messageService = MessageDispatchService.getInstance();
+    // ServiceFactory経由でMessageServiceを取得
+    const messageService = ServiceFactory.getMessageService();
     await messageService.selectProject(this._panel, projectName, projectPath, activeTab);
   }
 
@@ -980,7 +975,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   private _registerBasicMessageHandlers(): void {
-    const messageService = MessageDispatchService.getInstance();
+    const messageService = ServiceFactory.getMessageService();
     const handlers = new Map<string, (message: any, panel: vscode.WebviewPanel) => Promise<void>>();
 
     // showErrorハンドラー
@@ -1006,13 +1001,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
   
   /**
    * プロジェクト登録解除処理
-   * @deprecated MessageDispatchServiceに移行済み。MessageDispatchService.removeProjectを使用してください。
+   * @deprecated ServiceFactory.getMessageService().removeProjectを使用してください。
    */
   private async _handleRemoveProject(projectName: string, projectPath: string, projectId?: string): Promise<void> {
-    Logger.warn('_handleRemoveProjectは非推奨です。MessageDispatchService.removeProjectを使用してください。');
+    Logger.warn('_handleRemoveProjectは非推奨です。ServiceFactory経由でサービスにアクセスしてください。');
     
-    // MessageDispatchServiceのremoveProjectメソッドを呼び出す
-    const messageService = MessageDispatchService.getInstance();
+    // ServiceFactory経由でMessageServiceを取得
+    const messageService = ServiceFactory.getMessageService();
     await messageService.removeProject(this._panel, projectName, projectPath, projectId);
   }
 

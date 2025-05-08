@@ -1,43 +1,110 @@
 import * as vscode from 'vscode';
-import { IService, Message } from './common';
-import { MessageDispatchService } from '../MessageDispatchService';
-import { IProjectService } from './IProjectService';
-import { PanelMessage } from '../../types/ScopeManagerTypes';
+import { IService } from './common';
+import { IProjectInfo } from '../../types/ScopeManagerTypes';
 
 /**
  * パネルサービスインターフェース
- * WebViewパネルとその表示状態管理に関する責務を担当
+ * WebViewパネルの管理と操作を担当
  */
 export interface IPanelService extends IService {
-  // 基本的なパネル操作
-  getPanel(): vscode.WebviewPanel | undefined;
-  sendMessage(message: Message | PanelMessage): void;
-  broadcastMessage?(message: PanelMessage): void;
-  isPanelVisible?(): boolean;
-  createPanel?(column?: vscode.ViewColumn): void;
-  showPanel?(column?: vscode.ViewColumn): void;
-  updatePanelContent?(): void;
-  updatePanel?(projectInfo?: any, activeTabId?: string): void;
-  disposePanel?(): void;
+  /**
+   * パネルを作成
+   * @param column 表示列
+   */
+  createPanel(column?: vscode.ViewColumn): void;
   
-  // WebView表示の更新
-  updateMarkdownContent?(content: string): void;
-  showSuccess?(message: string): void;
-  showError?(message: string): void;
-  updateSharingHistory?(history: any[]): void;
+  /**
+   * パネルを表示
+   * @param column 表示列
+   */
+  showPanel(column?: vscode.ViewColumn): void;
   
-  // 初期化と同期
-  initializePanel?(projectPath?: string): Promise<void>;
+  /**
+   * パネルの内容を更新
+   */
+  updatePanelContent(): void;
   
-  // 依存サービス設定
-  setProjectService?(projectService: IProjectService): void;
-  setMessageService?(messageService: MessageDispatchService): void;
+  /**
+   * パネルを破棄
+   */
+  disposePanel(): void;
   
-  // イベント
-  onMessageReceived: vscode.Event<any>;
+  /**
+   * メッセージを送信
+   * @param message 送信するメッセージ
+   */
+  sendMessage(message: any): void;
+  
+  /**
+   * メッセージをブロードキャスト
+   * @param message 送信するメッセージ
+   */
+  broadcastMessage(message: any): void;
+  
+  /**
+   * パネル作成イベント
+   */
+  onPanelCreated: vscode.Event<vscode.WebviewPanel>;
+  
+  /**
+   * パネル破棄イベント
+   */
   onPanelDisposed: vscode.Event<void>;
-  onPanelCreated?: vscode.Event<vscode.WebviewPanel>;
   
-  // サービス間連携用 - プロジェクト同期関数
-  syncActiveProject?(project: any): Promise<void>;
+  /**
+   * メッセージ受信イベント
+   */
+  onMessageReceived: vscode.Event<any>;
+  
+  /**
+   * パネルが表示されているかどうか
+   */
+  isPanelVisible(): boolean;
+  
+  /**
+   * パネルを取得
+   * @returns WebViewパネルインスタンス
+   */
+  getPanel(): vscode.WebviewPanel | undefined;
+  
+  /**
+   * リソースを解放
+   */
+  dispose(): void;
+  
+  /**
+   * ProjectServiceを設定
+   * @param projectService プロジェクトサービス
+   */
+  setProjectService(projectService: any): void;
+  
+  /**
+   * FileSystemServiceを設定
+   * @param fileSystemService ファイルシステムサービス
+   */
+  setFileSystemService(fileSystemService: any): void;
+  
+  /**
+   * MessageServiceを設定
+   * @param messageService メッセージサービス
+   */
+  setMessageService(messageService: any): void;
+  
+  /**
+   * TabStateServiceを設定
+   * @param tabStateService タブ状態サービス
+   */
+  setTabStateService(tabStateService: any): void;
+  
+  /**
+   * パネルを初期化
+   * @param projectPath プロジェクトパス
+   */
+  initializePanel(projectPath?: string): Promise<void>;
+  
+  /**
+   * アクティブプロジェクトを同期
+   * @param project プロジェクト情報
+   */
+  syncActiveProject(project: IProjectInfo): Promise<void>;
 }

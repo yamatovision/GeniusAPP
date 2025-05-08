@@ -1,0 +1,24 @@
+# MessageDispatchServiceImplについて
+
+**重要**: このファイルは`MessageDispatchServiceImpl.ts`に関するメモです。
+
+## リファクタリング情報
+
+1. 2023/05/08のリファクタリングにより、古い`MessageDispatchService.ts`は廃止され、
+   `MessageDispatchServiceImpl.ts`が標準実装として採用されました。
+
+2. `MessageDispatchService.ts`は`.bak`ファイルとして保管されています。
+   今後は完全に削除する予定です。
+
+3. ServiceFactoryは常に`MessageDispatchServiceImpl`を返すように修正されました。
+   切り替えフラグ`_useNewMessageService`は残っていますが、常に`true`として扱われます。
+
+## 今後の展望
+
+長期的には、以下のステップを計画しています：
+
+1. `MessageDispatchServiceImpl.ts`を`MessageDispatchService.ts`にリネーム
+2. 古い実装のバックアップファイルを削除
+3. 切り替え機能を完全に削除する
+
+これらの変更により、コードの一貫性と保守性が向上します。

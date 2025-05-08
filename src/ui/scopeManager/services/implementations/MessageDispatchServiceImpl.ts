@@ -696,10 +696,44 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         const structure = await this._fileSystemService.getDirectoryStructure(projectPath);
         this.sendMessage(panel, {
           command: 'updateDirectoryStructure',
-          structure: structure
+          structure: structure,
+          projectPath: projectPath // 明示的にプロジェクトパスを含める
         });
       } catch (error) {
         this.showError(panel, `ディレクトリ構造の更新に失敗しました: ${(error as Error).message}`);
+      }
+    });
+    
+    // getProjectPath ハンドラー
+    this.registerHandler('getProjectPath', async (message: Message, panel: vscode.WebviewPanel) => {
+      try {
+        const projectPath = this._projectService ? this._projectService.getActiveProjectPath() : undefined;
+        
+        if (!projectPath) {
+          this.showError(panel, 'アクティブなプロジェクトがありません');
+          return;
+        }
+        
+        this.sendMessage(panel, {
+          command: 'setProjectPath',
+          projectPath: projectPath
+        });
+        
+        // 一緒にディレクトリリスティングも送信
+        try {
+          if (this._fileSystemService) {
+            const files = await this._fileSystemService.listDirectory(projectPath);
+            this.sendMessage(panel, {
+              command: 'updateFileList',
+              files: files,
+              currentPath: projectPath
+            });
+          }
+        } catch (listError) {
+          Logger.warn(`MessageDispatchServiceImpl: ディレクトリリスト取得エラー: ${projectPath}`, listError as Error);
+        }
+      } catch (error) {
+        this.showError(panel, `プロジェクトパスの取得に失敗しました: ${(error as Error).message}`);
       }
     });
     

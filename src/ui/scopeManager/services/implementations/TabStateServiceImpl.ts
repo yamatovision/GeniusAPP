@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { Logger } from '../../../../utils/logger';
 import { ITabStateService } from '../interfaces/ITabStateService';
-import { MessageDispatchService } from '../MessageDispatchService';
+import { IMessageDispatchService } from '../interfaces/IMessageDispatchService';
 import { IProjectService } from '../interfaces/IProjectService';
 import { IFileSystemService } from '../interfaces/IFileSystemService';
-import { EventBus } from '../../../../services/EventBus';
+import { AppGeniusEventBus } from '../../../../services/AppGeniusEventBus';
 
 /**
  * タブ状態管理サービスの実装
@@ -19,7 +19,7 @@ export class TabStateServiceImpl implements ITabStateService {
   public readonly onTabChanged = this._onTabChanged.event;
   
   // イベントバス
-  private _eventBus: EventBus;
+  private _eventBus: AppGeniusEventBus;
   
   // シングルトンインスタンス
   private static _instance: TabStateServiceImpl;
@@ -66,7 +66,7 @@ export class TabStateServiceImpl implements ITabStateService {
   ) {
     this._projectService = projectService;
     this._fileSystemService = fileSystemService;
-    this._eventBus = EventBus.getInstance();
+    this._eventBus = AppGeniusEventBus.getInstance();
     
     Logger.info('TabStateServiceImpl: 初期化完了');
   }
@@ -115,10 +115,10 @@ export class TabStateServiceImpl implements ITabStateService {
       this._onTabChanged.fire(tabId);
       
       // グローバルイベントも発行
-      this._eventBus.emit('tab-changed', {
+      this._eventBus.publish('tab-changed', {
         projectId: activeProject.id,
         tabId: tabId
-      });
+      }, 'TabStateServiceImpl');
       
       Logger.info(`TabStateServiceImpl: タブを選択しました: ${tabId}`);
     } catch (error) {
@@ -137,10 +137,10 @@ export class TabStateServiceImpl implements ITabStateService {
       Logger.debug(`TabStateServiceImpl: タブ内容を更新します: ${tabId}`);
       
       // グローバルイベントを発行してPanelServiceに通知
-      this._eventBus.emit('tab-content-updated', {
+      this._eventBus.publish('tab-content-updated', {
         tabId: tabId,
         content: content
-      });
+      }, 'TabStateServiceImpl');
       
       Logger.info(`TabStateServiceImpl: タブ内容を更新しました: ${tabId}`);
     } catch (error) {
@@ -176,10 +176,10 @@ export class TabStateServiceImpl implements ITabStateService {
       }
       
       // グローバルイベントを発行
-      this._eventBus.emit('tab-state-saved', {
+      this._eventBus.publish('tab-state-saved', {
         projectId: projectId,
         tabId: tabId
-      });
+      }, 'TabStateServiceImpl');
       
       Logger.info(`TabStateServiceImpl: タブ状態を保存しました: プロジェクト=${projectId}, タブ=${tabId}`);
     } catch (error) {
@@ -199,9 +199,9 @@ export class TabStateServiceImpl implements ITabStateService {
   
   /**
    * メッセージハンドラーを登録する
-   * @param messageService MessageDispatchServiceのインスタンス
+   * @param messageService IMessageDispatchServiceのインスタンス
    */
-  public registerMessageHandlers(messageService: MessageDispatchService): void {
+  public registerMessageHandlers(messageService: IMessageDispatchService): void {
     try {
       // selectTab ハンドラー
       messageService.registerHandler('selectTab', async (message) => {
@@ -224,10 +224,11 @@ export class TabStateServiceImpl implements ITabStateService {
       });
       
       // updateTabContent ハンドラー
-      messageService.registerHandler('updateTabContent', (message) => {
+      messageService.registerHandler('updateTabContent', async (message, panel) => {
         if (message.tabId && message.content) {
           this.updateTabContent(message.tabId, message.content);
         }
+        return Promise.resolve();
       });
       
       Logger.info('TabStateServiceImpl: メッセージハンドラーを登録しました');
@@ -247,10 +248,9 @@ export class TabStateServiceImpl implements ITabStateService {
     // マップをクリア
     this._projectTabStates.clear();
     
-    // イベントリスナーを解除（EventBusのインスタンスは共有なので自身のリスナーのみを解除）
-    this._eventBus.off('tab-changed');
-    this._eventBus.off('tab-content-updated');
-    this._eventBus.off('tab-state-saved');
+    // イベントリスナーを解除（AppGeniusEventBusのインスタンスは共有なので自身のリスナーのみを解除）
+    // AppGeniusEventBusではunsubscribeメソッドが使用されるが、
+    // 現在の実装では特定のリスナーだけを解除する機能がないため省略
     
     Logger.info('TabStateServiceImpl: リソースを解放しました');
   }

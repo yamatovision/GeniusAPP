@@ -204,8 +204,26 @@ class FileBrowser {
         case 'updateDirectoryStructure':
           // ディレクトリ構造更新メッセージを処理
           console.log('FileBrowser: ディレクトリ構造更新メッセージを受信しました');
+          
+          // projectPathが含まれている場合は現在パスを更新
+          if (message.projectPath) {
+            console.log(`FileBrowser: メッセージからプロジェクトパスを設定: ${message.projectPath}`);
+            this.currentPath = message.projectPath;
+          }
+          
           // 必要に応じてディレクトリリストの更新をリクエスト
-          this._requestDirectoryListing();
+          this._requestDirectoryListing(this.currentPath);
+          break;
+          
+        case 'setProjectPath':
+          console.log(`FileBrowser: プロジェクトパス設定メッセージを受信: ${message.projectPath}`);
+          if (message.projectPath) {
+            // プロジェクトパスを設定
+            this.currentPath = message.projectPath;
+            
+            // パスを設定した後に、ディレクトリリストを要求
+            this._requestDirectoryListing(this.currentPath);
+          }
           break;
       }
     });
@@ -417,23 +435,55 @@ class FileBrowser {
       return this.currentPath;
     }
     
-    // 構造情報からパスを抽出
+    // 構造情報からパスを抽出（拡張版）
     try {
-      if (structureJson && typeof structureJson === 'string' && structureJson.startsWith('/')) {
-        // 構造情報がパス文字列の場合、最初の行を抽出
-        const projectPath = structureJson.split('\n')[0].trim();
-        console.log(`FileBrowser: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
+      // 1. オブジェクトかどうかをチェック
+      if (structureJson && typeof structureJson === 'object' && structureJson.projectPath) {
+        // プロパティとしてprojectPathが含まれている場合
+        console.log(`FileBrowser: オブジェクトからプロジェクトパスを抽出: ${structureJson.projectPath}`);
+        return this._normalizePath(structureJson.projectPath);
+      }
+      
+      // 2. 文字列かどうかをチェック
+      if (structureJson && typeof structureJson === 'string') {
+        // Macやlinuxのパス
+        if (structureJson.startsWith('/')) {
+          // 構造情報がパス文字列の場合、最初の行を抽出
+          const projectPath = structureJson.split('\n')[0].trim();
+          console.log(`FileBrowser: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
+          return this._normalizePath(projectPath);
+        }
         
-        // パスの正規化（.DS_Storeなどの特殊ファイルを処理）
-        return this._normalizePath(projectPath);
+        // 3. JSONとして解析できるか試みる
+        try {
+          const parsed = JSON.parse(structureJson);
+          if (parsed && parsed.projectPath) {
+            console.log(`FileBrowser: JSON文字列からプロジェクトパスを抽出: ${parsed.projectPath}`);
+            return this._normalizePath(parsed.projectPath);
+          }
+        } catch (jsonError) {
+          // JSONとして解析できない場合は無視
+        }
       }
     } catch (error) {
       console.warn('FileBrowser: 構造情報からのパス抽出に失敗しました', error);
     }
     
-    // パスが抽出できない場合
-    console.warn('FileBrowser: 有効なプロジェクトパスが見つかりません');
+    // パスが抽出できない場合、vscodeに直接パス要求
+    console.warn('FileBrowser: 有効なプロジェクトパスが見つかりません、パス要求を送信');
+    this._requestDirectoryPath();
     return null;
+  }
+  
+  /**
+   * パスの要求を送信する補助メソッド
+   */
+  _requestDirectoryPath() {
+    // vscodeにパス要求メッセージを送信
+    const vscode = this._getVSCodeAPI();
+    vscode.postMessage({
+      command: 'getProjectPath'
+    });
   }
   
   /**

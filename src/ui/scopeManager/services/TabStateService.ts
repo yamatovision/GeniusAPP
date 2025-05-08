@@ -1,7 +1,9 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { Logger } from '../../../utils/logger';
-import { MessageDispatchService, Message } from './MessageDispatchService';
+import { ServiceFactory } from './ServiceFactory';
+import { IMessageDispatchService } from './interfaces/IMessageDispatchService';
+import { Message } from './interfaces/common';
 import { FileSystemService } from './FileSystemService';
 import { ProjectService } from './ProjectService';
 
@@ -21,7 +23,7 @@ export interface ITabStateService {
   onTabStateChanged: vscode.Event<{ projectId: string, tabId: string }>;
   
   // メッセージハンドラー登録
-  registerMessageHandlers(messageService: MessageDispatchService): void;
+  registerMessageHandlers(messageService: IMessageDispatchService): void;
 }
 
 export class TabStateService implements ITabStateService {
@@ -96,7 +98,7 @@ export class TabStateService implements ITabStateService {
       
       // ファイルが存在するか確認
       if (!fs.existsSync(filePath)) {
-        const messageService = MessageDispatchService.getInstance();
+        const messageService = ServiceFactory.getMessageService();
         messageService.showError(panel, `ファイルが見つかりません: ${filePath}`);
         return;
       }
@@ -114,7 +116,7 @@ export class TabStateService implements ITabStateService {
       }
     } catch (error) {
       Logger.error(`TabStateService: タブへのファイル読み込みに失敗しました: ${(error as Error).message}`, error as Error);
-      const messageService = MessageDispatchService.getInstance();
+      const messageService = ServiceFactory.getMessageService();
       messageService.showError(panel, `ファイル読み込み中にエラーが発生しました: ${(error as Error).message}`);
     }
   }
@@ -127,7 +129,7 @@ export class TabStateService implements ITabStateService {
     try {
       const activeProject = this._projectService.getActiveProject();
       if (!activeProject || !activeProject.path) {
-        const messageService = MessageDispatchService.getInstance();
+        const messageService = ServiceFactory.getMessageService();
         messageService.showError(panel, '要件定義ファイルを読み込むためのアクティブプロジェクトがありません');
         return;
       }
@@ -135,7 +137,7 @@ export class TabStateService implements ITabStateService {
       // 要件定義ファイルのパスを決定
       const requirementsPath = await this._fileSystemService.findRequirementsFile(activeProject.path);
       if (!requirementsPath) {
-        const messageService = MessageDispatchService.getInstance();
+        const messageService = ServiceFactory.getMessageService();
         messageService.showError(panel, '要件定義ファイルが見つかりません');
         return;
       }
@@ -144,7 +146,7 @@ export class TabStateService implements ITabStateService {
       await this.loadFileToTab(panel, 'requirements', requirementsPath);
     } catch (error) {
       Logger.error(`TabStateService: 要件定義ファイルの読み込みに失敗しました: ${(error as Error).message}`, error as Error);
-      const messageService = MessageDispatchService.getInstance();
+      const messageService = ServiceFactory.getMessageService();
       messageService.showError(panel, `要件定義ファイル読み込み中にエラーが発生しました: ${(error as Error).message}`);
     }
   }
@@ -159,7 +161,7 @@ export class TabStateService implements ITabStateService {
   public async updateTabContent(panel: vscode.WebviewPanel, tabId: string, content: string, filePath?: string): Promise<void> {
     try {
       // タブ内の.markdown-contentにコンテンツを表示
-      const messageService = MessageDispatchService.getInstance();
+      const messageService = ServiceFactory.getMessageService();
       messageService.sendMessage(panel, {
         command: 'updateTabContent',
         tabId: tabId,
@@ -176,9 +178,9 @@ export class TabStateService implements ITabStateService {
   
   /**
    * メッセージハンドラーをMessageDispatchServiceに登録
-   * @param messageService MessageDispatchServiceのインスタンス
+   * @param messageService IMessageDispatchServiceのインスタンス
    */
-  public registerMessageHandlers(messageService: MessageDispatchService): void {
+  public registerMessageHandlers(messageService: IMessageDispatchService): void {
     // saveTabState ハンドラー
     messageService.registerHandler('saveTabState', async (message: Message, panel: vscode.WebviewPanel) => {
       const activeProject = this._projectService.getActiveProject();
