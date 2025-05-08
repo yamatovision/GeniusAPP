@@ -18,6 +18,7 @@ import { IProjectService, ProjectService } from './services/ProjectService';
 import { ISharingService, SharingService } from './services/SharingService';
 import { IAuthenticationHandler, AuthenticationHandler } from './services/AuthenticationHandler';
 import { IUIStateService, UIStateService } from './services/UIStateService';
+import { MessageDispatchService } from './services/MessageDispatchService';
 import { IProjectInfo } from './types/ScopeManagerTypes';
 
 /**
@@ -217,7 +218,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._disposables
     );
     
-    // WebViewからのメッセージを処理
+    // MessageDispatchServiceのインスタンスを取得して設定
+    const messageDispatchService = MessageDispatchService.getInstance();
+    this._disposables.push(
+      messageDispatchService.setupMessageReceiver(this._panel)
+    );
+    
+    // 基本ハンドラーを登録
+    this._registerBasicMessageHandlers();
+    
+    // 残りのメッセージハンドラーは個別に登録（段階的に移行予定）
     this._panel.webview.onDidReceiveMessage(
       async message => {
         try {
@@ -231,9 +241,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
           switch (message.command) {
             case 'initialize':
               await this._handleInitialize();
-              break;
-            case 'showDirectoryStructure':
-              await this._handleShowDirectoryStructure();
               break;
             case 'getMarkdownContent':
               await this._handleGetMarkdownContent(message.filePath);
@@ -250,16 +257,71 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             // ファイルブラウザ関連
             case 'refreshFileBrowser':
-              await this._handleRefreshFileBrowser();
+              // MessageDispatchServiceを使って更新
+              this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
+              const messageService = MessageDispatchService.getInstance();
+              messageService.sendMessage(this._panel, {
+                command: 'updateFileBrowser',
+                structure: this._directoryStructure
+              });
               break;
             case 'openFile':
               await this._handleOpenFile(message.filePath);
               break;
             case 'navigateDirectory':
-              await this._handleNavigateDirectory(message.dirPath);
+              // FileSystemServiceを使用して実装
+              try {
+                const dirPath = message.dirPath;
+                Logger.info(`ディレクトリを開きます: ${dirPath}`);
+                
+                // ディレクトリが存在するか確認
+                if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+                  this._showError(`ディレクトリが見つかりません: ${dirPath}`);
+                  return;
+                }
+                
+                // FileSystemServiceを使ってディレクトリ内容を取得
+                const sortedEntries = await this._fileSystemService.listDirectory(dirPath);
+                
+                // ファイルブラウザを更新
+                this._panel.webview.postMessage({
+                  command: 'updateFileList',
+                  currentPath: dirPath,
+                  files: sortedEntries,
+                  parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
+                });
+              } catch (error) {
+                Logger.error(`ディレクトリ内容の取得に失敗しました: ${message.dirPath}`, error as Error);
+                this._showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
+              }
               break;
             case 'listDirectory':
-              await this._handleListDirectory(message.path);
+              // ディレクトリ内容の取得と表示
+              try {
+                // プロジェクトパスが設定されていない場合は処理しない
+                if (!this._projectPath) {
+                  this._showError('プロジェクトが選択されていません');
+                  return;
+                }
+                
+                // デフォルトパスはプロジェクトのdocsディレクトリ
+                const dirPath = message.path || path.join(this._projectPath, 'docs');
+                
+                // ディレクトリの内容をリストアップ
+                const files = await this._fileSystemService.listDirectory(dirPath);
+                
+                // ファイルリストを送信
+                this._panel.webview.postMessage({
+                  command: 'updateFileList',
+                  files: files,
+                  currentPath: dirPath
+                });
+                
+                Logger.info(`ディレクトリの内容をリストアップしました: ${dirPath}`);
+              } catch (error) {
+                Logger.error(`ディレクトリ内容の取得に失敗しました: ${message.path}`, error as Error);
+                this._showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
+              }
               break;
             case 'openFileInEditor':
               await this._handleOpenFileInEditor(message.filePath);
@@ -534,7 +596,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     await this._loadProgressFile();
 
     // ディレクトリ構造を更新
-    await this._updateDirectoryStructure();
+    this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
     
     // 共有履歴を初期化
     await this._handleGetHistory();
@@ -648,37 +710,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
   
-  /**
-   * ファイルブラウザを更新する
-   */
-  private async _handleRefreshFileBrowser(): Promise<void> {
-    try {
-      Logger.info('ファイルブラウザを更新します');
-      
-      // ディレクトリ構造を更新
-      await this._updateDirectoryStructure();
-      
-      if (this._projectPath) {
-        // docsディレクトリのパスを生成
-        const docsPath = path.join(this._projectPath, 'docs');
-        
-        // ディレクトリの内容をリストアップ
-        const files = await this._fileSystemService.listDirectory(docsPath);
-        
-        // ファイルリストを送信
-        this._panel.webview.postMessage({
-          command: 'updateFileList',
-          files: files,
-          currentPath: docsPath
-        });
-      }
-      
-      Logger.info('ファイルブラウザを更新しました');
-    } catch (error) {
-      Logger.error('ファイルブラウザの更新に失敗しました', error as Error);
-      this._showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
-    }
-  }
   
   /**
    * 指定されたディレクトリの内容をリストアップする
@@ -1230,16 +1261,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * ディレクトリ構造を表示
-   */
-  private async _handleShowDirectoryStructure(): Promise<void> {
-    if (!this._directoryStructure) {
-      await this._updateDirectoryStructure();
-    }
-    
-    this._uiStateService.showDirectoryStructure(this._directoryStructure);
-  }
   
   /**
    * 特定のタブにファイルを読み込んで表示
@@ -1275,134 +1296,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
   
   /**
-   * ファイルブラウザを更新
+   * ファイルブラウザを更新は別メソッドに統合
    */
-  private async _handleRefreshFileBrowser(): Promise<void> {
-    try {
-      Logger.info('ファイルブラウザを更新します');
-      
-      // ディレクトリ構造を更新
-      await this._updateDirectoryStructure();
-      
-      // ファイルブラウザを更新
-      this._panel.webview.postMessage({
-        command: 'updateFileBrowser',
-        structure: this._directoryStructure
-      });
-      
-      Logger.info('ファイルブラウザを更新しました');
-    } catch (error) {
-      Logger.error('ファイルブラウザの更新に失敗しました', error as Error);
-      this._showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  /**
-   * ファイルを開いてプレビュー表示
-   * @param filePath 開くファイルのパス
-   */
-  private async _handleOpenFile(filePath: string): Promise<void> {
-    try {
-      Logger.info(`ファイルを開きます: ${filePath}`);
-      
-      // ファイルが存在するか確認
-      if (!fs.existsSync(filePath)) {
-        this._showError(`ファイルが見つかりません: ${filePath}`);
-        return;
-      }
-      
-      // ファイルの種類を判定
-      const fileExt = path.extname(filePath).toLowerCase();
-      
-      // テキストファイルかどうかを判断
-      if (['.md', '.txt', '.js', '.ts', '.json', '.html', '.css', '.scss', '.yml', '.yaml', '.xml', '.svg'].includes(fileExt)) {
-        // テキストファイルの場合は内容を読み込んで表示
-        const content = await this._fileSystemService.readFile(filePath);
-        
-        this._panel.webview.postMessage({
-          command: 'showFilePreview',
-          filePath: filePath,
-          content: content,
-          type: 'text',
-          extension: fileExt
-        });
-      } else if (['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(fileExt)) {
-        // 画像ファイルの場合は画像として表示
-        // Base64エンコードなしでUriとして送信
-        this._panel.webview.postMessage({
-          command: 'showFilePreview',
-          filePath: filePath,
-          type: 'image',
-          extension: fileExt,
-          // ファイルURIをWebView用に変換
-          uri: this._panel.webview.asWebviewUri(vscode.Uri.file(filePath)).toString()
-        });
-      } else {
-        // その他のファイルはVSCodeで開く
-        await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(filePath));
-        this._showSuccess(`ファイル「${path.basename(filePath)}」をVSCodeで開きました`);
-      }
-      
-      Logger.info(`ファイル「${path.basename(filePath)}」を開きました`);
-    } catch (error) {
-      Logger.error(`ファイルを開く際にエラーが発生しました: ${filePath}`, error as Error);
-      this._showError(`ファイルを開けませんでした: ${(error as Error).message}`);
-    }
-  }
   
   /**
    * ディレクトリを開いてファイル一覧を表示
    * @param dirPath ディレクトリパス
    */
-  private async _handleNavigateDirectory(dirPath: string): Promise<void> {
-    try {
-      Logger.info(`ディレクトリを開きます: ${dirPath}`);
-      
-      // ディレクトリが存在するか確認
-      if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
-        this._showError(`ディレクトリが見つかりません: ${dirPath}`);
-        return;
-      }
-      
-      // ディレクトリ内のファイル一覧を取得
-      const files = await fs.promises.readdir(dirPath);
-      
-      // ファイル情報の配列を作成
-      const fileEntries = await Promise.all(files.map(async (file) => {
-        const fullPath = path.join(dirPath, file);
-        const stats = await fs.promises.stat(fullPath);
-        return {
-          name: file,
-          path: fullPath,
-          isDirectory: stats.isDirectory(),
-          size: stats.size,
-          modified: stats.mtime.toISOString()
-        };
-      }));
-      
-      // ディレクトリとファイルを分けてソート
-      const directories = fileEntries.filter(entry => entry.isDirectory)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      const textFiles = fileEntries.filter(entry => !entry.isDirectory)
-        .sort((a, b) => a.name.localeCompare(b.name));
-      
-      // 結合して先頭にディレクトリを配置
-      const sortedEntries = [...directories, ...textFiles];
-      
-      // ファイルブラウザを更新
-      this._panel.webview.postMessage({
-        command: 'updateFileList',
-        currentPath: dirPath,
-        files: sortedEntries,
-        parentPath: path.dirname(dirPath) !== dirPath ? path.dirname(dirPath) : null
-      });
-      
-      Logger.info(`ディレクトリ「${dirPath}」のファイル一覧を表示しました: ${sortedEntries.length}件`);
-    } catch (error) {
-      Logger.error(`ディレクトリ内容の取得に失敗しました: ${dirPath}`, error as Error);
-      this._showError(`ディレクトリの内容を表示できませんでした: ${(error as Error).message}`);
-    }
-  }
 
   /**
    * タブ状態を保存する
@@ -1461,16 +1361,27 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * エラーメッセージを表示
-   */
+  private _registerBasicMessageHandlers(): void {
+    const messageService = MessageDispatchService.getInstance();
+    const handlers = new Map<string, (message: any, panel: vscode.WebviewPanel) => Promise<void>>();
+
+    // showErrorハンドラー
+    handlers.set('showError', async (message, panel) => {
+      this._uiStateService.showError(message.message);
+    });
+
+    // showSuccessハンドラー
+    handlers.set('showSuccess', async (message, panel) => {
+      this._uiStateService.showSuccess(message.message);
+    });
+
+    messageService.registerHandlers(handlers);
+  }
+
   private _showError(message: string): void {
     this._uiStateService.showError(message);
   }
   
-  /**
-   * 成功メッセージを表示
-   */
   private _showSuccess(message: string): void {
     this._uiStateService.showSuccess(message);
   }
@@ -1982,22 +1893,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
 
-  /**
-   * ディレクトリ構造を更新する - FileSystemServiceに委譲
-   */
-  private async _updateDirectoryStructure(): Promise<void> {
-    if (!this._projectPath) {
-      return;
-    }
-    
-    try {
-      // FileSystemServiceの新しいメソッドを呼び出す
-      this._directoryStructure = await this._fileSystemService.updateDirectoryStructure(this._projectPath);
-    } catch (error) {
-      Logger.error('ディレクトリ構造の取得中にエラーが発生しました', error as Error);
-      this._directoryStructure = 'ディレクトリ構造の取得に失敗しました。';
-    }
-  }
 
   /**
    * ファイル監視を設定する
