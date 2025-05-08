@@ -676,6 +676,46 @@ export class MessageDispatchService implements IMessageDispatchService {
       }
     });
     
+    // openFileAsTab ハンドラー - 重要：MessageDispatchServiceImplとの互換性のために追加
+    this.registerHandler('openFileAsTab', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchService: openFileAsTabメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        Logger.info(`MessageDispatchService: ファイルをタブで開きます: ${message.filePath}`);
+        
+        // ファイルの内容を読み込む
+        const content = await this._fileSystemService.readFile(message.filePath);
+        
+        // ファイルのタイプを判定
+        const fileType = message.fileType || path.extname(message.filePath).toLowerCase().slice(1);
+        const isMarkdown = fileType === 'md' || fileType === 'markdown';
+        
+        // ファイル名をタブIDに変換
+        const fileName = message.fileName || path.basename(message.filePath);
+        const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
+        
+        // タブを開くメッセージを送信
+        this.sendMessage(panel, {
+          command: 'addFileTab',
+          tabId: tabId,
+          title: fileName,
+          content: content,
+          isMarkdown: isMarkdown,
+          filePath: message.filePath,
+          lastModified: message.lastModified || new Date().toISOString()
+        });
+        
+        Logger.info(`MessageDispatchService: ファイルをタブで開きました: ${message.filePath}`);
+      } catch (error) {
+        Logger.error(`MessageDispatchService: ファイルをタブで開く際にエラーが発生しました: ${message.filePath}`, error as Error);
+        this.showError(panel, `ファイルをタブで開けませんでした: ${(error as Error).message}`);
+      }
+    });
+    
     Logger.info('MessageDispatchService: ファイル操作関連のメッセージハンドラーを登録しました');
   }
 

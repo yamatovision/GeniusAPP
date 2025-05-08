@@ -82,6 +82,11 @@ export class ServiceImplementationSwitcher {
         tabStateService: tabStateService
       });
       
+      // 明示的に標準ハンドラの登録を行う（念のため）
+      messageService.registerProjectHandlers();
+      messageService.registerFileHandlers();
+      messageService.registerSharingHandlers();
+      
       // ServiceRegistryに依存しているものがあれば更新が必要
       
       ServiceImplementationSwitcher._usingNewImplementation = true;

@@ -9,7 +9,7 @@ import { IFileSystemService } from '../interfaces/IFileSystemService';
 import { IUIStateService } from '../interfaces/IUIStateService';
 import { ISharingService } from '../interfaces/ISharingService';
 import { IPanelService } from '../interfaces/IPanelService';
-import { EventBus } from '../../../../services/EventBus';
+import { AppGeniusEventBus, AppGeniusEventType } from '../../../../services/AppGeniusEventBus';
 
 /**
  * WebViewとバックエンドサービス間のメッセージルーティングを担当するサービス
@@ -30,7 +30,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   private _panelService?: IPanelService;
   
   // イベントバス
-  private _eventBus: EventBus;
+  private _eventBus: AppGeniusEventBus;
   
   // シングルトンインスタンス
   private static _instance: MessageDispatchServiceImpl;
@@ -50,12 +50,17 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
    * コンストラクタ
    */
   private constructor() {
-    this._eventBus = EventBus.getInstance();
+    this._eventBus = AppGeniusEventBus.getInstance();
     
     // イベントリスナーの設定
     this._setupEventListeners();
     
-    Logger.info('MessageDispatchServiceImpl: 初期化完了');
+    // 標準ハンドラの登録
+    this.registerProjectHandlers();
+    this.registerFileHandlers();
+    this.registerSharingHandlers();
+    
+    Logger.info('MessageDispatchServiceImpl: 初期化完了 - 標準ハンドラを登録しました');
   }
   
   /**
@@ -64,9 +69,17 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
    */
   private _setupEventListeners(): void {
     // イベントリスナーを登録
-    this._eventBus.on('message-sent', (data: { command: string, success: boolean }) => {
-      // イベントバス経由で他のサービスから送信されたメッセージを中継
-      this._onMessageProcessed.fire(data);
+    // イベントバスからのメッセージを処理
+    this._eventBus.onEvent((event) => {
+      // 任意のイベントを処理（型に依存しない）
+      if (typeof event.data === 'object' && event.data && 
+          ('command' in event.data || 'success' in event.data)) {
+        // イベントバス経由で他のサービスから送信されたメッセージを中継
+        this._onMessageProcessed.fire({
+          command: event.data.command || '',
+          success: event.data.success || false
+        });
+      }
     });
     
     Logger.info('MessageDispatchServiceImpl: イベントリスナーを設定しました');
@@ -129,19 +142,19 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
           key === 'content' || key === 'structure' || key === 'projects' || key === 'history' ? '[省略]' : value)}`);
       }
       
-      // イベントバスに送信イベントを発行
-      this._eventBus.emit('message-sent', {
+      // イベントバスに送信イベントを発行（任意のイベントとして）
+      this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
         command: message.command,
         success: true
-      });
+      }, 'MessageDispatchService');
     } catch (error) {
       Logger.error(`MessageDispatchServiceImpl: メッセージ「${message.command}」の送信に失敗`, error as Error);
       
       // エラーイベントを発行
-      this._eventBus.emit('message-sent', {
+      this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
         command: message.command,
         success: false
-      });
+      }, 'MessageDispatchService');
       
       // メッセージの重要度に応じてリトライするかどうかを判断
       const isImportantMessage = 
@@ -201,11 +214,11 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         this._onMessageProcessed.fire({ command: message.command, success: true });
         
         // イベントバス経由でも成功を通知
-        this._eventBus.emit('message-processed', {
+        this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
           command: message.command,
           success: true,
           data: message
-        });
+        }, 'MessageDispatchService');
       } else {
         // ハンドラーが見つからない場合
         Logger.warn(`MessageDispatchServiceImpl: ハンドラが未登録のコマンドです: ${message.command}`);
@@ -214,11 +227,11 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         this._onMessageProcessed.fire({ command: message.command, success: false });
         
         // イベントバス経由でも失敗を通知
-        this._eventBus.emit('message-processed', {
+        this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
           command: message.command, 
           success: false,
           error: 'ハンドラが未登録のコマンドです'
-        });
+        }, 'MessageDispatchService');
       }
     } catch (error) {
       Logger.error(`MessageDispatchServiceImpl: メッセージ処理中にエラーが発生: ${message.command}`, error as Error);
@@ -230,11 +243,11 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       this._onMessageProcessed.fire({ command: message.command, success: false });
       
       // イベントバス経由でもエラーを通知
-      this._eventBus.emit('message-processed', {
+      this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
         command: message.command, 
         success: false,
         error: (error as Error).message
-      });
+      }, 'MessageDispatchService');
     }
   }
   
@@ -299,10 +312,25 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       try {
         Logger.info('MessageDispatchServiceImpl: initialize メッセージを受信');
         
+        // パネルの初期化前にDebugReplのツリー入力を確認
+        if (panel.webview.options && typeof panel.webview.options === 'object') {
+          // DebugReplのツリー入力初期化フラグを設定
+          try {
+            // @ts-ignore - DebugRep内部プロパティにアクセス
+            panel.webview.options.treeInput = {};
+            Logger.info('MessageDispatchServiceImpl: DebugReplのツリー入力を初期化しました');
+          } catch (treeError) {
+            Logger.warn('MessageDispatchServiceImpl: DebugReplのツリー入力初期化に失敗', treeError as Error);
+          }
+        }
+        
         // PanelServiceが設定されている場合はそれを使用
         if (this._panelService && typeof this._panelService.initializePanel === 'function') {
           const projectPath = message.projectPath || this._projectService.getActiveProjectPath();
           await this._panelService.initializePanel(projectPath);
+          
+          // 初期化後にログ出力（デバッグ用）
+          Logger.info('MessageDispatchServiceImpl: PanelServiceを使用してパネルを初期化しました');
         } else {
           // 従来の方法で初期化処理（PanelServiceが利用できない場合）
           Logger.warn('MessageDispatchServiceImpl: PanelServiceが利用できないため従来の方法で初期化');
@@ -317,26 +345,68 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
             activeProject: activeProject
           });
           
+          // プロジェクトのディレクトリ構造を読み込む（ファイルブラウザ用）
+          if (activeProject && activeProject.path && this._fileSystemService) {
+            try {
+              // ファイルブラウザの初期化
+              const structure = await this._fileSystemService.getDirectoryStructure(activeProject.path);
+              this.sendMessage(panel, {
+                command: 'updateDirectoryStructure',
+                structure: structure
+              });
+              
+              Logger.info('MessageDispatchServiceImpl: ファイルブラウザ用ディレクトリ構造を送信しました');
+            } catch (dirError) {
+              Logger.warn('MessageDispatchServiceImpl: ディレクトリ構造取得でエラー', dirError as Error);
+            }
+          }
+          
           // 進捗ファイルをロード
           if (activeProject && activeProject.path && this._fileSystemService) {
             const progressFilePath = path.join(activeProject.path, 'docs', 'SCOPE_PROGRESS.md');
-            if (fs.existsSync(progressFilePath)) {
-              const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
-              this.sendMessage(panel, {
-                command: 'updateMarkdownContent',
-                content: content,
-                timestamp: Date.now(),
-                priority: 'high',
-                forScopeProgress: true
-              });
+            try {
+              if (fs.existsSync(progressFilePath)) {
+                const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
+                this.sendMessage(panel, {
+                  command: 'updateMarkdownContent',
+                  content: content,
+                  timestamp: Date.now(),
+                  priority: 'high',
+                  forScopeProgress: true
+                });
+                
+                Logger.info('MessageDispatchServiceImpl: 進捗ファイルを読み込みました');
+              } else {
+                // docsディレクトリが存在するか確認
+                const docsPath = path.join(activeProject.path, 'docs');
+                if (!fs.existsSync(docsPath)) {
+                  // docsディレクトリがなければ作成
+                  try {
+                    fs.mkdirSync(docsPath, { recursive: true });
+                    Logger.info(`MessageDispatchServiceImpl: docsディレクトリを作成しました: ${docsPath}`);
+                  } catch (mkdirError) {
+                    Logger.warn(`MessageDispatchServiceImpl: docsディレクトリの作成に失敗: ${docsPath}`, mkdirError as Error);
+                  }
+                }
+                
+                // 進捗ファイルが見つからないことをログに記録するのみ（エラー表示なし）
+                Logger.info(`MessageDispatchServiceImpl: 進捗ファイルが見つかりません: ${progressFilePath}`);
+              }
+            } catch (error) {
+              // エラーをログに記録するのみ（UIにエラーは表示しない）
+              Logger.warn(`MessageDispatchServiceImpl: 進捗ファイルのアクセスでエラーが発生: ${progressFilePath}`, error as Error);
             }
           }
           
           // 共有履歴を初期化
           if (this._sharingService) {
             await this.getHistory(panel);
+            Logger.info('MessageDispatchServiceImpl: 共有履歴を初期化しました');
           }
         }
+        
+        // 初期化に成功したことをログに記録
+        Logger.info('MessageDispatchServiceImpl: 初期化が正常に完了しました');
       } catch (error) {
         Logger.error('MessageDispatchServiceImpl: 初期化処理でエラー', error as Error);
         this.showError(panel, `初期化に失敗しました: ${(error as Error).message}`);
@@ -438,7 +508,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       }
     });
     
-    // openFile ハンドラー
+    // openFile ハンドラー（従来の実装 - プレビュー表示用）
     this.registerHandler('openFile', async (message: Message, panel: vscode.WebviewPanel) => {
       if (message.filePath) {
         try {
@@ -455,6 +525,161 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       } else {
         Logger.warn('MessageDispatchServiceImpl: openFileメッセージにfilePath必須パラメータがありません');
         this.showError(panel, 'ファイルパスが指定されていません');
+      }
+    });
+    
+    // getFileContentForTab ハンドラー（ファイルの内容をタブで表示するための中間処理）
+    this.registerHandler('getFileContentForTab', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (message.filePath) {
+        try {
+          const content = await this._fileSystemService.readFile(message.filePath);
+          
+          // ファイルの内容をタブで表示するメッセージを送信
+          this.sendMessage(panel, {
+            command: 'openFileContentInTab',
+            filePath: message.filePath,
+            fileName: path.basename(message.filePath),
+            content: content,
+            isMarkdown: message.isMarkdown || message.filePath.endsWith('.md')
+          });
+          
+          Logger.info(`MessageDispatchServiceImpl: ファイル内容をタブ表示用に取得しました: ${message.filePath}`);
+        } catch (error) {
+          this.showError(panel, `ファイルを開けませんでした: ${(error as Error).message}`);
+        }
+      } else {
+        Logger.warn('MessageDispatchServiceImpl: getFileContentForTabメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+      }
+    });
+    
+    // openFileAsTab ハンドラー（ファイルをタブで直接開く）
+    this.registerHandler('openFileAsTab', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchServiceImpl: openFileAsTabメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きます: ${message.filePath}`);
+        
+        // ファイルの内容を読み込む
+        const content = await this._fileSystemService.readFile(message.filePath);
+        
+        // ファイルのタイプを判定
+        const fileType = message.fileType || path.extname(message.filePath).toLowerCase().slice(1);
+        const isMarkdown = fileType === 'md' || fileType === 'markdown';
+        
+        // ファイル名をタブIDに変換（一意にするためパスからハッシュ生成）
+        const fileName = message.fileName || path.basename(message.filePath);
+        const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
+        
+        // タブを開くメッセージを送信
+        this.sendMessage(panel, {
+          command: 'addFileTab',
+          tabId: tabId,
+          title: fileName,
+          content: content,
+          isMarkdown: isMarkdown,
+          filePath: message.filePath,
+          lastModified: message.lastModified || new Date().toISOString()
+        });
+        
+        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きました: ${message.filePath}`);
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: ファイルをタブで開く際にエラーが発生しました: ${message.filePath}`, error as Error);
+        this.showError(panel, `ファイルをタブで開けませんでした: ${(error as Error).message}`);
+      }
+    });
+    
+    // getMarkdownContent ハンドラー（マークダウンファイルの読み込み用）
+    this.registerHandler('getMarkdownContent', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchServiceImpl: getMarkdownContentメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        Logger.info(`ファイルを読み込みました: ${message.filePath}`);
+        const content = await this._fileSystemService.readMarkdownFile(message.filePath);
+        Logger.info(`FileSystemService: マークダウンコンテンツを読み込みました: ${message.filePath}`);
+        
+        this.sendMessage(panel, {
+          command: 'updateMarkdownContent',
+          content: content,
+          timestamp: Date.now(),
+          priority: 'high',
+          forScopeProgress: message.forScopeProgress || false,
+          forRequirements: message.forRequirements || false,
+          forceRefresh: message.forceRefresh || false
+        });
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: マークダウンファイル読み込みでエラー: ${message.filePath}`, error as Error);
+        this.showError(panel, `マークダウンファイルを読み込めませんでした: ${(error as Error).message}`);
+      }
+    });
+    
+    // listDirectory ハンドラー（ディレクトリ内容の一覧取得）
+    this.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.path) {
+        Logger.warn('MessageDispatchServiceImpl: listDirectoryメッセージにpath必須パラメータがありません');
+        this.showError(panel, 'ディレクトリパスが指定されていません');
+        return;
+      }
+      
+      try {
+        const files = await this._fileSystemService.listDirectory(message.path);
+        this.sendMessage(panel, {
+          command: 'updateFileList',
+          files: files,
+          currentPath: message.path,
+          parentPath: path.dirname(message.path) !== message.path ? path.dirname(message.path) : null
+        });
+      } catch (error) {
+        Logger.warn(`FileSystemService: ディレクトリが存在しません: ${message.path}`);
+        this.showError(panel, `ディレクトリが存在しないか、アクセスできません: ${message.path}`);
+      }
+    });
+    
+    // openFileAsTab ハンドラー（新規実装 - タブに表示）
+    this.registerHandler('openFileAsTab', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchServiceImpl: openFileAsTabメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きます: ${message.filePath}`);
+        
+        // ファイルの内容を読み込む
+        const content = await this._fileSystemService.readFile(message.filePath);
+        
+        // ファイルのタイプを判定
+        const fileType = message.fileType || path.extname(message.filePath).toLowerCase().slice(1);
+        const isMarkdown = fileType === 'md' || fileType === 'markdown';
+        
+        // ファイル名をタブIDに変換（一意にするためパスからハッシュ生成）
+        const fileName = message.fileName || path.basename(message.filePath);
+        const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
+        
+        // タブを開くメッセージを送信
+        this.sendMessage(panel, {
+          command: 'addFileTab',
+          tabId: tabId,
+          title: fileName,
+          content: content,
+          isMarkdown: isMarkdown,
+          filePath: message.filePath,
+          lastModified: message.lastModified || new Date().toISOString()
+        });
+        
+        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きました: ${message.filePath}`);
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: ファイルをタブで開く際にエラーが発生しました: ${message.filePath}`, error as Error);
+        this.showError(panel, `ファイルをタブで開けませんでした: ${(error as Error).message}`);
       }
     });
     
@@ -729,6 +954,15 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         try {
           if (this._fileSystemService) {
             const progressFilePath = path.join(projectPath, 'docs', 'SCOPE_PROGRESS.md');
+            const docsPath = path.join(projectPath, 'docs');
+            
+            // docsディレクトリが存在するか確認
+            if (!fs.existsSync(docsPath)) {
+              // docsディレクトリがなければ作成
+              fs.mkdirSync(docsPath, { recursive: true });
+              Logger.info(`MessageDispatchServiceImpl: docsディレクトリを作成しました: ${docsPath}`);
+            }
+            
             if (fs.existsSync(progressFilePath)) {
               const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
               this.sendMessage(panel, {
@@ -738,10 +972,21 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
                 priority: 'high',
                 forScopeProgress: true
               });
+            } else {
+              // 進捗ファイルが存在しない場合は、空のコンテンツを更新
+              this.sendMessage(panel, {
+                command: 'updateMarkdownContent',
+                content: '# プロジェクト進捗状況\n\nまだ進捗状況が記録されていません。',
+                timestamp: Date.now(),
+                priority: 'high',
+                forScopeProgress: true
+              });
+              Logger.info(`MessageDispatchServiceImpl: 進捗ファイルが見つからないため、空のコンテンツを表示: ${progressFilePath}`);
             }
           }
         } catch (innerError) {
           Logger.warn('MessageDispatchServiceImpl: 進捗ファイル読み込みエラー', innerError as Error);
+          // エラーがあってもUI表示には影響させない
         }
         
         // 成功メッセージを表示

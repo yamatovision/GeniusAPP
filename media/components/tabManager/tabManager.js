@@ -39,6 +39,12 @@ class TabManager {
       }
     }
     
+    // ファイルタブの追加イベントリスナーを設定
+    document.addEventListener('add-file-tab', (event) => {
+      const { tabId, title, content, isMarkdown } = event.detail;
+      this._addFileTab(tabId, title, content, isMarkdown);
+    });
+    
     // 初期化完了のフラグを設定
     this.isInitialized = true;
     
@@ -111,6 +117,224 @@ class TabManager {
     this.selectTab(tabId, true);
   }
 
+  /**
+   * ファイル用の新しいタブを追加
+   * @param {string} tabId タブID
+   * @param {string} title タブのタイトル
+   * @param {string} content ファイルの内容
+   * @param {boolean} isMarkdown マークダウン形式かどうか
+   * @private
+   */
+  _addFileTab(tabId, title, content, isMarkdown) {
+    console.log(`TabManager: ファイルタブを追加します: ${tabId}, ${title}, isMarkdown=${isMarkdown}`);
+    
+    // タブバーを取得
+    const tabBar = document.querySelector('.tabs');
+    if (!tabBar) {
+      console.error('TabManager: タブバーが見つかりません');
+      return;
+    }
+    
+    // タブコンテンツエリアを取得
+    const tabContentsArea = document.querySelector('.tab-content').parentElement;
+    if (!tabContentsArea) {
+      console.error('TabManager: タブコンテンツエリアが見つかりません');
+      return;
+    }
+    
+    // 既存のタブがあれば削除
+    const existingTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+    const existingContent = document.getElementById(`${tabId}-tab`);
+    
+    if (existingTab) {
+      existingTab.remove();
+    }
+    
+    if (existingContent) {
+      existingContent.remove();
+    }
+    
+    // 新しいタブ要素を作成
+    const newTab = document.createElement('div');
+    newTab.className = 'tab';
+    newTab.setAttribute('data-tab', tabId);
+    newTab.innerHTML = `
+      <span>${title}</span>
+      <span class="tab-close" data-tab-id="${tabId}">×</span>
+    `;
+    
+    // クリックイベントを追加
+    newTab.addEventListener('click', (event) => {
+      // クローズボタンがクリックされた場合
+      if (event.target.classList.contains('tab-close')) {
+        event.stopPropagation();
+        this._removeTab(tabId);
+        return;
+      }
+      
+      this._handleTabClick(event, newTab);
+    });
+    
+    // 新しいコンテンツ要素を作成
+    const newContent = document.createElement('div');
+    newContent.id = `${tabId}-tab`;
+    newContent.className = 'tab-content';
+    
+    if (isMarkdown) {
+      // マークダウン表示用のコンテナを追加
+      const markdownContainer = document.createElement('div');
+      markdownContainer.className = 'markdown-content';
+      
+      // マークダウンをHTMLに変換して表示
+      if (window.markdownViewer && typeof window.markdownViewer._simpleMarkdownToHtml === 'function') {
+        markdownContainer.innerHTML = window.markdownViewer._simpleMarkdownToHtml(content);
+      } else {
+        // シンプルな変換
+        markdownContainer.innerHTML = this._convertMarkdownToHtml(content);
+      }
+      
+      newContent.appendChild(markdownContainer);
+    } else {
+      // 通常のテキスト表示
+      const preElement = document.createElement('pre');
+      preElement.textContent = content;
+      newContent.appendChild(preElement);
+    }
+    
+    // 要素を追加
+    tabBar.appendChild(newTab);
+    tabContentsArea.appendChild(newContent);
+    
+    // DOM要素リストを更新
+    this.tabs = document.querySelectorAll('.tab');
+    this.tabContents = document.querySelectorAll('.tab-content');
+    
+    // 新しいタブを選択
+    this.selectTab(tabId);
+  }
+  
+  /**
+   * タブを削除
+   * @param {string} tabId 削除するタブのID
+   * @private
+   */
+  _removeTab(tabId) {
+    console.log(`TabManager: タブを削除します: ${tabId}`);
+    
+    // 削除するタブと内容を取得
+    const tabToRemove = document.querySelector(`.tab[data-tab="${tabId}"]`);
+    const contentToRemove = document.getElementById(`${tabId}-tab`);
+    
+    if (tabToRemove && contentToRemove) {
+      // 削除するタブがアクティブな場合、別のタブに切り替える
+      if (tabToRemove.classList.contains('active')) {
+        // 優先順位: scope-progress > requirements > 他のタブ
+        if (document.querySelector('.tab[data-tab="scope-progress"]')) {
+          this.selectTab('scope-progress');
+        } else if (document.querySelector('.tab[data-tab="requirements"]')) {
+          this.selectTab('requirements');
+        } else {
+          // 最初のタブを選択
+          const firstTab = document.querySelector('.tab:not([data-tab="' + tabId + '"])');
+          if (firstTab) {
+            this.selectTab(firstTab.getAttribute('data-tab'));
+          }
+        }
+      }
+      
+      // タブとコンテンツを削除
+      tabToRemove.remove();
+      contentToRemove.remove();
+      
+      // DOM要素リストを更新
+      this.tabs = document.querySelectorAll('.tab');
+      this.tabContents = document.querySelectorAll('.tab-content');
+    }
+  }
+  
+  /**
+   * シンプルなマークダウンからHTMLへの変換
+   * @param {string} markdown マークダウンテキスト
+   * @returns {string} HTML
+   * @private
+   */
+  _convertMarkdownToHtml(markdown) {
+    if (!markdown) return '';
+    
+    // HTMLエスケープ
+    let html = markdown
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+    
+    // 見出し
+    html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+    html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    
+    // 段落
+    html = html.replace(/\n\n([^#].*?)\n\n/gs, '\n\n<p>$1</p>\n\n');
+    
+    // 強調
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    
+    // リンク
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2">$1</a>');
+    
+    // リスト
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.+<\/li>\n)+/gs, '<ul>$&</ul>');
+    
+    // 改行
+    html = html.replace(/\n/g, '<br>');
+    
+    return html;
+  }
+  
+  /**
+   * 新しいタブを追加
+   * @param {string} tabId タブID
+   * @param {string} title タブのタイトル
+   */
+  addTab(tabId, title) {
+    console.log(`TabManager: 新しいタブを追加します: ${tabId}, ${title}`);
+    
+    // タブバーを取得
+    const tabBar = document.querySelector('.tabs');
+    if (!tabBar) {
+      console.error('TabManager: タブバーが見つかりません');
+      return;
+    }
+    
+    // 既存のタブがあれば更新して終了
+    const existingTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
+    if (existingTab) {
+      console.log(`TabManager: タブ ${tabId} は既に存在します。選択します。`);
+      this.selectTab(tabId);
+      return;
+    }
+    
+    // 新しいタブ要素を作成
+    const newTab = document.createElement('div');
+    newTab.className = 'tab';
+    newTab.setAttribute('data-tab', tabId);
+    newTab.textContent = title;
+    
+    // クリックイベントを追加
+    newTab.addEventListener('click', (event) => {
+      this._handleTabClick(event, newTab);
+    });
+    
+    // タブバーに追加
+    tabBar.appendChild(newTab);
+    
+    // DOM要素リストを更新
+    this.tabs = document.querySelectorAll('.tab');
+  }
+  
   selectTab(tabId, saveToServer = true) {
     if (!tabId) return;
     

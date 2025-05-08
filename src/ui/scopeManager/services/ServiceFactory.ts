@@ -25,6 +25,7 @@ import { AuthenticationHandler, IAuthenticationHandler } from './AuthenticationH
 // 新しい実装クラス
 import { FileSystemServiceImpl } from './implementations/FileSystemServiceImpl';
 import { ProjectServiceImpl } from './implementations/ProjectServiceImpl';
+import { MessageDispatchServiceImpl } from './implementations/MessageDispatchServiceImpl';
 
 /**
  * サービスファクトリー
@@ -38,6 +39,7 @@ export class ServiceFactory {
   // 新実装への切り替えフラグ
   private static _useNewFileSystemService: boolean = true;
   private static _useNewProjectService: boolean = true;
+  private static _useNewMessageService: boolean = true;
   
   // サービスインスタンス（キャッシュ）
   private static _fileSystemService: IFileSystemService;
@@ -108,7 +110,16 @@ export class ServiceFactory {
       ServiceFactory._panelService = PanelService.getInstance(
         ServiceFactory._extensionUri,
         ServiceFactory._context,
-        uiStateService
+        uiStateService,
+        {
+          // WebViewオプションにTreeInput初期化プロパティを追加
+          webviewOptions: {
+            enableScripts: true,
+            retainContextWhenHidden: true,
+            // @ts-ignore - VSCodeの内部APIにアクセス
+            treeInput: {} // DebugReplのTree入力を事前に初期化
+          }
+        }
       );
     }
     return ServiceFactory._panelService;
@@ -116,10 +127,17 @@ export class ServiceFactory {
   
   /**
    * MessageDispatchServiceの取得
+   * 新旧実装を切り替え可能
    */
   public static getMessageService(): IMessageDispatchService {
     if (!ServiceFactory._messageService) {
-      ServiceFactory._messageService = MessageDispatchService.getInstance();
+      if (ServiceFactory._useNewMessageService) {
+        Logger.info('ServiceFactory: 新しいMessageDispatchServiceImplを使用');
+        ServiceFactory._messageService = MessageDispatchServiceImpl.getInstance();
+      } else {
+        Logger.info('ServiceFactory: 従来のMessageDispatchServiceを使用');
+        ServiceFactory._messageService = MessageDispatchService.getInstance();
+      }
     }
     return ServiceFactory._messageService;
   }
@@ -279,12 +297,29 @@ export class ServiceFactory {
       const tabStateService = ServiceFactory.getTabStateService();
       
       // メッセージディスパッチャーが持つハンドラー登録
-      messageService.registerProjectHandlers();
-      messageService.registerFileHandlers();
-      messageService.registerSharingHandlers();
+      // 明示的に各ハンドラーを登録（新しいMessageDispatchServiceImplでは自動登録されるが、念のため）
+      if (ServiceFactory._useNewMessageService) {
+        Logger.info('ServiceFactory: 新しいMessageDispatchServiceImplのハンドラーを登録');
+        // 新実装では初期化時にすでに登録されているはずだが、念のため明示的に呼び出す
+        messageService.registerProjectHandlers();
+        messageService.registerFileHandlers();
+        messageService.registerSharingHandlers();
+      } else {
+        Logger.info('ServiceFactory: 従来のMessageDispatchServiceのハンドラーを登録');
+        messageService.registerProjectHandlers();
+        messageService.registerFileHandlers();
+        messageService.registerSharingHandlers();
+      }
       
       // タブ状態サービスのメッセージハンドラーを登録
       tabStateService.registerMessageHandlers(messageService);
+      
+      // ハンドラー登録状況のログ出力（デバッグ用）
+      if (messageService instanceof MessageDispatchServiceImpl) {
+        Logger.info('ServiceFactory: MessageDispatchServiceImplのハンドラーが登録されました');
+      } else {
+        Logger.info('ServiceFactory: 従来のMessageDispatchServiceのハンドラーが登録されました');
+      }
       
       Logger.info('ServiceFactory: 標準メッセージハンドラーを登録しました');
     } catch (error) {
@@ -297,8 +332,13 @@ export class ServiceFactory {
    * 新実装への切り替えフラグを設定
    * @param useNewFileSystem 新しいFileSystemServiceを使用する場合はtrue
    * @param useNewProject 新しいProjectServiceを使用する場合はtrue
+   * @param useNewMessage 新しいMessageDispatchServiceを使用する場合はtrue
    */
-  public static setImplementationFlags(useNewFileSystem: boolean, useNewProject: boolean): void {
+  public static setImplementationFlags(
+    useNewFileSystem: boolean, 
+    useNewProject: boolean, 
+    useNewMessage: boolean = true
+  ): void {
     // すでにインスタンスが作成されている場合は変更を許可しない
     if (ServiceFactory._fileSystemService) {
       Logger.warn('ServiceFactory: FileSystemServiceはすでに初期化されています。フラグは無視されます。');
@@ -312,6 +352,13 @@ export class ServiceFactory {
     } else {
       ServiceFactory._useNewProjectService = useNewProject;
       Logger.info(`ServiceFactory: ProjectService切り替えフラグを ${useNewProject} に設定しました`);
+    }
+    
+    if (ServiceFactory._messageService) {
+      Logger.warn('ServiceFactory: MessageDispatchServiceはすでに初期化されています。フラグは無視されます。');
+    } else {
+      ServiceFactory._useNewMessageService = useNewMessage;
+      Logger.info(`ServiceFactory: MessageDispatchService切り替えフラグを ${useNewMessage} に設定しました`);
     }
   }
   

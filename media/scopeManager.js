@@ -183,97 +183,109 @@ try {
           
           if (typeof fileBrowser.updateFileList === 'function' && message.files) {
             // ファイルリストがある場合はそのまま渡す
-            console.log('scopeManager: updateFileBrowser -> updateFileListに変換して処理します');
+            console.log('scopeManager: ファイルリストを更新します');
             fileBrowser.updateFileList(message.files);
             
-            // 現在のパスを更新（必要であれば）
-            if (message.currentPath && !fileBrowser.currentPath) {
+            // 現在のパスを更新
+            if (message.currentPath) {
               fileBrowser.currentPath = message.currentPath;
-              console.log(`scopeManager: ファイルブラウザの現在のパスを更新: ${message.currentPath}`);
             }
-          } else if (message.structure) {
-            // 構造情報がある場合は直接構造情報を処理
-            console.log('scopeManager: ファイルブラウザの構造情報を処理します');
+          } else if (message.structure && typeof fileBrowser.updateDirectoryStructure === 'function') {
+            // 構造情報がある場合はfileBrowserのメソッドに処理を委譲
+            console.log('scopeManager: 構造情報を処理します');
+            fileBrowser.updateDirectoryStructure(message.structure);
+          }
+        }
+        break;
+        
+      case 'openFileInTab':
+        // ファイルをタブで開く処理
+        console.log('scopeManager: ファイルをタブで開きます', message.filePath);
+        
+        // ファイルのタイプを判定
+        const filePath = message.filePath;
+        const fileName = filePath.split('/').pop();
+        const isMarkdown = fileName.endsWith('.md');
+        
+        // ファイル内容を取得するためにリクエスト送信
+        vscode.postMessage({
+          command: 'getFileContentForTab',
+          filePath: filePath,
+          isMarkdown: isMarkdown,
+        });
+        break;
+        
+      case 'openFileContentInTab':
+        // ファイル内容をタブで表示
+        console.log('scopeManager: ファイル内容をタブで表示します');
+        if (message.filePath && message.content) {
+          const fileName = message.filePath.split('/').pop();
+          
+          // タブマネージャーを利用してタブを追加
+          if (typeof tabManager.addTab === 'function') {
+            // カスタムタブIDを作成
+            const tabId = `file-${fileName.replace(/\./g, '-')}`;
             
-            // プロジェクトパスを特定
-            let projectPath = null;
-            
-            // structureからパスを抽出
-            if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
-              projectPath = message.structure.split('\n')[0].trim();
-              console.log(`scopeManager: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
-              
-              // .DS_Storeなどの隠しファイルをパスから検出して除外
-              if (projectPath.endsWith('.DS_Store')) {
-                // 親ディレクトリを取得
-                projectPath = projectPath.substring(0, projectPath.lastIndexOf('/'));
-                console.log(`scopeManager: .DS_Storeを除外し、親ディレクトリを使用: ${projectPath}`);
+            // ファイルの内容をタブに表示するカスタムイベントを発行
+            const event = new CustomEvent('add-file-tab', {
+              detail: {
+                tabId: tabId,
+                title: fileName,
+                content: message.content,
+                isMarkdown: message.isMarkdown || false
               }
-              
-              // fileBrowserの現在のパスを更新
-              fileBrowser.currentPath = projectPath;
-            }
+            });
+            document.dispatchEvent(event);
             
-            // 抽出したパスでディレクトリリストを要求
-            if (projectPath && typeof fileBrowser._requestDirectoryListing === 'function') {
-              console.log(`scopeManager: プロジェクトパスでディレクトリリストを要求: ${projectPath}`);
-              fileBrowser._requestDirectoryListing(projectPath);
-            } else if (typeof fileBrowser.updateDirectoryStructure === 'function') {
-              // 直接構造情報を処理
-              fileBrowser.updateDirectoryStructure(message.structure);
-            }
+            // タブを作成し、選択する
+            tabManager.addTab(tabId, fileName);
+            tabManager.selectTab(tabId);
           }
         }
         break;
       case 'updateDirectoryStructure':
         // ディレクトリ構造更新処理（必要に応じてファイルブラウザに反映）
-        if (fileBrowser) {
+        if (fileBrowser && typeof fileBrowser.updateDirectoryStructure === 'function') {
           console.log('scopeManager: ディレクトリ構造の更新メッセージを受信しました');
           
-          // プロジェクトパスを特定
-          let projectPath = null;
-          
-          // structureからパスを抽出
-          if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
-            projectPath = message.structure.split('\n')[0].trim();
-            console.log(`scopeManager: 構造情報からプロジェクトパスを抽出: ${projectPath}`);
-            
-            // .DS_Storeなどの隠しファイルをパスから検出して除外
-            if (projectPath.endsWith('.DS_Store')) {
-              // 親ディレクトリを取得
-              projectPath = projectPath.substring(0, projectPath.lastIndexOf('/'));
-              console.log(`scopeManager: .DS_Storeを除外し、親ディレクトリを使用: ${projectPath}`);
-            }
-            
-            // fileBrowserの現在のパスを更新（まだ設定されていなければ）
-            if (!fileBrowser.currentPath) {
-              fileBrowser.currentPath = projectPath;
-              console.log(`scopeManager: ファイルブラウザの現在のパスを設定: ${projectPath}`);
-            }
-          } else {
-            // 現在のパスを取得
-            projectPath = fileBrowser.currentPath;
-          }
-          
-          // ファイルブラウザのタブがアクティブな場合、自動的にディレクトリリストを更新
+          // ファイルブラウザのタブがアクティブかどうかを確認
           const activeTabId = stateManager.getState().activeTab;
-          if (activeTabId === 'file-browser' && typeof fileBrowser._requestDirectoryListing === 'function' && projectPath) {
-            // 現在のプロジェクトパスでファイル一覧を再取得
-            console.log(`scopeManager: ファイルブラウザのリストを更新します (パス: ${projectPath})`);
-            fileBrowser._requestDirectoryListing(projectPath);
-          } else if (typeof fileBrowser.updateDirectoryStructure === 'function') {
-            // 直接構造情報を処理
+          
+          if (activeTabId === 'file-browser') {
+            // アクティブな場合は優先的に更新処理
+            console.log('scopeManager: ファイルブラウザタブがアクティブなため、ディレクトリ構造を更新します');
             fileBrowser.updateDirectoryStructure(message.structure);
+          } else {
+            // 非アクティブな場合は静かに状態のみ保持（表示更新はスキップ）
+            console.log('scopeManager: ファイルブラウザタブが非アクティブのため、状態のみ更新します');
+            // 内部状態の更新のみ行う
+            if (typeof message.structure === 'string' && message.structure.startsWith('/')) {
+              const path = message.structure.split('\n')[0].trim();
+              // 内部的にパスを記録しておく
+              if (!fileBrowser.currentPath) {
+                fileBrowser.currentPath = path;
+              }
+            }
           }
         }
         break;
       case 'showError':
-        showError(message.message);
+        // ファイルプレビュー関連のエラーを特別に処理
+        if (message.message && message.message.includes('ファイルを開けませんでした:') && message.filePath) {
+          // ファイルブラウザのプレビュー更新をエラーモードで呼び出す
+          console.log('scopeManager: ファイル読み込みエラーを検出しました。エラー表示モードでプレビューを更新します');
+          if (fileBrowser && typeof fileBrowser.updateFilePreview === 'function') {
+            fileBrowser.updateFilePreview(message.message, message.filePath, true);
+          }
+        } else {
+          // 通常のエラー表示
+          showError(message.message);
+        }
         break;
       case 'updateFilePreview':
         // ファイルブラウザのプレビュー更新
         if (fileBrowser && typeof fileBrowser.updateFilePreview === 'function') {
-          fileBrowser.updateFilePreview(message.content, message.filePath);
+          fileBrowser.updateFilePreview(message.content, message.filePath, message.isError);
         }
         break;
       case 'updateProjectPath':
@@ -356,6 +368,23 @@ try {
       case 'selectTab':
         // TabManagerを使用
         tabManager.selectTab(message.tabId);
+        break;
+      case 'addFileTab':
+        // TabManagerを使用してファイルタブを追加
+        if (message.tabId && message.title && message.content) {
+          // _addFileTabメソッドは非公開（protected）なので、代わりにカスタムイベントを発行
+          const addTabEvent = new CustomEvent('add-file-tab', {
+            detail: {
+              tabId: message.tabId,
+              title: message.title,
+              content: message.content,
+              isMarkdown: message.isMarkdown || false,
+              filePath: message.filePath
+            }
+          });
+          document.dispatchEvent(addTabEvent);
+          console.log(`ファイルタブを追加しました: ${message.title}`);
+        }
         break;
       case 'syncProjectState':
         // ProjectManagementServiceからのプロジェクト状態同期メッセージ

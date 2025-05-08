@@ -97,21 +97,25 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
 
     // 新しいパネルを作成
+    // webview options にDebugReplのツリー入力初期化プロパティを追加
+    const webviewOptions = {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(extensionUri, 'media'),
+        vscode.Uri.joinPath(extensionUri, 'dist'),
+        vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons')
+      ],
+      // @ts-ignore - VSCodeの内部プロパティにアクセス（DebugRepl対策）
+      treeInput: {} // DebugReplのツリー入力を初期化（TreeErrorを防止）
+    };
+    
+    // WebViewパネル作成
     const panel = vscode.window.createWebviewPanel(
       ScopeManagerPanel.viewType,
       'AppGenius スコープマネージャー',
       column || vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        // カスタムCSP設定を削除し、VSCodeのデフォルト設定を使用
-        // contentSecurityPolicy: "default-src 'none'; img-src https: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-src *;",
-        localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, 'media'),
-          vscode.Uri.joinPath(extensionUri, 'dist'),
-          vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons')
-        ]
-      }
+      webviewOptions
     );
     
     Logger.info(`新しいスコープマネージャーパネルを作成: プロジェクトパス=${projectPath || '未指定'}`);
