@@ -32,6 +32,11 @@ export interface IMessageDispatchService extends IService {
   showError(panel: vscode.WebviewPanel, message: string): void;
   showSuccess(panel: vscode.WebviewPanel, message: string): void;
   
+  // ハンドラー登録関数
+  registerProjectHandlers(): void;
+  registerFileHandlers(): void;
+  registerSharingHandlers(): void;
+  
   // イベント
   onMessageProcessed: vscode.Event<{command: string, success: boolean}>;
 }

@@ -78,7 +78,7 @@ class ProjectNavigation {
       const state = stateManager.getState();
       state.activeProjectName = activeProject.name;
       state.activeProjectPath = activeProject.path;
-      state.activeTab = activeProject.metadata?.activeTab || 'current-status';
+      state.activeTab = activeProject.metadata?.activeTab || 'scope-progress'; // current-statusからscope-progressに変更
       stateManager.setState(state);
     }
     
@@ -97,7 +97,7 @@ class ProjectNavigation {
     // リストをクリア
     this.projectList.innerHTML = '';
     
-    // プロジェクトがない場合の表示
+    // プロジェクトがない場合はメッセージを表示
     if (!projects || projects.length === 0) {
       this.projectList.innerHTML = '<div class="project-item">プロジェクトがありません</div>';
       return;
@@ -177,10 +177,10 @@ class ProjectNavigation {
         const state = stateManager.getState();
         state.activeProjectName = displayName;
         state.activeProjectPath = project.path;
-        state.activeTab = currentActiveTab || 'current-status';
+        state.activeTab = currentActiveTab || 'scope-progress';
         
-        // 手動でCURRENT_STATUS.mdのパスを設定して初期化信号を送信
-        const statusFilePath = project.path ? `${project.path}/docs/CURRENT_STATUS.md` : '';
+        // 手動でSCOPE_PROGRESS.mdのパスを設定して初期化信号を送信
+        const statusFilePath = project.path ? `${project.path}/docs/SCOPE_PROGRESS.md` : '';
         state.statusFilePath = statusFilePath;
         
         stateManager.setState(state);
@@ -255,9 +255,15 @@ class ProjectNavigation {
             // ダイアログを閉じる
             document.body.removeChild(overlay);
             
-            // 削除中のフィードバック
-            item.style.opacity = '0.5';
-            item.style.pointerEvents = 'none';
+            // 削除したアイテムを即座にリストから削除
+            if (item && item.parentNode) {
+              item.parentNode.removeChild(item);
+            }
+            
+            // プロジェクトが空の場合メッセージを表示
+            if (this.projectList.children.length === 0) {
+              this.projectList.innerHTML = '<div class="project-item">プロジェクトがありません</div>';
+            }
           });
         });
         
@@ -304,8 +310,8 @@ class ProjectNavigation {
     const lowerCaseQuery = query.toLowerCase();
     
     items.forEach(item => {
-      const name = item.querySelector('.project-item-name')?.textContent || '';
-      const path = item.querySelector('.project-item-path')?.textContent || '';
+      const name = item.querySelector('.project-name')?.textContent || '';
+      const path = item.querySelector('.project-path')?.textContent || '';
       
       if (name.toLowerCase().includes(lowerCaseQuery) || 
           path.toLowerCase().includes(lowerCaseQuery)) {
@@ -583,8 +589,8 @@ class ProjectNavigation {
     const items = this.projectList.querySelectorAll('.project-item');
     
     items.forEach(item => {
-      const name = item.querySelector('.project-item-name')?.textContent;
-      const path = item.querySelector('.project-item-path')?.textContent;
+      const name = item.querySelector('.project-name')?.textContent;
+      const path = item.querySelector('.project-path')?.textContent;
       
       if (name === project.name && path === project.path) {
         item.classList.add('active');
@@ -647,9 +653,9 @@ class ProjectNavigation {
       }
     }
     
-    // CURRENT_STATUS.mdファイルの存在をチェック
+    // SCOPE_PROGRESS.mdファイルの存在をチェック
     if (data.statusFilePath && data.statusFileExists) {
-      console.log('projectNavigation: CURRENT_STATUS.mdファイルが存在します:', data.statusFilePath);
+      console.log('projectNavigation: SCOPE_PROGRESS.mdファイルが存在します:', data.statusFilePath);
       
       // ファイルが存在する場合はマークダウンコンテンツを取得するリクエストを送信
       this.vscode.postMessage({

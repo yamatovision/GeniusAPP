@@ -148,14 +148,25 @@ export class ClaudeCodeSharingService {
    * @param additionalOptions 追加の保存オプション（互換性のため）
    */
   public async shareText(
-    text: string, 
+    text: any, 
     options?: FileSaveOptions | string, 
     additionalOptions?: FileSaveOptions
   ): Promise<SharedFile> {
+    // null/undefined チェック
+    if (text === null || text === undefined) {
+      throw new Error('共有するテキストがありません（null または undefined）');
+    }
+    
+    // 文字列でない場合は変換
+    const textString = typeof text === 'string' ? text : String(text);
+    
     // テキストサイズをバリデーション
-    if (text.length > this.settings.maxTextSize) {
+    if (textString.length > this.settings.maxTextSize) {
       throw new Error(`テキストが長すぎます。${this.settings.maxTextSize}文字以内にしてください。`);
     }
+    
+    // このあと使う変数をtextからtextStringに変更
+    text = textString;
     
     let fileOptions: FileSaveOptions = {
       type: 'text' as 'text',
@@ -246,9 +257,20 @@ export class ClaudeCodeSharingService {
    * @param fileName 元のファイル名
    * @param options 保存オプション
    */
-  public async shareBase64Image(base64Data: string, fileName: string, options?: FileSaveOptions): Promise<SharedFile> {
+  public async shareBase64Image(base64Data: any, fileName: string, options?: FileSaveOptions): Promise<SharedFile> {
+    // null/undefined チェック
+    if (base64Data === null || base64Data === undefined) {
+      throw new Error('画像データがありません（null または undefined）');
+    }
+    
+    // 文字列でない場合は変換
+    const base64String = typeof base64Data === 'string' ? base64Data : String(base64Data);
+    
+    // エラーログを追加（デバッグ用）
+    console.log(`shareBase64Image: 画像データの型: ${typeof base64Data}, 長さ: ${base64String.length}`);
+    
     // Base64ヘッダーを削除
-    const base64Content = base64Data.replace(/^data:image\/\w+;base64,/, '');
+    const base64Content = base64String.replace(/^data:image\/\w+;base64,/, '');
     
     // バッファに変換
     const buffer = Buffer.from(base64Content, 'base64');

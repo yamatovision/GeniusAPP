@@ -1241,10 +1241,14 @@ project/
       // パス更新
       await this.projectService.updateProject(projectId, { path: projectPath });
       
-      // イベント発火
+      // イベント発火 - PROJECT_UPDATEDに統一
       this.eventBus.emit(
-        AppGeniusEventType.PROJECT_PATH_UPDATED,
-        { projectId, projectPath },
+        AppGeniusEventType.PROJECT_UPDATED,
+        { 
+          id: projectId, 
+          path: projectPath,
+          type: 'updated'
+        },
         'AppGeniusStateManager',
         projectId
       );

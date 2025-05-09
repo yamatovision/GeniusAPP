@@ -190,10 +190,22 @@ class TabManager {
     const newTab = document.createElement('div');
     newTab.className = 'tab';
     newTab.setAttribute('data-tab', tabId);
-    newTab.innerHTML = `
-      <span>${title}</span>
-      <span class="tab-close" data-tab-id="${tabId}">×</span>
-    `;
+    
+    // マークダウンファイルの場合はビューアボタンを追加
+    if (isMarkdown) {
+      newTab.innerHTML = `
+        <span>${title}</span>
+        <div class="tab-actions" style="display: flex; align-items: center;">
+          <span class="md-viewer-btn" data-tab-id="${tabId}" title="マークダウンビューアで開く" style="margin-right: 5px; cursor: pointer; color: #4a69bd; font-size: 14px;">👁️</span>
+          <span class="tab-close" data-tab-id="${tabId}">×</span>
+        </div>
+      `;
+    } else {
+      newTab.innerHTML = `
+        <span>${title}</span>
+        <span class="tab-close" data-tab-id="${tabId}">×</span>
+      `;
+    }
     
     // クリックイベントを追加
     newTab.addEventListener('click', (event) => {
@@ -201,6 +213,21 @@ class TabManager {
       if (event.target.classList.contains('tab-close')) {
         event.stopPropagation();
         this._removeTab(tabId);
+        return;
+      }
+      
+      // マークダウンビューアボタンがクリックされた場合
+      if (event.target.classList.contains('md-viewer-btn')) {
+        event.stopPropagation();
+        
+        // VSCodeにメッセージを送信
+        const filePath = this._getFilePathFromTabId(tabId);
+        if (filePath) {
+          stateManager.sendMessage('openMarkdownInTab', {
+            filePath: filePath,
+            fileName: title
+          });
+        }
         return;
       }
       
@@ -282,6 +309,51 @@ class TabManager {
       this.tabs = document.querySelectorAll('.tab');
       this.tabContents = document.querySelectorAll('.tab-content');
     }
+  }
+  
+  /**
+   * タブIDからファイルパスを取得
+   * @param {string} tabId タブID
+   * @returns {string|null} ファイルパス
+   * @private
+   */
+  _getFilePathFromTabId(tabId) {
+    // file-で始まるタブIDの場合、パスを取り出す
+    if (tabId.startsWith('file-')) {
+      // 形式: file-パス-をハイフンではなくスラッシュに置き換え
+      let filePath = tabId.substring(5); // 'file-'を削除
+      
+      // ハイフンをスラッシュに置き換え
+      filePath = filePath.replace(/-/g, '/');
+      
+      // Windowsパスの場合はバックスラッシュに変換
+      if (filePath.includes('Users') && !filePath.startsWith('/')) {
+        filePath = filePath.replace(/\//g, '\\');
+      }
+      
+      // 拡張子の補正（"md"→".md"）
+      if (filePath.endsWith('md') && !filePath.endsWith('.md')) {
+        filePath = filePath.replace(/md$/, '.md');
+        console.log(`TabManager: ファイルパス修正（拡張子の区切り文字を追加）: ${filePath}`);
+      }
+      
+      return filePath;
+    }
+    
+    // その他の組み込みタブは各自のパスを持つ
+    if (tabId === 'scope-progress') {
+      const projectPath = stateManager.getState().activeProjectPath;
+      if (projectPath) {
+        return `${projectPath}/docs/SCOPE_PROGRESS.md`;
+      }
+    } else if (tabId === 'requirements') {
+      const projectPath = stateManager.getState().activeProjectPath;
+      if (projectPath) {
+        return `${projectPath}/docs/requirements.md`;
+      }
+    }
+    
+    return null;
   }
   
   /**

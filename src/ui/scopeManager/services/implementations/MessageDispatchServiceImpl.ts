@@ -610,6 +610,42 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       }
     });
     
+    // openMarkdownInTab ハンドラー（マークダウンファイルを専用ビューアで開く）
+    this.registerHandler('openMarkdownInTab', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchServiceImpl: openMarkdownInTabメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        Logger.info(`MessageDispatchServiceImpl: マークダウンファイルを専用ビューで開きます: ${message.filePath}`);
+        
+        // マークダウンビューアを開く
+        vscode.commands.executeCommand('appgenius.openMarkdownViewer', message.filePath);
+        
+        // 成功メッセージを表示（正しいファイル名を取得）
+        const fileName = path.basename(message.filePath);
+        this.showSuccess(panel, `マークダウンビューアでファイルを開きました: ${fileName}`);
+        
+        Logger.info(`MessageDispatchServiceImpl: マークダウンビューアでファイルを開きました: ${message.filePath}`);
+        
+        // ビューアが表示されない場合に詳細ログを出力
+        Logger.debug(`MessageDispatchServiceImpl: マークダウンビューア実行ファイルパス詳細=${message.filePath}, 
+          存在=${fs.existsSync(message.filePath) ? 'はい' : 'いいえ'},
+          拡張子=${path.extname(message.filePath)},
+          ファイル名=${path.basename(message.filePath)}`);
+
+        // ファイルパスが.mdで終わらない場合は警告
+        if (!message.filePath.toLowerCase().endsWith('.md')) {
+          Logger.warn(`MessageDispatchServiceImpl: ファイルパスがマークダウン拡張子(.md)で終わっていません: ${message.filePath}`);
+        }
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: マークダウンビューア起動中にエラーが発生しました: ${message.filePath}`, error as Error);
+        this.showError(panel, `マークダウンビューアの起動に失敗しました: ${(error as Error).message}`);
+      }
+    });
+    
     // Note: 重複したopenFileAsTabハンドラーの定義は削除
     
     // Note: getMarkdownContent ハンドラーは削除
@@ -658,20 +694,82 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       return;
     }
     
-    // Note: getHistory ハンドラーは削除
-    // クライアントが直接SharingServiceを使用するよう変更
+    // getHistory ハンドラーを再登録
+    // 後方互換性のために維持（sharingPanel.jsが依存）
+    this.registerHandler('getHistory', async (message: Message, panel: vscode.WebviewPanel) => {
+      try {
+        if (this._sharingService && typeof this._sharingService.getHistory === 'function') {
+          Logger.info('MessageDispatchServiceImpl: getHistoryメッセージを受信 - SharingServiceを利用して履歴を取得します');
+          const history = await this._sharingService.getHistory();
+          this.sendMessage(panel, {
+            command: 'updateSharingHistory',
+            history: history
+          });
+        } else {
+          Logger.warn('MessageDispatchServiceImpl: SharingServiceにgetHistoryメソッドがありません');
+          this.showError(panel, '共有履歴の取得に失敗しました: サービスが見つかりません');
+        }
+      } catch (error) {
+        Logger.error('MessageDispatchServiceImpl: 履歴取得エラー', error as Error);
+        this.showError(panel, `履歴の取得に失敗しました: ${(error as Error).message}`);
+      }
+    });
     
-    // Note: deleteFromHistory ハンドラーは削除
-    // クライアントが直接SharingServiceを使用するよう変更
+    // deleteFromHistory ハンドラーを再登録（後方互換性のため）
+    this.registerHandler('deleteFromHistory', async (message: Message, panel: vscode.WebviewPanel) => {
+      try {
+        if (!message.fileId) {
+          throw new Error('ファイルIDが指定されていません');
+        }
+        
+        if (this._sharingService && typeof this._sharingService.deleteFromHistory === 'function') {
+          await this._sharingService.deleteFromHistory(message.fileId);
+          
+          // 履歴を更新して送信
+          const history = await this._sharingService.getHistory();
+          this.sendMessage(panel, {
+            command: 'updateSharingHistory',
+            history: history
+          });
+        } else {
+          throw new Error('共有サービスが初期化されていないか、適切なメソッドがありません');
+        }
+      } catch (error) {
+        Logger.error('MessageDispatchServiceImpl: 履歴削除エラー', error as Error);
+        this.showError(panel, `履歴からの削除に失敗しました: ${(error as Error).message}`);
+      }
+    });
     
-    // Note: copyCommand ハンドラーは削除
-    // クライアントが直接SharingServiceを使用するよう変更
-    
-    // Note: copyToClipboard ハンドラーは削除
-    // クライアントが直接VSCodeのクリップボードAPIを使用するよう変更
-    
-    // Note: shareClipboard ハンドラーは削除
-    // クライアントが直接SharingServiceを使用するよう変更
+    // copyCommand ハンドラーを再登録（後方互換性のため）
+    this.registerHandler('copyCommand', async (message: Message, panel: vscode.WebviewPanel) => {
+      try {
+        if (!message.fileId) {
+          throw new Error('ファイルIDが指定されていません');
+        }
+        
+        if (this._sharingService && typeof this._sharingService.getCommandByFileId === 'function') {
+          const command = await this._sharingService.getCommandByFileId(message.fileId);
+          
+          if (command) {
+            // クリップボードにコピー
+            vscode.env.clipboard.writeText(command);
+            
+            // 成功通知
+            this.sendMessage(panel, {
+              command: 'commandCopied',
+              fileId: message.fileId
+            });
+          } else {
+            throw new Error('指定されたファイルのコマンドが見つかりません');
+          }
+        } else {
+          throw new Error('共有サービスが初期化されていないか、適切なメソッドがありません');
+        }
+      } catch (error) {
+        Logger.error('MessageDispatchServiceImpl: コマンドコピーエラー', error as Error);
+        this.showError(panel, `コマンドのコピーに失敗しました: ${(error as Error).message}`);
+      }
+    });
     
     Logger.info('MessageDispatchServiceImpl: 共有関連のメッセージハンドラーを登録しました');
   }

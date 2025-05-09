@@ -162,7 +162,9 @@ try {
     
     // シェアリングパネル関連のメッセージは無視（sharingPanel.jsが処理）
     if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
-      return; // sharingPanel.jsに処理を任せる
+      // sharingPanel.jsに処理を任せるが、念のためmessageオブジェクトを出力
+      console.log('共有パネル関連メッセージをsharingPanel.jsに転送:', message.command);
+      return;
     }
     
     switch (message.command) {

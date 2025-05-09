@@ -739,16 +739,37 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleGetHistory(): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = ServiceFactory.getMessageService();
-    await messageService.getHistory(this._panel);
+    try {
+      // 直接SharingServiceを使用する
+      const sharingService = ServiceFactory.getSharingService();
+      const history = sharingService.getHistory();
+      
+      // 履歴情報をWebViewに送信
+      this._panel.webview.postMessage({
+        command: 'updateSharingHistory',
+        history: history
+      });
+      
+      Logger.info('ScopeManagerPanel: 共有履歴を取得して送信しました');
+    } catch (error) {
+      Logger.error('共有履歴の取得に失敗しました', error as Error);
+      this._showError(`履歴の取得に失敗しました: ${(error as Error).message}`);
+    }
   }
 
   /**
    * テキストを共有サービスで共有 - SharingServiceに委譲
    */
-  private async _handleShareText(text: string, suggestedFilename?: string): Promise<void> {
+  private async _handleShareText(text: any, suggestedFilename?: string): Promise<void> {
     try {
+      // nullチェックとstring型の保証
+      if (!text) {
+        throw new Error('共有するテキストが指定されていません');
+      }
+      
+      // 文字列でない場合は文字列に変換
+      const textString = typeof text === 'string' ? text : String(text);
+      
       // 共有オプションを設定
       const options: FileSaveOptions = {
         type: 'text',
@@ -761,8 +782,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
         options.metadata = { suggestedFilename };
       }
       
+      // エラーのデバッグログ
+      Logger.info(`_handleShareText: テキスト共有を開始します [type=${typeof textString}, length=${textString.length}]`);
+      
       // SharingServiceを使ってテキストを共有
-      const file = await this._sharingService.shareText(text, options);
+      const file = await this._sharingService.shareText(textString, options);
       
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
@@ -796,10 +820,21 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * 画像を共有サービスで共有 - SharingServiceに委譲
    */
-  private async _handleShareImage(imageData: string, fileName: string): Promise<void> {
+  private async _handleShareImage(imageData: any, fileName: string): Promise<void> {
     try {
+      // nullチェックとstring型の保証
+      if (!imageData) {
+        throw new Error('共有する画像データが指定されていません');
+      }
+      
+      // 文字列でない場合は文字列に変換
+      const imageDataString = typeof imageData === 'string' ? imageData : String(imageData);
+      
+      // エラーのデバッグログ
+      Logger.info(`_handleShareImage: 画像共有を開始します [type=${typeof imageDataString}, length=${imageDataString.length}]`);
+      
       // SharingServiceを使って画像を共有
-      const file = await this._sharingService.shareImage(imageData, fileName);
+      const file = await this._sharingService.shareImage(imageDataString, fileName);
       
       // コマンドを生成
       const command = this._sharingService.generateCommand(file);
@@ -850,9 +885,28 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleDeleteFromHistory(fileId: string): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = ServiceFactory.getMessageService();
-    await messageService.deleteFromHistory(this._panel, fileId);
+    try {
+      // 直接SharingServiceを使用する
+      const sharingService = ServiceFactory.getSharingService();
+      const result = sharingService.deleteFromHistory(fileId);
+      
+      if (result) {
+        // 履歴を更新して送信
+        const history = sharingService.getHistory();
+        this._panel.webview.postMessage({
+          command: 'updateSharingHistory',
+          history: history
+        });
+        
+        Logger.info(`ScopeManagerPanel: ファイルID=${fileId}を履歴から削除しました`);
+      } else {
+        Logger.warn(`ScopeManagerPanel: ファイルID=${fileId}の削除に失敗しました`);
+        this._showError('履歴から項目を削除できませんでした');
+      }
+    } catch (error) {
+      Logger.error(`履歴からの削除に失敗しました: ファイルID=${fileId}`, error as Error);
+      this._showError(`履歴からの削除に失敗しました: ${(error as Error).message}`);
+    }
   }
 
   /**
@@ -862,9 +916,30 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * @deprecated ServiceFactory経由でサービスにアクセスしてください
    */
   private async _handleCopyCommand(fileId: string): Promise<void> {
-    // MessageDispatchServiceに移行済み
-    const messageService = ServiceFactory.getMessageService();
-    await messageService.copyCommand(this._panel, fileId);
+    try {
+      // 直接SharingServiceを使用する
+      const sharingService = ServiceFactory.getSharingService();
+      const command = await sharingService.getCommandByFileId(fileId);
+      
+      if (command) {
+        // クリップボードにコピー
+        await vscode.env.clipboard.writeText(command);
+        
+        // コピー成功通知
+        this._panel.webview.postMessage({
+          command: 'commandCopied',
+          fileId: fileId
+        });
+        
+        Logger.info(`ScopeManagerPanel: ファイルID=${fileId}のコマンドをコピーしました`);
+      } else {
+        Logger.warn(`ScopeManagerPanel: ファイルID=${fileId}のコマンド生成に失敗しました`);
+        this._showError('コマンドが見つかりませんでした');
+      }
+    } catch (error) {
+      Logger.error(`コマンドのコピーに失敗しました: fileId=${fileId}`, error as Error);
+      this._showError(`コマンドのコピーに失敗しました: ${(error as Error).message}`);
+    }
   }
 
   /**

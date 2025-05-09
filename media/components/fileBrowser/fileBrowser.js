@@ -1163,10 +1163,12 @@ class FileBrowser {
       // ファイル種別に応じたアイコンを設定
       let icon = 'insert_drive_file';
       let iconColor = '#42a5f5'; // 青系のアイコン色
+      let isMarkdown = false;
       
-      if (file.type === 'markdown') {
+      if (file.type === 'markdown' || file.name.endsWith('.md')) {
         icon = 'description';
         iconColor = '#4a69bd'; // ブランドカラー
+        isMarkdown = true;
       }
       else if (file.type === 'image') {
         icon = 'image';
@@ -1177,15 +1179,50 @@ class FileBrowser {
         iconColor = '#d33682'; // ピンク系
       }
       
-      item.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <i class="material-icons file-icon" style="color: ${iconColor};">${icon}</i>
-            <span class="file-name" style="color: #333333;">${file.name}</span>
+      // マークダウンファイル用のHTML（ビューアボタン付き）
+      if (isMarkdown) {
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <i class="material-icons file-icon" style="color: ${iconColor};">${icon}</i>
+              <span class="file-name" style="color: #333333;">${file.name}</span>
+            </div>
+            <div style="display: flex; gap: 5px; align-items: center;">
+              <button class="md-viewer-btn" style="padding: 3px 5px; font-size: 11px; background-color: #4a69bd; color: white; border: none; border-radius: 3px; cursor: pointer; display: flex; align-items: center;">
+                <i class="material-icons" style="font-size: 12px; margin-right: 2px;">visibility</i>
+                <span>ビューア</span>
+              </button>
+              <span style="font-size: 11px; color: #718096; background-color: #f5f5f5; padding: 2px 6px; border-radius: 10px;">${dateStr}</span>
+            </div>
           </div>
-          <span style="font-size: 11px; color: #718096; background-color: #f5f5f5; padding: 2px 6px; border-radius: 10px;">${dateStr}</span>
-        </div>
-      `;
+        `;
+        
+        // ビューアボタンのクリックイベント（イベントバブリングを防止）
+        const viewerBtn = item.querySelector('.md-viewer-btn');
+        if (viewerBtn) {
+          viewerBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // クリックイベントの伝播を停止
+            
+            // マークダウンビューアでファイルを開く
+            this.vscode.postMessage({
+              command: 'openMarkdownInTab',
+              filePath: file.path,
+              fileName: file.name
+            });
+          });
+        }
+      } else {
+        // 通常のファイル用のHTML
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <i class="material-icons file-icon" style="color: ${iconColor};">${icon}</i>
+              <span class="file-name" style="color: #333333;">${file.name}</span>
+            </div>
+            <span style="font-size: 11px; color: #718096; background-color: #f5f5f5; padding: 2px 6px; border-radius: 10px;">${dateStr}</span>
+          </div>
+        `;
+      }
       
       // 現在選択中のファイルであればスタイルを適用
       if (this.selectedFile === file.path) {

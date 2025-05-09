@@ -1054,14 +1054,14 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
    */
   public registerMessageHandlers(messageDispatchService: IMessageDispatchService): void {
     this._messageDispatchService = messageDispatchService;
-    
+
     // ファイル読み込みハンドラー
     messageDispatchService.registerHandler('readMarkdownFile', async (message: Message, panel: vscode.WebviewPanel) => {
       if (!message.filePath) {
         this.showError(panel, 'ファイルパスが指定されていません');
         return;
       }
-      
+
       try {
         const content = await this.readMarkdownFile(message.filePath);
         this.sendToWebView(panel, {
@@ -1075,14 +1075,38 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         this.showError(panel, `ファイル読み込みに失敗: ${(error as Error).message}`);
       }
     });
-    
+
+    // getMarkdownContentハンドラー（クライアント側との互換性のため）
+    messageDispatchService.registerHandler('getMarkdownContent', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+
+      try {
+        const content = await this.readMarkdownFile(message.filePath);
+        this.sendToWebView(panel, {
+          command: 'updateMarkdownContent',
+          content,
+          timestamp: Date.now(),
+          priority: 'high',
+          filePath: message.filePath,
+          forScopeProgress: message.forScopeProgress,
+          forRequirements: message.forRequirements,
+          forceRefresh: message.forceRefresh
+        });
+      } catch (error) {
+        this.showError(panel, `マークダウンファイル読み込みに失敗: ${(error as Error).message}`);
+      }
+    });
+
     // 一般ファイル読み込みハンドラー
     messageDispatchService.registerHandler('readFile', async (message: Message, panel: vscode.WebviewPanel) => {
       if (!message.filePath) {
         this.showError(panel, 'ファイルパスが指定されていません');
         return;
       }
-      
+
       try {
         const content = await this.readFile(message.filePath);
         this.sendToWebView(panel, {

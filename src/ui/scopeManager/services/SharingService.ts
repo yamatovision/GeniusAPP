@@ -71,15 +71,25 @@ export class SharingService implements ISharingService {
    * @param text 共有するテキスト
    * @param options 保存オプション
    */
-  public async shareText(text: string, options?: FileSaveOptions): Promise<SharedFile> {
+  public async shareText(text: any, options?: FileSaveOptions): Promise<SharedFile> {
     try {
+      // textがnullかundefinedの場合はエラー
+      if (text === null || text === undefined) {
+        throw new Error('共有するテキストがnullまたはundefinedです');
+      }
+      
+      // textが文字列でない場合は変換
+      const textString = typeof text === 'string' ? text : String(text);
+      
       Logger.info('SharingService: テキスト共有を開始します', { 
-        textLength: text.length, 
+        textType: typeof text,
+        textString: typeof textString, 
+        textLength: textString.length, 
         hasOptions: !!options 
       });
       
       // ClaudeCodeSharingServiceを使ってテキストを共有
-      const file = await this._claudeCodeSharingService.shareText(text, options);
+      const file = await this._claudeCodeSharingService.shareText(textString, options);
       
       Logger.info('SharingService: テキスト共有成功', { 
         fileName: file.fileName,
@@ -102,15 +112,25 @@ export class SharingService implements ISharingService {
    * @param imageData Base64形式の画像データ
    * @param fileName ファイル名
    */
-  public async shareImage(imageData: string, fileName: string): Promise<SharedFile> {
+  public async shareImage(imageData: any, fileName: string): Promise<SharedFile> {
     try {
+      // imageDataがnullかundefinedの場合はエラー
+      if (imageData === null || imageData === undefined) {
+        throw new Error('共有する画像データがnullまたはundefinedです');
+      }
+      
+      // imageDataが文字列でない場合は変換
+      const imageDataString = typeof imageData === 'string' ? imageData : String(imageData);
+      
       Logger.info('SharingService: 画像共有を開始します', { 
-        dataLength: imageData?.length || 0,
+        imageType: typeof imageData,
+        imageDataString: typeof imageDataString,
+        dataLength: imageDataString.length, 
         fileName: fileName
       });
       
       // ClaudeCodeSharingServiceを使って画像を共有
-      const file = await this._claudeCodeSharingService.shareBase64Image(imageData, fileName);
+      const file = await this._claudeCodeSharingService.shareBase64Image(imageDataString, fileName);
       
       Logger.info('SharingService: 画像共有成功', { 
         fileName: file.fileName
@@ -198,6 +218,33 @@ export class SharingService implements ISharingService {
     } catch (error) {
       Logger.error('SharingService: コマンド生成エラー', error as Error);
       return '';
+    }
+  }
+  
+  /**
+   * ファイルIDからコマンドを生成して取得
+   * @param fileId ファイルID
+   * @returns コマンド文字列またはnull（ファイルが見つからない場合）
+   */
+  public async getCommandByFileId(fileId: string): Promise<string | null> {
+    try {
+      Logger.info(`SharingService: fileId=${fileId}のコマンドを取得します`);
+      const history = this.getHistory();
+      const file = history.find(item => item.id === fileId);
+      
+      if (!file) {
+        Logger.warn(`SharingService: fileId=${fileId}のファイルが見つかりません`);
+        return null;
+      }
+      
+      // アクセス記録を更新
+      this.recordAccess(fileId);
+      
+      // コマンドを生成して返す
+      return this.generateCommand(file);
+    } catch (error) {
+      Logger.error(`SharingService: fileId=${fileId}のコマンド取得エラー`, error as Error);
+      return null;
     }
   }
   

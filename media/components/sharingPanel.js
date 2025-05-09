@@ -114,8 +114,11 @@
     // ボタンイベントの設定
     setupButtonEvents();
     
-    // 履歴の更新リクエスト
-    requestHistoryUpdate();
+    // 履歴の更新リクエスト - 少し遅延させてリクエストを送信（他の初期化処理が完了した後）
+    setTimeout(() => {
+      requestHistoryUpdate();
+      console.log('初期化後の履歴更新リクエストを送信しました');
+    }, 500);
   });
   
   /**
@@ -124,8 +127,9 @@
    * @returns {string} 生成されたファイル名
    */
   function generateFilenameFromText(text) {
-    // 空の場合はデフォルト名
-    if (!text || text.trim() === '') {
+    // null、undefined、または空の場合はデフォルト名
+    if (!text || typeof text !== 'string') {
+      console.log('生成に使用するテキストが無効です。デフォルト名を使用します', { text });
       return 'shared_text';
     }
     
@@ -357,22 +361,39 @@
       const reader = new FileReader();
       
       reader.onload = function(e) {
-        // プレビュー表示（アップロード中表示）
-        dropZone.innerHTML = `
-          <img src="${e.target.result}" class="image-preview" />
-          <p style="margin: 0 0 10px 0; color: var(--app-text-secondary);">${file.name}</p>
-          <p style="color: var(--app-warning);">自動保存中...</p>
-        `;
-        
-        // ファイル情報を保存
-        dropZone.dataset.fileName = file.name;
-        dropZone.dataset.fileType = file.type;
-        dropZone.dataset.fileData = e.target.result.toString();
-        
-        // 自動的に保存処理を実行
-        setTimeout(() => {
-          handleSaveClick();
-        }, 300); // 少し遅延させて実行（UIのレンダリングが完了した後）
+        try {
+          // 結果が文字列型である確認
+          const result = e.target.result;
+          if (!result) {
+            console.error('FileReader結果がnullまたはundefined');
+            showError('画像データの読み込みに失敗しました（nullまたはundefined）');
+            return;
+          }
+          
+          // 文字列に変換
+          const resultString = result.toString();
+          console.log(`画像データ読み込み完了: 型=${typeof result}, 長さ=${resultString.length}`);
+          
+          // プレビュー表示（アップロード中表示）
+          dropZone.innerHTML = `
+            <img src="${resultString}" class="image-preview" />
+            <p style="margin: 0 0 10px 0; color: var(--app-text-secondary);">${file.name}</p>
+            <p style="color: var(--app-warning);">自動保存中...</p>
+          `;
+          
+          // ファイル情報を保存
+          dropZone.dataset.fileName = file.name;
+          dropZone.dataset.fileType = file.type;
+          dropZone.dataset.fileData = resultString;
+          
+          // 自動的に保存処理を実行
+          setTimeout(() => {
+            handleSaveClick();
+          }, 300); // 少し遅延させて実行（UIのレンダリングが完了した後）
+        } catch (error) {
+          console.error('画像読み込み処理エラー:', error);
+          showError(`画像データの処理に失敗しました: ${error.message}`);
+        }
       };
       
       reader.readAsDataURL(file);
@@ -455,6 +476,7 @@
       // 画像の共有（ScopeManagerPanel.tsで期待されるフィールド名に合わせる）
       vscode.postMessage({
         command: 'shareImage',
+        serviceType: 'sharing',  // 新たにサービスタイプを追加
         imageData: imageData,  // ScopeManagerPanel.tsは'imageData'フィールドを参照している
         fileName: fileName,
         fileType: fileType
@@ -474,8 +496,11 @@
       const text = textarea.value.trim();
       const suggestedFilename = generateFilenameFromText(text);
       
+      console.log('テキストデータを送信します', { textLength: text.length, filename: suggestedFilename });
+      
       vscode.postMessage({
         command: 'shareText',
+        serviceType: 'sharing',  // 新たにサービスタイプを追加
         text: text,
         suggestedFilename: suggestedFilename
       });
@@ -859,8 +884,11 @@
       }, 1500);
     }
     
-    // 履歴の更新リクエスト
-    requestHistoryUpdate();
+    // 履歴の更新リクエスト - 少し遅延させてリクエストを送信（他の初期化処理が完了した後）
+    setTimeout(() => {
+      requestHistoryUpdate();
+      console.log('初期化後の履歴更新リクエストを送信しました');
+    }, 500);
     
     // 複数回の更新を試みて確実に履歴が反映されるようにする
     // 最初の更新
@@ -978,9 +1006,15 @@
    * 履歴の更新リクエスト
    */
   function requestHistoryUpdate() {
-    vscode.postMessage({
-      command: 'getHistory'
-    });
+    try {
+      vscode.postMessage({
+        command: 'getHistory',
+        serviceType: 'sharing' // 新しいメッセージディスパッチサービス用のサービスタイプを指定
+      });
+      console.log('履歴更新リクエストを送信しました (serviceType: sharing)');
+    } catch (error) {
+      console.error('履歴更新リクエスト送信エラー:', error);
+    }
   }
   
   /**

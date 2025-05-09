@@ -13,6 +13,7 @@ export interface ISharingService extends IService {
   
   // コマンド生成
   generateCommand(file: any): string;
+  getCommandByFileId(fileId: string): Promise<string | null>;
   
   // イベント
   onHistoryUpdated: vscode.Event<any[]>;
