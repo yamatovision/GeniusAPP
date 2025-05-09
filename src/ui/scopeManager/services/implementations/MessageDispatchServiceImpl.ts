@@ -55,12 +55,10 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     // イベントリスナーの設定
     this._setupEventListeners();
     
-    // 標準ハンドラの登録
-    this.registerProjectHandlers();
-    this.registerFileHandlers();
-    this.registerSharingHandlers();
+    // 標準ハンドラの登録は依存サービスが設定された後で行うため、ここでは行わない
+    // 代わりにsetDependencies内でハンドラ登録を行う
     
-    Logger.info('MessageDispatchServiceImpl: 初期化完了 - 標準ハンドラを登録しました');
+    Logger.info('MessageDispatchServiceImpl: 初期化完了');
   }
   
   /**
@@ -68,10 +66,15 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
    * @private
    */
   private _setupEventListeners(): void {
-    // イベントリスナーを登録
-    // イベントバスからのメッセージを処理
+    // イベントリスナーはより選択的に追加する
+    // 循環参照の問題を回避するため、制限付きのリスナーのみ追加
     this._eventBus.onEvent((event) => {
-      // 任意のイベントを処理（型に依存しない）
+      // 自分自身が発行したイベントは無視（循環を防止）
+      if (event.source === 'MessageDispatchService') {
+        return;
+      }
+      
+      // 特定の条件を満たすイベントのみを処理
       if (typeof event.data === 'object' && event.data && 
           ('command' in event.data || 'success' in event.data)) {
         // イベントバス経由で他のサービスから送信されたメッセージを中継
@@ -98,30 +101,30 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   }): void {
     if (services.sharingService) {
       this._sharingService = services.sharingService;
-      Logger.debug('MessageDispatchServiceImpl: SharingServiceが設定されました');
     }
     
     if (services.projectService) {
       this._projectService = services.projectService;
-      Logger.debug('MessageDispatchServiceImpl: ProjectServiceが設定されました');
     }
     
     if (services.fileSystemService) {
       this._fileSystemService = services.fileSystemService;
-      Logger.debug('MessageDispatchServiceImpl: FileSystemServiceが設定されました');
     }
     
     if (services.uiStateService) {
       this._uiStateService = services.uiStateService;
-      Logger.debug('MessageDispatchServiceImpl: UIStateServiceが設定されました');
     }
     
     if (services.panelService) {
       this._panelService = services.panelService;
-      Logger.debug('MessageDispatchServiceImpl: PanelServiceが設定されました');
     }
     
-    Logger.info('MessageDispatchServiceImpl: 依存サービスを設定しました');
+    // 依存サービスが設定された後でハンドラを登録
+    this.registerProjectHandlers();
+    this.registerFileHandlers();
+    this.registerSharingHandlers();
+    
+    Logger.debug('MessageDispatchServiceImpl: 依存サービスを設定しました');
   }
   
   /**
@@ -133,42 +136,20 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     try {
       panel.webview.postMessage(message);
       
-      // メッセージ送信のログ記録
-      if (message.command === 'updateMarkdownContent' || message.command === 'updateDirectoryStructure') {
-        // 大きいコンテンツはログに出力しない
-        Logger.debug(`MessageDispatchServiceImpl: 大きいコンテンツのメッセージを送信: ${message.command}`);
-      } else {
-        Logger.debug(`MessageDispatchServiceImpl: メッセージを送信: ${message.command}, データ: ${JSON.stringify(message, (key, value) => 
-          key === 'content' || key === 'structure' || key === 'projects' || key === 'history' ? '[省略]' : value)}`);
+      // 最小限のログ出力に抑える
+      if (message.command && message.command !== 'updateMarkdownContent' && message.command !== 'updateDirectoryStructure') {
+        // コマンド名のみをログ出力し、データは出力しない
+        Logger.debug(`MessageDispatchServiceImpl: 送信: ${message.command}`);
       }
-      
-      // イベントバスに送信イベントを発行（任意のイベントとして）
-      this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
-        command: message.command,
-        success: true
-      }, 'MessageDispatchService');
     } catch (error) {
       Logger.error(`MessageDispatchServiceImpl: メッセージ「${message.command}」の送信に失敗`, error as Error);
       
-      // エラーイベントを発行
-      this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
-        command: message.command,
-        success: false
-      }, 'MessageDispatchService');
-      
-      // メッセージの重要度に応じてリトライするかどうかを判断
-      const isImportantMessage = 
-        message.priority === 'high' || 
-        ['showError', 'syncFullProjectState', 'updateMarkdownContent'].includes(message.command);
-      
-      if (isImportantMessage) {
+      // 重要なメッセージのみリトライ
+      if (message.priority === 'high') {
         try {
-          setTimeout(() => {
-            Logger.info(`MessageDispatchServiceImpl: 重要なメッセージ「${message.command}」を再送信`);
-            panel.webview.postMessage(message);
-          }, 100);
+          setTimeout(() => panel.webview.postMessage(message), 100);
         } catch (retryError) {
-          Logger.error(`MessageDispatchServiceImpl: メッセージ「${message.command}」の再送信にも失敗`, retryError as Error);
+          // エラーログは出力しない（重複防止）
         }
       }
     }
@@ -202,9 +183,16 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
    */
   public async handleMessage(message: Message, panel: vscode.WebviewPanel): Promise<void> {
     try {
-      Logger.debug(`MessageDispatchServiceImpl: メッセージを受信: ${message.command}, データ: ${JSON.stringify(message, (key, value) => 
-        key === 'content' || key === 'structure' ? '[省略]' : value)}`);
+      // コマンド名のみログ出力
+      Logger.debug(`MessageDispatchServiceImpl: 受信: ${message.command}`);
       
+      // サービスタイプがある場合は対応するサービスに直接ルーティング
+      if (message.serviceType) {
+        await this._routeToService(message, panel);
+        return;
+      }
+      
+      // 従来のハンドラベースルーティング
       const handler = this.handlers.get(message.command);
       if (handler) {
         // 対応するハンドラが登録されている場合
@@ -212,42 +200,93 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         
         // 処理成功イベントを発行
         this._onMessageProcessed.fire({ command: message.command, success: true });
-        
-        // イベントバス経由でも成功を通知
-        this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
-          command: message.command,
-          success: true,
-          data: message
-        }, 'MessageDispatchService');
       } else {
-        // ハンドラーが見つからない場合
-        Logger.warn(`MessageDispatchServiceImpl: ハンドラが未登録のコマンドです: ${message.command}`);
+        // ハンドラーが見つからない場合のみ警告ログ
+        Logger.warn(`MessageDispatchServiceImpl: ハンドラが未登録のコマンド: ${message.command}`);
         
         // 処理失敗イベントを発行
         this._onMessageProcessed.fire({ command: message.command, success: false });
-        
-        // イベントバス経由でも失敗を通知
-        this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
-          command: message.command, 
-          success: false,
-          error: 'ハンドラが未登録のコマンドです'
-        }, 'MessageDispatchService');
       }
     } catch (error) {
-      Logger.error(`MessageDispatchServiceImpl: メッセージ処理中にエラーが発生: ${message.command}`, error as Error);
+      // エラー発生時のログは簡潔に
+      Logger.error(`MessageDispatchServiceImpl: エラー: ${message.command}`, error as Error);
       
       // エラーメッセージをWebViewに返す
       this.showError(panel, `操作中にエラーが発生しました: ${(error as Error).message}`);
       
       // 処理失敗イベントを発行
       this._onMessageProcessed.fire({ command: message.command, success: false });
+    }
+  }
+  
+  /**
+   * メッセージを対応するサービスに転送
+   * @param message メッセージ
+   * @param panel WebViewパネル
+   */
+  private async _routeToService(message: Message, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+      let service: any = null;
       
-      // イベントバス経由でもエラーを通知
-      this._eventBus.publish(AppGeniusEventType.PROJECT_UPDATED, {
-        command: message.command, 
-        success: false,
-        error: (error as Error).message
-      }, 'MessageDispatchService');
+      // サービスタイプに応じたサービスを取得
+      switch (message.serviceType) {
+        case 'fileSystem':
+          service = this._fileSystemService;
+          break;
+        case 'project':
+          service = this._projectService;
+          break;
+        case 'sharing':
+          service = this._sharingService;
+          break;
+        case 'uiState':
+          service = this._uiStateService;
+          break;
+        case 'panel':
+          service = this._panelService;
+          break;
+        default:
+          throw new Error(`不明なサービスタイプ: ${message.serviceType}`);
+      }
+      
+      if (!service) {
+        throw new Error(`サービスが見つかりません: ${message.serviceType}`);
+      }
+      
+      // コマンドに対応するメソッドを呼び出す
+      if (typeof service[message.command] === 'function') {
+        // サービスの該当メソッドを呼び出し
+        const result = await service[message.command](message, panel);
+        
+        // リクエストIDがある場合は結果を返す
+        if (message.requestId) {
+          this.sendMessage(panel, {
+            command: 'response',
+            requestId: message.requestId,
+            data: result
+          });
+        }
+        
+        this._onMessageProcessed.fire({ command: message.command, success: true });
+      } else {
+        throw new Error(`メソッドが見つかりません: ${message.command}`);
+      }
+    } catch (error) {
+      Logger.error(`サービスルーティングエラー: ${message.serviceType}.${message.command}`, error as Error);
+      
+      // リクエストIDがある場合はエラーを返す
+      if (message.requestId) {
+        this.sendMessage(panel, {
+          command: 'response',
+          requestId: message.requestId,
+          error: (error as Error).message
+        });
+      } else {
+        // 通常のエラー表示
+        this.showError(panel, `${message.serviceType}サービスでエラーが発生: ${(error as Error).message}`);
+      }
+      
+      this._onMessageProcessed.fire({ command: message.command, success: false });
     }
   }
   
@@ -399,8 +438,15 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
           }
           
           // 共有履歴を初期化
-          if (this._sharingService) {
-            await this.getHistory(panel);
+          if (this._sharingService && typeof this._sharingService.getHistory === 'function') {
+            // 履歴を取得してパネルに送信
+            const history = await this._sharingService.getHistory();
+            if (history) {
+              this.sendMessage(panel, {
+                command: 'updateSharingHistory',
+                history: history
+              });
+            }
             Logger.info('MessageDispatchServiceImpl: 共有履歴を初期化しました');
           }
         }
@@ -415,42 +461,62 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     
     // Note: selectProject ハンドラーを削除 - ScopeManagerPanelで直接ProjectServiceImplを使って処理
     
-    // createProject ハンドラー
+    // createProject ハンドラーの再実装
+    // 従来のハンドラーと同じ機能ですが、ProjectServiceを利用するように変更
     this.registerHandler('createProject', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.projectName) {
-        await this.createProject(panel, message.projectName, message.description || '');
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: createProjectメッセージに必要なパラメータがありません');
-        this.showError(panel, 'プロジェクト作成に必要な情報が不足しています');
-      }
-    });
-    
-    // removeProject ハンドラー
-    this.registerHandler('removeProject', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.projectName && message.projectPath) {
-        await this.removeProject(panel, message.projectName, message.projectPath, message.projectId);
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: removeProjectメッセージに必要なパラメータがありません');
-        this.showError(panel, 'プロジェクト削除に必要な情報が不足しています');
-      }
-    });
-    
-    // getProjectList ハンドラー
-    this.registerHandler('getProjectList', async (_: Message, panel: vscode.WebviewPanel) => {
       try {
-        const allProjects = await this._projectService.getAllProjects();
-        const activeProject = this._projectService.getActiveProject();
+        const name = message.name || message.projectName || '';
+        const description = message.description || '';
         
-        this.sendMessage(panel, {
-          command: 'updateProjects',
-          projects: allProjects,
-          activeProject: activeProject
-        });
+        if (!name) {
+          throw new Error('プロジェクト名が指定されていません');
+        }
+        
+        Logger.info(`MessageDispatchServiceImpl: createProjectメッセージを受信 - ProjectServiceを利用して処理します: ${name}`);
+        
+        // ProjectServiceを使用してプロジェクトを作成
+        const projectId = await this._projectService.createProject(name, description);
+        
+        Logger.info(`MessageDispatchServiceImpl: プロジェクト作成に成功: ${name}, ID=${projectId}`);
+        this.showSuccess(panel, `プロジェクト「${name}」を作成しました`);
       } catch (error) {
-        Logger.error('MessageDispatchServiceImpl: プロジェクト一覧取得でエラー', error as Error);
-        this.showError(panel, `プロジェクト一覧の取得に失敗しました: ${(error as Error).message}`);
+        Logger.error(`MessageDispatchServiceImpl: プロジェクト作成でエラー`, error as Error);
+        this.showError(panel, `プロジェクト作成に失敗しました: ${(error as Error).message}`);
       }
     });
+    
+    // removeProject ハンドラーの再実装
+    // 従来のハンドラーと同じ機能ですが、ProjectServiceを利用するように変更
+    this.registerHandler('removeProject', async (message: Message, panel: vscode.WebviewPanel) => {
+      try {
+        const name = message.projectName || '';
+        const path = message.projectPath || '';
+        const id = message.projectId;
+        
+        if (!name && !path && !id) {
+          throw new Error('プロジェクト情報が不足しています');
+        }
+        
+        Logger.info(`MessageDispatchServiceImpl: removeProjectメッセージを受信 - ProjectServiceを利用して処理します: ${name}, path=${path}, id=${id || '不明'}`);
+        
+        // ProjectServiceを使用してプロジェクトを削除
+        const result = await this._projectService.removeProject(name, path, id);
+        
+        if (result) {
+          Logger.info(`MessageDispatchServiceImpl: プロジェクト削除に成功: ${name}`);
+          this.showSuccess(panel, `プロジェクト「${name}」の登録を解除しました`);
+        } else {
+          Logger.warn(`MessageDispatchServiceImpl: プロジェクト削除に失敗: ${name}`);
+          this.showError(panel, `プロジェクト「${name}」の登録解除に失敗しました`);
+        }
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: プロジェクト削除でエラー`, error as Error);
+        this.showError(panel, `プロジェクト登録解除に失敗しました: ${(error as Error).message}`);
+      }
+    });
+    
+    // Note: getProjectList ハンドラーは削除
+    // クライアントが直接ProjectServiceを使用するよう変更
     
     Logger.info('MessageDispatchServiceImpl: プロジェクト関連のメッセージハンドラーを登録しました');
   }
@@ -465,20 +531,8 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       return;
     }
     
-    // openFileInEditor ハンドラー
-    this.registerHandler('openFileInEditor', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.filePath) {
-        try {
-          await this._fileSystemService.openFileInEditor(message.filePath);
-          this.showSuccess(panel, `ファイルをエディタで開きました: ${path.basename(message.filePath)}`);
-        } catch (error) {
-          this.showError(panel, `ファイルを開けませんでした: ${(error as Error).message}`);
-        }
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: openFileInEditorメッセージにfilePath必須パラメータがありません');
-        this.showError(panel, 'ファイルパスが指定されていません');
-      }
-    });
+    // Note: openFileInEditor ハンドラーは削除
+    // クライアントが直接FileSystemServiceを使用するよう変更
     
     // navigateDirectory ハンドラー
     this.registerHandler('navigateDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
@@ -521,100 +575,47 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       }
     });
     
-    // getFileContentForTab ハンドラー（ファイルの内容をタブで表示するための中間処理）
-    this.registerHandler('getFileContentForTab', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.filePath) {
-        try {
-          const content = await this._fileSystemService.readFile(message.filePath);
-          
-          // ファイルの内容をタブで表示するメッセージを送信
-          this.sendMessage(panel, {
-            command: 'openFileContentInTab',
-            filePath: message.filePath,
-            fileName: path.basename(message.filePath),
-            content: content,
-            isMarkdown: message.isMarkdown || message.filePath.endsWith('.md')
-          });
-          
-          Logger.info(`MessageDispatchServiceImpl: ファイル内容をタブ表示用に取得しました: ${message.filePath}`);
-        } catch (error) {
-          this.showError(panel, `ファイルを開けませんでした: ${(error as Error).message}`);
-        }
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: getFileContentForTabメッセージにfilePath必須パラメータがありません');
-        this.showError(panel, 'ファイルパスが指定されていません');
-      }
-    });
+    // Note: getFileContentForTab ハンドラーは削除
+    // クライアントが直接FileSystemServiceを使用するよう変更
     
     // openFileAsTab ハンドラー（ファイルをタブで直接開く）
     this.registerHandler('openFileAsTab', async (message: Message, panel: vscode.WebviewPanel) => {
       if (!message.filePath) {
-        Logger.warn('MessageDispatchServiceImpl: openFileAsTabメッセージにfilePath必須パラメータがありません');
         this.showError(panel, 'ファイルパスが指定されていません');
         return;
       }
       
       try {
-        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きます: ${message.filePath}`);
-        
         // ファイルの内容を読み込む
         const content = await this._fileSystemService.readFile(message.filePath);
         
-        // ファイルのタイプを判定
-        const fileType = message.fileType || path.extname(message.filePath).toLowerCase().slice(1);
-        const isMarkdown = fileType === 'md' || fileType === 'markdown';
-        
-        // ファイル名をタブIDに変換（一意にするためパスからハッシュ生成）
+        // 最低限必要な情報を取得
+        const fileType = message.fileType || this._fileSystemService.getFileType(message.filePath);
+        const isMarkdown = fileType === 'markdown';
         const fileName = message.fileName || path.basename(message.filePath);
         const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
         
         // タブを開くメッセージを送信
         this.sendMessage(panel, {
           command: 'addFileTab',
-          tabId: tabId,
+          tabId,
           title: fileName,
-          content: content,
-          isMarkdown: isMarkdown,
+          content,
+          isMarkdown,
           filePath: message.filePath,
           lastModified: message.lastModified || new Date().toISOString()
         });
-        
-        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きました: ${message.filePath}`);
       } catch (error) {
-        Logger.error(`MessageDispatchServiceImpl: ファイルをタブで開く際にエラーが発生しました: ${message.filePath}`, error as Error);
-        this.showError(panel, `ファイルをタブで開けませんでした: ${(error as Error).message}`);
+        this.showError(panel, `ファイルを開けません: ${(error as Error).message}`);
       }
     });
     
-    // getMarkdownContent ハンドラー（マークダウンファイルの読み込み用）
-    this.registerHandler('getMarkdownContent', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (!message.filePath) {
-        Logger.warn('MessageDispatchServiceImpl: getMarkdownContentメッセージにfilePath必須パラメータがありません');
-        this.showError(panel, 'ファイルパスが指定されていません');
-        return;
-      }
-      
-      try {
-        Logger.info(`ファイルを読み込みました: ${message.filePath}`);
-        const content = await this._fileSystemService.readMarkdownFile(message.filePath);
-        Logger.info(`FileSystemService: マークダウンコンテンツを読み込みました: ${message.filePath}`);
-        
-        this.sendMessage(panel, {
-          command: 'updateMarkdownContent',
-          content: content,
-          timestamp: Date.now(),
-          priority: 'high',
-          forScopeProgress: message.forScopeProgress || false,
-          forRequirements: message.forRequirements || false,
-          forceRefresh: message.forceRefresh || false
-        });
-      } catch (error) {
-        Logger.error(`MessageDispatchServiceImpl: マークダウンファイル読み込みでエラー: ${message.filePath}`, error as Error);
-        this.showError(panel, `マークダウンファイルを読み込めませんでした: ${(error as Error).message}`);
-      }
-    });
+    // Note: 重複したopenFileAsTabハンドラーの定義は削除
     
-    // listDirectory ハンドラー（ディレクトリ内容の一覧取得）
+    // Note: getMarkdownContent ハンドラーは削除
+    // クライアントが直接FileSystemServiceを使用するよう変更
+    
+    // Note: listDirectory ハンドラーは維持（現時点では削除せず）
     this.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
       if (!message.path) {
         Logger.warn('MessageDispatchServiceImpl: listDirectoryメッセージにpath必須パラメータがありません');
@@ -636,106 +637,13 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       }
     });
     
-    // openFileAsTab ハンドラー（新規実装 - タブに表示）
-    this.registerHandler('openFileAsTab', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (!message.filePath) {
-        Logger.warn('MessageDispatchServiceImpl: openFileAsTabメッセージにfilePath必須パラメータがありません');
-        this.showError(panel, 'ファイルパスが指定されていません');
-        return;
-      }
-      
-      try {
-        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きます: ${message.filePath}`);
-        
-        // ファイルの内容を読み込む
-        const content = await this._fileSystemService.readFile(message.filePath);
-        
-        // ファイルのタイプを判定
-        const fileType = message.fileType || path.extname(message.filePath).toLowerCase().slice(1);
-        const isMarkdown = fileType === 'md' || fileType === 'markdown';
-        
-        // ファイル名をタブIDに変換（一意にするためパスからハッシュ生成）
-        const fileName = message.fileName || path.basename(message.filePath);
-        const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
-        
-        // タブを開くメッセージを送信
-        this.sendMessage(panel, {
-          command: 'addFileTab',
-          tabId: tabId,
-          title: fileName,
-          content: content,
-          isMarkdown: isMarkdown,
-          filePath: message.filePath,
-          lastModified: message.lastModified || new Date().toISOString()
-        });
-        
-        Logger.info(`MessageDispatchServiceImpl: ファイルをタブで開きました: ${message.filePath}`);
-      } catch (error) {
-        Logger.error(`MessageDispatchServiceImpl: ファイルをタブで開く際にエラーが発生しました: ${message.filePath}`, error as Error);
-        this.showError(panel, `ファイルをタブで開けませんでした: ${(error as Error).message}`);
-      }
-    });
+    // openFileAsTabハンドラーは上部で既に定義済み
     
-    // refreshFileBrowser ハンドラー
-    this.registerHandler('refreshFileBrowser', async (message: Message, panel: vscode.WebviewPanel) => {
-      try {
-        const projectPath = message.projectPath || (this._projectService ? this._projectService.getActiveProjectPath() : undefined);
-        
-        if (!projectPath) {
-          this.showError(panel, 'アクティブなプロジェクトがありません');
-          return;
-        }
-        
-        const structure = await this._fileSystemService.getDirectoryStructure(projectPath);
-        this.sendMessage(panel, {
-          command: 'updateDirectoryStructure',
-          structure: structure,
-          projectPath: projectPath // 明示的にプロジェクトパスを含める
-        });
-      } catch (error) {
-        this.showError(panel, `ディレクトリ構造の更新に失敗しました: ${(error as Error).message}`);
-      }
-    });
+    // Note: refreshFileBrowser ハンドラーは削除
+    // クライアントが直接FileSystemServiceを使用するよう変更
     
-    // getProjectPath ハンドラー
-    this.registerHandler('getProjectPath', async (message: Message, panel: vscode.WebviewPanel) => {
-      try {
-        const projectPath = this._projectService ? this._projectService.getActiveProjectPath() : undefined;
-        
-        if (!projectPath) {
-          this.showError(panel, 'アクティブなプロジェクトがありません');
-          return;
-        }
-        
-        this.sendMessage(panel, {
-          command: 'setProjectPath',
-          projectPath: projectPath
-        });
-        
-        // 一緒にディレクトリリスティングも送信
-        try {
-          if (this._fileSystemService) {
-            // プロジェクトパスと docs フォルダのパスを構築
-            const docsPath = path.join(projectPath, 'docs');
-            // docs フォルダが存在するか確認
-            const docsExists = fs.existsSync(docsPath);
-            // 表示するパスを決定（docs が存在すればそちらを表示、なければプロジェクトルート）
-            const displayPath = docsExists ? docsPath : projectPath;
-            
-            const files = await this._fileSystemService.listDirectory(displayPath);
-            this.sendMessage(panel, {
-              command: 'updateFileList',
-              files: files,
-              currentPath: displayPath
-            });
-          }
-        } catch (listError) {
-          Logger.warn(`MessageDispatchServiceImpl: ディレクトリリスト取得エラー: ${projectPath}`, listError as Error);
-        }
-      } catch (error) {
-        this.showError(panel, `プロジェクトパスの取得に失敗しました: ${(error as Error).message}`);
-      }
-    });
+    // Note: getProjectPath ハンドラーは削除
+    // クライアントが直接ProjectServiceを使用するよう変更
     
     Logger.info('MessageDispatchServiceImpl: ファイル操作関連のメッセージハンドラーを登録しました');
   }
@@ -750,290 +658,32 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       return;
     }
     
-    // getHistory ハンドラー
-    this.registerHandler('getHistory', async (message: Message, panel: vscode.WebviewPanel) => {
-      await this.getHistory(panel);
-    });
+    // Note: getHistory ハンドラーは削除
+    // クライアントが直接SharingServiceを使用するよう変更
     
-    // deleteFromHistory ハンドラー
-    this.registerHandler('deleteFromHistory', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.fileId) {
-        await this.deleteFromHistory(panel, message.fileId);
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: deleteFromHistoryメッセージにfileId必須パラメータがありません');
-        this.showError(panel, 'ファイルIDが指定されていません');
-      }
-    });
+    // Note: deleteFromHistory ハンドラーは削除
+    // クライアントが直接SharingServiceを使用するよう変更
     
-    // copyCommand ハンドラー
-    this.registerHandler('copyCommand', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.fileId) {
-        await this.copyCommand(panel, message.fileId);
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: copyCommandメッセージにfileId必須パラメータがありません');
-        this.showError(panel, 'ファイルIDが指定されていません');
-      }
-    });
+    // Note: copyCommand ハンドラーは削除
+    // クライアントが直接SharingServiceを使用するよう変更
     
-    // copyToClipboard ハンドラー
-    this.registerHandler('copyToClipboard', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.text) {
-        await this.copyToClipboard(panel, message.text);
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: copyToClipboardメッセージにtext必須パラメータがありません');
-        this.showError(panel, 'コピーするテキストが指定されていません');
-      }
-    });
+    // Note: copyToClipboard ハンドラーは削除
+    // クライアントが直接VSCodeのクリップボードAPIを使用するよう変更
     
-    // shareClipboard ハンドラー
-    this.registerHandler('shareClipboard', async (message: Message, panel: vscode.WebviewPanel) => {
-      try {
-        if (!message.content) {
-          this.showError(panel, '共有するコンテンツが指定されていません');
-          return;
-        }
-        
-        await this._sharingService.shareContent(message.content, message.title);
-        await this.getHistory(panel);
-        this.showSuccess(panel, '内容をClaudeCodeで共有できるようになりました');
-      } catch (error) {
-        this.showError(panel, `共有に失敗しました: ${(error as Error).message}`);
-      }
-    });
+    // Note: shareClipboard ハンドラーは削除
+    // クライアントが直接SharingServiceを使用するよう変更
     
     Logger.info('MessageDispatchServiceImpl: 共有関連のメッセージハンドラーを登録しました');
   }
   
-  /**
-   * 共有履歴を取得
-   * @param panel WebViewパネル
-   * @returns 処理が成功したかどうか
-   */
-  public async getHistory(panel: vscode.WebviewPanel): Promise<boolean> {
-    try {
-      if (!this._sharingService) {
-        Logger.warn('MessageDispatchServiceImpl: 共有履歴取得に失敗 - SharingServiceが設定されていません');
-        this.showError(panel, '共有サービスが利用できないため、履歴を取得できません');
-        return false;
-      }
-      
-      const history = await this._sharingService.getHistory();
-      
-      this.sendMessage(panel, {
-        command: 'updateSharingHistory',
-        history: history || []
-      });
-      
-      return true;
-    } catch (error) {
-      Logger.error('MessageDispatchServiceImpl: 共有履歴取得でエラー', error as Error);
-      this.showError(panel, `共有履歴の取得に失敗しました: ${(error as Error).message}`);
-      return false;
-    }
-  }
+  // Note: 共有関連のメソッドはすべて削除
+  // クライアントが直接SharingServiceを使用するよう変更
   
-  /**
-   * 履歴から項目を削除
-   * @param panel WebViewパネル
-   * @param fileId 削除するファイルID
-   */
-  public async deleteFromHistory(panel: vscode.WebviewPanel, fileId: string): Promise<void> {
-    try {
-      if (!this._sharingService) {
-        Logger.warn('MessageDispatchServiceImpl: 履歴削除に失敗 - SharingServiceが設定されていません');
-        this.showError(panel, '共有サービスが利用できないため、履歴から削除できません');
-        return;
-      }
-      
-      const success = await this._sharingService.deleteFromHistory(fileId);
-      
-      if (success) {
-        Logger.info(`MessageDispatchServiceImpl: 共有履歴から項目を削除: ${fileId}`);
-        // 履歴を更新して送信
-        await this.getHistory(panel);
-        this.showSuccess(panel, '履歴から項目を削除しました');
-      } else {
-        Logger.warn(`MessageDispatchServiceImpl: 共有履歴からの項目削除に失敗: ${fileId}`);
-        this.showError(panel, '履歴からの削除に失敗しました');
-      }
-    } catch (error) {
-      Logger.error(`MessageDispatchServiceImpl: 履歴削除でエラー: ${fileId}`, error as Error);
-      this.showError(panel, `履歴からの削除中にエラーが発生しました: ${(error as Error).message}`);
-    }
-  }
+  // Note: selectProjectメソッドは削除済み - ScopeManagerPanelで直接ProjectServiceImplを呼び出す
   
-  /**
-   * ファイルのコマンドをクリップボードにコピー
-   * @param panel WebViewパネル
-   * @param fileId コピーするファイルID
-   */
-  public async copyCommand(panel: vscode.WebviewPanel, fileId: string): Promise<void> {
-    try {
-      if (!this._sharingService) {
-        Logger.warn('MessageDispatchServiceImpl: コマンドコピーに失敗 - SharingServiceが設定されていません');
-        this.showError(panel, '共有サービスが利用できないため、コマンドをコピーできません');
-        return;
-      }
-      
-      // ファイルを履歴から検索
-      const history = await this._sharingService.getHistory();
-      const file = history.find((item: any) => item.id === fileId);
-      
-      if (file) {
-        // コマンドを生成
-        const command = await this._sharingService.generateCommand(file);
-        
-        // VSCodeのクリップボード機能を使用
-        await vscode.env.clipboard.writeText(command);
-        
-        // アクセスカウントを増やす
-        await this._sharingService.recordAccess(fileId);
-        
-        // 成功メッセージを表示
-        this.showSuccess(panel, `コマンドをクリップボードにコピーしました`);
-        
-        // WebViewに通知
-        this.sendMessage(panel, {
-          command: 'commandCopied',
-          fileId: fileId,
-          fileName: file.title || file.originalName || file.fileName
-        });
-      } else {
-        Logger.warn(`MessageDispatchServiceImpl: コピー対象のファイルが見つかりません: ${fileId}`);
-        this.showError(panel, '指定されたファイルが見つかりません');
-      }
-    } catch (error) {
-      Logger.error(`MessageDispatchServiceImpl: コピーコマンド実行でエラー: ${fileId}`, error as Error);
-      this.showError(panel, `コピーに失敗しました: ${(error as Error).message}`);
-    }
-  }
+  // Note: createProjectメソッドは削除 - クライアントが直接ProjectServiceを使用するよう変更
   
-  /**
-   * テキストをクリップボードにコピー
-   * @param panel WebViewパネル
-   * @param text コピーするテキスト
-   */
-  public async copyToClipboard(panel: vscode.WebviewPanel, text: string): Promise<void> {
-    try {
-      // VSCodeのクリップボード機能を使用
-      await vscode.env.clipboard.writeText(text);
-      
-      // 成功メッセージを表示
-      this.showSuccess(panel, 'テキストをクリップボードにコピーしました');
-    } catch (error) {
-      Logger.error('MessageDispatchServiceImpl: クリップボードコピーでエラー', error as Error);
-      this.showError(panel, `クリップボードへのコピーに失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  // selectProjectメソッドは削除 - ScopeManagerPanelで直接ProjectServiceImplを呼び出す
-  
-  /**
-   * 新規プロジェクト作成
-   * @param panel WebViewパネル
-   * @param projectName プロジェクト名
-   * @param description プロジェクト説明
-   * @returns 処理結果
-   */
-  public async createProject(panel: vscode.WebviewPanel, projectName: string, description: string): Promise<boolean> {
-    try {
-      Logger.info(`MessageDispatchServiceImpl: プロジェクト作成処理: ${projectName}`);
-      
-      // 入力検証
-      if (!projectName || projectName.trim() === '') {
-        this.showError(panel, 'プロジェクト名を入力してください');
-        return false;
-      }
-      
-      // 必須サービスが設定されているか確認
-      if (!this._projectService) {
-        this.showError(panel, 'プロジェクトサービスが利用できないため、プロジェクトを作成できません');
-        return false;
-      }
-      
-      // プロジェクト作成
-      const projectId = await this._projectService.createProject(projectName, description);
-      
-      // プロジェクト情報取得
-      const project = this._projectService.getActiveProject();
-      
-      // パネルサービスが利用可能か確認
-      if (this._panelService && typeof this._panelService.syncActiveProject === 'function' && project) {
-        // パネルサービスを使用してプロジェクト状態を一括同期
-        await this._panelService.syncActiveProject(project);
-        return true;
-      } else {
-        // 従来の実装（PanelServiceが利用できない場合）
-        Logger.warn('MessageDispatchServiceImpl: PanelServiceが利用できないため従来の実装でプロジェクト作成後処理');
-        
-        // プロジェクトの最新情報を取得
-        const activeProject = this._projectService.getActiveProject();
-        const allProjects = await this._projectService.getAllProjects();
-        
-        // WebViewにプロジェクト一覧を更新
-        this.sendMessage(panel, {
-          command: 'updateProjects',
-          projects: allProjects,
-          activeProject: activeProject
-        });
-        
-        // 成功メッセージを表示
-        this.showSuccess(panel, `プロジェクト「${projectName}」を作成しました`);
-        return true;
-      }
-    } catch (error) {
-      Logger.error(`MessageDispatchServiceImpl: プロジェクト作成でエラー: ${projectName}`, error as Error);
-      this.showError(panel, `プロジェクト「${projectName}」の作成に失敗しました: ${(error as Error).message}`);
-      return false;
-    }
-  }
-  
-  /**
-   * プロジェクト削除（登録解除）
-   * @param panel WebViewパネル
-   * @param projectName プロジェクト名
-   * @param projectPath プロジェクトパス
-   * @param projectId プロジェクトID（オプション）
-   * @returns 処理結果
-   */
-  public async removeProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, projectId?: string): Promise<boolean> {
-    try {
-      Logger.info(`MessageDispatchServiceImpl: プロジェクト削除処理: ${projectName}, パス: ${projectPath}`);
-      
-      // 必須サービスが設定されているか確認
-      if (!this._projectService) {
-        this.showError(panel, 'プロジェクトサービスが利用できないため、プロジェクトを削除できません');
-        return false;
-      }
-      
-      // プロジェクト削除
-      const removed = await this._projectService.removeProject(projectName, projectPath, projectId);
-      
-      if (removed) {
-        // 最新のプロジェクト情報を取得
-        const activeProject = this._projectService.getActiveProject();
-        const allProjects = await this._projectService.getAllProjects();
-        
-        // WebViewにプロジェクト一覧を更新
-        this.sendMessage(panel, {
-          command: 'updateProjects',
-          projects: allProjects,
-          activeProject: activeProject
-        });
-        
-        // 成功メッセージを表示
-        this.showSuccess(panel, `プロジェクト「${projectName}」の登録を解除しました`);
-        return true;
-      } else {
-        this.showError(panel, `プロジェクト「${projectName}」の登録解除に失敗しました`);
-        return false;
-      }
-    } catch (error) {
-      Logger.error(`MessageDispatchServiceImpl: プロジェクト削除でエラー: ${projectName}`, error as Error);
-      this.showError(panel, `プロジェクト「${projectName}」の登録解除に失敗しました: ${(error as Error).message}`);
-      return false;
-    }
-  }
+  // Note: removeProjectメソッドは削除 - クライアントが直接ProjectServiceを使用するよう変更
   
   /**
    * リソース解放

@@ -4,6 +4,10 @@ import { IService, Message } from './common';
 /**
  * メッセージディスパッチサービスインターフェース
  * WebViewとバックエンドサービス間のメッセージルーティングを担当
+ * 
+ * 注意: このインターフェースは簡素化され、ほとんどの機能は各専門サービスに移行されました。
+ * クライアントは直接必要なサービス（IFileSystemService, IProjectService, ISharingServiceなど）
+ * を使用することが推奨されます。
  */
 export interface IMessageDispatchService extends IService {
   // 基本メッセージング機能
@@ -11,15 +15,6 @@ export interface IMessageDispatchService extends IService {
   registerHandler(command: string, handler: (message: Message, panel: vscode.WebviewPanel) => Promise<void>): void;
   registerHandlers(handlers: Map<string, (message: Message, panel: vscode.WebviewPanel) => Promise<void>>): void;
   handleMessage(message: Message, panel: vscode.WebviewPanel): Promise<void>;
-  
-  // 標準ハンドラー登録
-  registerProjectHandlers(): void;
-  registerFileHandlers(): void;
-  registerSharingHandlers(): void;
-  
-  // 拡張機能: 標準メッセージ
-  showError(panel: vscode.WebviewPanel, message: string): void;
-  showSuccess(panel: vscode.WebviewPanel, message: string): void;
   
   // WebViewからのメッセージ処理設定
   setupMessageReceiver(panel: vscode.WebviewPanel): vscode.Disposable;
@@ -33,16 +28,9 @@ export interface IMessageDispatchService extends IService {
     panelService?: any;
   }): void;
   
-  // 共有関連の標準メソッド
-  getHistory(panel: vscode.WebviewPanel): Promise<boolean>;
-  deleteFromHistory(panel: vscode.WebviewPanel, fileId: string): Promise<void>;
-  copyCommand(panel: vscode.WebviewPanel, fileId: string): Promise<void>;
-  copyToClipboard(panel: vscode.WebviewPanel, text: string): Promise<void>;
-  
-  // プロジェクト管理メッセージハンドラー
-  selectProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, activeTab?: string): Promise<boolean | void>;
-  createProject(panel: vscode.WebviewPanel, projectName: string, description: string): Promise<boolean | void>;
-  removeProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, projectId?: string): Promise<boolean | void>;
+  // 拡張機能: 標準メッセージ
+  showError(panel: vscode.WebviewPanel, message: string): void;
+  showSuccess(panel: vscode.WebviewPanel, message: string): void;
   
   // イベント
   onMessageProcessed: vscode.Event<{command: string, success: boolean}>;

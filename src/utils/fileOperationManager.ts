@@ -25,6 +25,27 @@ export class FileOperationManager {
     }
     return FileOperationManager.instance;
   }
+  
+  /**
+   * ファイルに内容を書き込む
+   * @param filePath ファイルのパス
+   * @param content 書き込む内容
+   */
+  public async writeFile(filePath: string, content: string): Promise<void> {
+    try {
+      // ディレクトリが存在しない場合は作成
+      const dirPath = path.dirname(filePath);
+      await this.ensureDirectoryExists(dirPath);
+      
+      // ファイルに書き込み
+      fs.writeFileSync(filePath, content, 'utf8');
+      
+      Logger.info(`ファイルに書き込みました: ${filePath}`);
+    } catch (error) {
+      Logger.error(`ファイル書き込みエラー: ${(error as Error).message}`);
+      throw error;
+    }
+  }
 
   /**
    * ターミナルインターフェースを設定
@@ -195,7 +216,8 @@ export class FileOperationManager {
       
       // ファイルを読み込み
       const content = fs.readFileSync(filePath, 'utf8');
-      Logger.info(`ファイルを読み込みました: ${filePath} (サイズ: ${content.length} バイト)`);
+      // 低レベルのログは削除または下げる
+      Logger.debug(`ファイルを読み込みました: ${filePath} (サイズ: ${content.length} バイト)`);
       return content;
     } catch (error) {
       Logger.error(`ファイル読み込みエラー: ${(error as Error).message}`);

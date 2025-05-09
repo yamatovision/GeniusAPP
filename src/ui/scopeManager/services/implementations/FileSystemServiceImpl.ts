@@ -5,12 +5,15 @@ import { Logger } from '../../../../utils/logger';
 import { FileOperationManager } from '../../../../utils/fileOperationManager';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../../../services/AppGeniusEventBus';
 import { IFileSystemService, IProjectDocument } from '../interfaces';
+import { IWebViewCommunication } from '../interfaces/IWebViewCommunication';
+import { IMessageDispatchService } from '../interfaces/IMessageDispatchService';
+import { Message } from '../interfaces/common';
 
 /**
  * ファイルシステムサービス実装
- * IFileSystemServiceインターフェースの実装
+ * IFileSystemServiceインターフェースとIWebViewCommunicationインターフェースの実装
  */
-export class FileSystemServiceImpl implements IFileSystemService {
+export class FileSystemServiceImpl implements IFileSystemService, IWebViewCommunication {
   private _onProgressFileChanged = new vscode.EventEmitter<string>();
   public readonly onProgressFileChanged = this._onProgressFileChanged.event;
   
@@ -26,6 +29,7 @@ export class FileSystemServiceImpl implements IFileSystemService {
   private _docsDirWatcher: fs.FSWatcher | null = null;
   private _extensionPath: string;
   private _currentFileList: IProjectDocument[] = [];
+  private _messageDispatchService: IMessageDispatchService | null = null;
   
   // シングルトンインスタンス
   private static _instance: FileSystemServiceImpl;
@@ -52,27 +56,13 @@ export class FileSystemServiceImpl implements IFileSystemService {
    * @param filePath ファイルパス
    */
   public async readMarkdownFile(filePath: string): Promise<string> {
-    try {
-      // ファイルが存在するか確認
-      if (!fs.existsSync(filePath)) {
-        // ファイルが見つからない場合はエラーを出さずに空文字を返す
-        Logger.warn(`FileSystemService: ファイルが見つかりません（空文字を返します）: ${filePath}`);
-        return '';
-      }
-      
-      // ファイルの内容を読み込む
-      const content = await this._fileManager.readFileAsString(filePath);
-      
-      Logger.info(`FileSystemService: マークダウンコンテンツを読み込みました: ${filePath}`);
-      
-      // 読み込んだファイルの内容をイベントとして通知
-      this._onProgressFileChanged.fire(filePath);
-      
-      return content;
-    } catch (error) {
-      Logger.error(`FileSystemService: マークダウンファイル読み込み中にエラーが発生しました: ${filePath}`, error as Error);
-      throw error;
-    }
+    // ファイル読み込みを完全にFileOperationManagerに委譲
+    const content = await this._fileManager.readFileAsString(filePath);
+    
+    // イベント通知のみをこのレイヤーで処理
+    this._onProgressFileChanged.fire(filePath);
+    
+    return content;
   }
   
   /**
@@ -81,32 +71,16 @@ export class FileSystemServiceImpl implements IFileSystemService {
    * @param fileType ファイルのタイプ（オプション）
    */
   public async readFile(filePath: string, fileType?: string): Promise<string> {
-    try {
-      // ファイルが存在するか確認
-      if (!fs.existsSync(filePath)) {
-        // ファイルが見つからない場合はエラーを出さずに空文字を返す
-        Logger.warn(`FileSystemService: ファイルが見つかりません（空文字を返します）: ${filePath}`);
-        return '';
-      }
-      
-      // ファイルのタイプが指定されていない場合は拡張子から判定
-      const type = fileType || this.getFileType(filePath);
-      
-      // マークダウンファイルの場合は専用の関数を使用
-      if (type === 'markdown') {
-        return await this.readMarkdownFile(filePath);
-      }
-      
-      // ファイルの内容を読み込む
-      const content = await this._fileManager.readFileAsString(filePath);
-      
-      Logger.info(`FileSystemService: ファイルコンテンツを読み込みました: ${filePath} (タイプ: ${type})`);
-      
-      return content;
-    } catch (error) {
-      Logger.error(`FileSystemService: ファイル読み込み中にエラーが発生しました: ${filePath}`, error as Error);
-      throw error;
+    // ファイルのタイプが指定されていない場合は拡張子から判定
+    const type = fileType || this.getFileType(filePath);
+    
+    // マークダウンファイルの場合はイベント通知付きの処理を使用
+    if (type === 'markdown') {
+      return await this.readMarkdownFile(filePath);
     }
+    
+    // 通常のファイル読み込みは完全に委譲
+    return await this._fileManager.readFileAsString(filePath);
   }
   
   /**
@@ -115,14 +89,13 @@ export class FileSystemServiceImpl implements IFileSystemService {
    * @returns ディレクトリ構造のJSONシリアライズ文字列
    */
   public async getDirectoryStructure(projectPath: string): Promise<string> {
+    if (!projectPath) {
+      throw new Error('プロジェクトパスが指定されていません');
+    }
+    
     try {
-      if (!projectPath) {
-        throw new Error('プロジェクトパスが指定されていません');
-      }
-      
       // ディレクトリが存在するか確認
       if (!fs.existsSync(projectPath)) {
-        Logger.warn(`FileSystemService: プロジェクトディレクトリが存在しません: ${projectPath}`);
         return '{}';
       }
       
@@ -137,7 +110,7 @@ export class FileSystemServiceImpl implements IFileSystemService {
       
       return structureJson;
     } catch (error) {
-      Logger.error(`FileSystemService: ディレクトリ構造の取得中にエラーが発生しました: ${projectPath}`, error as Error);
+      // エラーログをシンプルに
       throw error;
     }
   }
@@ -157,23 +130,12 @@ export class FileSystemServiceImpl implements IFileSystemService {
    * @param dirPath ディレクトリのパス
    */
   public async ensureDirectoryExists(dirPath: string): Promise<void> {
-    try {
-      if (!dirPath) {
-        throw new Error('ディレクトリパスが指定されていません');
-      }
-      
-      // ディレクトリが存在するか確認
-      if (fs.existsSync(dirPath)) {
-        return;
-      }
-      
-      // 階層的にディレクトリを作成（親ディレクトリが無い場合も自動的に作成）
-      fs.mkdirSync(dirPath, { recursive: true });
-      Logger.info(`FileSystemService: ディレクトリを作成しました: ${dirPath}`);
-    } catch (error) {
-      Logger.error(`FileSystemService: ディレクトリ作成中にエラーが発生しました: ${dirPath}`, error as Error);
-      throw error;
+    if (!dirPath) {
+      throw new Error('ディレクトリパスが指定されていません');
     }
+    
+    // FileOperationManagerに完全に委譲
+    return this._fileManager.ensureDirectoryExists(dirPath);
   }
   
   /**
@@ -256,38 +218,117 @@ export class FileSystemServiceImpl implements IFileSystemService {
    * @returns テンプレート内容
    */
   private _createProgressTemplate(projectName: string): string {
-    return `# [プロジェクト名] スコープと進捗状況
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD形式
+    
+    return `# [プロジェクト名] 開発プロセス進捗状況
 
-## 全体進捗
+**バージョン**: 0.1 (初期版)  
+**最終更新日**: ${today}  
+**ステータス**: プロジェクト作成完了・要件定義開始段階
 
-| カテゴリ | 進捗状況 | 前回からの変化 |
-|---------|---------|--------------|
-| 要件定義 | 🔄 進行中 | - |
-| 設計    | ⏱️ 未着手 | - |
-| 実装    | ⏱️ 未着手 | - |
-| テスト  | ⏱️ 未着手 | - |
-| 全体    | 🔄 進行中 | - |
+## 1. 基本情報
 
-## 現在のフォーカス
+- **ステータス**: 開始段階 (5% 完了)
+- **完了タスク数**: 1/20
+- **進捗率**: 5%
+- **次のマイルストーン**: 要件定義完了 (目標: [日付])
 
-- 要件定義の完成
-- プロジェクト構造の決定
+## 2. 実装概要
 
-## 実装スコープ
+[プロジェクト名]は、[このプロジェクトが解決する核心的な課題と提供する本質的な価値の簡潔な説明を1-2文で記述します]。このプロジェクトは現在、リポジトリとプロジェクト環境の準備が完了し、要件定義フェーズを開始しています。
 
-### 必須機能（MVP）
+## 3. 参照ドキュメント
 
-- [ ] 機能1: 説明
-- [ ] 機能2: 説明
+*このスコープで重要となる参照ドキュメントができるたびにこちらに記載*
 
-### 追加機能（時間があれば）
+## 4. 開発フロー進捗状況
 
-- [ ] 機能A: 説明
-- [ ] 機能B: 説明
+AppGeniusでの開発は以下のフローに沿って進行します。現在の進捗は以下の通りです：
 
-## タイムライン
+| フェーズ | 状態 | 進捗 | 担当エージェント | 成果物 | 依存/並列情報 |
+|---------|------|------|----------------|--------|--------------|
+| **0. プロジェクト準備** | ✅ 完了 | 100% | - | プロジェクトリポジトリ、環境設定 | 先行必須 |
+| **1. 要件定義** | 🔄 進行中 | 5% | プロジェクトファウンデーション (#1) | [requirements.md](/docs/requirements.md) | 先行必須 |
+| **2. 技術選定** | ⏱ 未着手 | 0% | プロジェクトファウンデーション (#1) | [tech-stack.md](/docs/architecture/tech-stack.md) | フェーズ1後 |
+| **3. モックアップ作成** | ⏱ 未着手 | 0% | モックアップクリエイター (#2) | [mockups/](/mockups/) | フェーズ1後 |
+| **4. データモデル設計** | ⏱ 未着手 | 0% | データモデルアーキテクト (#3) | [shared/index.ts](/shared/index.ts) | フェーズ3後、5と並列可 |
+| **5. API設計** | ⏱ 未着手 | 0% | APIデザイナー (#4) | [docs/api/](/docs/api/) | フェーズ3後、4と並列可 |
+| **6. 実装計画** | ⏱ 未着手 | 0% | スコーププランナー (#8) | SCOPE_PROGRESS.md 更新 | フェーズ4,5後 |
+| **7. バックエンド実装** | ⏱ 未着手 | 0% | バックエンド実装エージェント (#10) | サーバーサイドコード | フェーズ6後、8と並列可 |
+| **8. フロントエンド実装** | ⏱ 未着手 | 0% | フロントエンド実装エージェント (#9) | クライアントサイドコード | フェーズ6後、7と並列可 |
+| **9. テスト** | ⏱ 未着手 | 0% | テスト管理エージェント (#11) | テストコード | フェーズ7,8後 |
+| **10. デプロイ準備** | ⏱ 未着手 | 0% | デプロイ設定エージェント (#13) | [docs/deployment/](/docs/deployment/) | フェーズ9後 |
 
-- YYYY/MM/DD: プロジェクト開始
+## 5. タスクリスト
+
+### プロジェクト準備フェーズ
+- [x] 1. プロジェクトリポジトリ作成
+- [x] 2. 開発環境のセットアップ
+- [x] 3. 初期ディレクトリ構造の作成
+- [x] 4. README.mdの作成
+- [x] 5. 開発フレームワークの初期設定
+
+### 要件定義フェーズ
+- [🔄] 6. プロジェクト目的と背景の明確化
+- [ ] 7. ターゲットユーザーの特定
+- [ ] 8. 主要機能リストの作成
+- [ ] 9. 画面一覧の作成
+- [ ] 10. ユーザーストーリーの作成
+- [ ] 11. 技術要件の定義
+
+### 技術選定フェーズ
+- [ ] 12. フロントエンド技術の評価と選定
+- [ ] 13. バックエンド技術の評価と選定
+- [ ] 14. データベース技術の評価と選定
+- [ ] 15. インフラストラクチャの計画
+
+## 6. 次のステップ
+
+要件定義が完了したら、以下のステップに進みます：
+
+1. **技術スタックの選定**
+   - プロジェクト要件に適した技術の評価
+   - フロントエンド/バックエンド技術の決定
+   - インフラストラクチャとデプロイ方法の検討
+
+2. **モックアップ作成**
+   - 優先度の高い画面から順にモックアップ作成
+   - ユーザーフローとインタラクションの検討
+   - 要件定義書のブラッシュアップ
+
+3. **データモデル設計**
+   - 要件から必要なデータ構造を特定
+   - エンティティと関係性を定義
+   - 初期データモデルの設計
+
+## 7. エラー引き継ぎログ
+
+このセクションは、AI間の知識継承のための重要な機能です。複雑なエラーや課題に遭遇した場合、次のAIが同じ問題解決に時間を浪費しないよう記録します。
+
+**重要ルール**:
+1. エラーが解決されたらすぐに該当ログを削除すること
+2. 一度に対応するのは原則1タスクのみ（並列開発中のタスクを除く）
+3. 試行済みのアプローチと結果を詳細に記録すること
+4. コンテキストウィンドウの制限を考慮し、簡潔かつ重要な情報のみを記載すること
+5. 解決の糸口や参考リソースを必ず含めること
+
+### 現在のエラーログ
+
+| タスクID | 問題・課題の詳細 | 試行済みアプローチとその結果 | 現状 | 次のステップ | 参考資料 |
+|---------|----------------|------------------------|------|------------|---------|
+| 【例】R-001 | 関係者間でプロジェクト目標の認識に差異がある | 1. ステークホルダーとの個別ヒアリング：優先事項に不一致<br>2. KPI設定の試み：測定基準に合意できず | 1. 必須目標と任意目標の区別ができていない<br>2. 成功の定義が明確でない | 1. ビジネスゴールワークショップの開催<br>2. 優先順位付けの共同セッション<br>3. 成功基準の数値化 | [プロジェクト目標設定ガイド](/docs/guides/project-goal-setting.md) |
+
+## 8. 付録
+
+### A. プロジェクト開発標準フロー
+
+\`\`\`
+[プロジェクト準備] → [要件定義] → [モックアップ作成] → [データモデル設計] → [API設計] → [実装計画] → [フロントエンド/バックエンド実装] → [テスト] → [デプロイ]
+\`\`\`
+
+### B. AIエージェント活用ガイド
+
+開発プロンプトをクリックして要件定義 (#1) を活用するところから始めてください
 `.replace(/\[プロジェクト名\]/g, projectName);
   }
   
@@ -959,4 +1000,188 @@ export class FileSystemServiceImpl implements IFileSystemService {
       Logger.error('FileSystemService: リソース解放中にエラーが発生しました', error as Error);
     }
   }
+
+  //#region IWebViewCommunication インターフェースの実装
+
+  /**
+   * WebViewにメッセージを送信
+   * @param panel WebViewパネル
+   * @param message 送信するメッセージ
+   */
+  public sendToWebView(panel: vscode.WebviewPanel, message: Message): void {
+    if (this._messageDispatchService) {
+      this._messageDispatchService.sendMessage(panel, message);
+    } else {
+      Logger.warn('FileSystemService: メッセージディスパッチサービスが設定されていません');
+      try {
+        // フォールバック: 直接WebViewにメッセージを送信
+        panel.webview.postMessage(message);
+      } catch (error) {
+        Logger.error(`FileSystemService: メッセージ送信に失敗: ${message.command}`, error as Error);
+      }
+    }
+  }
+
+  /**
+   * WebViewにエラーメッセージを表示
+   * @param panel WebViewパネル
+   * @param errorMessage エラーメッセージ
+   */
+  public showError(panel: vscode.WebviewPanel, errorMessage: string): void {
+    this.sendToWebView(panel, {
+      command: 'showError',
+      message: errorMessage,
+      priority: 'high'
+    });
+  }
+
+  /**
+   * WebViewに成功メッセージを表示
+   * @param panel WebViewパネル
+   * @param successMessage 成功メッセージ
+   */
+  public showSuccess(panel: vscode.WebviewPanel, successMessage: string): void {
+    this.sendToWebView(panel, {
+      command: 'showSuccess',
+      message: successMessage,
+      priority: 'high'
+    });
+  }
+
+  /**
+   * メッセージハンドラを登録
+   * @param messageDispatchService メッセージディスパッチサービス
+   */
+  public registerMessageHandlers(messageDispatchService: IMessageDispatchService): void {
+    this._messageDispatchService = messageDispatchService;
+    
+    // ファイル読み込みハンドラー
+    messageDispatchService.registerHandler('readMarkdownFile', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        const content = await this.readMarkdownFile(message.filePath);
+        this.sendToWebView(panel, {
+          command: 'updateMarkdownContent',
+          content,
+          timestamp: Date.now(),
+          priority: 'high',
+          filePath: message.filePath
+        });
+      } catch (error) {
+        this.showError(panel, `ファイル読み込みに失敗: ${(error as Error).message}`);
+      }
+    });
+    
+    // 一般ファイル読み込みハンドラー
+    messageDispatchService.registerHandler('readFile', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        const content = await this.readFile(message.filePath);
+        this.sendToWebView(panel, {
+          command: 'updateFileContent',
+          content,
+          filePath: message.filePath,
+          fileName: path.basename(message.filePath),
+          fileType: this.getFileType(message.filePath)
+        });
+      } catch (error) {
+        this.showError(panel, `ファイル読み込みに失敗: ${(error as Error).message}`);
+      }
+    });
+    
+    // ディレクトリ内容一覧取得ハンドラー
+    messageDispatchService.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.path) {
+        this.showError(panel, 'ディレクトリパスが指定されていません');
+        return;
+      }
+      
+      try {
+        const files = await this.listDirectory(message.path);
+        this.sendToWebView(panel, {
+          command: 'updateFileList',
+          files,
+          currentPath: message.path,
+          parentPath: path.dirname(message.path) !== message.path ? path.dirname(message.path) : null
+        });
+      } catch (error) {
+        this.showError(panel, `ディレクトリリスティングに失敗: ${(error as Error).message}`);
+      }
+    });
+    
+    // ファイルブラウザ更新ハンドラー
+    messageDispatchService.registerHandler('refreshFileBrowser', async (message: Message, panel: vscode.WebviewPanel) => {
+      try {
+        const projectPath = message.projectPath || message.path;
+        if (!projectPath) {
+          this.showError(panel, 'プロジェクトパスが指定されていません');
+          return;
+        }
+        
+        const structure = await this.getDirectoryStructure(projectPath);
+        this.sendToWebView(panel, {
+          command: 'updateDirectoryStructure',
+          structure,
+          projectPath
+        });
+      } catch (error) {
+        this.showError(panel, `ディレクトリ構造の更新に失敗: ${(error as Error).message}`);
+      }
+    });
+    
+    // エディタでファイルを開くハンドラー
+    messageDispatchService.registerHandler('openFileInEditor', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        await this.openFileInEditor(message.filePath);
+        this.showSuccess(panel, `エディタでファイルを開きました: ${path.basename(message.filePath)}`);
+      } catch (error) {
+        this.showError(panel, `ファイルを開けませんでした: ${(error as Error).message}`);
+      }
+    });
+    
+    // ファイルをタブで開くハンドラー
+    messageDispatchService.registerHandler('openFileAsTab', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+      
+      try {
+        const content = await this.readFile(message.filePath);
+        const fileType = this.getFileType(message.filePath);
+        const isMarkdown = fileType === 'markdown';
+        const fileName = path.basename(message.filePath);
+        const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
+        
+        this.sendToWebView(panel, {
+          command: 'addFileTab',
+          tabId,
+          title: fileName,
+          content,
+          isMarkdown,
+          filePath: message.filePath,
+          lastModified: message.lastModified || new Date().toISOString()
+        });
+      } catch (error) {
+        this.showError(panel, `ファイルを開けませんでした: ${(error as Error).message}`);
+      }
+    });
+    
+    Logger.info('FileSystemService: メッセージハンドラーを登録しました');
+  }
+  
+  //#endregion
 }

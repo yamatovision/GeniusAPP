@@ -9,6 +9,8 @@ import * as vscode from 'vscode';
  */
 export interface Message {
   command: string;
+  serviceType?: string;  // サービスタイプ（直接サービス呼び出し用）
+  requestId?: string;    // リクエストID（非同期リクエスト用）
   [key: string]: any;
 }
 
