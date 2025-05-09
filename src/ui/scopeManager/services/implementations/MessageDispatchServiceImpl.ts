@@ -23,7 +23,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   public readonly onMessageProcessed = this._onMessageProcessed.event;
   
   // 依存サービス
-  private _sharingService?: ISharingService;
+  // 共有サービスはScopeManagerPanelで直接使用されるため削除
   private _projectService?: IProjectService;
   private _fileSystemService?: IFileSystemService;
   private _uiStateService?: IUIStateService;
@@ -93,28 +93,26 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
    * @param services 依存サービス
    */
   public setDependencies(services: {
-    sharingService?: any;
+    sharingService?: any; // 互換性のために型は残すが使用しない
     projectService?: any;
     fileSystemService?: any;
     uiStateService?: any;
     panelService?: any;
   }): void {
-    if (services.sharingService) {
-      this._sharingService = services.sharingService;
-    }
-    
+    // 共有サービスの設定は削除（ScopeManagerPanelで直接使用）
+
     if (services.projectService) {
       this._projectService = services.projectService;
     }
-    
+
     if (services.fileSystemService) {
       this._fileSystemService = services.fileSystemService;
     }
-    
+
     if (services.uiStateService) {
       this._uiStateService = services.uiStateService;
     }
-    
+
     if (services.panelService) {
       this._panelService = services.panelService;
     }
@@ -122,7 +120,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     // 依存サービスが設定された後でハンドラを登録
     this.registerProjectHandlers();
     this.registerFileHandlers();
-    this.registerSharingHandlers();
+    // 共有ハンドラはScopeManagerPanelで直接処理されるため削除
     
     Logger.debug('MessageDispatchServiceImpl: 依存サービスを設定しました');
   }
@@ -185,35 +183,50 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     try {
       // コマンド名のみログ出力
       Logger.debug(`MessageDispatchServiceImpl: 受信: ${message.command}`);
-      
+
+      // ScopeManagerPanelで直接処理される特殊なコマンドのリスト
+      const specialCommands = [
+        'getHistory',
+        'refreshFileBrowser',
+        'deleteFromHistory',
+        'copyCommand',
+        'copyToClipboard'
+      ];
+
+      // 特殊コマンドの場合は警告を出さずに無視
+      if (specialCommands.includes(message.command)) {
+        // ScopeManagerPanelで直接処理されるコマンドなので何もしない
+        return;
+      }
+
       // サービスタイプがある場合は対応するサービスに直接ルーティング
       if (message.serviceType) {
         await this._routeToService(message, panel);
         return;
       }
-      
+
       // 従来のハンドラベースルーティング
       const handler = this.handlers.get(message.command);
       if (handler) {
         // 対応するハンドラが登録されている場合
         await handler(message, panel);
-        
+
         // 処理成功イベントを発行
         this._onMessageProcessed.fire({ command: message.command, success: true });
       } else {
         // ハンドラーが見つからない場合のみ警告ログ
         Logger.warn(`MessageDispatchServiceImpl: ハンドラが未登録のコマンド: ${message.command}`);
-        
+
         // 処理失敗イベントを発行
         this._onMessageProcessed.fire({ command: message.command, success: false });
       }
     } catch (error) {
       // エラー発生時のログは簡潔に
       Logger.error(`MessageDispatchServiceImpl: エラー: ${message.command}`, error as Error);
-      
+
       // エラーメッセージをWebViewに返す
       this.showError(panel, `操作中にエラーが発生しました: ${(error as Error).message}`);
-      
+
       // 処理失敗イベントを発行
       this._onMessageProcessed.fire({ command: message.command, success: false });
     }
@@ -686,92 +699,11 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   
   /**
    * 共有関連のメッセージハンドラーを登録
+   * @deprecated 共有機能はScopeManagerPanelで直接処理されるようになりました
    */
   public registerSharingHandlers(): void {
-    // 共有サービスが設定されているか確認
-    if (!this._sharingService) {
-      Logger.warn('MessageDispatchServiceImpl: SharingServiceが設定されていないため、共有関連ハンドラーは登録できません');
-      return;
-    }
-    
-    // getHistory ハンドラーを再登録
-    // 後方互換性のために維持（sharingPanel.jsが依存）
-    this.registerHandler('getHistory', async (message: Message, panel: vscode.WebviewPanel) => {
-      try {
-        if (this._sharingService && typeof this._sharingService.getHistory === 'function') {
-          Logger.info('MessageDispatchServiceImpl: getHistoryメッセージを受信 - SharingServiceを利用して履歴を取得します');
-          const history = await this._sharingService.getHistory();
-          this.sendMessage(panel, {
-            command: 'updateSharingHistory',
-            history: history
-          });
-        } else {
-          Logger.warn('MessageDispatchServiceImpl: SharingServiceにgetHistoryメソッドがありません');
-          this.showError(panel, '共有履歴の取得に失敗しました: サービスが見つかりません');
-        }
-      } catch (error) {
-        Logger.error('MessageDispatchServiceImpl: 履歴取得エラー', error as Error);
-        this.showError(panel, `履歴の取得に失敗しました: ${(error as Error).message}`);
-      }
-    });
-    
-    // deleteFromHistory ハンドラーを再登録（後方互換性のため）
-    this.registerHandler('deleteFromHistory', async (message: Message, panel: vscode.WebviewPanel) => {
-      try {
-        if (!message.fileId) {
-          throw new Error('ファイルIDが指定されていません');
-        }
-        
-        if (this._sharingService && typeof this._sharingService.deleteFromHistory === 'function') {
-          await this._sharingService.deleteFromHistory(message.fileId);
-          
-          // 履歴を更新して送信
-          const history = await this._sharingService.getHistory();
-          this.sendMessage(panel, {
-            command: 'updateSharingHistory',
-            history: history
-          });
-        } else {
-          throw new Error('共有サービスが初期化されていないか、適切なメソッドがありません');
-        }
-      } catch (error) {
-        Logger.error('MessageDispatchServiceImpl: 履歴削除エラー', error as Error);
-        this.showError(panel, `履歴からの削除に失敗しました: ${(error as Error).message}`);
-      }
-    });
-    
-    // copyCommand ハンドラーを再登録（後方互換性のため）
-    this.registerHandler('copyCommand', async (message: Message, panel: vscode.WebviewPanel) => {
-      try {
-        if (!message.fileId) {
-          throw new Error('ファイルIDが指定されていません');
-        }
-        
-        if (this._sharingService && typeof this._sharingService.getCommandByFileId === 'function') {
-          const command = await this._sharingService.getCommandByFileId(message.fileId);
-          
-          if (command) {
-            // クリップボードにコピー
-            vscode.env.clipboard.writeText(command);
-            
-            // 成功通知
-            this.sendMessage(panel, {
-              command: 'commandCopied',
-              fileId: message.fileId
-            });
-          } else {
-            throw new Error('指定されたファイルのコマンドが見つかりません');
-          }
-        } else {
-          throw new Error('共有サービスが初期化されていないか、適切なメソッドがありません');
-        }
-      } catch (error) {
-        Logger.error('MessageDispatchServiceImpl: コマンドコピーエラー', error as Error);
-        this.showError(panel, `コマンドのコピーに失敗しました: ${(error as Error).message}`);
-      }
-    });
-    
-    Logger.info('MessageDispatchServiceImpl: 共有関連のメッセージハンドラーを登録しました');
+    // 共有関連機能はすべてScopeManagerPanelで直接処理されるように変更されました
+    Logger.info('MessageDispatchServiceImpl: 共有関連機能はScopeManagerPanelに移行されました');
   }
   
   // Note: 共有関連のメソッドはすべて削除

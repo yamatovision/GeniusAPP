@@ -249,21 +249,24 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // タブ状態サービスのメッセージハンドラーを登録
     this._tabStateService.registerMessageHandlers(dispatchService);
-    
-    // 共有関連のメッセージハンドラーを登録
-    dispatchService.registerSharingHandlers();
+
+    // 共有関連のメッセージは直接このクラスで処理するため、
+    // MessageDispatchServiceへの登録は不要になりました
     
     // 残りのメッセージハンドラーは個別に登録（段階的に移行予定）
     this._panel.webview.onDidReceiveMessage(
       async message => {
         try {
+          // デバッグログを追加
+          Logger.debug(`ScopeManagerPanel: WebViewからのメッセージを受信: ${message.command}`);
+
           // デバッグログ：受信したメッセージの内容を詳細に記録
           if (message.command === 'launchPromptFromURL') {
             Logger.info(`【WebViewメッセージ】コマンド=${message.command}, URL=${message.url}, index=${message.index}, name=${message.name}`);
             Logger.info(`【WebViewメッセージ詳細】splitTerminal=${message.splitTerminal} (型: ${typeof message.splitTerminal})`);
             Logger.info(`【WebViewメッセージJSON】${JSON.stringify(message)}`);
           }
-          
+
           switch (message.command) {
             case 'initialize':
               await this._handleInitialize();
@@ -280,7 +283,20 @@ export class ScopeManagerPanel extends ProtectedPanel {
               break;
             // ファイルブラウザ関連
             case 'refreshFileBrowser':
-              // MessageDispatchServiceが処理するため何もしない
+              try {
+                if (this._projectPath) {
+                  // プロジェクトのディレクトリ構造を再取得
+                  const structure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
+                  this._panel.webview.postMessage({
+                    command: 'updateDirectoryStructure',
+                    structure: structure
+                  });
+                  Logger.info('ScopeManagerPanel: ファイルブラウザを更新しました');
+                }
+              } catch (error) {
+                Logger.error('ファイルブラウザ更新中にエラーが発生しました', error as Error);
+                this._showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
+              }
               break;
             // ファイル操作関連はすべてFileSystemServiceへ移行済み
             case 'openFile':
@@ -324,12 +340,33 @@ export class ScopeManagerPanel extends ProtectedPanel {
               await this._handleOpenOriginalMockupGallery(message.filePath);
               break;
             
-            // 共有関連処理はMessageDispatchServiceに移行済み
+            // 共有関連処理
             case 'getHistory':
+              await this._handleGetHistory();
+              break;
             case 'deleteFromHistory':
+              if (message.fileId) {
+                await this._handleDeleteFromHistory(message.fileId);
+              } else {
+                Logger.warn('ScopeManagerPanel: deleteFromHistoryメッセージにfileId必須パラメータがありません');
+                this._showError('履歴項目IDが指定されていません');
+              }
+              break;
             case 'copyCommand':
+              if (message.fileId) {
+                await this._handleCopyCommand(message.fileId);
+              } else {
+                Logger.warn('ScopeManagerPanel: copyCommandメッセージにfileId必須パラメータがありません');
+                this._showError('コピー対象のファイルIDが指定されていません');
+              }
+              break;
             case 'copyToClipboard':
-              // MessageDispatchServiceが処理するため何もしない
+              if (message.text) {
+                await this._handleCopyToClipboard(message.text);
+              } else {
+                Logger.warn('ScopeManagerPanel: copyToClipboardメッセージにtext必須パラメータがありません');
+                this._showError('コピーするテキストが指定されていません');
+              }
               break;
             case 'reuseHistoryItem':
               await this._handleReuseHistoryItem(message.fileId);
