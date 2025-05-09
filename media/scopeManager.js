@@ -336,17 +336,37 @@ try {
         // 現在アクティブなタブIDを確認
         const activeTabId = stateManager.getState().activeTab;
 
-        // 強制更新フラグがある場合は常に処理
+        // 強制更新フラグがある場合は常に処理（プロジェクト切り替え時等）
         if (message.forceRefresh) {
           console.log('マークダウン強制更新が要求されました');
+          
+          // コンテンツを更新
           markdownViewer.updateContent(message.content);
+          
+          // 更新時間の記録（無限ループ防止）
+          window._lastContentUpdateTime = Date.now();
+          
+          // 進捗状況タブ自動選択は行わない（無限ループ防止のため）
+          // 以前: tabManager.selectTab('scope-progress', false);
+          
           break;
         }
 
-        // 進捗状況用のマークダウン更新は、そのタブがアクティブな場合のみ処理
-        if (message.forScopeProgress && activeTabId !== 'scope-progress') {
-          console.log(`進捗状況タブがアクティブでないため更新をスキップします (現在のタブ: ${activeTabId})`);
-          return;
+        // 進捗状況用のマークダウン更新は保存しておき、タブが選択された時に表示
+        if (message.forScopeProgress) {
+          // 最新のコンテンツを状態に保存（タブが非アクティブでも保存）
+          stateManager.setState({ 
+            scopeProgressContent: message.content 
+          }, false);
+          
+          // タブがアクティブな場合のみ表示
+          if (activeTabId === 'scope-progress') {
+            console.log(`進捗状況タブが表示中なので内容を更新します`);
+            markdownViewer.updateContent(message.content);
+          } else {
+            console.log(`進捗状況タブが非アクティブなので内容を保存のみします (現在のタブ: ${activeTabId})`);
+          }
+          break;
         }
 
         // 要件定義用のマークダウン更新は、そのタブがアクティブな場合のみ処理

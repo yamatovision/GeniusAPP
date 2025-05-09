@@ -3,6 +3,7 @@
   let mockups = [];
   let currentMockupId = null;
   let mockupQueue = [];
+  let isPanelCollapsed = false; // パネルの折りたたみ状態
   
   // 通知を表示する関数
   function showNotification(text) {
@@ -59,12 +60,23 @@
       deleteMockupButton.disabled = true;
     }
     
+    // パネルの折りたたみ状態を復元
+    restorePanelState();
+    
     // モックアップのロードを要求
     vscode.postMessage({ command: 'loadMockups' });
   });
   
   // イベントリスナーの初期化
   function initEventListeners() {
+    // パネル開閉ボタン
+    const togglePanelButton = document.getElementById('toggle-panel-button');
+    if (togglePanelButton) {
+      togglePanelButton.addEventListener('click', () => {
+        togglePanel();
+      });
+    }
+    
     // 更新ボタン
     const refreshButton = document.getElementById('refresh-button');
     if (refreshButton) {
@@ -718,6 +730,50 @@
     const updateRequestButton = document.getElementById('update-request-button');
     if (updateRequestButton) {
       updateRequestButton.disabled = true;
+    }
+  }
+  
+  // パネルの折りたたみ状態を切り替え
+  function togglePanel() {
+    const appContainer = document.querySelector('.app-container');
+    const toggleButton = document.getElementById('toggle-panel-button');
+    
+    if (!appContainer || !toggleButton) return;
+    
+    // 折りたたみ状態を反転
+    isPanelCollapsed = !isPanelCollapsed;
+    
+    // 状態をLocalStorageに保存
+    localStorage.setItem('mockupGallery.isPanelCollapsed', isPanelCollapsed);
+    
+    // クラスの切り替え
+    if (isPanelCollapsed) {
+      appContainer.classList.add('panel-collapsed');
+      toggleButton.innerHTML = '&#9654;'; // 右向き三角形
+    } else {
+      appContainer.classList.remove('panel-collapsed');
+      toggleButton.innerHTML = '&#9664;'; // 左向き三角形
+    }
+  }
+  
+  // パネルの折りたたみ状態を復元
+  function restorePanelState() {
+    // LocalStorageから状態を取得
+    const savedState = localStorage.getItem('mockupGallery.isPanelCollapsed');
+    if (savedState === 'true') {
+      isPanelCollapsed = true;
+      
+      // UIの状態を更新
+      const appContainer = document.querySelector('.app-container');
+      const toggleButton = document.getElementById('toggle-panel-button');
+      
+      if (appContainer) {
+        appContainer.classList.add('panel-collapsed');
+      }
+      
+      if (toggleButton) {
+        toggleButton.innerHTML = '&#9654;'; // 右向き三角形
+      }
     }
   }
 })();

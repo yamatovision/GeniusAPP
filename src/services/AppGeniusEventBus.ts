@@ -12,11 +12,11 @@ export enum AppGeniusEventType {
   IMPLEMENTATION_PROGRESS = 'implementation-progress',
   PROJECT_STRUCTURE_UPDATED = 'project-structure-updated',
   PROJECT_CREATED = 'project-created',
-  PROJECT_SELECTED = 'project-selected',
+  // PROJECT_SELECTED は削除し、PROJECT_UPDATEDに統一
   PROJECT_DELETED = 'project-deleted',
-  PROJECT_REMOVED = 'project-removed', // PROJECT_DELETEDと同等の機能だがProjectServiceとの互換性のため追加
-  PROJECT_UPDATED = 'project-updated',
-  PROJECT_PATH_UPDATED = 'project-path-updated', // 追加: プロジェクトパス更新イベント
+  PROJECT_REMOVED = 'project-removed',
+  PROJECT_UPDATED = 'project-updated', // プロジェクト関連の標準イベント
+  // PROJECT_PATH_UPDATED も削除し、PROJECT_UPDATEDに統一
   PHASE_COMPLETED = 'phase-completed',
   
   // 環境変数関連イベント
@@ -31,6 +31,23 @@ export enum AppGeniusEventType {
   CLAUDE_CODE_ERROR = 'claude-code-error',
   CLAUDE_CODE_STOPPED = 'claude-code-stopped',
   CLAUDE_CODE_LAUNCH_COUNTED = 'claude-code-launch-counted'
+}
+
+/**
+ * プロジェクト関連のイベントペイロード型定義
+ * 全てのプロジェクト関連イベントで標準化された共通形式
+ */
+export interface ProjectEventPayload {
+  id?: string;           // プロジェクトID
+  path?: string;         // プロジェクトパス
+  name?: string;         // プロジェクト名
+  metadata?: {           // プロジェクトメタデータ
+    activeTab?: string;  // アクティブタブID
+    [key: string]: any;  // その他のメタデータ
+  };        
+  type: 'created' | 'selected' | 'updated' | 'removed'; // アクションタイプ
+  timestamp?: number;    // イベント発生時刻
+  tabId?: string;        // タブ状態更新時のタブID
 }
 
 /**
@@ -95,6 +112,60 @@ export class AppGeniusEventBus {
    */
   public publish<T>(type: AppGeniusEventType, data: T, source: string, projectId?: string): void {
     this.emit(type, data, source, projectId);
+  }
+  
+  /**
+   * プロジェクト関連イベントを発行する標準化されたヘルパーメソッド
+   * PROJECT_UPDATEDイベントのみを発行するよう最適化されています
+   * 
+   * @param projectData プロジェクト情報ペイロード
+   * @param source イベント発生元
+   * @param legacyEvents 後方互換性のために古いイベントも発行するかどうか
+   */
+  public emitProjectEvent(
+    projectData: ProjectEventPayload, 
+    source: string,
+    legacyEvents: boolean = false
+  ): void {
+    // タイムスタンプが指定されていない場合は現在時刻を設定
+    if (!projectData.timestamp) {
+      projectData.timestamp = Date.now();
+    }
+    
+    // 主要な標準イベントを発行
+    this.emit(
+      AppGeniusEventType.PROJECT_UPDATED,
+      projectData,
+      source,
+      projectData.id
+    );
+    
+    // 後方互換性のために古いイベントも発行（オプション）
+    if (legacyEvents && projectData.type) {
+      // アクションタイプに基づいて適切なレガシーイベントタイプを選択
+      let legacyType: AppGeniusEventType | null = null;
+      
+      switch (projectData.type) {
+        case 'created':
+          legacyType = AppGeniusEventType.PROJECT_CREATED;
+          break;
+        case 'removed':
+          legacyType = AppGeniusEventType.PROJECT_REMOVED;
+          break;
+      }
+      
+      // レガシーイベントタイプが選択された場合のみ発行
+      if (legacyType) {
+        this.emit(
+          legacyType,
+          projectData,
+          source,
+          projectData.id
+        );
+      }
+    }
+    
+    Logger.debug(`標準化されたプロジェクトイベント(${projectData.type || 'updated'})を発行: ${projectData.name}, ${projectData.path} from ${source}`);
   }
   
   /**

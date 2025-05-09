@@ -29,6 +29,12 @@ body {
   grid-template-columns: 240px 1fr;
   height: 100vh;
   overflow: hidden;
+  transition: grid-template-columns 0.3s ease;
+}
+
+/* 左パネルが折りたたまれた状態 */
+.app-container.panel-collapsed {
+  grid-template-columns: 40px 1fr;
 }
 
 /* 左側パネル - ページ一覧 */
@@ -46,6 +52,33 @@ body {
   margin-bottom: 16px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-color);
+}
+
+/* 折りたたみボタン */
+.toggle-panel-button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.toggle-panel-button:hover {
+  background-color: var(--primary-light);
+}
+
+/* 折りたたまれた状態でのスタイル調整 */
+.panel-collapsed .pages-panel {
+  padding: 8px;
+}
+
+.panel-collapsed .panel-title,
+.panel-collapsed #mockups-container,
+.panel-collapsed .panel-footer {
+  display: none;
 }
 
 .panel-title {

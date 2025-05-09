@@ -30,11 +30,9 @@ export class MockupGalleryPanel extends ProtectedPanel {
   private _storage: MockupStorageService;
   private _queueManager: MockupQueueManager;
   
-  // 追加
-  private _projectPath: string;
-  private _requirementsPath: string;
-  private _structurePath: string;
+  // ファイル監視関連
   private _fileWatcher?: vscode.FileSystemWatcher; // モックアップファイル監視用
+  private _projectServiceImpl: any; // ProjectServiceImplのインスタンス
 
   // ClaudeCodeランチャーをインポート
   private _claudeCodeLauncher: any; // 型定義がない場合は any として扱う
@@ -53,9 +51,12 @@ export class MockupGalleryPanel extends ProtectedPanel {
       // 既存パネルを表示
       MockupGalleryPanel.currentPanel._panel.reveal(column);
       
+      // 現在のプロジェクトパスを取得
+      const currentProjectPath = MockupGalleryPanel.currentPanel._getCurrentProjectPath();
+      
       // プロジェクトパスが異なる場合は内容を更新
-      if (projectPath && MockupGalleryPanel.currentPanel._projectPath !== projectPath) {
-        Logger.info(`プロジェクトが変更されました。モックアップギャラリーの内容を更新: ${MockupGalleryPanel.currentPanel._projectPath} -> ${projectPath}`);
+      if (projectPath && currentProjectPath !== projectPath) {
+        Logger.info(`プロジェクトが変更されました。モックアップギャラリーの内容を更新: ${currentProjectPath} -> ${projectPath}`);
         
         // パネルのタイトルを更新
         MockupGalleryPanel.currentPanel._panel.title = `モックアップギャラリー: ${path.basename(projectPath)}`;
@@ -134,15 +135,23 @@ export class MockupGalleryPanel extends ProtectedPanel {
     // ClaudeCodeランチャーの初期化
     this._claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
     
+    // ProjectServiceImplのインスタンスを取得
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { ProjectServiceImpl } = require('../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+      this._projectServiceImpl = ProjectServiceImpl.getInstance();
+      Logger.info('ProjectServiceImplのインスタンスを取得しました');
+    } catch (error) {
+      Logger.warn('ProjectServiceImplのインスタンス取得に失敗しました', error as Error);
+    }
+    
     // プロジェクトパスの設定
-    this._projectPath = projectPath || this._getDefaultProjectPath();
-    this._requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
-    this._structurePath = path.join(this._projectPath, 'docs', 'structure.md');
+    const initialProjectPath = projectPath || this._getDefaultProjectPath();
     
-    // ストレージサービスを選択中のプロジェクトパスで初期化
-    this._storage.initializeWithPath(this._projectPath);
+    // ストレージサービスを初期化
+    this._storage.initializeWithPath(initialProjectPath);
     
-    Logger.info(`モックアップギャラリーをプロジェクトパスで初期化: ${this._projectPath}`);
+    Logger.info(`モックアップギャラリーをプロジェクトパスで初期化: ${initialProjectPath}`);
 
     // WebViewの内容を設定
     this._update();
@@ -196,16 +205,20 @@ export class MockupGalleryPanel extends ProtectedPanel {
    * プロジェクトパスを更新（より強力な更新処理）
    */
   private _updateProjectPath(projectPath: string): void {
-    // 以前のパスを保存（ログ用）
-    const prevPath = this._projectPath;
-    
-    // パスを更新
-    this._projectPath = projectPath;
-    this._requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
-    this._structurePath = path.join(this._projectPath, 'docs', 'structure.md');
+    // ProjectServiceImplが利用可能な場合はプロジェクトパスを更新
+    if (this._projectServiceImpl) {
+      try {
+        // ProjectServiceImplを使ってプロジェクトを選択
+        const projectName = path.basename(projectPath);
+        this._projectServiceImpl.selectProject(projectName, projectPath);
+        Logger.info(`ProjectServiceImplを使用してプロジェクトを選択: ${projectName}, ${projectPath}`);
+      } catch (error) {
+        Logger.warn(`ProjectServiceImplでのプロジェクト選択に失敗: ${error}`);
+      }
+    }
     
     // ストレージサービスを選択中のプロジェクトパスだけで初期化
-    this._storage.initializeWithPath(this._projectPath);
+    this._storage.initializeWithPath(projectPath);
     
     // UI表示の更新
     this._update();
@@ -222,14 +235,14 @@ export class MockupGalleryPanel extends ProtectedPanel {
     // Webviewにプロジェクト変更を通知
     this._panel.webview.postMessage({
       command: 'projectChanged',
-      projectPath: this._projectPath,
-      projectName: path.basename(this._projectPath)
+      projectPath: projectPath,
+      projectName: path.basename(projectPath)
     });
     
     // ファイル監視を再設定
     this._setupFileWatcher();
     
-    Logger.info(`プロジェクトパスを更新しました: ${prevPath} -> ${this._projectPath}`);
+    Logger.info(`プロジェクトパスを更新しました: ${projectPath}`);
     
     // 強制的なUI更新のタイミングを微調整するため、短い遅延後に再度モックアップのリストを更新
     setTimeout(() => {
@@ -239,6 +252,31 @@ export class MockupGalleryPanel extends ProtectedPanel {
   
   /**
    * デフォルトのプロジェクトパスを取得
+   */
+  /**
+   * 現在のプロジェクトパスを取得するヘルパーメソッド
+   * ProjectServiceImplを優先的に使用し、利用できない場合はフォールバック
+   */
+  private _getCurrentProjectPath(): string {
+    // まずProjectServiceImplを使用してパスを取得
+    if (this._projectServiceImpl) {
+      try {
+        const projectPath = this._projectServiceImpl.getActiveProjectPath();
+        if (projectPath) {
+          Logger.info(`ProjectServiceImplからプロジェクトパスを取得: ${projectPath}`);
+          return projectPath;
+        }
+      } catch (error) {
+        Logger.warn(`ProjectServiceImplからのパス取得に失敗: ${(error as Error).message}`);
+      }
+    }
+    
+    // ProjectServiceImplからパスを取得できなかった場合は、他の方法にフォールバック
+    return this._getDefaultProjectPath();
+  }
+
+  /**
+   * フォールバック用のプロジェクトパス取得メソッド
    */
   private _getDefaultProjectPath(): string {
     try {
@@ -337,15 +375,20 @@ export class MockupGalleryPanel extends ProtectedPanel {
     try {
       let pages: PageInfo[] = [];
       
+      // 現在のプロジェクトパスを取得
+      const projectPath = this._getCurrentProjectPath();
+      const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
+      const structurePath = path.join(projectPath, 'docs', 'structure.md');
+      
       // 要件定義からページを抽出
-      if (fs.existsSync(this._requirementsPath)) {
-        const reqPages = await RequirementsParser.extractPagesFromRequirements(this._requirementsPath);
+      if (fs.existsSync(requirementsPath)) {
+        const reqPages = await RequirementsParser.extractPagesFromRequirements(requirementsPath);
         pages = [...pages, ...reqPages];
       }
       
       // ディレクトリ構造からページを抽出
-      if (fs.existsSync(this._structurePath)) {
-        const structPages = await RequirementsParser.extractPagesFromStructure(this._structurePath);
+      if (fs.existsSync(structurePath)) {
+        const structPages = await RequirementsParser.extractPagesFromStructure(structurePath);
         
         // 重複を排除して追加
         structPages.forEach(page => {
@@ -501,7 +544,8 @@ export class MockupGalleryPanel extends ProtectedPanel {
       
       // HTMLファイルのパスを構築
       const mockupFileName = `${mockup.name}.html`;
-      const mockupFilePath = path.join(this._projectPath, 'mockups', mockupFileName);
+      const projectPath = this._getCurrentProjectPath();
+      const mockupFilePath = path.join(projectPath, 'mockups', mockupFileName);
       
       // ストレージからモックアップを削除
       const success = await this._storage.deleteMockup(mockupId);
@@ -667,7 +711,8 @@ export class MockupGalleryPanel extends ProtectedPanel {
       
       // モックアップのHTMLファイルパスを取得
       const mockupFileName = `${mockup.name}.html`;
-      const mockupDir = path.join(this._projectPath, 'mockups');
+      const projectPath = this._getCurrentProjectPath();
+      const mockupDir = path.join(projectPath, 'mockups');
       
       // ディレクトリが存在しない場合は作成
       if (!fs.existsSync(mockupDir)) {
@@ -677,20 +722,20 @@ export class MockupGalleryPanel extends ProtectedPanel {
       const mockupFilePath = path.join(mockupDir, mockupFileName);
       
       // スコープディレクトリが存在しない場合は作成
-      const scopesDir = path.join(this._projectPath, 'docs', 'scopes');
+      const scopesDir = path.join(projectPath, 'docs', 'scopes');
       if (!fs.existsSync(scopesDir)) {
         fs.mkdirSync(scopesDir, { recursive: true });
       }
       
       // 要件定義ファイルの存在確認
-      const requirementsPath = path.join(this._projectPath, 'docs', 'requirements.md');
+      const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
       const requirementsExists = fs.existsSync(requirementsPath);
       
       // 追加情報を準備
       let additionalContent = `# 追加情報\n\n## モックアップ情報\n\n`;
       additionalContent += `- モックアップ名: ${mockup.name}\n`;
       additionalContent += `- モックアップパス: ${mockupFilePath}\n`;
-      additionalContent += `- プロジェクトパス: ${this._projectPath}\n\n`;
+      additionalContent += `- プロジェクトパス: ${projectPath}\n\n`;
       
       // 要件定義ファイルが存在する場合、その内容を追加
       if (requirementsExists) {
@@ -710,14 +755,14 @@ export class MockupGalleryPanel extends ProtectedPanel {
         // 公開URLから起動（追加情報も渡す）
         await integrationService.launchWithPublicUrl(
           portalUrl,
-          this._projectPath,
+          projectPath,
           additionalContent
         );
         
         Logger.info(`モックアップ「${mockup.name}」の分析のため中央ポータル経由でClaudeCodeを起動しました`);
         vscode.window.showInformationMessage(
           `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
-          `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
+          `詳細な要件定義書は ${path.join(projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
         );
       } catch (error) {
         Logger.error(`中央ポータル経由の起動に失敗: ${(error as Error).message}`);
@@ -725,7 +770,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
         // ローカルファイルにフォールバック
         Logger.warn(`ローカルプロンプトファイルにフォールバックします`);
         
-        const templatePath = path.join(this._projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
+        const templatePath = path.join(projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
         if (!fs.existsSync(templatePath)) {
           throw new Error(`モックアップ解析テンプレートが見つかりません: ${templatePath}`);
         }
@@ -733,7 +778,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
         // ターミナルの作成
         const terminal = vscode.window.createTerminal({
           name: `ClaudeCode - ${mockup.name}の解析 (ローカル)`,
-          cwd: this._projectPath // プロジェクトのルートディレクトリで起動
+          cwd: projectPath // プロジェクトのルートディレクトリで起動
         });
         
         // ターミナルの表示
@@ -791,7 +836,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
         await integrationService.launchWithSecurityBoundary(
           guidancePromptUrl,
           featurePromptUrl,
-          this._projectPath,
+          projectPath,
           templateContent
         );
         
@@ -810,7 +855,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
         Logger.info(`モックアップ「${mockup.name}」の分析のためローカルプロンプトでClaudeCodeを起動しました`);
         vscode.window.showInformationMessage(
           `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました（ローカルモード）。` +
-          `詳細な要件定義書は ${path.join(this._projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
+          `詳細な要件定義書は ${path.join(projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
         );
       }
       
@@ -992,6 +1037,9 @@ export class MockupGalleryPanel extends ProtectedPanel {
     <div class="pages-panel">
       <div class="panel-header">
         <h2 class="panel-title">モックアップ一覧</h2>
+        <button id="toggle-panel-button" class="toggle-panel-button" title="パネルを折りたたむ/展開する">
+          &#9664;
+        </button>
       </div>
       
       <div id="mockups-container" class="mockups-container">
@@ -1044,14 +1092,17 @@ export class MockupGalleryPanel extends ProtectedPanel {
         this._fileWatcher.dispose();
       }
       
-      // プロジェクトパスが設定されていない場合は何もしない
-      if (!this._projectPath) {
-        Logger.warn('プロジェクトパスが設定されていないため、ファイル監視をスキップします');
+      // ProjectServiceImplからプロジェクトパスを取得
+      const projectPath = this._getCurrentProjectPath();
+      
+      // プロジェクトパスが取得できない場合は何もしない
+      if (!projectPath) {
+        Logger.warn('有効なプロジェクトパスを取得できないため、ファイル監視をスキップします');
         return;
       }
       
       // モックアップディレクトリのパス
-      const mockupsDir = path.join(this._projectPath, 'mockups');
+      const mockupsDir = path.join(projectPath, 'mockups');
       
       // ディレクトリが存在しない場合は作成
       if (!fs.existsSync(mockupsDir)) {

@@ -334,12 +334,23 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'reuseHistoryItem':
               await this._handleReuseHistoryItem(message.fileId);
               break;
-            // プロジェクト関連処理はMessageDispatchServiceに移行済み
+              
+            // プロジェクト選択処理は直接ハンドリング（MessageDispatchServiceを使わない）
             case 'selectProject':
+              if (message.projectName && message.projectPath) {
+                await this._handleSelectProject(message.projectName, message.projectPath, message.activeTab);
+              } else {
+                Logger.warn('ScopeManagerPanel: selectProjectメッセージに必要なパラメータがありません');
+                this._showError('プロジェクト選択に必要な情報が不足しています');
+              }
+              break;
+              
+            // その他のプロジェクト関連処理はMessageDispatchServiceに移行済み
             case 'createProject':
             case 'removeProject':
               // MessageDispatchServiceが処理するため何もしない
               break;
+              
             case 'loadExistingProject':
               await this._handleLoadExistingProject();
               break;
@@ -906,17 +917,44 @@ export class ScopeManagerPanel extends ProtectedPanel {
   
   /**
    * プロジェクト選択処理
-   * @deprecated ServiceFactory.getMessageService().selectProjectを使用してください。
    * @param projectName プロジェクト名
    * @param projectPath プロジェクトパス
    * @param activeTab 現在のアクティブタブID（オプション）
    */
   private async _handleSelectProject(projectName: string, projectPath: string, activeTab?: string): Promise<void> {
-    Logger.warn('_handleSelectProjectは非推奨です。ServiceFactory経由でサービスにアクセスしてください。');
-    
-    // ServiceFactory経由でMessageServiceを取得
-    const messageService = ServiceFactory.getMessageService();
-    await messageService.selectProject(this._panel, projectName, projectPath, activeTab);
+    try {
+      Logger.info(`ScopeManagerPanel: プロジェクト選択処理を開始: ${projectName}, パス: ${projectPath}`);
+      
+      // 直接ProjectServiceImplを使用してプロジェクトを選択
+      await this._projectService.selectProject(projectName, projectPath, activeTab);
+      
+      // プロジェクト情報を取得
+      const activeProject = this._projectService.getActiveProject();
+      
+      if (activeProject) {
+        // プロジェクトパスを更新
+        await this.setProjectPath(activeProject.path);
+        
+        // WebViewにプロジェクト選択状態を通知
+        this._panel.webview.postMessage({
+          command: 'syncProjectState',
+          project: activeProject
+        });
+        
+        // 成功メッセージをWebViewに通知
+        this._panel.webview.postMessage({
+          command: 'showSuccess',
+          message: `プロジェクト「${projectName}」を開きました`
+        });
+        
+        Logger.info(`ScopeManagerPanel: プロジェクト「${projectName}」の選択が完了しました`);
+      } else {
+        this._showError(`プロジェクト「${projectName}」の選択に失敗しました`);
+      }
+    } catch (error) {
+      Logger.error(`ScopeManagerPanel: プロジェクト選択中にエラーが発生しました: ${projectName}`, error as Error);
+      this._showError(`プロジェクト「${projectName}」の選択に失敗しました: ${(error as Error).message}`);
+    }
   }
 
   

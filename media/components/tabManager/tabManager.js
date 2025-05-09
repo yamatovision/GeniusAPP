@@ -22,6 +22,23 @@ class TabManager {
       tab.addEventListener('click', (event) => this._handleTabClick(event, tab));
     });
     
+    // プロジェクト更新イベントリスナーを設定
+    window.addEventListener('message', (event) => {
+      const message = event.data;
+      // プロジェクト更新イベントを処理
+      if (message.command === 'project-updated' && message.data) {
+        // タブ状態が含まれている場合はタブを更新
+        if (message.data.metadata && message.data.metadata.activeTab) {
+          console.log(`プロジェクト更新イベントでタブ状態を更新: ${message.data.metadata.activeTab}`);
+          this.selectTab(message.data.metadata.activeTab, false); // サーバーには保存しない（二重更新防止）
+        } else if (message.data.tabId) {
+          // 直接tabIdが指定されている場合
+          console.log(`プロジェクト更新イベントでタブIDを更新: ${message.data.tabId}`);
+          this.selectTab(message.data.tabId, false);
+        }
+      }
+    });
+    
     // VSCode再起動時にタブが選択されていない状態を修正 
     // デフォルトで進捗状況タブを選択（初期状態を明示的に設定）
     this.selectTab(savedTab, true); // サーバーにも保存
@@ -106,12 +123,27 @@ class TabManager {
         });
       }
     } else if (tabId === 'scope-progress') {
-      // 進捗状況タブが選択された場合、SCOPE_PROGRESS.mdのコンテンツを明示的に再取得
+      // 進捗状況タブが選択された場合の処理
+      console.log('進捗状況タブが選択されました');
+      
+      // まず状態に保存されている進捗状況コンテンツをチェック
+      const state = stateManager.getState();
+      if (state.scopeProgressContent) {
+        console.log('ローカルに保存された進捗状況データを表示します');
+        // すでに保存されたコンテンツがあればそれを表示
+        const event = new CustomEvent('markdown-updated', {
+          detail: { content: state.scopeProgressContent }
+        });
+        document.dispatchEvent(event);
+      }
+      
+      // そのうえで最新データを取得（最新のコンテンツと差し替え）
+      console.log('SCOPE_PROGRESS.mdを再読み込みします');
       stateManager.sendMessage('getMarkdownContent', {
         filePath: `${stateManager.getState().activeProjectPath}/docs/SCOPE_PROGRESS.md`,
-        forScopeProgress: true
+        forScopeProgress: true,
+        forceRefresh: true
       });
-      console.log('進捗状況タブが選択されました。SCOPE_PROGRESS.mdを再読み込みします');
     }
     
     this.selectTab(tabId, true);
@@ -344,16 +376,33 @@ class TabManager {
       return;
     }
     
+    // タブ選択の再帰ループ検出
+    const now = Date.now();
+    if (this._lastTabSelectionTime && (now - this._lastTabSelectionTime) < 300) {
+      // 前回の選択から300ms以内の場合はスキップ（無限ループ防止）
+      console.log(`短時間での連続タブ選択を検出: ${tabId} - スキップします`);
+      return;
+    }
+    this._lastTabSelectionTime = now;
+    
     // 既に選択中のタブなら何もしない（冗長な処理を防止）
     if (this.activeTab === tabId) {
       // 同じタブが選択されても、進捗状況タブの場合は内容を更新（競合状態を解決するため）
-      if (tabId === 'scope-progress') {
+      // ただし、連続更新を防ぐためにフラグをチェック
+      if (tabId === 'scope-progress' && !this._skipProgressReload) {
+        this._skipProgressReload = true; // フラグを設定して連続更新を防止
+        
+        setTimeout(() => {
+          // 300ms後にフラグをリセット
+          this._skipProgressReload = false;
+        }, 300);
+        
         stateManager.sendMessage('getMarkdownContent', {
           filePath: `${stateManager.getState().activeProjectPath}/docs/SCOPE_PROGRESS.md`,
           forScopeProgress: true,
-          forceRefresh: true // 強制的に再読み込みする
+          forceRefresh: false // 強制的な再読み込みはしない
         });
-        console.log('進捗状況タブが再選択されました。強制的に再読み込みします');
+        console.log('進捗状況タブが再選択されました。コンテンツを更新します');
       }
       return;
     }

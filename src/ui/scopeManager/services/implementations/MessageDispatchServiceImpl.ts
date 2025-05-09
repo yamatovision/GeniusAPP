@@ -413,15 +413,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       }
     });
     
-    // selectProject ハンドラー
-    this.registerHandler('selectProject', async (message: Message, panel: vscode.WebviewPanel) => {
-      if (message.projectName && message.projectPath) {
-        await this.selectProject(panel, message.projectName, message.projectPath, message.activeTab);
-      } else {
-        Logger.warn('MessageDispatchServiceImpl: selectProjectメッセージに必要なパラメータがありません');
-        this.showError(panel, 'プロジェクト選択に必要な情報が不足しています');
-      }
-    });
+    // Note: selectProject ハンドラーを削除 - ScopeManagerPanelで直接ProjectServiceImplを使って処理
     
     // createProject ハンドラー
     this.registerHandler('createProject', async (message: Message, panel: vscode.WebviewPanel) => {
@@ -934,113 +926,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     }
   }
   
-  /**
-   * プロジェクト選択
-   * @param panel WebViewパネル
-   * @param projectName プロジェクト名
-   * @param projectPath プロジェクトパス
-   * @param activeTab アクティブタブID（オプション）
-   * @returns 処理結果
-   */
-  public async selectProject(panel: vscode.WebviewPanel, projectName: string, projectPath: string, activeTab?: string): Promise<boolean> {
-    try {
-      Logger.info(`MessageDispatchServiceImpl: プロジェクト選択処理: ${projectName}, パス: ${projectPath}`);
-      
-      // 必須サービスが設定されているか確認
-      if (!this._projectService) {
-        this.showError(panel, 'プロジェクトサービスが利用できないため、プロジェクトを選択できません');
-        return false;
-      }
-      
-      // パネルサービスが利用可能か確認
-      if (this._panelService && typeof this._panelService.syncActiveProject === 'function') {
-        // プロジェクト選択処理
-        await this._projectService.selectProject(projectName, projectPath, activeTab);
-        
-        // プロジェクト情報を取得
-        const project = this._projectService.getActiveProject();
-        
-        // パネルサービスを使用してプロジェクト状態を一括同期
-        if (project) {
-          await this._panelService.syncActiveProject(project);
-          return true;
-        } else {
-          this.showError(panel, 'プロジェクト情報を取得できませんでした');
-          return false;
-        }
-      } else {
-        // 従来の実装（PanelServiceが利用できない場合）
-        Logger.warn('MessageDispatchServiceImpl: PanelServiceが利用できないため従来の実装でプロジェクト選択');
-        
-        // プロジェクトを選択
-        await this._projectService.selectProject(projectName, projectPath, activeTab);
-        
-        // WebViewにプロジェクト状態同期メッセージを送信
-        const activeProject = this._projectService.getActiveProject();
-        if (activeProject) {
-          this.sendMessage(panel, {
-            command: 'syncProjectState',
-            project: activeProject
-          });
-        }
-        
-        // WebViewにプロジェクト一覧を更新
-        const allProjects = await this._projectService.getAllProjects();
-        this.sendMessage(panel, {
-          command: 'updateProjects',
-          projects: allProjects,
-          activeProject: activeProject
-        });
-        
-        // 進捗ファイルの内容も読み込んで表示
-        try {
-          if (this._fileSystemService) {
-            const progressFilePath = path.join(projectPath, 'docs', 'SCOPE_PROGRESS.md');
-            const docsPath = path.join(projectPath, 'docs');
-            
-            // docsディレクトリが存在するか確認
-            if (!fs.existsSync(docsPath)) {
-              // docsディレクトリがなければ作成
-              fs.mkdirSync(docsPath, { recursive: true });
-              Logger.info(`MessageDispatchServiceImpl: docsディレクトリを作成しました: ${docsPath}`);
-            }
-            
-            if (fs.existsSync(progressFilePath)) {
-              const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
-              this.sendMessage(panel, {
-                command: 'updateMarkdownContent',
-                content: content,
-                timestamp: Date.now(),
-                priority: 'high',
-                forScopeProgress: true
-              });
-            } else {
-              // 進捗ファイルが存在しない場合は、空のコンテンツを更新
-              this.sendMessage(panel, {
-                command: 'updateMarkdownContent',
-                content: '# プロジェクト進捗状況\n\nまだ進捗状況が記録されていません。',
-                timestamp: Date.now(),
-                priority: 'high',
-                forScopeProgress: true
-              });
-              Logger.info(`MessageDispatchServiceImpl: 進捗ファイルが見つからないため、空のコンテンツを表示: ${progressFilePath}`);
-            }
-          }
-        } catch (innerError) {
-          Logger.warn('MessageDispatchServiceImpl: 進捗ファイル読み込みエラー', innerError as Error);
-          // エラーがあってもUI表示には影響させない
-        }
-        
-        // 成功メッセージを表示
-        this.showSuccess(panel, `プロジェクト「${projectName}」を開きました`);
-        return true;
-      }
-    } catch (error) {
-      Logger.error(`MessageDispatchServiceImpl: プロジェクト選択でエラー: ${projectName}`, error as Error);
-      this.showError(panel, `プロジェクト「${projectName}」の選択に失敗しました: ${(error as Error).message}`);
-      return false;
-    }
-  }
+  // selectProjectメソッドは削除 - ScopeManagerPanelで直接ProjectServiceImplを呼び出す
   
   /**
    * 新規プロジェクト作成

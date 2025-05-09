@@ -53,6 +53,28 @@ export class SpecializedLaunchHandlers {
     try {
       const { scope } = options;
       
+      // 元のプロジェクトパスを保存
+      const requestedProjectPath = scope.projectPath;
+      
+      // ProjectServiceImplから最新のプロジェクトパスを取得
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+        // 最新のアクティブプロジェクトパスを取得
+        const activeProjectPath = projectService.getActiveProjectPath();
+        
+        // activeProjectPathが有効な場合は優先して使用
+        if (activeProjectPath) {
+          Logger.info(`ProjectServiceImplからアクティブプロジェクトパスを取得: ${activeProjectPath}`);
+          // 引数で渡されたパスよりも優先して使用
+          scope.projectPath = activeProjectPath;
+        }
+      } catch (error) {
+        // ProjectServiceImplからの取得に失敗した場合は警告を出して引数のパスを使用
+        Logger.warn(`ProjectServiceImplからのパス取得に失敗したため、引数のパスを使用: ${requestedProjectPath}`, error as Error);
+      }
+      
       // プロジェクトパスの確認
       if (!fs.existsSync(scope.projectPath)) {
         throw new Error(`プロジェクトパスが存在しません: ${scope.projectPath}`);
@@ -212,7 +234,27 @@ export class SpecializedLaunchHandlers {
     processInfo?: MockupAnalysisProcess;
   }> {
     try {
-      const { mockupFilePath, projectPath, source } = options;
+      const { mockupFilePath, projectPath: requestedProjectPath, source } = options;
+      
+      // ProjectServiceImplから最新のプロジェクトパスを取得
+      let projectPath = requestedProjectPath;
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+        // 最新のアクティブプロジェクトパスを取得
+        const activeProjectPath = projectService.getActiveProjectPath();
+        
+        // activeProjectPathが有効な場合は優先して使用
+        if (activeProjectPath) {
+          Logger.info(`ProjectServiceImplからアクティブプロジェクトパスを取得: ${activeProjectPath}`);
+          // 引数で渡されたパスよりも優先して使用
+          projectPath = activeProjectPath;
+        }
+      } catch (error) {
+        // ProjectServiceImplからの取得に失敗した場合は警告を出して引数のパスを使用
+        Logger.warn(`ProjectServiceImplからのパス取得に失敗したため、引数のパスを使用: ${requestedProjectPath}`, error as Error);
+      }
       
       // モックアップファイル情報を準備
       const absoluteMockupPath = path.isAbsolute(mockupFilePath) ? 
@@ -285,11 +327,31 @@ export class SpecializedLaunchHandlers {
     try {
       const { 
         promptFilePath, 
-        projectPath, 
+        projectPath: requestedProjectPath, 
         additionalParams, 
         deletePromptFile,
         ...terminalOptions 
       } = options;
+      
+      // ProjectServiceImplから最新のプロジェクトパスを取得
+      let projectPath = requestedProjectPath;
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+        // 最新のアクティブプロジェクトパスを取得
+        const activeProjectPath = projectService.getActiveProjectPath();
+        
+        // activeProjectPathが有効な場合は優先して使用
+        if (activeProjectPath) {
+          Logger.info(`ProjectServiceImplからアクティブプロジェクトパスを取得: ${activeProjectPath}`);
+          // 引数で渡されたパスよりも優先して使用
+          projectPath = activeProjectPath;
+        }
+      } catch (error) {
+        // ProjectServiceImplからの取得に失敗した場合は警告を出して引数のパスを使用
+        Logger.warn(`ProjectServiceImplからのパス取得に失敗したため、引数のパスを使用: ${requestedProjectPath}`, error as Error);
+      }
       
       // プロジェクトパスの確認
       if (!fs.existsSync(projectPath)) {
@@ -548,10 +610,31 @@ export class SpecializedLaunchHandlers {
       // APIキー検証をスキップ
       Logger.info('APIキーの検証をスキップします（開発モード）');
       
+      // ProjectServiceImplから最新のプロジェクトパスを取得
+      let projectPath = processInfo.projectPath;
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+        // 最新のアクティブプロジェクトパスを取得
+        const activeProjectPath = projectService.getActiveProjectPath();
+        
+        // activeProjectPathが有効な場合は優先して使用
+        if (activeProjectPath) {
+          Logger.info(`ProjectServiceImplからアクティブプロジェクトパスを取得: ${activeProjectPath}`);
+          // processInfoのパスを更新
+          processInfo.projectPath = activeProjectPath;
+          projectPath = activeProjectPath;
+        }
+      } catch (error) {
+        // ProjectServiceImplからの取得に失敗した場合は警告を出して元のパスを使用
+        Logger.warn(`ProjectServiceImplからのパス取得に失敗したため、元のパスを使用: ${processInfo.projectPath}`, error as Error);
+      }
+      
       // ターミナルの作成
       const terminal = await this.terminalService.createConfiguredTerminal({
         title: `ClaudeCode - ${processInfo.mockupName}の解析`,
-        cwd: processInfo.projectPath
+        cwd: projectPath
       });
       
       // AppGenius専用の認証情報を保存・同期

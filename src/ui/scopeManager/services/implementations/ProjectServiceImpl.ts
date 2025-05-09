@@ -92,60 +92,80 @@ export class ProjectServiceImpl implements IProjectService {
    * イベントリスナーを設定
    */
   private _setupEventListeners(): void {
-    // イベントバスからのPROJECT_SELECTED, PROJECT_CREATED, PROJECT_REMOVEDイベントをリッスン
+    // イベントバスからのプロジェクト関連イベントをリッスン
     const eventBus = AppGeniusEventBus.getInstance();
     
-    // プロジェクト選択イベント
+    // 統一されたプロジェクト更新イベント
     this._disposables.push(
-      eventBus.onEventType(AppGeniusEventType.PROJECT_SELECTED, async (event) => {
+      eventBus.onEventType(AppGeniusEventType.PROJECT_UPDATED, async (event) => {
         // 自分自身が送信したイベントは無視（循環を防ぐ）
         if (event.source === 'ProjectService') {
           return;
         }
         
-        Logger.info(`ProjectService: 他のコンポーネントからのプロジェクト選択イベントを受信しました: ${event.data?.name}`);
-        
-        // プロジェクト情報を更新
-        this._activeProject = event.data;
-        
-        // イベントを発火
-        this._onProjectSelected.fire(event.data);
-      })
-    );
-    
-    // プロジェクト作成イベント
-    this._disposables.push(
-      eventBus.onEventType(AppGeniusEventType.PROJECT_CREATED, async (event) => {
-        // 自分自身が送信したイベントは無視
-        if (event.source === 'ProjectService') {
+        if (!event.data) {
           return;
         }
         
-        Logger.info(`ProjectService: 他のコンポーネントからのプロジェクト作成イベントを受信しました: ${event.data?.name}`);
+        Logger.info(`ProjectService: 他のコンポーネントからのプロジェクト更新イベントを受信しました: ${event.data?.name}, タイプ: ${event.data?.type}`);
         
-        // プロジェクト一覧を更新
+        // イベントタイプに基づいて処理を分岐
+        switch(event.data.type) {
+          case 'selected':
+            // プロジェクト選択イベント
+            this._activeProject = event.data;
+            this._onProjectSelected.fire(event.data);
+            break;
+            
+          case 'created':
+            // プロジェクト作成イベント
+            this._initializeProjects();
+            this._onProjectCreated.fire(event.data);
+            this._onProjectsUpdated.fire(this._currentProjects);
+            break;
+            
+          case 'removed':
+            // プロジェクト削除イベント
+            this._initializeProjects();
+            this._onProjectRemoved.fire(event.data);
+            this._onProjectsUpdated.fire(this._currentProjects);
+            break;
+            
+          case 'updated':
+          default:
+            // その他の更新イベント（タブ状態変更など）
+            if (event.data.id && this._activeProject && this._activeProject.id === event.data.id) {
+              // アクティブプロジェクトの更新の場合
+              this._activeProject = { 
+                ...this._activeProject, 
+                ...event.data,
+                metadata: { ...this._activeProject.metadata, ...event.data.metadata }
+              };
+            }
+            break;
+        }
+      })
+    );
+    
+    // プロジェクト関連のレガシーイベントリスナー
+    // 削除予定のため、必要なものだけを残す
+    this._disposables.push(
+      eventBus.onEventType(AppGeniusEventType.PROJECT_CREATED, async (event) => {
+        if (event.source === 'ProjectService') return;
+        
+        Logger.info(`ProjectService: (レガシー) プロジェクト作成イベントを受信: ${event.data?.name}`);
         this._initializeProjects();
-        
-        // イベントを発火
         this._onProjectCreated.fire(event.data);
         this._onProjectsUpdated.fire(this._currentProjects);
       })
     );
     
-    // プロジェクト削除イベント
     this._disposables.push(
       eventBus.onEventType(AppGeniusEventType.PROJECT_REMOVED, async (event) => {
-        // 自分自身が送信したイベントは無視
-        if (event.source === 'ProjectService') {
-          return;
-        }
+        if (event.source === 'ProjectService') return;
         
-        Logger.info(`ProjectService: 他のコンポーネントからのプロジェクト削除イベントを受信しました: ${event.data?.name}`);
-        
-        // プロジェクト一覧を更新
+        Logger.info(`ProjectService: (レガシー) プロジェクト削除イベントを受信: ${event.data?.name}`);
         this._initializeProjects();
-        
-        // イベントを発火
         this._onProjectRemoved.fire(event.data);
         this._onProjectsUpdated.fire(this._currentProjects);
       })
@@ -259,16 +279,23 @@ export class ProjectServiceImpl implements IProjectService {
         this._currentProjects = this._projectManagementService.getAllProjects();
         this._activeProject = this._projectManagementService.getActiveProject();
         
-        // プロジェクト選択イベントを発行
+        // プロジェクト更新イベント(作成)を発行
         try {
           const eventBus = AppGeniusEventBus.getInstance();
           eventBus.emit(
-            AppGeniusEventType.PROJECT_CREATED,
-            { id: projectId, path: projectDir, name: name },
+            AppGeniusEventType.PROJECT_UPDATED,
+            { 
+              id: projectId, 
+              path: projectDir, 
+              name: name,
+              type: 'created',
+              metadata: { activeTab: 'scope-progress' },
+              timestamp: Date.now()
+            },
             'ProjectService',
             projectId
           );
-          Logger.info(`ProjectService: プロジェクト作成イベントを発行: ${name}, ${projectDir}`);
+          Logger.info(`ProjectService: プロジェクト更新イベント(作成)を発行: ${name}, ${projectDir}`);
         } catch (error) {
           Logger.warn(`ProjectService: イベント発行に失敗しました: ${error}`);
         }
@@ -403,16 +430,23 @@ export class ProjectServiceImpl implements IProjectService {
         this._currentProjects = this._projectManagementService.getAllProjects();
         this._activeProject = this._projectManagementService.getActiveProject();
         
-        // プロジェクト選択イベントを発行
+        // プロジェクト更新イベント(選択)を発行
         try {
           const eventBus = AppGeniusEventBus.getInstance();
           eventBus.emit(
-            AppGeniusEventType.PROJECT_SELECTED,
-            { id: projectId, path: projectPath, name: projectName },
+            AppGeniusEventType.PROJECT_UPDATED,
+            { 
+              id: projectId, 
+              path: projectPath, 
+              name: projectName,
+              type: 'selected',
+              metadata: { activeTab: 'scope-progress' },
+              timestamp: Date.now()
+            },
             'ProjectService',
             projectId || projectPath
           );
-          Logger.info(`ProjectService: プロジェクト選択イベントを発行: ${projectName}, ${projectPath}`);
+          Logger.info(`ProjectService: プロジェクト更新イベント(選択)を発行: ${projectName}, ${projectPath}`);
         } catch (error) {
           Logger.warn(`ProjectService: イベント発行に失敗しました: ${error}`);
         }
@@ -572,20 +606,6 @@ export class ProjectServiceImpl implements IProjectService {
         }
       }
       
-      // イベントバスでプロジェクト選択イベントを発火
-      try {
-        const eventBus = AppGeniusEventBus.getInstance();
-        eventBus.emit(
-          AppGeniusEventType.PROJECT_SELECTED,
-          { id: projectId, path: path, name: name },
-          'ProjectService',
-          projectId || path
-        );
-        Logger.info(`ProjectService: プロジェクト選択イベントを発行: ${name}, ${path}`);
-      } catch (error) {
-        Logger.warn(`ProjectService: イベント発行に失敗しました: ${error}`);
-      }
-      
       // ProjectManagementServiceから最新のプロジェクト情報を取得して同期
       try {
         const updatedProject = projectId ? 
@@ -596,7 +616,24 @@ export class ProjectServiceImpl implements IProjectService {
         this._currentProjects = this._projectManagementService.getAllProjects();
         this._activeProject = updatedProject;
         
-        // イベントを発火
+        // イベントバスで統一されたプロジェクト更新イベントを発行
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.PROJECT_UPDATED,
+          { 
+            id: projectId, 
+            path: path, 
+            name: name,
+            type: 'selected',
+            metadata: updatedProject?.metadata || { activeTab: activeTab || 'scope-progress' },
+            timestamp: Date.now()
+          },
+          'ProjectService',
+          projectId || path
+        );
+        Logger.info(`ProjectService: プロジェクト更新イベント(選択)を発行: ${name}, ${path}`);
+        
+        // VSCode内部イベントも発火
         this._onProjectSelected.fire({
           id: projectId || `local_${Date.now()}`,
           name: name,
@@ -653,16 +690,22 @@ export class ProjectServiceImpl implements IProjectService {
           });
           this._onProjectsUpdated.fire(this._currentProjects);
           
-          // イベントバスでプロジェクト削除イベントを発火
+          // イベントバスでプロジェクト更新イベント(削除)を発火
           try {
             const eventBus = AppGeniusEventBus.getInstance();
             eventBus.emit(
-              AppGeniusEventType.PROJECT_REMOVED,
-              { id: id, path: path, name: name },
+              AppGeniusEventType.PROJECT_UPDATED,
+              { 
+                id: id, 
+                path: path, 
+                name: name,
+                type: 'removed',
+                timestamp: Date.now()
+              },
               'ProjectService',
               id || path
             );
-            Logger.info(`ProjectService: プロジェクト削除イベントを発行: ${name}, ${path}`);
+            Logger.info(`ProjectService: プロジェクト更新イベント(削除)を発行: ${name}, ${path}`);
           } catch (error) {
             Logger.warn(`ProjectService: イベント発行に失敗しました: ${error}`);
           }
@@ -796,7 +839,9 @@ export class ProjectServiceImpl implements IProjectService {
             id: projectId, 
             path: project.path, 
             name: project.name,
-            metadata: metadata
+            type: 'updated',
+            metadata: metadata,
+            timestamp: Date.now()
           },
           'ProjectService',
           projectId

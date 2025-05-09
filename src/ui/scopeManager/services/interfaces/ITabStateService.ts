@@ -10,7 +10,8 @@ export interface ITabStateService extends IService {
   // タブ操作
   selectTab(tabId: string): Promise<void>;
   updateTabContent(tabId: string, content: string): void;
-  saveTabState(projectId: string, tabId: string): Promise<void>;
+  saveTabState(tabId: string): Promise<void>;
+  getActiveTab(): string;
   
   // メッセージハンドラー登録
   registerMessageHandlers(messageService: IMessageDispatchService): void;

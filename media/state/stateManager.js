@@ -34,8 +34,6 @@ class StateManager {
     this.vscode = vscodeInstance;
     this.listeners = new Map();
     this.state = this.vscode.getState() || this._getDefaultState();
-    this._isProcessingStateUpdate = false;
-    this._lastDisplayedMarkdown = '';
   }
 
   _getDefaultState() {
@@ -44,7 +42,7 @@ class StateManager {
       projects: [],
       activeProject: null,
       directoryStructure: '',
-      // その他必要な初期状態
+      scopeProgressContent: ''
     };
   }
 
@@ -93,226 +91,100 @@ class StateManager {
   }
 
   /**
-   * 状態更新ハンドラー (最適化版)
+   * 状態更新ハンドラー（シンプル化版）
    * @param {Object} data - 更新する状態データ
    */
   handleUpdateState(data) {
     // データがない場合は処理しない
-    if (!data) {
-      console.warn('状態更新受信: データなし');
-      return;
+    if (!data) return;
+    
+    // 新しい状態を保存
+    const prevState = this.state;
+    this.setState(data);
+    
+    // マークダウンコンテンツの更新があれば通知
+    if (data.scopeProgressMarkdown && 
+        data.scopeProgressMarkdown !== prevState.scopeProgressMarkdown) {
+      document.dispatchEvent(new CustomEvent('markdown-updated', {
+        detail: { content: data.scopeProgressMarkdown }
+      }));
     }
     
-    console.log('状態更新受信: データ処理開始');
-    
-    // 処理中フラグ（重複実行防止）
-    if (this._isProcessingStateUpdate) {
-      console.log('状態更新: 別の更新処理が進行中のため遅延実行します');
-      // 後で実行するようにキューに入れる
-      setTimeout(() => this.handleUpdateState(data), 100);
-      return;
-    }
-    
-    this._isProcessingStateUpdate = true;
-    
-    try {
-      // 以前の状態を保持して、本当に変更があるか確認
-      const prevState = this.vscode.getState() || {};
+    // 進捗ファイルパスが更新され、マークダウンデータがない場合はファイル取得メッセージを送信
+    if (data.progressFilePath && 
+        !data.scopeProgressMarkdown && 
+        data.progressFilePath !== prevState.lastRequestedProgressFile) {
+      // リクエスト状態を保存
+      this.setState({ lastRequestedProgressFile: data.progressFilePath });
       
-      // 新しい状態を保存（既存の値を保持しつつ、新しい値で上書き）
-      const newState = { ...prevState, ...data };
-      this.setState(newState, false); // リスナー通知は後で行うため、ここではfalse
-      
-      // SCOPE_PROGRESS.mdのマークダウン表示（バックエンドから受け取っている場合）
-      // 前回と同じ内容の場合は再レンダリングしない
-      if (data.scopeProgressMarkdown && 
-          data.scopeProgressMarkdown !== prevState.scopeProgressMarkdown) {
-        // マークダウン表示処理のイベントを発火
-        const event = new CustomEvent('markdown-updated', {
-          detail: { content: data.scopeProgressMarkdown }
-        });
-        document.dispatchEvent(event);
-      } else if (data.progressFilePath && 
-                !data.scopeProgressMarkdown && 
-                data.progressFilePath !== prevState.lastRequestedProgressFile) {
-        // マークダウンデータがない場合はファイル取得メッセージを送信
-        // 以前と同じファイルを再度リクエストするのを防止
-        console.log('マークダウンコンテンツをリクエスト:', data.progressFilePath);
-        newState.lastRequestedProgressFile = data.progressFilePath;
-        this.setState(newState, false);
-        
-        this.sendMessage('getMarkdownContent', {
-          filePath: data.progressFilePath
-        });
-      }
-      
-      // 状態変更リスナーに通知
-      this._notifyListeners();
-    } finally {
-      // 処理完了
-      this._isProcessingStateUpdate = false;
+      // ファイル内容をリクエスト
+      this.sendMessage('getMarkdownContent', {
+        filePath: data.progressFilePath
+      });
     }
   }
 
   /**
-   * プロジェクト状態を同期する
+   * プロジェクト状態を同期する（シンプル化版）
    * @param {Object} project - プロジェクト情報
    */
   syncProjectState(project) {
-    try {
-      if (!project) {
-        console.warn('プロジェクト情報が空のため同期をスキップします');
-        return;
-      }
-      
-      console.log('ProjectManagementServiceからプロジェクト状態を同期:', project);
-      
-      // 現在の状態を取得
-      const state = this.getState();
-      
-      // 連続同期対策 - 短時間での重複同期を防止
-      const now = Date.now();
-      const lastSyncTime = state.lastProjectSyncTime || 0;
-      const lastSyncId = state.lastSyncedProjectId;
-      const syncThreshold = 300; // 300ms以内の同期はスキップ
-      
-      // 同じプロジェクトの頻繁すぎる同期はスキップ
-      if (now - lastSyncTime < syncThreshold && lastSyncId === project.id) {
-        console.log(`プロジェクト同期をスキップ: 直近(${now - lastSyncTime}ms前)に同期済み`);
-        return;
-      }
-      
-      // 同期状態を更新
-      const newState = {
-        ...state,
-        lastProjectSyncTime: now,
-        lastSyncedProjectId: project.id,
-        activeProjectName: project.name,
-        activeProjectPath: project.path
-      };
-      
-      // タブ状態の同期
-      if (project.metadata && project.metadata.activeTab) {
-        newState.activeTab = project.metadata.activeTab;
-      } else if (!newState.activeTab) {
-        newState.activeTab = 'current-status';
-      }
-      
-      // 状態を更新
-      this.setState(newState);
-      
-      // 1. プロジェクト基本情報の更新
-      if (project.name) {
-        // プロジェクト名を更新するイベントを発火
-        const nameEvent = new CustomEvent('project-name-updated', {
-          detail: { name: project.name }
-        });
-        document.dispatchEvent(nameEvent);
-      }
-      
-      if (project.path) {
-        // このプロジェクトへの切り替えが初めてか、明示的なリロードの場合のみforceRefreshを有効に
-        const isNewProject = state.lastSyncedProjectId !== project.id;
-        const isExplicitRefresh = !!project.forceRefresh;
-        
-        const pathData = {
-          projectPath: project.path,
-          statusFilePath: project.path ? `${project.path}/docs/SCOPE_PROGRESS.md` : '',
-          statusFileExists: true,
-          forceRefresh: isNewProject || isExplicitRefresh // 新しいプロジェクトか明示的リフレッシュ時のみ
-        };
-        
-        console.log(`プロジェクトパス更新: ${project.path} (強制更新: ${isNewProject || isExplicitRefresh})`);
-        
-        // プロジェクトパス更新イベントを発火
-        const pathEvent = new CustomEvent('project-path-updated', {
-          detail: pathData
-        });
-        document.dispatchEvent(pathEvent);
-      }
-      
-      // 2. タブ状態の同期
-      if (project.metadata && project.metadata.activeTab) {
-        // タブ状態更新イベントを発火
-        const tabEvent = new CustomEvent('tab-state-updated', {
-          detail: { 
-            tabId: project.metadata.activeTab,
-            saveToServer: false
-          }
-        });
-        document.dispatchEvent(tabEvent);
-      }
-      
-      console.log(`プロジェクト状態同期完了: ${project.name}`);
-    } catch (error) {
-      console.error('プロジェクト状態の同期中にエラーが発生しました:', error);
+    if (!project || !project.path) return;
+    
+    // 現在の状態を取得
+    const state = this.getState();
+    
+    // 最小限の状態更新
+    this.setState({
+      lastProjectSyncTime: Date.now(),
+      lastSyncedProjectId: project.id,
+      activeProjectName: project.name,
+      activeProjectPath: project.path,
+      activeTab: project.metadata?.activeTab || state.activeTab || 'scope-progress'
+    });
+    
+    // 単一のプロジェクト更新イベントを発行
+    document.dispatchEvent(new CustomEvent('project-updated', {
+      detail: { project }
+    }));
+    
+    // プロジェクトパスが変更された場合、必要な初期コンテンツを読み込む
+    const activeTab = project.metadata?.activeTab || 'scope-progress';
+    const progressFilePath = `${project.path}/docs/SCOPE_PROGRESS.md`;
+    
+    // 進捗ファイルを読み込み
+    this.sendMessage('getMarkdownContent', {
+      filePath: progressFilePath,
+      forScopeProgress: true,
+      timestamp: Date.now(),
+      forceRefresh: true
+    });
+    
+    // アクティブタブに応じて適切なコンテンツを読み込む
+    if (activeTab === 'requirements') {
+      this.sendMessage('loadRequirementsFile');
+    } else if (activeTab === 'file-browser') {
+      this.sendMessage('refreshFileBrowser', {
+        projectPath: project.path
+      });
     }
   }
 
   /**
-   * プロジェクト選択状態を復元する
-   * 他のパネル（モックアップギャラリーなど）から戻ってきた時に、
-   * 以前選択していたプロジェクトとタブを復元する
+   * プロジェクト選択状態を復元する（シンプル化版）
    */
   restoreProjectState() {
-    try {
-      // 状態の取得
-      const currentState = this.getState();
-      const { activeProjectName, activeProjectPath, activeTab } = currentState;
-      
-      // タブが存在するか確認
-      if (activeTab) {
-        // タブ状態更新イベントを発火
-        const tabEvent = new CustomEvent('tab-state-updated', {
-          detail: { 
-            tabId: activeTab,
-            saveToServer: true
-          }
-        });
-        document.dispatchEvent(tabEvent);
-      }
-      
-      // 残りの復元処理は少し遅らせて実行
-      setTimeout(() => {
-        try {
-          // 最新の状態を再取得（遅延実行の間に変わっている可能性があるため）
-          const updatedState = this.getState();
-          const { activeProjectName, activeProjectPath } = updatedState;
-          
-          console.log('プロジェクト状態の復元を試みます:', { 
-            activeProjectName, 
-            activeProjectPath
-          });
-          
-          // 状態がローカルに保存されていない場合はバックエンドから同期されるのを待つ
-          if (!activeProjectName || !activeProjectPath) {
-            console.log('ローカルにプロジェクト状態が保存されていません。バックエンドから同期を待ちます。');
-            return;
-          }
-          
-          // プロジェクト名更新イベントを発火
-          const nameEvent = new CustomEvent('project-name-updated', {
-            detail: { name: activeProjectName }
-          });
-          document.dispatchEvent(nameEvent);
-          
-          // プロジェクトパス更新イベントを発火
-          const pathEvent = new CustomEvent('project-path-updated', {
-            detail: { 
-              projectPath: activeProjectPath,
-              statusFilePath: activeProjectPath ? `${activeProjectPath}/docs/SCOPE_PROGRESS.md` : '',
-              statusFileExists: true,
-              forceRefresh: false // 復元時は強制更新しない
-            }
-          });
-          document.dispatchEvent(pathEvent);
-          
-        } catch (error) {
-          console.error('プロジェクト状態の完全復元中にエラーが発生しました:', error);
-        }
-      }, 100);
-    } catch (error) {
-      console.error('プロジェクト状態の復元中にエラーが発生しました:', error);
+    const state = this.getState();
+    
+    // 再利用可能なsyncProjectStateを呼び出す
+    if (state.activeProjectName && state.activeProjectPath) {
+      // 既存の状態をプロジェクト形式に変換して同期
+      this.syncProjectState({
+        name: state.activeProjectName,
+        path: state.activeProjectPath,
+        id: state.lastSyncedProjectId || `local_${Date.now()}`,
+        metadata: { activeTab: state.activeTab }
+      });
     }
   }
 }

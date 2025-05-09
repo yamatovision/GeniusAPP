@@ -11,9 +11,6 @@ import { AppGeniusEventBus } from '../../../../services/AppGeniusEventBus';
  * タブの選択状態や表示状態などのUIに関わる状態を管理
  */
 export class TabStateServiceImpl implements ITabStateService {
-  // タブ状態の保存用マップ（プロジェクトIDからタブIDへのマッピング）
-  private _projectTabStates: Map<string, string> = new Map();
-  
   // イベント発行用
   private _onTabChanged = new vscode.EventEmitter<string>();
   public readonly onTabChanged = this._onTabChanged.event;
@@ -97,28 +94,11 @@ export class TabStateServiceImpl implements ITabStateService {
     try {
       Logger.debug(`TabStateServiceImpl: タブを選択しています: ${tabId}`);
       
-      // 現在のアクティブプロジェクトを取得
-      if (!this._projectService) {
-        throw new Error('ProjectServiceが設定されていません');
-      }
+      // タブ状態を更新（内部でアクティブプロジェクトの確認と状態保存が行われる）
+      await this.saveTabState(tabId);
       
-      const activeProject = this._projectService.getActiveProject();
-      if (!activeProject || !activeProject.id) {
-        Logger.warn('TabStateServiceImpl: アクティブプロジェクトがありません');
-        return;
-      }
-      
-      // タブ状態を更新
-      await this.saveTabState(activeProject.id, tabId);
-      
-      // タブ変更イベントを発行
+      // タブ変更イベントを発行（レガシーサポート - いずれ削除予定）
       this._onTabChanged.fire(tabId);
-      
-      // グローバルイベントも発行
-      this._eventBus.publish('tab-changed', {
-        projectId: activeProject.id,
-        tabId: tabId
-      }, 'TabStateServiceImpl');
       
       Logger.info(`TabStateServiceImpl: タブを選択しました: ${tabId}`);
     } catch (error) {
@@ -151,37 +131,54 @@ export class TabStateServiceImpl implements ITabStateService {
   
   /**
    * タブ状態を保存する
-   * @param projectId プロジェクトID
    * @param tabId タブID
    */
-  public async saveTabState(projectId: string, tabId: string): Promise<void> {
+  public async saveTabState(tabId: string): Promise<void> {
     try {
-      // 現在と同じ場合は処理をスキップ
-      if (this._projectTabStates.get(projectId) === tabId) {
+      // 現在のアクティブタブと比較（現在と同じ場合は処理をスキップ）
+      const currentActiveTab = this.getActiveTab();
+      if (currentActiveTab === tabId) {
         return;
       }
       
-      Logger.debug(`TabStateServiceImpl: タブ状態を保存します: プロジェクト=${projectId}, タブ=${tabId}`);
-      
-      // タブ状態をメモリに保存
-      this._projectTabStates.set(projectId, tabId);
-      
-      // プロジェクトサービスが利用可能な場合、メタデータに保存
-      if (this._projectService) {
-        if (typeof this._projectService.saveTabState === 'function') {
-          await this._projectService.saveTabState(projectId, tabId);
-        } else {
-          Logger.warn('TabStateServiceImpl: ProjectService.saveTabStateメソッドが利用できません');
-        }
+      // プロジェクトサービスからアクティブプロジェクト情報を取得
+      if (!this._projectService) {
+        Logger.warn('TabStateServiceImpl: ProjectServiceが設定されていません');
+        return;
       }
       
-      // グローバルイベントを発行
-      this._eventBus.publish('tab-state-saved', {
-        projectId: projectId,
-        tabId: tabId
-      }, 'TabStateServiceImpl');
+      const activeProject = this._projectService.getActiveProject();
+      if (!activeProject || !activeProject.id) {
+        Logger.warn('TabStateServiceImpl: アクティブプロジェクトが見つかりません');
+        return;
+      }
       
-      Logger.info(`TabStateServiceImpl: タブ状態を保存しました: プロジェクト=${projectId}, タブ=${tabId}`);
+      const projectId = activeProject.id;
+      
+      Logger.debug(`TabStateServiceImpl: タブ状態を保存します: プロジェクト=${projectId}, タブ=${tabId}`);
+      
+      // ProjectService経由でタブ状態を保存
+      if (typeof this._projectService.saveTabState === 'function') {
+        await this._projectService.saveTabState(projectId, tabId);
+        
+        // イベントを発行
+        this._eventBus.emit(
+          'project-updated',
+          {
+            id: projectId,
+            type: 'updated',
+            tabId: tabId,
+            metadata: { activeTab: tabId },
+            timestamp: Date.now()
+          },
+          'TabStateServiceImpl',
+          projectId
+        );
+        
+        Logger.info(`TabStateServiceImpl: タブ状態を保存しました: タブ=${tabId}`);
+      } else {
+        Logger.warn('TabStateServiceImpl: ProjectService.saveTabStateメソッドが実装されていません');
+      }
     } catch (error) {
       Logger.error(`TabStateServiceImpl: タブ状態の保存中にエラーが発生しました: ${(error as Error).message}`, error as Error);
       throw error;
@@ -189,12 +186,20 @@ export class TabStateServiceImpl implements ITabStateService {
   }
   
   /**
-   * 指定プロジェクトのアクティブタブを取得する
-   * @param projectId プロジェクトID
-   * @returns タブID（存在しない場合はundefined）
+   * 現在のアクティブプロジェクトのアクティブタブを取得する
+   * @returns タブID（存在しない場合は'scope-progress'）
    */
-  public getActiveTab(projectId: string): string | undefined {
-    return this._projectTabStates.get(projectId);
+  public getActiveTab(): string {
+    // ProjectServiceが利用可能な場合はそこから取得
+    if (this._projectService) {
+      const project = this._projectService.getActiveProject();
+      if (project && project.metadata && project.metadata.activeTab) {
+        return project.metadata.activeTab;
+      }
+    }
+    
+    // ProjectServiceから取得できない場合はデフォルト値を返す
+    return 'scope-progress';
   }
   
   /**
@@ -212,23 +217,16 @@ export class TabStateServiceImpl implements ITabStateService {
       
       // saveTabState ハンドラー
       messageService.registerHandler('saveTabState', async (message) => {
-        if (!this._projectService) {
-          Logger.warn('TabStateServiceImpl: ProjectServiceが設定されていません');
-          return;
-        }
-        
-        const activeProject = this._projectService.getActiveProject();
-        if (activeProject && activeProject.id && message.tabId) {
-          await this.saveTabState(activeProject.id, message.tabId);
+        if (message.tabId) {
+          await this.saveTabState(message.tabId);
         }
       });
       
       // updateTabContent ハンドラー
-      messageService.registerHandler('updateTabContent', async (message, panel) => {
+      messageService.registerHandler('updateTabContent', async (message) => {
         if (message.tabId && message.content) {
           this.updateTabContent(message.tabId, message.content);
         }
-        return Promise.resolve();
       });
       
       Logger.info('TabStateServiceImpl: メッセージハンドラーを登録しました');
@@ -244,9 +242,6 @@ export class TabStateServiceImpl implements ITabStateService {
   public dispose(): void {
     // イベントエミッタを解放
     this._onTabChanged.dispose();
-    
-    // マップをクリア
-    this._projectTabStates.clear();
     
     // イベントリスナーを解除（AppGeniusEventBusのインスタンスは共有なので自身のリスナーのみを解除）
     // AppGeniusEventBusではunsubscribeメソッドが使用されるが、

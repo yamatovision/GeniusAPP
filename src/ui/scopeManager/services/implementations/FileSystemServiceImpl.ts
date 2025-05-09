@@ -178,12 +178,30 @@ export class FileSystemServiceImpl implements IFileSystemService {
   
   /**
    * 進捗ファイルのパスを取得
-   * @param projectPath プロジェクトのパス
+   * @param projectPath オプショナル - 指定しない場合はProjectServiceImplから最新のパスを取得
    * @returns 進捗ファイルのパス
    */
-  public getProgressFilePath(projectPath: string): string {
+  public getProgressFilePath(projectPath?: string): string {
+    // プロジェクトパスが指定されていない場合はProjectServiceImplから最新のパスを取得
     if (!projectPath) {
-      throw new Error('プロジェクトパスが指定されていません');
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { ProjectServiceImpl } = require('../implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+        
+        // 最新のアクティブプロジェクトパスを取得
+        projectPath = projectService.getActiveProjectPath();
+        
+        Logger.info(`FileSystemService: ProjectServiceImplから最新プロジェクトパスを取得: ${projectPath}`);
+      } catch (error) {
+        Logger.error('FileSystemService: ProjectServiceImplからのパス取得に失敗', error as Error);
+        throw new Error('有効なプロジェクトが選択されていません');
+      }
+    }
+    
+    if (!projectPath) {
+      throw new Error('プロジェクトパスが取得できません');
     }
     
     // docs/SCOPE_PROGRESS.mdというパスを構築
@@ -417,17 +435,40 @@ export class FileSystemServiceImpl implements IFileSystemService {
   
   /**
    * プロジェクトファイルの監視を設定
-   * @param projectPath プロジェクトのパス
+   * @param projectPath オプショナル - 指定しない場合はProjectServiceImplから最新のパスを取得
    * @param outputCallback ファイル変更時のコールバック
    */
   public setupProjectFileWatcher(
-    projectPath: string,
-    outputCallback: (filePath: string) => void
+    projectPath?: string,
+    outputCallback?: (filePath: string) => void
   ): vscode.Disposable {
     try {
+      // プロジェクトパスが指定されていない場合はProjectServiceImplから最新のパスを取得
       if (!projectPath) {
-        throw new Error('プロジェクトパスが指定されていません');
+        try {
+          // ProjectServiceImplのインスタンスを取得
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { ProjectServiceImpl } = require('../implementations/ProjectServiceImpl');
+          const projectService = ProjectServiceImpl.getInstance();
+          
+          // 最新のアクティブプロジェクトパスを取得
+          projectPath = projectService.getActiveProjectPath();
+          
+          Logger.info(`FileSystemService: ProjectServiceImplから最新プロジェクトパスを取得: ${projectPath}`);
+        } catch (error) {
+          Logger.error('FileSystemService: ProjectServiceImplからのパス取得に失敗', error as Error);
+          throw new Error('有効なプロジェクトが選択されていません');
+        }
       }
+      
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが取得できません');
+      }
+      
+      // outputCallbackが指定されていない場合のデフォルト処理
+      const callback = outputCallback || ((filePath: string) => {
+        Logger.info(`FileSystemService: ファイル変更を検出: ${filePath} (デフォルトハンドラ)`);
+      });
       
       // docs ディレクトリのパスを構築
       const docsDir = path.join(projectPath, 'docs');
@@ -438,14 +479,14 @@ export class FileSystemServiceImpl implements IFileSystemService {
       // ファイルウォッチャーを設定
       const fileWatcher = this.setupEnhancedFileWatcher(
         progressFilePath,
-        outputCallback,
+        callback,
         { delayedReadTime: 500 }  // 500ms後に遅延読み込み
       );
       
       Logger.info(`FileSystemService: プロジェクトファイルウォッチャーを設定しました: ${progressFilePath}`);
       return fileWatcher;
     } catch (error) {
-      Logger.error(`FileSystemService: プロジェクトファイルウォッチャーの設定中にエラーが発生しました: ${projectPath}`, error as Error);
+      Logger.error(`FileSystemService: プロジェクトファイルウォッチャーの設定中にエラーが発生しました: ${projectPath || '不明'}`, error as Error);
       // エラー時は空のDisposableを返す
       return { dispose: () => {} };
     }
@@ -629,13 +670,31 @@ export class FileSystemServiceImpl implements IFileSystemService {
   
   /**
    * 進捗ファイルを読み込む
-   * @param projectPath プロジェクトパス
+   * @param projectPath オプショナル - 指定しない場合はProjectServiceImplから最新のパスを取得
    * @param outputCallback 読み込み完了後のコールバック（オプション）
    */
-  public async loadProgressFile(projectPath: string, outputCallback?: (content: string) => void): Promise<string> {
+  public async loadProgressFile(projectPath?: string, outputCallback?: (content: string) => void): Promise<string> {
     try {
+      // プロジェクトパスが指定されていない場合はProjectServiceImplから最新のパスを取得
       if (!projectPath) {
-        throw new Error('プロジェクトパスが指定されていません');
+        try {
+          // ProjectServiceImplのインスタンスを取得
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { ProjectServiceImpl } = require('../implementations/ProjectServiceImpl');
+          const projectService = ProjectServiceImpl.getInstance();
+          
+          // 最新のアクティブプロジェクトパスを取得
+          projectPath = projectService.getActiveProjectPath();
+          
+          Logger.info(`FileSystemService: ProjectServiceImplから最新プロジェクトパスを取得: ${projectPath}`);
+        } catch (error) {
+          Logger.error('FileSystemService: ProjectServiceImplからのパス取得に失敗', error as Error);
+          throw new Error('有効なプロジェクトが選択されていません');
+        }
+      }
+      
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが取得できません');
       }
       
       // 進捗ファイルのパスを取得
@@ -657,7 +716,7 @@ export class FileSystemServiceImpl implements IFileSystemService {
       
       return content;
     } catch (error) {
-      Logger.error(`FileSystemService: 進捗ファイル読み込み中にエラーが発生しました: ${projectPath}`, error as Error);
+      Logger.error(`FileSystemService: 進捗ファイル読み込み中にエラーが発生しました: ${projectPath || '不明'}`, error as Error);
       throw error;
     }
   }
