@@ -1,4 +1,9 @@
+/*
+ * VSCodeのテーマに依存しない固定のライトモード配色
+ * すべての色を明示的に指定して一貫したライトモードの見た目を確保
+ */
 :root {
+  /* 基本カラー - ライトモード固定 */
   --app-background: #f8f9fa;
   --app-text: #333333;
   --app-text-secondary: #718096;
@@ -20,6 +25,8 @@
   --app-gray-200: #e9ecef;
   --app-gray-300: #dee2e6;
   --app-gray-700: #495057;
+
+  /* スペーシングとサイズ */
   --app-spacing-xs: 4px;
   --app-spacing-sm: 8px;
   --app-spacing-md: 16px;
@@ -49,8 +56,8 @@ html, body {
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  background-color: var(--app-background);
-  color: var(--app-text);
+  background-color: #f8f9fa; /* 変数ではなく直接指定してVSCodeテーマの影響を受けないようにする */
+  color: #333333; /* 変数ではなく直接指定 */
   line-height: 1.6;
 }
 
@@ -64,8 +71,8 @@ body {
 .file-browser-panel {
   width: 280px;
   flex-shrink: 0;
-  background-color: #fff;
-  border-right: 1px solid var(--app-border-color);
+  background-color: #ffffff; /* 直接指定 */
+  border-right: 1px solid #e2e8f0; /* 直接指定 */
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -83,14 +90,14 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--app-border-color);
-  background-color: #fff;
+  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
+  background-color: #ffffff; /* 直接指定 */
 }
 
 .file-browser-title {
-  font-weight: var(--app-font-weight-bold);
-  font-size: var(--app-font-size-md);
-  color: var(--app-heading-color);
+  font-weight: 700; /* 直接指定 */
+  font-size: 16px; /* 直接指定 */
+  color: #2d3748; /* 直接指定 */
 }
 
 .file-browser-content {
@@ -106,8 +113,8 @@ body {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background-color: #fff;
-  border: 1px solid var(--app-border-color);
+  background-color: #ffffff; /* 直接指定 */
+  border: 1px solid #e2e8f0; /* 直接指定 */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -115,11 +122,12 @@ body {
   z-index: 10;
   transition: all 0.3s ease;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  color: #718096; /* 直接指定 */
 }
 
 .toggle-panel-btn:hover {
-  background-color: var(--app-primary-light);
-  color: var(--app-primary);
+  background-color: rgba(74, 105, 189, 0.1); /* 直接指定 */
+  color: #4a69bd; /* 直接指定 */
 }
 
 .toggle-panel-btn .material-icons {
@@ -148,16 +156,17 @@ body {
 .file-filter-input {
   width: 100%;
   padding: 8px 8px 8px 32px;
-  border: 1px solid var(--app-border-color);
-  border-radius: var(--app-border-radius);
-  font-size: var(--app-font-size-sm);
-  background-color: var(--app-input-background);
+  border: 1px solid #e2e8f0; /* 直接指定 */
+  border-radius: 8px; /* 直接指定 */
+  font-size: 14px; /* 直接指定 */
+  background-color: #ffffff; /* 直接指定 */
+  color: #333333; /* 直接指定 */
 }
 
 .file-filter-input:focus {
   outline: none;
-  border-color: var(--app-primary);
-  box-shadow: 0 0 0 2px var(--app-primary-light);
+  border-color: #4a69bd; /* 直接指定 */
+  box-shadow: 0 0 0 2px rgba(74, 105, 189, 0.2); /* 直接指定 */
 }
 
 .filter-icon {
@@ -165,7 +174,7 @@ body {
   left: 24px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--app-text-secondary);
+  color: #718096; /* 直接指定 */
   font-size: 18px;
 }
 
@@ -180,36 +189,38 @@ body {
   cursor: pointer;
   transition: background-color 0.2s;
   border-left: 3px solid transparent;
+  color: #333333; /* 直接指定 */
 }
 
 .file-item:hover {
-  background-color: var(--app-hover-background);
+  background-color: #f1f5fd; /* 直接指定 */
 }
 
 .file-item.active {
-  background-color: var(--app-selected-background);
-  border-left-color: var(--app-primary);
+  background-color: rgba(74, 105, 189, 0.1); /* 直接指定 */
+  border-left-color: #4a69bd; /* 直接指定 */
 }
 
 .file-item-icon {
   margin-right: 8px;
-  color: var(--app-text-secondary);
+  color: #718096; /* 直接指定 */
   font-size: 20px;
 }
 
 .file-item-icon.folder {
-  color: #ffc107;
+  color: #ffc107; /* 直接指定 - フォルダのアイコン色 */
 }
 
 .file-item-icon.markdown {
-  color: #4a69bd;
+  color: #4a69bd; /* 直接指定 - マークダウンファイルのアイコン色 */
 }
 
 .file-item-text {
-  font-size: var(--app-font-size-sm);
+  font-size: 14px; /* 直接指定 */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: #333333; /* 直接指定 */
 }
 
 /* メインコンテンツエリア */
@@ -225,13 +236,13 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid var(--app-border-color);
-  background-color: #fff;
+  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
+  background-color: #ffffff; /* 直接指定 */
 }
 
 .current-file-path {
-  font-size: var(--app-font-size-sm);
-  color: var(--app-text-secondary);
+  font-size: 14px; /* 直接指定 */
+  color: #718096; /* 直接指定 */
 }
 
 .content-actions {
@@ -243,17 +254,18 @@ body {
   flex: 1;
   overflow: auto;
   padding: 24px;
-  background-color: var(--app-background);
+  background-color: #f8f9fa; /* 直接指定してVSCodeテーマの影響を受けないようにする */
 }
 
 .markdown-content {
   max-width: 900px;
   margin: 0 auto;
-  background-color: #fff;
+  background-color: #ffffff; /* 明示的に白を指定 */
   padding: 32px;
-  border-radius: var(--app-border-radius);
+  border-radius: 8px; /* 直接指定 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   line-height: 1.6;
+  color: #333333; /* 明示的にテキスト色を指定 */
 }
 
 /* マークダウンスタイル */
@@ -262,8 +274,8 @@ body {
   margin-top: 1em;
   margin-bottom: 0.5em;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--app-border-color);
-  color: var(--app-heading-color);
+  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
+  color: #2d3748; /* 直接指定 */
 }
 
 .markdown-content h2 {
@@ -271,22 +283,22 @@ body {
   margin-top: 1em;
   margin-bottom: 0.5em;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid var(--app-border-color);
-  color: var(--app-heading-color);
+  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
+  color: #2d3748; /* 直接指定 */
 }
 
 .markdown-content h3 {
   font-size: 1.3em;
   margin-top: 1em;
   margin-bottom: 0.5em;
-  color: var(--app-heading-color);
+  color: #2d3748; /* 直接指定 */
 }
 
 .markdown-content h4 {
   font-size: 1.1em;
   margin-top: 1em;
   margin-bottom: 0.5em;
-  color: var(--app-heading-color);
+  color: #2d3748; /* 直接指定 */
 }
 
 .markdown-content p {
@@ -304,18 +316,20 @@ body {
 
 .markdown-content code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  background-color: var(--app-gray-100);
+  background-color: #f8f9fa; /* 直接指定 */
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-size: 0.9em;
+  color: #333333; /* 直接指定 */
 }
 
 .markdown-content pre {
-  background-color: var(--app-gray-100);
+  background-color: #f8f9fa; /* 直接指定 */
   padding: 1em;
-  border-radius: var(--app-border-radius);
+  border-radius: 8px; /* 直接指定 */
   overflow-x: auto;
   margin-bottom: 1em;
+  border: 1px solid #e2e8f0; /* 境界線を追加して視認性を向上 */
 }
 
 .markdown-content pre code {
@@ -323,64 +337,71 @@ body {
   padding: 0;
   border-radius: 0;
   font-size: 0.9em;
+  color: #333333; /* 直接指定 */
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid var(--app-primary);
+  border-left: 4px solid #4a69bd; /* 直接指定 */
   padding-left: 1em;
   margin-left: 0;
   margin-bottom: 1em;
   font-style: italic;
-  color: var(--app-text-secondary);
+  color: #718096; /* 直接指定 */
+  background-color: #f8f9fa; /* 薄い背景色を追加 */
+  padding: 0.5em 1em;
+  border-radius: 4px;
 }
 
 .markdown-content table {
   border-collapse: collapse;
   width: 100%;
   margin-bottom: 1em;
+  border: 1px solid #e2e8f0; /* 直接指定 */
 }
 
 .markdown-content table th, .markdown-content table td {
-  border: 1px solid var(--app-border-color);
+  border: 1px solid #e2e8f0; /* 直接指定 */
   padding: 0.5em;
+  color: #333333; /* 直接指定 */
 }
 
 .markdown-content table th {
-  background-color: var(--app-gray-100);
-  font-weight: var(--app-font-weight-bold);
+  background-color: #f8f9fa; /* 直接指定 */
+  font-weight: 700; /* 直接指定 */
+  color: #2d3748; /* 見出しの色を濃くする */
 }
 
 .button {
-  padding: var(--app-spacing-sm) var(--app-spacing-md);
-  font-size: var(--app-font-size-sm);
-  border-radius: var(--app-border-radius);
+  padding: 8px 16px; /* 直接指定 */
+  font-size: 14px; /* 直接指定 */
+  border-radius: 8px; /* 直接指定 */
   border: none;
   cursor: pointer;
-  transition: all var(--app-transition);
+  transition: all 0.2s ease; /* 直接指定 */
   display: flex;
   align-items: center;
-  gap: var(--app-spacing-xs);
-  font-weight: var(--app-font-weight-medium);
+  gap: 4px; /* 直接指定 */
+  font-weight: 500; /* 直接指定 */
 }
 
 .button-primary {
-  background-color: var(--app-primary);
+  background-color: #4a69bd; /* 直接指定 */
   color: white;
 }
 
 .button-primary:hover {
-  background-color: var(--app-primary-dark);
+  background-color: #3a5a9e; /* 直接指定 */
 }
 
 .button-secondary {
-  background-color: #fff;
-  color: var(--app-primary);
-  border: 1px solid var(--app-border-color);
+  background-color: #ffffff; /* 直接指定 */
+  color: #4a69bd; /* 直接指定 */
+  border: 1px solid #e2e8f0; /* 直接指定 */
 }
 
 .button-secondary:hover {
-  background-color: var(--app-primary-light);
-  border-color: var(--app-primary);
+  background-color: rgba(74, 105, 189, 0.1); /* 直接指定 */
+  border-color: #4a69bd; /* 直接指定 */
 }
 
 /* ファイルを選択していない場合のプレースホルダー */
@@ -390,26 +411,30 @@ body {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: var(--app-text-secondary);
+  color: #718096; /* 直接指定 */
   text-align: center;
   padding: 2rem;
+  background-color: #ffffff; /* 直接指定 - 白背景を明示的に設定 */
 }
 
 .no-file-selected .icon {
   font-size: 64px;
   margin-bottom: 1rem;
   opacity: 0.5;
+  color: #718096; /* アイコン色を明示的に指定 */
 }
 
 .no-file-selected h2 {
   font-size: 1.5rem;
   margin-bottom: 0.5rem;
   font-weight: 500;
+  color: #2d3748; /* 見出し色を直接指定 */
 }
 
 .no-file-selected p {
   max-width: 400px;
   margin: 0 auto;
+  color: #718096; /* テキスト色を直接指定 */
 }
 
 /* ローディング表示 */
@@ -423,9 +448,9 @@ body {
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(74, 105, 189, 0.2);
+  border: 4px solid rgba(74, 105, 189, 0.2); /* 直接指定 */
   border-radius: 50%;
-  border-top-color: var(--app-primary);
+  border-top-color: #4a69bd; /* 直接指定 */
   animation: spin 1s linear infinite;
 }
 
@@ -443,27 +468,27 @@ body {
   margin-left: 24px;
 }
 
-/* ファイル名の拡張子に応じた色分け */
+/* ファイル名の拡張子に応じた色分け - 全てライトモード向けの明るい配色に固定 */
 .file-extension-md {
-  color: #4A69BD;
+  color: #4A69BD; /* マークダウン - 青 */
 }
 
 .file-extension-js {
-  color: #F1C40F;
+  color: #F1C40F; /* JavaScript - 黄色 */
 }
 
 .file-extension-ts {
-  color: #3498DB;
+  color: #3498DB; /* TypeScript - 青 */
 }
 
 .file-extension-html {
-  color: #E74C3C;
+  color: #E74C3C; /* HTML - 赤 */
 }
 
 .file-extension-css {
-  color: #9B59B6;
+  color: #9B59B6; /* CSS - 紫 */
 }
 
 .file-extension-json {
-  color: #F39C12;
+  color: #F39C12; /* JSON - オレンジ */
 }
