@@ -175,17 +175,22 @@ export class MarkdownViewerPanel {
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'markdownViewer', 'markdownViewer.js')
     );
-    
+
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'markdownViewer', 'markdownViewer.css')
     );
-    
+
     const designSystemUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css')
     );
-    
+
+    // スコープマネージャーのCSSを優先的に読み込む（スタイルを完全に合わせるため）
+    const scopeManagerUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.css')
+    );
+
     const materialIconsUri = 'https://fonts.googleapis.com/icon?family=Material+Icons';
-    
+
     // nonce: スクリプトインジェクション攻撃を防ぐためのランダムな文字列
     const nonce = getNonce();
     
@@ -205,8 +210,9 @@ export class MarkdownViewerPanel {
           img-src ${webview.cspSource} https: data:;
         ">
         
-        <link href="${styleUri}" rel="stylesheet">
         <link href="${designSystemUri}" rel="stylesheet">
+        <link href="${scopeManagerUri}" rel="stylesheet">
+        <link href="${styleUri}" rel="stylesheet">
         <link href="${materialIconsUri}" rel="stylesheet">
       </head>
       <body>

@@ -2,7 +2,7 @@
  * VSCodeのテーマに依存しない固定のライトモード配色
  * すべての色を明示的に指定して一貫したライトモードの見た目を確保
  */
-:root {
+:root, .vscode-dark, .vscode-light, .vscode-high-contrast {
   /* 基本カラー - ライトモード固定 */
   --app-background: #f8f9fa;
   --app-text: #333333;
@@ -25,8 +25,6 @@
   --app-gray-200: #e9ecef;
   --app-gray-300: #dee2e6;
   --app-gray-700: #495057;
-
-  /* スペーシングとサイズ */
   --app-spacing-xs: 4px;
   --app-spacing-sm: 8px;
   --app-spacing-md: 16px;
@@ -197,8 +195,19 @@ body {
 }
 
 .file-item.active {
-  background-color: rgba(74, 105, 189, 0.1); /* 直接指定 */
-  border-left-color: #4a69bd; /* 直接指定 */
+  background-color: rgba(74, 105, 189, 0.1);
+  border-left-color: #4a69bd;
+}
+
+/* 一時的なハイライト効果（モックアップギャラリーと同様） */
+.file-item.highlight-briefly {
+  animation: brief-highlight 0.5s ease;
+}
+
+@keyframes brief-highlight {
+  0% { background-color: transparent; }
+  30% { background-color: rgba(74, 105, 189, 0.2); }
+  100% { background-color: transparent; }
 }
 
 .file-item-icon {
@@ -236,13 +245,14 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
-  background-color: #ffffff; /* 直接指定 */
+  border-bottom: 1px solid #e2e8f0;
+  background-color: #ffffff;
 }
 
 .current-file-path {
-  font-size: 14px; /* 直接指定 */
-  color: #718096; /* 直接指定 */
+  font-size: 14px;
+  color: #4a69bd; /* スコープマネージャーと同じ青色 */
+  font-weight: 600; /* 太字にして目立たせる */
 }
 
 .content-actions {
@@ -254,28 +264,32 @@ body {
   flex: 1;
   overflow: auto;
   padding: 24px;
-  background-color: #f8f9fa; /* 直接指定してVSCodeテーマの影響を受けないようにする */
 }
 
+/* マークダウン表示用スタイル - スコープマネージャーと完全一致 */
 .markdown-content {
-  max-width: 900px;
-  margin: 0 auto;
-  background-color: #ffffff; /* 明示的に白を指定 */
-  padding: 32px;
-  border-radius: 8px; /* 直接指定 */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   line-height: 1.6;
-  color: #333333; /* 明示的にテキスト色を指定 */
+  font-size: var(--app-font-size-sm);
+  padding: 0 5px;
+  height: 100%;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
-/* マークダウンスタイル */
 .markdown-content h1 {
   font-size: 1.8em;
   margin-top: 1em;
   margin-bottom: 0.5em;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
-  color: #2d3748; /* 直接指定 */
+  border-bottom: 1px solid var(--app-border-color);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  color: var(--app-primary);
 }
 
 .markdown-content h2 {
@@ -283,53 +297,72 @@ body {
   margin-top: 1em;
   margin-bottom: 0.5em;
   padding-bottom: 0.3em;
-  border-bottom: 1px solid #e2e8f0; /* 直接指定 */
-  color: #2d3748; /* 直接指定 */
+  border-bottom: 1px solid var(--app-border-color);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  color: var(--app-primary);
 }
 
 .markdown-content h3 {
   font-size: 1.3em;
   margin-top: 1em;
   margin-bottom: 0.5em;
-  color: #2d3748; /* 直接指定 */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  color: var(--app-primary);
 }
 
 .markdown-content h4 {
   font-size: 1.1em;
   margin-top: 1em;
   margin-bottom: 0.5em;
-  color: #2d3748; /* 直接指定 */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
+  color: var(--app-primary);
 }
 
 .markdown-content p {
   margin-bottom: 1em;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-content ul, .markdown-content ol {
   margin-bottom: 1em;
   padding-left: 2em;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .markdown-content li {
   margin-bottom: 0.5em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .markdown-content code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  background-color: #f8f9fa; /* 直接指定 */
+  background-color: rgba(0, 0, 0, 0.05);
   padding: 0.2em 0.4em;
   border-radius: 3px;
   font-size: 0.9em;
-  color: #333333; /* 直接指定 */
+  white-space: pre-wrap; /* コードブロック内でも折り返し */
+  word-wrap: break-word;
+  max-width: 100%;
 }
 
 .markdown-content pre {
-  background-color: #f8f9fa; /* 直接指定 */
+  background-color: rgba(0, 0, 0, 0.05);
   padding: 1em;
-  border-radius: 8px; /* 直接指定 */
+  border-radius: var(--app-border-radius);
   overflow-x: auto;
   margin-bottom: 1em;
-  border: 1px solid #e2e8f0; /* 境界線を追加して視認性を向上 */
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .markdown-content pre code {
@@ -337,71 +370,284 @@ body {
   padding: 0;
   border-radius: 0;
   font-size: 0.9em;
-  color: #333333; /* 直接指定 */
+  white-space: pre-wrap; /* コードブロック内でも折り返し */
 }
 
 .markdown-content blockquote {
-  border-left: 4px solid #4a69bd; /* 直接指定 */
+  border-left: 4px solid var(--app-primary);
   padding-left: 1em;
   margin-left: 0;
   margin-bottom: 1em;
   font-style: italic;
-  color: #718096; /* 直接指定 */
-  background-color: #f8f9fa; /* 薄い背景色を追加 */
-  padding: 0.5em 1em;
-  border-radius: 4px;
+  color: var(--app-text-secondary);
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
-.markdown-content table {
+.markdown-content table, .md-table {
   border-collapse: collapse;
   width: 100%;
-  margin-bottom: 1em;
-  border: 1px solid #e2e8f0; /* 直接指定 */
+  margin-bottom: 1.5em;
+  border-radius: var(--app-border-radius-sm);
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 0.95em;
+  border: 1px solid var(--app-border-color);
+  display: block;
+  overflow-x: auto; /* テーブルは横スクロール可能に */
+  max-width: 100%;
 }
 
-.markdown-content table th, .markdown-content table td {
-  border: 1px solid #e2e8f0; /* 直接指定 */
-  padding: 0.5em;
-  color: #333333; /* 直接指定 */
+.markdown-content table th, .markdown-content table td,
+.md-table th, .md-table td {
+  border: 1px solid var(--app-border-color);
+  padding: 0.6em 0.8em;
+  line-height: 1.4;
+  text-align: left;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
-.markdown-content table th {
-  background-color: #f8f9fa; /* 直接指定 */
-  font-weight: 700; /* 直接指定 */
-  color: #2d3748; /* 見出しの色を濃くする */
-}
-
-.button {
-  padding: 8px 16px; /* 直接指定 */
-  font-size: 14px; /* 直接指定 */
-  border-radius: 8px; /* 直接指定 */
-  border: none;
+.markdown-content table th, .md-table th {
+  background-color: var(--app-primary-light);
+  color: var(--app-primary-dark);
+  font-weight: var(--app-font-weight-bold);
+  position: relative;
+  padding-right: 25px; /* ソートアイコン用の余白 */
   cursor: pointer;
-  transition: all 0.2s ease; /* 直接指定 */
+  user-select: none;
+}
+
+.markdown-content table th.sort-asc::after, 
+.md-table th.sort-asc::after {
+  content: "↑";
+  position: absolute;
+  right: 8px;
+  color: var(--app-primary);
+}
+
+.markdown-content table th.sort-desc::after, 
+.md-table th.sort-desc::after {
+  content: "↓";
+  position: absolute;
+  right: 8px;
+  color: var(--app-primary);
+}
+
+.markdown-content table th:hover, .md-table th:hover {
+  background-color: rgba(74, 105, 189, 0.25);
+}
+
+.markdown-content table tr:nth-child(even), .md-table tr:nth-child(even),
+.markdown-content table tr.even-row, .md-table tr.even-row {
+  background-color: var(--app-gray-100);
+}
+
+.markdown-content table tr:hover, .md-table tr:hover {
+  background-color: var(--app-hover-background);
+}
+
+/* フォント色・背景色の設定は削除 - スコープマネージャーの設定を使用 */
+
+.markdown-content h1, .markdown-content h2, .markdown-content h3, .markdown-content h4 {
+  color: var(--app-primary) !important;
+}
+
+/* ディレクトリツリー表示用のスタイル */
+.directory-tree {
+  font-family: monospace;
+  white-space: pre;
+  padding: 12px;
+  background-color: var(--app-gray-100);
+  border-radius: var(--app-border-radius-sm);
+  margin: 10px 0;
+  overflow-x: auto;
+  color: var(--app-text);
+  border: 1px solid var(--app-border-color);
+  line-height: 1.4;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* コードブロック共通スタイル（ディレクトリ構造を含む） */
+pre.code-block {
+  font-family: monospace;
+  white-space: pre-wrap !important; /* 改行と空白を保持しつつ折り返す */
+  background-color: var(--app-gray-100);
+  padding: 12px;
+  border-radius: var(--app-border-radius-sm);
+  margin: 10px 0;
+  overflow-x: auto;
+  border: 1px solid var(--app-border-color);
+  line-height: 1.5;
+  color: var(--app-text);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  tab-size: 4; /* タブサイズを指定 */
+  max-width: 100%;
+  box-sizing: border-box;
+  word-wrap: break-word;
+}
+
+/* ディレクトリ構造の特殊パーツのスタイル */
+.tree-branch, .tree-vertical, .tree-horizontal {
+  color: var(--app-primary);
+  font-weight: normal;
+}
+
+.tree-path {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+/* ディレクトリ構造の改行を確実に反映 */
+pre.code-block.directory-structure br {
+  display: block;
+  content: "";
+  margin-top: 2px;
+}
+
+.tree-item {
+  line-height: 1.5;
   display: flex;
   align-items: center;
-  gap: 4px; /* 直接指定 */
-  font-weight: 500; /* 直接指定 */
+  margin-bottom: 3px;
+  font-size: 13px;
+  position: relative;
+  padding: 2px 4px;
+  border-radius: 3px;
 }
 
-.button-primary {
-  background-color: #4a69bd; /* 直接指定 */
+.tree-item:hover {
+  background-color: rgba(74, 105, 189, 0.1);
+}
+
+.tree-item.directory {
+  font-weight: 600;
+  color: var(--app-primary-dark);
+}
+
+.tree-item.file {
+  color: var(--app-text);
+}
+
+.tree-item.code {
+  color: #d33682;
+}
+
+.tree-item.document {
+  color: #2aa198;
+}
+
+.tree-item.image {
+  color: #6c71c4;
+}
+
+.tree-item-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  margin-right: 6px;
+  opacity: 0.8;
+}
+
+.tree-item-icon.folder-icon::before {
+  content: "📁";
+}
+
+.tree-item-icon.file-icon::before {
+  content: "📄";
+}
+
+.tree-item-icon.code-icon::before {
+  content: "📝";
+}
+
+.tree-item-icon.doc-icon::before {
+  content: "📋";
+}
+
+.tree-item-icon.image-icon::before {
+  content: "🖼️";
+}
+
+.tree-item-text {
+  flex: 1;
+}
+
+/* プログレスバーの視覚的強化 */
+.progress-bar {
+  height: 8px;
+  background-color: var(--app-gray-200);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-top: 5px;
+  margin-bottom: 8px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.progress-fill {
+  height: 100%;
+  transition: width 0.5s ease;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0));
+  border-radius: 5px;
+}
+
+.progress-text {
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+/* スクロールバーのスタイル */
+.content-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.content-body::-webkit-scrollbar-track {
+  background: rgba(230, 230, 230, 0.5);
+  border-radius: 10px;
+}
+
+.content-body::-webkit-scrollbar-thumb {
+  background-color: rgba(74, 105, 189, 0.4);
+  border-radius: 10px;
+}
+
+/* ボタンスタイル */
+.button {
+  padding: var(--app-spacing-sm) var(--app-spacing-md);
+  font-size: var(--app-font-size-md);
+  border-radius: var(--app-border-radius);
+  border: none;
+  cursor: pointer;
+  transition: all var(--app-transition);
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-xs);
+  font-weight: var(--app-font-weight-medium);
+  background-color: var(--app-primary);
   color: white;
+  box-shadow: 0 2px 4px rgba(74, 105, 189, 0.25);
 }
 
-.button-primary:hover {
-  background-color: #3a5a9e; /* 直接指定 */
+.button:hover {
+  background-color: var(--app-primary-dark);
+  box-shadow: 0 4px 8px rgba(74, 105, 189, 0.3);
+  transform: translateY(-1px);
 }
 
 .button-secondary {
-  background-color: #ffffff; /* 直接指定 */
-  color: #4a69bd; /* 直接指定 */
-  border: 1px solid #e2e8f0; /* 直接指定 */
+  background-color: transparent;
+  color: var(--app-primary);
+  border: 1px solid var(--app-primary);
+  box-shadow: 0 1px 2px rgba(74, 105, 189, 0.1);
 }
 
 .button-secondary:hover {
-  background-color: rgba(74, 105, 189, 0.1); /* 直接指定 */
-  border-color: #4a69bd; /* 直接指定 */
+  background-color: var(--app-primary-light);
+  box-shadow: 0 2px 4px rgba(74, 105, 189, 0.15);
 }
 
 /* ファイルを選択していない場合のプレースホルダー */

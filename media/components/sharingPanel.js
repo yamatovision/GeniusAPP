@@ -223,33 +223,71 @@
     const toggleShareBtn = document.getElementById('toggle-share-btn');
     const shareArea = document.getElementById('claude-code-share');
     const minimizeBtn = document.getElementById('minimize-share-btn');
-    
+    const textarea = document.getElementById('share-textarea');
+
     if (toggleShareBtn && shareArea && minimizeBtn) {
       // トグルボタンのクリックイベント
       toggleShareBtn.addEventListener('click', () => {
         shareArea.classList.remove('collapsed');
         toggleShareBtn.style.display = 'none';
-        
+
         // VSCodeのネイティブメッセージは自然に表示させる
       });
-      
+
       // 最小化ボタンのクリックイベント
       minimizeBtn.addEventListener('click', () => {
         shareArea.classList.add('collapsed');
         toggleShareBtn.style.display = 'flex';
+
+        // テキストエリアの内容を保存
+        if (textarea) {
+          saveTextareaContent(textarea.value);
+        }
       });
-      
+
       // 初期状態は非表示（ユーザーが必要なときに表示するように）
       shareArea.classList.add('collapsed');
       toggleShareBtn.style.display = 'flex';
-      
+
+      // テキストエリアの内容を復元
+      if (textarea) {
+        restoreTextareaContent(textarea);
+
+        // テキストが変更されたら自動保存する
+        textarea.addEventListener('input', debounce(function() {
+          saveTextareaContent(textarea.value);
+        }, 500)); // 500ミリ秒の遅延で保存
+
+        // テキストエリアのフォーカスが外れたときに保存する
+        textarea.addEventListener('blur', function() {
+          saveTextareaContent(textarea.value);
+        });
+
+        // タブやウィンドウの切り替え時にも保存
+        window.addEventListener('blur', function() {
+          if (textarea) {
+            saveTextareaContent(textarea.value);
+          }
+        });
+
+        // タブ切り替え対応（スコープマネージャー内）
+        document.addEventListener('click', function(e) {
+          // タブの切り替えを検出する（scopeManagerのタブクリック時）
+          if (e.target && (e.target.classList.contains('tab') || e.target.closest('.tab'))) {
+            if (textarea) {
+              saveTextareaContent(textarea.value);
+            }
+          }
+        });
+      }
+
       // ドロップゾーンに目立つスタイルを適用
       const dropZone = document.getElementById('drop-zone');
       if (dropZone) {
         dropZone.style.borderColor = 'var(--app-primary)';
         dropZone.style.backgroundColor = 'rgba(74, 105, 189, 0.15)';
         dropZone.style.boxShadow = '0 0 15px rgba(74, 105, 189, 0.4)';
-        
+
         // ドロップゾーン内のテキストを変更
         const p = dropZone.querySelector('p');
         if (p) {
@@ -262,6 +300,59 @@
         }
       }
     }
+  }
+
+  /**
+   * テキストエリアの内容をVSCodeの状態に保存
+   * @param {string} content テキストエリアの内容
+   */
+  function saveTextareaContent(content) {
+    if (!vscode) return;
+
+    try {
+      const currentState = vscode.getState() || {};
+      const newState = {
+        ...currentState,
+        shareTextareaContent: content
+      };
+      vscode.setState(newState);
+      console.log('テキストエリアの内容を保存しました', { length: content.length });
+    } catch (e) {
+      console.error('テキストエリアの内容の保存に失敗しました', e);
+    }
+  }
+
+  /**
+   * VSCodeの状態からテキストエリアの内容を復元
+   * @param {HTMLTextAreaElement} textarea テキストエリア要素
+   */
+  function restoreTextareaContent(textarea) {
+    if (!vscode || !textarea) return;
+
+    try {
+      const state = vscode.getState() || {};
+      if (state.shareTextareaContent) {
+        textarea.value = state.shareTextareaContent;
+        console.log('テキストエリアの内容を復元しました', { length: state.shareTextareaContent.length });
+      }
+    } catch (e) {
+      console.error('テキストエリアの内容の復元に失敗しました', e);
+    }
+  }
+
+  /**
+   * 連続実行を防ぐためのdebounce関数
+   * @param {Function} func 実行する関数
+   * @param {number} wait 待機時間（ミリ秒）
+   * @returns {Function} debounce処理された関数
+   */
+  function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+      const context = this;
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(context, args), wait);
+    };
   }
   
   /**
@@ -534,8 +625,13 @@
         suggestedFilename: suggestedFilename
       });
       
-      // テキスト入力をすぐにクリア（UXの向上）
-      textarea.value = '';
+      // テキスト入力を保持したまま
+      // フォーカスをテキストエリアに戻して再編集しやすくする
+      setTimeout(() => {
+        textarea.focus();
+        // テキストの内容を保存
+        saveTextareaContent(textarea.value);
+      }, 100);
     } else {
       showError('共有するテキストまたは画像がありません。');
       
