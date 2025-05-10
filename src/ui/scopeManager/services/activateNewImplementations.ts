@@ -7,7 +7,8 @@ import { Logger } from '../../../utils/logger';
 import { FileSystemServiceImpl } from './implementations/FileSystemServiceImpl';
 import { ProjectServiceImpl } from './implementations/ProjectServiceImpl';
 import { TabStateServiceImpl } from './implementations/TabStateServiceImpl';
-import { PanelServiceImpl } from './implementations/PanelServiceImpl';
+// PanelServiceImplは未実装
+// import { PanelServiceImpl } from './implementations/PanelServiceImpl';
 import { MessageDispatchServiceImpl } from './implementations/MessageDispatchServiceImpl';
 
 /**
@@ -67,19 +68,22 @@ export class ServiceImplementationSwitcher {
       const fileSystemService = FileSystemServiceImpl.getInstance();
       const projectService = ProjectServiceImpl.getInstance(fileSystemService);
       const tabStateService = TabStateServiceImpl.getInstance(projectService, fileSystemService);
-      const panelService = PanelServiceImpl.getInstance(extensionUri, context);
+      // PanelServiceImplは未実装
+      // const panelService = PanelServiceImpl.getInstance(extensionUri, context);
+      const panelService = null;
       const messageService = MessageDispatchServiceImpl.getInstance();
       
       // 依存関係を設定
-      panelService.setProjectService(projectService);
-      panelService.setFileSystemService(fileSystemService);
-      panelService.setTabStateService(tabStateService);
+      // PanelServiceImplは未実装のためコメントアウト
+      // panelService.setProjectService(projectService);
+      // panelService.setFileSystemService(fileSystemService);
+      // panelService.setTabStateService(tabStateService);
       
       messageService.setDependencies({
         projectService: projectService,
         fileSystemService: fileSystemService,
-        panelService: panelService,
-        tabStateService: tabStateService
+        panelService: panelService
+        // tabStateService: tabStateService // IMessageDispatchServiceの型定義にtabStateServiceは含まれていない
       });
       
       // 明示的に標準ハンドラの登録を行う（念のため）

@@ -806,7 +806,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
         // モックアップパスと変数を置換
         templateContent = templateContent
           .replace(/{{MOCKUP_PATH}}/g, mockupFilePath)
-          .replace(/{{PROJECT_PATH}}/g, this._projectPath)
+          .replace(/{{PROJECT_PATH}}/g, projectPath)
           .replace(/{{MOCKUP_NAME}}/g, mockup.name)
           .replace(/{{SOURCE}}/g, 'mockupGallery');
         
@@ -881,8 +881,10 @@ export class MockupGalleryPanel extends ProtectedPanel {
       
       // 要件定義ファイルの内容を取得
       let requirementsText = '';
-      if (fs.existsSync(this._requirementsPath)) {
-        requirementsText = await fs.promises.readFile(this._requirementsPath, 'utf8');
+      const projectPath = this._getCurrentProjectPath();
+      const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
+      if (fs.existsSync(requirementsPath)) {
+        requirementsText = await fs.promises.readFile(requirementsPath, 'utf8');
       } else {
         this._showError('要件定義ファイルが見つかりません。');
         return;
@@ -1207,6 +1209,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
       }
     }
     
-    Logger.info(`モックアップギャラリーパネルを破棄しました: ${this._projectPath}`);
+    Logger.info('モックアップギャラリーパネルを破棄しました');
   }
 }

@@ -35,7 +35,8 @@ export enum AppGeniusEventType {
   CLAUDE_CODE_LAUNCH_COUNTED = 'claude-code-launch-counted',
 
   // タブ関連イベント
-  PROJECT_CHANGED = 'project-changed' // 追加: プロジェクト変更イベント
+  PROJECT_CHANGED = 'project-changed', // 追加: プロジェクト変更イベント
+  TAB_CONTENT_UPDATED = 'tab-content-updated' // 追加: タブ内容更新イベント
 }
 
 /**

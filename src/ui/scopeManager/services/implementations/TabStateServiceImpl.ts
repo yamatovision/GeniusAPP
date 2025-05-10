@@ -4,7 +4,7 @@ import { ITabStateService } from '../interfaces/ITabStateService';
 import { IMessageDispatchService } from '../interfaces/IMessageDispatchService';
 import { IProjectService } from '../interfaces/IProjectService';
 import { IFileSystemService } from '../interfaces/IFileSystemService';
-import { AppGeniusEventBus } from '../../../../services/AppGeniusEventBus';
+import { AppGeniusEventBus, AppGeniusEventType } from '../../../../services/AppGeniusEventBus';
 
 /**
  * タブ状態管理サービスの実装
@@ -117,7 +117,7 @@ export class TabStateServiceImpl implements ITabStateService {
       Logger.debug(`TabStateServiceImpl: タブ内容を更新します: ${tabId}`);
       
       // グローバルイベントを発行してPanelServiceに通知
-      this._eventBus.publish('tab-content-updated', {
+      this._eventBus.publish(AppGeniusEventType.TAB_CONTENT_UPDATED, {
         tabId: tabId,
         content: content
       }, 'TabStateServiceImpl');
@@ -163,7 +163,7 @@ export class TabStateServiceImpl implements ITabStateService {
         
         // イベントを発行
         this._eventBus.emit(
-          'project-updated',
+          AppGeniusEventType.PROJECT_UPDATED,
           {
             id: projectId,
             type: 'updated',

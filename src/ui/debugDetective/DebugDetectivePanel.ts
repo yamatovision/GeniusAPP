@@ -437,7 +437,7 @@ export class DebugDetectivePanel extends ProtectedPanel {
           { 
             title: `デバッグ探偵 - 調査中: ${errorType || '不明なエラー'}`,
             deletePromptFile: true, // セキュリティ対策として自動削除
-            splitView: true, // 分割表示を有効化
+            splitTerminal: true, // 分割表示を有効化
             location: vscode.ViewColumn.Beside // 表示位置を指定
           }
         );

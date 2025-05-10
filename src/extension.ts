@@ -639,7 +639,7 @@ export function deactivate() {
 // ClaudeCode起動カウントイベントリスナーを登録
 try {
 	// イベントリスナーの登録を外部化（既存のリスナーとは別に登録）
-	import('../claude_code_counter_event_listener').then(({ registerClaudeCodeLaunchCountEventListener }) => {
+	import('./claude_code_counter_event_listener').then(({ registerClaudeCodeLaunchCountEventListener }) => {
 		const context = (global as any).__extensionContext;
 		if (context) {
 			registerClaudeCodeLaunchCountEventListener(context);

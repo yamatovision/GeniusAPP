@@ -46,7 +46,7 @@ export class MarkdownViewerService {
   private _setupEventListeners(): void {
     // プロジェクト変更イベントをリッスン
     this._eventBus.onEvent((event) => {
-      if (event.type === AppGeniusEventType.ProjectChanged) {
+      if (event.type === AppGeniusEventType.PROJECT_CHANGED) {
         // プロジェクトが変更されたらマークダウンストレージを初期化
         this._initializeStorageForCurrentProject();
       }
@@ -79,7 +79,7 @@ export class MarkdownViewerService {
    * @param filePath マークダウンファイルのパス
    * @param extensionUri 拡張機能のURI
    */
-  public async openMarkdownViewer(filePath: string, extensionUri: vscode.Uri): Promise<void> {
+  public async openMarkdownViewer(filePath: string, extensionUri: vscode.Uri): Promise<vscode.WebviewPanel | void> {
     try {
       // ファイルパスの正規化（重複スラッシュを除去）
       filePath = filePath.replace(/\/+/g, '/');
@@ -116,12 +116,12 @@ export class MarkdownViewerService {
    * @param extensionUri 拡張機能のURI
    * @param filePath マークダウンファイルのパス
    */
-  private async _createOrShowWebViewPanel(extensionUri: vscode.Uri, filePath?: string): Promise<vscode.WebviewPanel> {
+  private async _createOrShowWebViewPanel(extensionUri: vscode.Uri, filePath?: string): Promise<vscode.WebviewPanel | undefined> {
     // vscode.commands.executeCommandを使用してMarkdownViewerPanelを作成
     // これにより、既存のパネルがあればそれを再利用し、なければ新しく作成する
     await vscode.commands.executeCommand('appgenius.openMarkdownViewer', filePath);
-    
-    return this._activePanel as vscode.WebviewPanel;
+
+    return this._activePanel;
   }
   
   /**

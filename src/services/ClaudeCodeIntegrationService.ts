@@ -551,8 +551,8 @@ export class ClaudeCodeIntegrationService {
       }
 
       // 分割表示が指定されている場合はログ出力
-      if (splitView) {
-        Logger.info(`分割表示モードでClaudeCodeを起動します: ${splitView ? 'Enabled' : 'Disabled'}`);
+      if (splitTerminal) {
+        Logger.info(`分割表示モードでClaudeCodeを起動します: ${splitTerminal ? 'Enabled' : 'Disabled'}`);
         if (location) {
           Logger.info(`ターミナル表示位置: ${location}`);
         }
@@ -565,7 +565,7 @@ export class ClaudeCodeIntegrationService {
         { 
           title: `ClaudeCode - ${prompt.title}`,
           deletePromptFile: true, // セキュリティ対策としてプロンプトファイルを即時削除
-          splitView: splitView, // 分割表示
+          splitTerminal: splitTerminal, // 分割表示
           location: location // 表示位置
         }
       );
@@ -725,7 +725,7 @@ export class ClaudeCodeIntegrationService {
         {
           title: options?.title || 'ClaudeCode',
           deletePromptFile: options?.deletePromptFile || true,
-          splitView: splitView,
+          splitTerminal: splitView,
           location: options?.location
         }
       );
@@ -779,7 +779,7 @@ export class ClaudeCodeIntegrationService {
         {
           title: options?.title || 'ClaudeCode',
           deletePromptFile: options?.deletePromptFile || true,
-          splitView: splitView,
+          splitTerminal: splitView,
           location: options?.location
         }
       );

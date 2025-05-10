@@ -103,13 +103,14 @@ export class ServiceRegistry {
    */
   private updateDependencies(): void {
     if (this._messageDispatchService) {
+      // IMessageDispatchServiceのsetDependencies定義に合わせる
+      // tabStateServiceは正式にサポートされていないのでプロパティを削除
       this._messageDispatchService.setDependencies({
         fileSystemService: this._fileSystemService,
         projectService: this._projectService,
         sharingService: this._sharingService,
         uiStateService: this._uiStateService,
-        panelService: this._panelService,
-        tabStateService: this._tabStateService
+        panelService: this._panelService
       });
     }
     

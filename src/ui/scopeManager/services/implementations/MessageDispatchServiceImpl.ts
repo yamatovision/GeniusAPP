@@ -447,17 +447,24 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
             }
           }
           
-          // 共有履歴を初期化
-          if (this._sharingService && typeof this._sharingService.getHistory === 'function') {
-            // 履歴を取得してパネルに送信
-            const history = await this._sharingService.getHistory();
-            if (history) {
-              this.sendMessage(panel, {
-                command: 'updateSharingHistory',
-                history: history
-              });
+          // 共有履歴を初期化 - 安全なチェック
+          try {
+            // _sharingServiceが定義されているかどうかを確認
+            const sharingService = (this as any)._sharingService;
+            if (sharingService && typeof sharingService.getHistory === 'function') {
+              // 履歴を取得してパネルに送信
+              const history = await sharingService.getHistory();
+              if (history) {
+                this.sendMessage(panel, {
+                  command: 'updateSharingHistory',
+                  history: history
+                });
+              }
+              Logger.info('MessageDispatchServiceImpl: 共有履歴を初期化しました');
             }
-            Logger.info('MessageDispatchServiceImpl: 共有履歴を初期化しました');
+          } catch (sharingError) {
+            // 共有履歴の初期化に失敗した場合でも処理を継続
+            Logger.warn('MessageDispatchServiceImpl: 共有履歴の初期化に失敗しました', sharingError as Error);
           }
         }
         

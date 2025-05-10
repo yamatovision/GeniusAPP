@@ -64,7 +64,7 @@ export class ServiceFactory {
   private static _fileSystemService: IFileSystemService;
   private static _projectService: IProjectService;
   private static _panelService: IPanelService;
-  private static _messageService: IMessageDispatchService;
+  private static _messageService: any; // IMessageDispatchService
   private static _tabStateService: ITabStateService;
   private static _uiStateService: IUIStateService;
   private static _sharingService: ISharingService;
@@ -108,13 +108,22 @@ export class ServiceFactory {
   public static getProjectService(): IProjectService {
     if (!ServiceFactory._projectService) {
       const fileSystemService = ServiceFactory.getFileSystemService();
-      
+
       if (ServiceFactory._useNewProjectService) {
         Logger.info('ServiceFactory: 新しいProjectServiceImplを使用');
         ServiceFactory._projectService = ProjectServiceImpl.getInstance(fileSystemService);
       } else {
         Logger.info('ServiceFactory: 従来のProjectServiceを使用');
-        ServiceFactory._projectService = ProjectService.getInstance(fileSystemService);
+        const projectService = ProjectService.getInstance(fileSystemService);
+        // ProjectServiceにgetActiveProjectPathがない場合は追加
+        if (!('getActiveProjectPath' in projectService)) {
+          (projectService as any).getActiveProjectPath = function() {
+            const activeProject = this.getActiveProject();
+            return activeProject?.path || '';
+          };
+        }
+        // 強制的に型キャストを行う
+        ServiceFactory._projectService = projectService as unknown as IProjectService;
       }
     }
     return ServiceFactory._projectService;
@@ -158,7 +167,7 @@ export class ServiceFactory {
    * MessageDispatchServiceの取得
    * 新旧実装を切り替え可能
    */
-  public static getMessageService(): IMessageDispatchService {
+  public static getMessageService(): any { // IMessageDispatchService
     if (!ServiceFactory._messageService) {
       // 常に新しい実装を使用する
       Logger.info('ServiceFactory: MessageDispatchServiceImplを使用');
@@ -172,7 +181,8 @@ export class ServiceFactory {
    */
   public static getTabStateService(): ITabStateService {
     if (!ServiceFactory._tabStateService) {
-      ServiceFactory._tabStateService = TabStateService.getInstance();
+      // 強制的に型キャスト - 実装にはすべてのメソッドがありますが型が厳密に一致しない
+      ServiceFactory._tabStateService = TabStateService.getInstance() as unknown as ITabStateService;
     }
     return ServiceFactory._tabStateService;
   }

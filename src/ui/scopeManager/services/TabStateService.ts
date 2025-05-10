@@ -11,24 +11,33 @@ export interface ITabStateService {
   // 基本タブ管理
   saveTabState(projectId: string, tabId: string): Promise<void>;
   getActiveTab(projectId: string): string | undefined;
-  
+
   // ファイル読み込み関連
   loadFileToTab(panel: vscode.WebviewPanel, tabId: string, filePath: string): Promise<void>;
   loadRequirementsFile(panel: vscode.WebviewPanel): Promise<void>;
-  
+
   // タブ内容更新
   updateTabContent(panel: vscode.WebviewPanel, tabId: string, content: string, filePath?: string): Promise<void>;
-  
+
   // イベント
   onTabStateChanged: vscode.Event<{ projectId: string, tabId: string }>;
-  
+
   // メッセージハンドラー登録
   registerMessageHandlers(messageService: IMessageDispatchService): void;
+
+  // ITabStateServiceの最新インターフェース用に追加
+  selectTab(tabId: string): Promise<void>;
+  onTabChanged: vscode.Event<string>;
+  dispose(): void;
 }
 
 export class TabStateService implements ITabStateService {
   private _onTabStateChanged = new vscode.EventEmitter<{ projectId: string, tabId: string }>();
   public readonly onTabStateChanged = this._onTabStateChanged.event;
+
+  // 新しいITabStateServiceインターフェースに対応するためのイベント
+  private _onTabChanged = new vscode.EventEmitter<string>();
+  public readonly onTabChanged = this._onTabChanged.event;
   
   private _projectTabStates: Map<string, string> = new Map();
   private _projectService: ProjectService;
@@ -188,19 +197,65 @@ export class TabStateService implements ITabStateService {
         await this.saveTabState(activeProject.id, message.tabId);
       }
     });
-    
+
     // loadFileToTab ハンドラー
     messageService.registerHandler('loadFileToTab', async (message: Message, panel: vscode.WebviewPanel) => {
       if (message.tabId && message.filePath) {
         await this.loadFileToTab(panel, message.tabId, message.filePath);
       }
     });
-    
+
     // loadRequirementsFile ハンドラー
     messageService.registerHandler('loadRequirementsFile', async (_: Message, panel: vscode.WebviewPanel) => {
       await this.loadRequirementsFile(panel);
     });
-    
+
+    // selectTab ハンドラー
+    messageService.registerHandler('selectTab', async (message: Message) => {
+      if (message.tabId) {
+        await this.selectTab(message.tabId);
+      }
+    });
+
     Logger.info('TabStateService: メッセージハンドラーを登録しました');
+  }
+
+  /**
+   * 新しいITabStateServiceインターフェースに対応するための実装
+   */
+
+  /**
+   * タブを選択する
+   * @param tabId 選択するタブのID
+   */
+  public async selectTab(tabId: string): Promise<void> {
+    try {
+      // アクティブなプロジェクトを取得
+      const activeProject = this._projectService.getActiveProject();
+      if (!activeProject || !activeProject.id) {
+        Logger.warn('TabStateService: アクティブなプロジェクトがありません');
+        return;
+      }
+
+      // タブ状態を保存
+      await this.saveTabState(activeProject.id, tabId);
+
+      // 新しいインターフェース用のイベントも発行
+      this._onTabChanged.fire(tabId);
+
+      Logger.info(`TabStateService: タブを選択しました: ${tabId}`);
+    } catch (error) {
+      Logger.error(`TabStateService: タブ選択中にエラーが発生しました: ${(error as Error).message}`, error as Error);
+      throw error;
+    }
+  }
+
+  /**
+   * リソースを解放する
+   */
+  public dispose(): void {
+    this._onTabStateChanged.dispose();
+    this._onTabChanged.dispose();
+    Logger.info('TabStateService: リソースを解放しました');
   }
 }
