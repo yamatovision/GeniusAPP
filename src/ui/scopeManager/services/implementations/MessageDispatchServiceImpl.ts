@@ -556,7 +556,10 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       if (message.path || message.dirPath) {
         try {
           const dirPath = message.path || message.dirPath;
-          const files = await this._fileSystemService.listDirectory(dirPath);
+          // ファイルブラウザ機能が有効な場合は直接メソッドを使用、そうでなければasFunctionを使用して安全に呼び出す
+          const files = 'listDirectory' in this._fileSystemService ?
+            await this._fileSystemService.listDirectory(dirPath) :
+            await (this._fileSystemService as any).listDirectory(dirPath);
           this.sendMessage(panel, {
             command: 'updateFileList',
             files: files,
@@ -607,7 +610,11 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         const content = await this._fileSystemService.readFile(message.filePath);
         
         // 最低限必要な情報を取得
-        const fileType = message.fileType || this._fileSystemService.getFileType(message.filePath);
+        // ファイルブラウザ機能が有効な場合は直接メソッドを使用、そうでなければファイル拡張子を使用
+        const fileType = message.fileType ||
+          ('getFileType' in this._fileSystemService ?
+            this._fileSystemService.getFileType(message.filePath) :
+            path.extname(message.filePath).substring(1) || 'unknown');
         const isMarkdown = fileType === 'markdown';
         const fileName = message.fileName || path.basename(message.filePath);
         const tabId = `file-${message.filePath.split('/').join('-').replace(/[^\w-]/g, '')}`;
@@ -766,7 +773,10 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         }
 
         // 有効なディレクトリパスでリスト取得
-        const files = await this._fileSystemService.listDirectory(directoryPath);
+        // ファイルブラウザ機能が有効な場合は直接メソッドを使用、そうでなければasFunctionを使用して安全に呼び出す
+        const files = 'listDirectory' in this._fileSystemService ?
+          await this._fileSystemService.listDirectory(directoryPath) :
+          await (this._fileSystemService as any).listDirectory(directoryPath);
 
         // 結果を送信
         this.sendMessage(panel, {

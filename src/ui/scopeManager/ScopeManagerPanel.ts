@@ -45,7 +45,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _projectPath: string = '';
   private _fileManager: FileOperationManager;
   private _progressFilePath: string = '';
-  private _directoryStructure: string = '';
   private _fileWatcher: vscode.Disposable | null = null;
   private _tempShareDir: string = '';
   private _promptServiceClient: PromptServiceClient;
@@ -195,17 +194,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       Logger.error('認証状態変更イベントの監視設定中にエラーが発生しました', error as Error);
     }
     
-    // FileSystemServiceのイベントリスナーを設定
-    this._disposables.push(
-      this._fileSystemService.onDirectoryStructureUpdated((structure) => {
-        this._directoryStructure = structure;
-        // ディレクトリ構造が表示されている場合は更新
-        this._panel.webview.postMessage({
-          command: 'updateDirectoryStructure',
-          structure: structure
-        });
-      })
-    );
+    // FileSystemServiceのイベントリスナー設定（ファイルブラウザ関連は削除）
     
     // アクティブプロジェクトを取得
     const activeProject = this._projectService.getActiveProject();
@@ -282,55 +271,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
               // TabStateServiceが処理するため何もしない
               break;
             // ファイルブラウザ関連
-            case 'refreshFileBrowser':
-              try {
-                if (this._projectPath) {
-                  // プロジェクトのディレクトリ構造を再取得
-                  // まずdocsディレクトリに対する構造を取得
-                  const docsPath = path.join(this._projectPath, 'docs');
-                  if (fs.existsSync(docsPath)) {
-                    const structure = await this._fileSystemService.getDirectoryStructure(docsPath);
-                    this._panel.webview.postMessage({
-                      command: 'updateDirectoryStructure',
-                      structure: structure,
-                      currentPath: docsPath
-                    });
-
-                    // ファイルリストも直接更新（プロジェクトパス情報も含める）
-                    const files = await this._fileSystemService.listDirectory(docsPath);
-                    this._panel.webview.postMessage({
-                      command: 'updateFileList',
-                      files: files,
-                      currentPath: docsPath,
-                      projectPath: this._projectPath // プロジェクトパス情報を追加
-                    });
-
-                    Logger.info('ScopeManagerPanel: ファイルブラウザを更新しました (docsディレクトリ)');
-                  } else {
-                    // docsディレクトリが存在しない場合はプロジェクトルートを使用
-                    const structure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
-                    this._panel.webview.postMessage({
-                      command: 'updateDirectoryStructure',
-                      structure: structure,
-                      currentPath: this._projectPath
-                    });
-
-                    // ファイルリストも直接更新（プロジェクトパス情報も含める）
-                    const files = await this._fileSystemService.listDirectory(this._projectPath);
-                    this._panel.webview.postMessage({
-                      command: 'updateFileList',
-                      files: files,
-                      currentPath: this._projectPath,
-                      projectPath: this._projectPath // プロジェクトパス情報を追加
-                    });
-
-                    Logger.info('ScopeManagerPanel: ファイルブラウザを更新しました (プロジェクトルート)');
-                  }
-                }
-              } catch (error) {
-                Logger.error('ファイルブラウザ更新中にエラーが発生しました', error as Error);
-                this._showError(`ファイルブラウザの更新に失敗しました: ${(error as Error).message}`);
-              }
+            // 削除済み: refreshFileBrowser ケース
               break;
             // ファイル操作関連はすべてFileSystemServiceへ移行済み
             case 'openFile':
@@ -614,26 +555,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         Logger.info('進捗ファイルを初期読み込みしました');
       }
       
-      // プロジェクトパスが設定されている場合、ファイルブラウザの初期設定も更新
-      if (this._projectPath) {
-        try {
-          // MessageDispatchServiceのインスタンスを取得
-          const dispatchService = ServiceFactory.getMessageService();
-          if (dispatchService) {
-            // ファイルブラウザの初期表示をdocsディレクトリに設定
-            const docsPath = path.join(this._projectPath, 'docs');
-            if (fs.existsSync(docsPath)) {
-              dispatchService.sendMessage(this._panel, {
-                command: 'setProjectPath',
-                projectPath: docsPath
-              });
-              Logger.info(`ファイルブラウザの初期表示パスをdocsディレクトリに設定: ${docsPath}`);
-            }
-          }
-        } catch (error) {
-          Logger.warn('ファイルブラウザの初期設定中にエラー:', error as Error);
-        }
-      }
+      // ファイルブラウザの初期設定コードは削除されました
       
       // この時点で強制的なタブ選択は行わない（UIが自動的に処理）
     } catch (error) {

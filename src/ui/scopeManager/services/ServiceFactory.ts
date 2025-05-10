@@ -279,14 +279,14 @@ export class ServiceFactory {
       const uiStateService = ServiceFactory.getUIStateService();
       const projectService = ServiceFactory.getProjectService();
       const fileSystemService = ServiceFactory.getFileSystemService();
-      
+
       // PanelServiceのMessageReceived イベントをMessageDispatchServiceに接続
       panelService.onMessageReceived(message => {
         if (panelService.getPanel()) {
           messageService.handleMessage(message, panelService.getPanel()!);
         }
       });
-      
+
       // UIStateServiceのイベントをPanelServiceに反映
       uiStateService.onUIStateChanged(({ projectId, state }) => {
         if (state.directoryStructure && panelService.getPanel()) {
@@ -296,7 +296,7 @@ export class ServiceFactory {
           });
         }
       });
-      
+
       // ProjectServiceのイベントをPanelServiceに反映
       projectService.onProjectsUpdated(projects => {
         if (panelService.getPanel()) {
@@ -308,7 +308,7 @@ export class ServiceFactory {
           });
         }
       });
-      
+
       // FileSystemServiceのイベントをPanelServiceに反映
       fileSystemService.onDirectoryStructureUpdated(structure => {
         if (panelService.getPanel()) {
@@ -318,7 +318,20 @@ export class ServiceFactory {
           });
         }
       });
-      
+
+      // ファイルブラウザの更新イベントをPanelServiceに反映
+      if ('onFileBrowserUpdated' in fileSystemService) {
+        // ファイルブラウザ機能が有効な場合のみイベントを設定
+        (fileSystemService as any).onFileBrowserUpdated((files: any) => {
+          if (panelService.getPanel()) {
+            panelService.sendMessage({
+              command: 'updateFileList',
+              files: files
+            });
+          }
+        });
+      }
+
       Logger.info('ServiceFactory: サービス間のイベントリスナーを設定しました');
     } catch (error) {
       Logger.error('ServiceFactory: イベントリスナー設定エラー', error as Error);
