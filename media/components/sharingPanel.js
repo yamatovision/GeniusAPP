@@ -89,7 +89,36 @@
         });
         break;
       case 'showError':
-        showError(message.message);
+        // マークダウンビューワー関連のエラーはUIに直接表示（再送信なし）
+        if (message.message && message.message.includes('マークダウンビューワーを開けませんでした')) {
+          // エラーをコンソールに記録
+          console.warn('sharingPanel: マークダウンビューワーエラーを処理しました:', message.message);
+
+          // ローカルUIに直接エラーを表示（この表示はWebView内のみ）
+          const errorElem = document.createElement('div');
+          errorElem.className = 'local-error-message';
+          errorElem.textContent = '画像またはファイルの表示に失敗しました。後ほど再試行してください。';
+          errorElem.style.color = 'var(--app-danger)';
+          errorElem.style.padding = '10px';
+          errorElem.style.margin = '10px 0';
+          errorElem.style.backgroundColor = 'rgba(255, 99, 71, 0.1)';
+          errorElem.style.borderRadius = '4px';
+
+          // 表示場所（共有パネル内）
+          const dropZone = document.getElementById('drop-zone');
+          if (dropZone && dropZone.parentNode) {
+            dropZone.parentNode.insertBefore(errorElem, dropZone);
+
+            // 5秒後に消す
+            setTimeout(() => {
+              if (errorElem.parentNode) {
+                errorElem.parentNode.removeChild(errorElem);
+              }
+            }, 5000);
+          }
+        }
+        // メッセージの再送信を停止（ここが重要）
+        // 他のエラーメッセージも処理するが、再送信はしない
         break;
       case 'commandCopied':
         showCopyFeedback(message.fileId);
@@ -919,11 +948,10 @@
    * @param {string} message エラーメッセージ
    */
   function showError(message) {
-    // エラーメッセージをVSCodeに送信（拡張側でエラー表示）
-    vscode.postMessage({
-      command: 'showError',
-      message: message
-    });
+    // エラーメッセージの再送信を行わず、コンソールにログ出力のみ
+    console.error('sharingPanel エラー（VSCodeに再送信しない）:', message);
+
+    // ローカルでUI表示が必要な場合は、ここに実装
   }
   
   /**

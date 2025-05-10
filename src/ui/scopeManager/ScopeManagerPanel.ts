@@ -314,6 +314,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
             case 'openOriginalMockupGallery':
               await this._handleOpenOriginalMockupGallery(message.filePath);
               break;
+
+            case 'openMarkdownViewer':
+              await this._handleOpenMarkdownViewer();
+              break;
             
             // 共有関連処理
             case 'getHistory':
@@ -699,6 +703,26 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _handleOpenOriginalMockupGallery(filePath?: string): Promise<void> {
     // 統合したメソッドを呼び出す
     return this._handleOpenMockupGallery(filePath);
+  }
+
+  /**
+   * マークダウンビューワーを開く
+   */
+  private async _handleOpenMarkdownViewer(): Promise<void> {
+    try {
+      Logger.info(`ScopeManagerPanel: マークダウンビューワーを開くリクエストを受信 (projectPath=${this._projectPath})`);
+
+      // vscode.commandsを使用してマークダウンビューワーを開く
+      // コマンド名を extension.ts で登録されているものに合わせる
+      // プロジェクトパスを明示的に渡す
+      await vscode.commands.executeCommand('appgenius-ai.openMarkdownViewer', this._projectPath);
+
+      Logger.info(`マークダウンビューワーを開きました: プロジェクト=${this._projectPath}`);
+      this._showSuccess('マークダウンビューワーを開きました');
+    } catch (error) {
+      Logger.error('マークダウンビューワーを開けませんでした', error as Error);
+      this._showError('マークダウンビューワーを開けませんでした');
+    }
   }
   
   /**
@@ -1424,7 +1448,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
                 <div class="tabs-container">
                   <div class="tab ${activeTabId === 'scope-progress' ? 'active' : ''}" data-tab="scope-progress">進捗状況</div>
                   <div class="tab ${activeTabId === 'requirements' ? 'active' : ''}" data-tab="requirements">要件定義</div>
-                  <!-- ファイルブラウザタブは削除されました -->
+                  <div class="tab ${activeTabId === 'files' ? 'active' : ''}" data-tab="files">ファイル</div>
                   <div class="tab ${activeTabId === 'claude-code' ? 'active' : ''}" data-tab="claude-code">ClaudeCode連携</div>
                   <div class="tab ${activeTabId === 'tools' ? 'active' : ''}" data-tab="tools">モックアップギャラリー</div>
                 </div>
@@ -1496,6 +1520,21 @@ export class ScopeManagerPanel extends ProtectedPanel {
               <!-- 開発ツールタブコンテンツ (モックアップギャラリー表示用のプレースホルダ) -->
               <div id="tools-tab" class="tab-content ${activeTabId === 'tools' ? 'active' : ''}">
                 <!-- モックアップギャラリーを表示するための空のコンテナ -->
+              </div>
+
+              <!-- ファイルタブコンテンツ -->
+              <div id="files-tab" class="tab-content ${activeTabId === 'files' ? 'active' : ''}">
+                <!-- マークダウンビューワーを表示するための空のコンテナ -->
+                <div class="files-container">
+                  <div class="files-placeholder">
+                    <span class="material-icons">description</span>
+                    <h3>マークダウンビューワーを開いています...</h3>
+                    <p>マークダウンビューワーが別ウィンドウで開かれます</p>
+                    <div class="loading-indicator">
+                      <div class="spinner"></div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

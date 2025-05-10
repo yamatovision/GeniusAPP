@@ -102,7 +102,7 @@ try {
         vscode.postMessage({ command: 'startImplementation' });
       });
     }
-    
+
     // スコープ新規作成ボタン
     const createScopeButton = document.getElementById('create-scope-button');
     if (createScopeButton) {
@@ -110,37 +110,44 @@ try {
         vscode.postMessage({ command: 'addNewScope' });
       });
     }
+
+    // Note: マークダウンビューワーを開くボタンは削除されました
+    // 代わりにファイルタブをクリックしたら直接マークダウンビューワーが開きます
   }
 
   // ページ読み込み完了時の処理
   document.addEventListener('DOMContentLoaded', () => {
     // 初期化メッセージの送信
     vscode.postMessage({ command: 'initialize' });
-    
+
     // シンプルマークダウンコンバーターをグローバル変数として公開
-    // これにより、ファイルブラウザなどの他のコンポーネントから利用可能になる
+    // これにより、他のコンポーネントから利用可能になる
     window.simpleMarkdownConverter = simpleMarkdownConverter;
     window.markdownViewer = markdownViewer;
-    
+
+    // エラーメッセージ無限ループ防止用のグローバル変数
+    window._lastErrorMap = new Map();
+    window._processedErrors = new Set();
+
     // イベントリスナー設定
     setupEventListeners();
-    
+
     // StateManagerのイベントリスナーを設定
     setupStateManagerEvents();
-    
+
     // 各コンポーネントの初期化（順序が重要）
     // 1. プロンプトカードの初期化
     promptCards.initializePromptCards();
-    
+
     // 2. プロジェクトナビゲーションの初期化
     projectNavigation.initializeNavigation();
-    
+
     // 3. ClaudeCode連携エリアの初期化
     initializeClaudeCodeShareArea();
-    
+
     // 4. マークダウン表示の初期化を委譲
     markdownViewer.init();
-    
+
     // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
     // 初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
     setTimeout(() => stateManager.restoreProjectState(), 100);
@@ -163,7 +170,13 @@ try {
         stateManager.handleUpdateState(message);
         break;
       case 'showError':
-        showError(message.message);
+        // マークダウンビューワー関連のエラーは無視（sharingPanelと重複するため）
+        if (message.message && message.message.includes('マークダウンビューワーを開けませんでした')) {
+          console.warn('マークダウンビューワーエラーを無視します:', message.message);
+        } else {
+          // その他のエラーは正常に表示
+          showError(message.message);
+        }
         break;
       case 'showSuccess':
         showSuccess(message.message);
@@ -267,15 +280,15 @@ try {
         }
         break;
       case 'showError':
-        // ファイルプレビュー関連のエラーを特別に処理
-        if (message.message && message.message.includes('ファイルを開けませんでした:') && message.filePath) {
-          // ファイルブラウザのプレビュー更新をエラーモードで呼び出す
-          console.log('scopeManager: ファイル読み込みエラーを検出しました。エラー表示モードでプレビューを更新します');
-          if (fileBrowser && typeof fileBrowser.updateFilePreview === 'function') {
-            fileBrowser.updateFilePreview(message.message, message.filePath, true);
-          }
+        // マークダウンビューワー関連のエラーは無視（冗長なメッセージ防止）
+        if (message.message && message.message.includes('マークダウンビューワーを開けませんでした')) {
+          console.warn('scopeManager: マークダウンビューワーエラーを無視します:', message.message);
+        }
+        // ファイルブラウザ関連のエラーも無視（ファイルブラウザは削除済み）
+        else if (message.message && message.message.includes('ファイルを開けませんでした:')) {
+          console.warn('scopeManager: ファイルブラウザ関連エラーを無視します:', message.message);
         } else {
-          // 通常のエラー表示
+          // その他のエラーは正常に表示
           showError(message.message);
         }
         break;

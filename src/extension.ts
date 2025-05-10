@@ -46,10 +46,12 @@ import { PermissionManager } from './core/auth/PermissionManager';
 import { registerAuthCommands } from './core/auth/authCommands';
 import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
 import { registerEnvironmentCommands } from './commands/environmentCommands';
+import { registerMarkdownViewerCommands } from './commands/markdownViewerCommands'; // 追加: マークダウンビューワーコマンド
 import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
 import { AuthGuard } from './ui/auth/AuthGuard';
 import { Feature } from './core/auth/roles';
 import { AuthStorageManager } from './utils/AuthStorageManager';
+import { MarkdownViewerPanel } from './ui/markdownViewer/MarkdownViewerPanel'; // 追加: マークダウンビューワーパネル
 // SimpleModelViewerPanel is removed - not needed anymore
 
 // グローバル変数としてExtensionContextを保持（安全対策）
@@ -263,6 +265,35 @@ export function activate(context: vscode.ExtensionContext) {
 				} catch (error) {
 					Logger.error('スコープマネージャーを開く際にエラーが発生しました', error as Error);
 					vscode.window.showErrorMessage(`スコープマネージャーを開けませんでした: ${(error as Error).message}`);
+				}
+			})
+		);
+		
+		// マークダウンビューワーを開くコマンドの登録
+		context.subscriptions.push(
+			vscode.commands.registerCommand('appgenius-ai.openMarkdownViewer', (projectPath?: string) => {
+				try {
+					Logger.info(`マークダウンビューワーを開くコマンドが実行されました: ${projectPath || 'パスなし'}`);
+					
+					// プロジェクトパスが指定されていない場合は、アクティブプロジェクトまたはワークスペースから取得
+					if (!projectPath) {
+						// プロジェクト管理サービスからアクティブプロジェクトパスを取得
+						const projectService = ProjectManagementService.getInstance();
+						const activeProject = projectService.getActiveProject();
+						
+						if (activeProject && activeProject.path) {
+							projectPath = activeProject.path;
+						} else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+							projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+						}
+					}
+					
+					// マークダウンビューワーパネルを表示
+					MarkdownViewerPanel.createOrShow(context.extensionUri);
+					Logger.info('マークダウンビューワーパネルを表示しました');
+				} catch (error) {
+					Logger.error('マークダウンビューワーを開く際にエラーが発生しました', error as Error);
+					vscode.window.showErrorMessage(`マークダウンビューワーを開けませんでした: ${(error as Error).message}`);
 				}
 			})
 		);
@@ -501,6 +532,10 @@ export function activate(context: vscode.ExtensionContext) {
 		
 		// 環境変数管理コマンドの登録
 		registerEnvironmentCommands(context);
+		
+		// マークダウンビューワーコマンドの登録
+		registerMarkdownViewerCommands(context);
+		Logger.info('Markdown viewer commands registered successfully');
 		
 		// 環境変数アシスタントは不要なため、チェックと登録部分を削除
 		

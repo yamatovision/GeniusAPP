@@ -77,8 +77,21 @@ class TabManager {
     if (tabId === 'tools') {
       event.preventDefault();
       event.stopPropagation();
-      
+
       stateManager.sendMessage('openOriginalMockupGallery');
+      return;
+    }
+
+    // ファイルタブの処理 - クリックしたら直接マークダウンビューワーを開く
+    if (tabId === 'files') {
+      event.preventDefault();
+      event.stopPropagation();
+
+      // マークダウンビューワーを直接開く (マークダウンビューワーを開く専用コマンドを使用)
+      stateManager.sendMessage('openMarkdownViewer');
+
+      // タブをアクティブにするだけで内容は表示しない
+      this.selectTab(tabId, true);
       return;
     }
     

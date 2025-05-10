@@ -539,6 +539,29 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   }
   
   /**
+   * マークダウンビューワーを開くハンドラー
+   * @param message メッセージ
+   * @param panel WebViewパネル
+   */
+  private async _handleOpenMarkdownViewer(message: Message, panel: vscode.WebviewPanel): Promise<void> {
+    try {
+      // プロジェクトパスを取得
+      const projectPath = message.projectPath ||
+        (this._projectService ? this._projectService.getActiveProjectPath() : '');
+
+      Logger.info(`MessageDispatchServiceImpl: マークダウンビューワーを開く (projectPath=${projectPath})`);
+
+      // VSCodeコマンドを使用してマークダウンビューワーを開く
+      await vscode.commands.executeCommand('appgenius-ai.openMarkdownViewer', projectPath);
+
+      this.showSuccess(panel, 'マークダウンビューワーを開きました');
+    } catch (error) {
+      Logger.error('マークダウンビューワーを開く際にエラーが発生しました', error as Error);
+      this.showError(panel, 'マークダウンビューワーを開けませんでした');
+    }
+  }
+
+  /**
    * ファイル操作関連のメッセージハンドラーを登録
    */
   public registerFileHandlers(): void {
@@ -547,6 +570,9 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       Logger.warn('MessageDispatchServiceImpl: FileSystemServiceが設定されていないため、ファイル操作ハンドラーは登録できません');
       return;
     }
+
+    // マークダウンビューワーを開くハンドラーを登録
+    this.registerHandler('openMarkdownViewer', this._handleOpenMarkdownViewer.bind(this));
     
     // Note: openFileInEditor ハンドラーは削除
     // クライアントが直接FileSystemServiceを使用するよう変更

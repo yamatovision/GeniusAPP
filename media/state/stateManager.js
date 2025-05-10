@@ -83,9 +83,9 @@ class StateManager {
   }
 
   // 共通のVSCodeメッセージ送信処理
-  sendMessage(command, data = {}) {
+  sendMessage(command, data = {}, commandOverride = null) {
     this.vscode.postMessage({
-      command,
+      command: commandOverride || command,
       ...data
     });
   }
