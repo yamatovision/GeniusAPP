@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IService, IProjectDocument } from './common';
+import { IService } from './common';
 
 /**
  * ファイルシステムサービスインターフェース
@@ -16,7 +16,6 @@ export interface IFileSystemService extends IService {
   getDirectoryStructure(projectPath: string): Promise<string>;
   updateDirectoryStructure(projectPath: string): Promise<string>;
   ensureDirectoryExists(dirPath: string): Promise<void>;
-  listDirectory(directoryPath: string, recursive?: boolean): Promise<IProjectDocument[]>;
   
   // ファイル監視
   setupFileWatcher(statusFilePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable;
@@ -38,14 +37,6 @@ export interface IFileSystemService extends IService {
   // ファイルパスとテンプレート取得
   getProgressFilePath(projectPath: string): string;
   findRequirementsFile(projectPath: string): Promise<string | null>;
-  getFileType(filePath: string): string;
-  
-  // スコープマネージャーパネルから移行するファイル操作メソッド
-  openFileInEditor(filePath: string): Promise<void>;
-  navigateDirectory(dirPath: string, panel: vscode.WebviewPanel): Promise<void>;
-  openFile(filePath: string, panel: vscode.WebviewPanel): Promise<void>;
-  refreshFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void>;
-  initializeFileBrowser(projectPath: string, panel: vscode.WebviewPanel): Promise<void>;
   
   // 新規メソッド
   loadProgressFile(projectPath: string, outputCallback?: (content: string) => void): Promise<string>;
@@ -53,5 +44,4 @@ export interface IFileSystemService extends IService {
   // イベント
   onProgressFileChanged: vscode.Event<string>;
   onDirectoryStructureUpdated: vscode.Event<string>;
-  onFileBrowserUpdated: vscode.Event<IProjectDocument[]>;
 }

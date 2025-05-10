@@ -56,11 +56,7 @@ class TabManager {
       }
     }
     
-    // ファイルタブの追加イベントリスナーを設定
-    document.addEventListener('add-file-tab', (event) => {
-      const { tabId, title, content, isMarkdown } = event.detail;
-      this._addFileTab(tabId, title, content, isMarkdown);
-    });
+    // 削除済み：ファイルタブの追加イベントリスナー
     
     // 初期化完了のフラグを設定
     this.isInitialized = true;
@@ -90,38 +86,6 @@ class TabManager {
     if (tabId === 'requirements') {
       // 要件定義タブが選択された場合、ファイルの読み込みをリクエスト
       stateManager.sendMessage('loadRequirementsFile');
-    } else if (tabId === 'file-browser') {
-      // ファイルブラウザタブが選択された場合、ファイルリストのリフレッシュをリクエスト
-      const projectPath = stateManager.getState().activeProjectPath;
-      console.log(`ファイルブラウザタブが選択されました。ファイルリストをリフレッシュします: ${projectPath}`);
-      
-      // fileBrowserコンポーネントが存在していれば初期化
-      if (window.fileBrowser) {
-        // まずUIを準備
-        if (typeof window.fileBrowser.prepareUI === 'function') {
-          window.fileBrowser.prepareUI();
-        } else if (typeof window.fileBrowser.initialize === 'function') {
-          window.fileBrowser.initialize();
-        }
-        
-        // プレースホルダ表示中にファイルリストをリクエスト（遅延実行）
-        setTimeout(() => {
-          stateManager.sendMessage('refreshFileBrowser', {
-            projectPath: projectPath
-          });
-          
-          // 読み込み中表示のクリア
-          const fileList = document.getElementById('file-list');
-          if (fileList && fileList.innerHTML.includes('読み込み中')) {
-            fileList.innerHTML = '<div class="loading-indicator">ファイルリストを取得中...</div>';
-          }
-        }, 100);
-      } else {
-        // fileBrowserがない場合はそのままメッセージ送信
-        stateManager.sendMessage('refreshFileBrowser', {
-          projectPath: projectPath
-        });
-      }
     } else if (tabId === 'scope-progress') {
       // 進捗状況タブが選択された場合の処理
       console.log('進捗状況タブが選択されました');
@@ -150,126 +114,12 @@ class TabManager {
   }
 
   /**
-   * ファイル用の新しいタブを追加
-   * @param {string} tabId タブID
-   * @param {string} title タブのタイトル
-   * @param {string} content ファイルの内容
-   * @param {boolean} isMarkdown マークダウン形式かどうか
+   * ファイル用の新しいタブを追加（削除済み機能）
    * @private
    */
-  _addFileTab(tabId, title, content, isMarkdown) {
-    console.log(`TabManager: ファイルタブを追加します: ${tabId}, ${title}, isMarkdown=${isMarkdown}`);
-    
-    // タブバーを取得
-    const tabBar = document.querySelector('.tabs');
-    if (!tabBar) {
-      console.error('TabManager: タブバーが見つかりません');
-      return;
-    }
-    
-    // タブコンテンツエリアを取得
-    const tabContentsArea = document.querySelector('.tab-content').parentElement;
-    if (!tabContentsArea) {
-      console.error('TabManager: タブコンテンツエリアが見つかりません');
-      return;
-    }
-    
-    // 既存のタブがあれば削除
-    const existingTab = document.querySelector(`.tab[data-tab="${tabId}"]`);
-    const existingContent = document.getElementById(`${tabId}-tab`);
-    
-    if (existingTab) {
-      existingTab.remove();
-    }
-    
-    if (existingContent) {
-      existingContent.remove();
-    }
-    
-    // 新しいタブ要素を作成
-    const newTab = document.createElement('div');
-    newTab.className = 'tab';
-    newTab.setAttribute('data-tab', tabId);
-    
-    // マークダウンファイルの場合はビューアボタンを追加
-    if (isMarkdown) {
-      newTab.innerHTML = `
-        <span>${title}</span>
-        <div class="tab-actions" style="display: flex; align-items: center;">
-          <span class="md-viewer-btn" data-tab-id="${tabId}" title="マークダウンビューアで開く" style="margin-right: 5px; cursor: pointer; color: #4a69bd; font-size: 14px;">👁️</span>
-          <span class="tab-close" data-tab-id="${tabId}">×</span>
-        </div>
-      `;
-    } else {
-      newTab.innerHTML = `
-        <span>${title}</span>
-        <span class="tab-close" data-tab-id="${tabId}">×</span>
-      `;
-    }
-    
-    // クリックイベントを追加
-    newTab.addEventListener('click', (event) => {
-      // クローズボタンがクリックされた場合
-      if (event.target.classList.contains('tab-close')) {
-        event.stopPropagation();
-        this._removeTab(tabId);
-        return;
-      }
-      
-      // マークダウンビューアボタンがクリックされた場合
-      if (event.target.classList.contains('md-viewer-btn')) {
-        event.stopPropagation();
-        
-        // VSCodeにメッセージを送信
-        const filePath = this._getFilePathFromTabId(tabId);
-        if (filePath) {
-          stateManager.sendMessage('openMarkdownInTab', {
-            filePath: filePath,
-            fileName: title
-          });
-        }
-        return;
-      }
-      
-      this._handleTabClick(event, newTab);
-    });
-    
-    // 新しいコンテンツ要素を作成
-    const newContent = document.createElement('div');
-    newContent.id = `${tabId}-tab`;
-    newContent.className = 'tab-content';
-    
-    if (isMarkdown) {
-      // マークダウン表示用のコンテナを追加
-      const markdownContainer = document.createElement('div');
-      markdownContainer.className = 'markdown-content';
-      
-      // マークダウンをHTMLに変換して表示
-      if (window.markdownViewer && typeof window.markdownViewer._simpleMarkdownToHtml === 'function') {
-        markdownContainer.innerHTML = window.markdownViewer._simpleMarkdownToHtml(content);
-      } else {
-        // シンプルな変換
-        markdownContainer.innerHTML = this._convertMarkdownToHtml(content);
-      }
-      
-      newContent.appendChild(markdownContainer);
-    } else {
-      // 通常のテキスト表示
-      const preElement = document.createElement('pre');
-      preElement.textContent = content;
-      newContent.appendChild(preElement);
-    }
-    
-    // 要素を追加
-    tabBar.appendChild(newTab);
-    tabContentsArea.appendChild(newContent);
-    
-    // DOM要素リストを更新
-    this.tabs = document.querySelectorAll('.tab');
-    this.tabContents = document.querySelectorAll('.tab-content');
-    
-    // 新しいタブを選択
-    this.selectTab(tabId);
+  _addFileTab() {
+    console.log(`TabManager: ファイルタブ機能は削除されました`);
+    return;
   }
   
   /**
@@ -318,28 +168,6 @@ class TabManager {
    * @private
    */
   _getFilePathFromTabId(tabId) {
-    // file-で始まるタブIDの場合、パスを取り出す
-    if (tabId.startsWith('file-')) {
-      // 形式: file-パス-をハイフンではなくスラッシュに置き換え
-      let filePath = tabId.substring(5); // 'file-'を削除
-      
-      // ハイフンをスラッシュに置き換え
-      filePath = filePath.replace(/-/g, '/');
-      
-      // Windowsパスの場合はバックスラッシュに変換
-      if (filePath.includes('Users') && !filePath.startsWith('/')) {
-        filePath = filePath.replace(/\//g, '\\');
-      }
-      
-      // 拡張子の補正（"md"→".md"）
-      if (filePath.endsWith('md') && !filePath.endsWith('.md')) {
-        filePath = filePath.replace(/md$/, '.md');
-        console.log(`TabManager: ファイルパス修正（拡張子の区切り文字を追加）: ${filePath}`);
-      }
-      
-      return filePath;
-    }
-    
     // その他の組み込みタブは各自のパスを持つ
     if (tabId === 'scope-progress') {
       const projectPath = stateManager.getState().activeProjectPath;
@@ -352,7 +180,7 @@ class TabManager {
         return `${projectPath}/docs/requirements.md`;
       }
     }
-    
+
     return null;
   }
   

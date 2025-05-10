@@ -16,7 +16,6 @@ import markdownViewer from './components/markdownViewer/markdownViewer.js';
 import projectNavigation from './components/projectNavigation/projectNavigation.js';
 import dialogManager from './components/dialogManager/dialogManager.js';
 import promptCards from './components/promptCards/promptCards.js';
-import fileBrowser from './components/fileBrowser/fileBrowser.js';
 import simpleMarkdownConverter from './utils/simpleMarkdownConverter.js';
 
 // VSCode APIを安全に取得
@@ -142,15 +141,6 @@ try {
     // 4. マークダウン表示の初期化を委譲
     markdownViewer.init();
     
-    // 5. クライアント側のファイルブラウザUIの準備
-    // 注：実際の初期化とファイル読み込みはサーバーサイド(VSCode拡張)で処理
-    if (typeof fileBrowser.prepareUI === 'function') {
-      fileBrowser.prepareUI(); 
-    } else if (typeof fileBrowser.initialize === 'function') {
-      // 後方互換性のため
-      fileBrowser.initialize();
-    }
-    
     // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
     // 初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
     setTimeout(() => stateManager.restoreProjectState(), 100);
@@ -178,32 +168,7 @@ try {
       case 'showSuccess':
         showSuccess(message.message);
         break;
-      case 'updateFileList':
-        // ファイルブラウザコンポーネントに委譲
-        if (fileBrowser && typeof fileBrowser.updateFileList === 'function') {
-          fileBrowser.updateFileList(message.files);
-        }
-        break;
-      case 'updateFileBrowser':
-        // updateFileBrowserコマンドを処理
-        if (fileBrowser) {
-          console.log('scopeManager: updateFileBrowserメッセージを受信しました');
-          
-          if (typeof fileBrowser.updateFileList === 'function' && message.files) {
-            // ファイルリストがある場合はそのまま渡す
-            console.log('scopeManager: ファイルリストを更新します');
-            fileBrowser.updateFileList(message.files);
-            
-            // 現在のパスを更新
-            if (message.currentPath) {
-              fileBrowser.currentPath = message.currentPath;
-            }
-          } else if (message.structure && typeof fileBrowser.updateDirectoryStructure === 'function') {
-            // 構造情報がある場合はfileBrowserのメソッドに処理を委譲
-            console.log('scopeManager: 構造情報を処理します');
-            fileBrowser.updateDirectoryStructure(message.structure);
-          }
-        }
+      // 削除済み: ファイルブラウザ関連メッセージハンドラ
         break;
         
       case 'openFileInTab':

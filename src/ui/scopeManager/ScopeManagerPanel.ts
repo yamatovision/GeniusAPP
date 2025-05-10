@@ -1506,7 +1506,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
                 <div class="tabs-container">
                   <div class="tab ${activeTabId === 'scope-progress' ? 'active' : ''}" data-tab="scope-progress">進捗状況</div>
                   <div class="tab ${activeTabId === 'requirements' ? 'active' : ''}" data-tab="requirements">要件定義</div>
-                  <div class="tab ${activeTabId === 'file-browser' ? 'active' : ''}" data-tab="file-browser">ファイル</div>
+                  <!-- ファイルブラウザタブは削除されました -->
                   <div class="tab ${activeTabId === 'claude-code' ? 'active' : ''}" data-tab="claude-code">ClaudeCode連携</div>
                   <div class="tab ${activeTabId === 'tools' ? 'active' : ''}" data-tab="tools">モックアップギャラリー</div>
                 </div>
@@ -1533,40 +1533,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
               </div>
 
               <!-- ファイルブラウザタブコンテンツ -->
-              <div id="file-browser-tab" class="tab-content ${activeTabId === 'file-browser' ? 'active' : ''}">
-                <div class="card-body">
-                  <div class="file-browser-container">
-                    <div class="file-explorer">
-                      <div class="file-explorer-toolbar">
-                        <button class="button button-secondary" id="refresh-files-btn">
-                          <span class="material-icons">refresh</span>
-                          更新
-                        </button>
-                        <div class="file-path-display">
-                          <span id="current-file-path">プロジェクトルート</span>
-                        </div>
-                      </div>
-                      <div class="breadcrumb-container" id="file-breadcrumb">
-                        <!-- パンくずリストはJSで動的に生成 -->
-                      </div>
-                      <div class="file-list-container">
-                        <div id="file-list" class="file-list">
-                          <!-- ファイルリストはJSで動的に生成 -->
-                          <p>読み込み中...</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="file-preview">
-                      <div id="file-preview-content">
-                        <div class="file-preview-placeholder">
-                          <span class="material-icons">description</span>
-                          <p>ファイルを選択してください</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <!-- ファイルブラウザタブコンテンツは削除されました -->
 
               <!-- ClaudeCode連携タブコンテンツ -->
               <div id="claude-code-tab" class="tab-content ${activeTabId === 'claude-code' ? 'active' : ''}">

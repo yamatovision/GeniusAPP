@@ -37,19 +37,7 @@ export interface IProjectInfo {
   description?: string;
 }
 
-/**
- * プロジェクトドキュメント情報（ファイルブラウザ用）
- */
-export interface IProjectDocument {
-  path: string;
-  name: string;
-  type: string;
-  lastModified: Date;
-  parentFolder?: string; // オプショナルに変更
-  isDirectory?: boolean; // オプショナルに変更
-  size?: number; // オプショナルに変更
-  children?: IProjectDocument[];
-}
+// ファイルブラウザ機能削除に伴い、IProjectDocumentインターフェースも削除
 
 /**
  * すべてのサービスのベースとなるインターフェース
