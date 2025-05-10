@@ -28,6 +28,7 @@ AppGenius ScopeManagerの「ファイル」タブ機能（ファイルブラウ�
 - 削除されたコードのバックアップを `docs/refactoring/removed-code-backup` に保存しました
 - マークダウンパーサーおよびマークダウンビューア関連コードは、他の機能でも使用されるため保持しています
 - ScopeManagerPanel.tsのHTMLテンプレートからファイルタブとタブコンテンツを削除しました
+- ScopeManagerPanel.tsからfileBrowser.css、fileBrowser.jsのインポートと参照を削除しました
 
 ## 今後の改善点
 

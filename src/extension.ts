@@ -37,7 +37,6 @@ import { ScopeExporter } from './utils/ScopeExporter';
 import { MessageBroker } from './utils/MessageBroker';
 import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
 import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
-import { MarkdownViewerPanel } from './ui/markdownViewer/MarkdownViewerPanel';
 // 環境変数アシスタントは不要になったため削除
 import { TokenManager } from './core/auth/TokenManager';
 import { AuthenticationService } from './core/auth/AuthenticationService';
@@ -358,31 +357,6 @@ export function activate(context: vscode.ExtensionContext) {
 		);
 		Logger.info('SimpleChat command registered successfully');
 		
-		// マークダウンビューアを開くコマンドの登録
-		context.subscriptions.push(
-			vscode.commands.registerCommand('appgenius.openMarkdownViewer', (filePath?: string) => {
-				try {
-					// ファイルパスが指定されない場合はエディタでアクティブなファイルを使用
-					if (!filePath && vscode.window.activeTextEditor) {
-						filePath = vscode.window.activeTextEditor.document.uri.fsPath;
-					}
-					
-					// マークダウンファイルでない場合は警告を表示
-					if (filePath && !filePath.endsWith('.md')) {
-						vscode.window.showWarningMessage('マークダウンファイル (.md) のみ表示できます。');
-						return;
-					}
-					
-					Logger.info(`マークダウンビューアを開くコマンドが実行されました: ${filePath || 'ファイルパスなし'}`);
-					MarkdownViewerPanel.createOrShow(context.extensionUri, filePath);
-					Logger.info('マークダウンビューアを正常に開きました');
-				} catch (error) {
-					Logger.error('マークダウンビューアを開く際にエラーが発生しました', error as Error);
-					vscode.window.showErrorMessage(`マークダウンビューアを開けませんでした: ${(error as Error).message}`);
-				}
-			})
-		);
-		Logger.info('MarkdownViewer command registered successfully');
 		
 		// 新しいシンプル認証マネージャーの初期化（優先使用）
 		const simpleAuthManager = SimpleAuthManager.getInstance(context);

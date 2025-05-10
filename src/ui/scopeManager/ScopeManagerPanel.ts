@@ -1332,9 +1332,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'promptCards', 'promptCards.css')
     );
     // ファイルブラウザのスタイルシートを追加
-    const fileBrowserStyleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.css')
-    );
+    // fileBrowserStyleUri - 削除済み
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'scopeManager.js')
     );
@@ -1342,9 +1340,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'sharingPanel.js')
     );
     // ファイルブラウザのスクリプトを追加
-    const fileBrowserScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.js')
-    );
+    // fileBrowserScriptUri - 削除済み
     
     // Material Iconsの読み込み
     const materialIconsUrl = 'https://fonts.googleapis.com/icon?family=Material+Icons';
@@ -1377,7 +1373,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       <link href="${styleMainUri}" rel="stylesheet">
       <link href="${dialogManagerStyleUri}" rel="stylesheet">
       <link href="${promptCardsStyleUri}" rel="stylesheet">
-      <link href="${fileBrowserStyleUri}" rel="stylesheet">
+      <!-- ファイルブラウザのスタイルシートは削除済み -->
       <link href="${materialIconsUrl}" rel="stylesheet">
       <title>AppGenius スコープマネージャー</title>
       <style>
@@ -1615,7 +1611,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       <script type="module" nonce="${nonce}" src="${sharingPanelScriptUri}"></script>
       
       <!-- ファイルブラウザコンポーネント専用スクリプト -->
-      <script type="module" nonce="${nonce}" src="${fileBrowserScriptUri}"></script>
+      <!-- ファイルブラウザのスクリプトは削除済み -->
     </body>
     </html>`;
   }
