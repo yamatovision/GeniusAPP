@@ -25,6 +25,11 @@ export class MarkdownViewerPanel {
   private _currentFilePath: string = '';
   private _fileWatcher: vscode.Disposable | null = null;
   private _messageDispatchService: IMessageDispatchService | null = null;
+  
+  // 分割ビュー用の状態
+  private _isSplitView: boolean = false;
+  private _leftPaneFilePath: string = '';
+  private _rightPaneFilePath: string = '';
 
   // 公開メソッドを追加
   public setCurrentProjectPath(projectPath: string): void {
@@ -193,7 +198,7 @@ export class MarkdownViewerPanel {
 
     // nonce: スクリプトインジェクション攻撃を防ぐためのランダムな文字列
     const nonce = getNonce();
-    
+
     return `
       <!DOCTYPE html>
       <html lang="ja">
@@ -201,7 +206,7 @@ export class MarkdownViewerPanel {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>ファイルブラウザ＆マークダウンビューワー</title>
-        
+
         <meta http-equiv="Content-Security-Policy" content="
           default-src 'none';
           style-src ${webview.cspSource} 'unsafe-inline' https://fonts.googleapis.com;
@@ -209,7 +214,7 @@ export class MarkdownViewerPanel {
           script-src 'nonce-${nonce}';
           img-src ${webview.cspSource} https: data:;
         ">
-        
+
         <link href="${designSystemUri}" rel="stylesheet">
         <link href="${scopeManagerUri}" rel="stylesheet">
         <link href="${styleUri}" rel="stylesheet">
@@ -237,12 +242,17 @@ export class MarkdownViewerPanel {
               </ul>
             </div>
           </div>
-      
+
           <!-- メインコンテンツエリア -->
           <div class="content-area">
             <div class="content-header">
               <div class="current-file-path" id="currentFilePath">ファイルが選択されていません</div>
               <div class="content-actions">
+                <!-- 分割表示ボタンを追加 -->
+                <button class="button button-toggle" id="splitViewButton" title="分割表示の切り替え">
+                  <span class="material-icons">vertical_split</span>
+                  <span>分割表示</span>
+                </button>
                 <button class="button button-secondary" id="refreshButton">
                   <span class="material-icons">refresh</span>
                   <span>更新</span>
@@ -254,17 +264,70 @@ export class MarkdownViewerPanel {
               </div>
             </div>
             <div class="content-body">
-              <div id="markdownContent" class="markdown-content">
-                <div class="no-file-selected">
-                  <span class="material-icons icon">description</span>
-                  <h2>ファイルが選択されていません</h2>
-                  <p>左側のファイルブラウザからファイルを選択してください。</p>
+              <!-- 単一表示モード -->
+              <div id="singleViewContainer" class="view-container active">
+                <div id="markdownContent" class="markdown-content">
+                  <div class="no-file-selected">
+                    <span class="material-icons icon">description</span>
+                    <h2>ファイルが選択されていません</h2>
+                    <p>左側のファイルブラウザからファイルを選択してください。</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 分割表示モード -->
+              <div id="splitViewContainer" class="view-container split-view">
+                <!-- 分割コンテンツエリア -->
+                <div class="split-content">
+                  <div id="leftPane" class="pane">
+                    <div class="pane-header">
+                      <div class="pane-file-path" id="leftPaneFilePath">左ペイン</div>
+                      <div class="pane-actions">
+                        <button class="button-icon" id="leftPaneRefreshButton" title="更新">
+                          <span class="material-icons">refresh</span>
+                        </button>
+                        <button class="button-icon" id="leftPaneEditButton" title="編集">
+                          <span class="material-icons">edit</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div id="leftMarkdownContent" class="markdown-content">
+                      <div class="no-file-selected">
+                        <span class="material-icons icon">description</span>
+                        <h2>ファイルが選択されていません</h2>
+                        <p>左側のファイルブラウザからファイルを選択してください。</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="pane-resizer" id="paneResizer"></div>
+
+                  <div id="rightPane" class="pane">
+                    <div class="pane-header">
+                      <div class="pane-file-path" id="rightPaneFilePath">右ペイン</div>
+                      <div class="pane-actions">
+                        <button class="button-icon" id="rightPaneRefreshButton" title="更新">
+                          <span class="material-icons">refresh</span>
+                        </button>
+                        <button class="button-icon" id="rightPaneEditButton" title="編集">
+                          <span class="material-icons">edit</span>
+                        </button>
+                      </div>
+                    </div>
+                    <div id="rightMarkdownContent" class="markdown-content">
+                      <div class="no-file-selected">
+                        <span class="material-icons icon">description</span>
+                        <h2>ファイルが選択されていません</h2>
+                        <p>左側のファイルブラウザからファイルを選択してください。</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      
+
         <script nonce="${nonce}" src="${scriptUri}"></script>
       </body>
       </html>
@@ -328,8 +391,19 @@ export class MarkdownViewerPanel {
           this._refreshFileList();
           
           // 現在表示中のファイルの変更を監視
-          if (filePath === this._currentFilePath) {
-            this._loadFileContent(filePath);
+          if (this._isSplitView) {
+            // 分割表示モードの場合
+            if (filePath === this._leftPaneFilePath) {
+              this._loadFileContentForPane(filePath, 'left');
+            }
+            if (filePath === this._rightPaneFilePath) {
+              this._loadFileContentForPane(filePath, 'right');
+            }
+          } else {
+            // 通常モードの場合
+            if (filePath === this._currentFilePath) {
+              this._loadFileContent(filePath);
+            }
           }
         }
       );
@@ -474,13 +548,82 @@ export class MarkdownViewerPanel {
   }
 
   /**
+   * 指定されたペインにファイル内容を読み込む
+   * @param filePath 読み込むファイルパス
+   * @param pane ペイン名（'left'または'right'）
+   */
+  private _loadFileContentForPane(filePath: string, pane: string): void {
+    try {
+      if (!filePath) {
+        return;
+      }
+
+      this._fileSystemService.fileExists(filePath)
+        .then((exists) => {
+          if (!exists) {
+            this._sendMessageToWebview({
+              command: 'showError',
+              message: `ファイルが見つかりません: ${filePath}`
+            });
+            return;
+          }
+
+          const fileType = this._fileSystemService.getFileType(filePath);
+
+          this._fileSystemService.readFile(filePath, fileType)
+            .then((content) => {
+              // WebViewにファイル内容を送信（ペイン情報付き）
+              this._sendMessageToWebview({
+                command: 'updatePaneContent',
+                content: content,
+                filePath: filePath,
+                fileType: fileType,
+                pane: pane
+              });
+
+              // ペイン別のファイルパスを更新
+              if (pane === 'left') {
+                this._leftPaneFilePath = filePath;
+              } else {
+                this._rightPaneFilePath = filePath;
+              }
+
+              Logger.debug(`MarkdownViewerPanel: ${pane}ペインにファイル内容を読み込みました: ${filePath}`);
+            })
+            .catch((error) => {
+              this._sendMessageToWebview({
+                command: 'showError',
+                message: `ファイルの読み込みに失敗しました: ${error.message}`
+              });
+            });
+        })
+        .catch((error) => {
+          // エラーハンドリング
+        });
+    } catch (error) {
+      Logger.error(`MarkdownViewerPanel: ペイン用ファイル内容読み込み中にエラーが発生しました: ${filePath}`, error as Error);
+    }
+  }
+
+  /**
    * コンテンツを更新
    */
   private _refreshContent(): void {
     this._refreshFileList();
     
-    if (this._currentFilePath) {
-      this._loadFileContent(this._currentFilePath);
+    if (this._isSplitView) {
+      // 分割表示モードの場合、両方のペインを更新
+      if (this._leftPaneFilePath) {
+        this._loadFileContentForPane(this._leftPaneFilePath, 'left');
+      }
+      if (this._rightPaneFilePath) {
+        this._loadFileContentForPane(this._rightPaneFilePath, 'right');
+      }
+    } else {
+      // 通常モードの場合
+      if (this._currentFilePath) {
+        this._loadFileContent(this._currentFilePath);
+      }
     }
   }
 
@@ -493,7 +636,13 @@ export class MarkdownViewerPanel {
       switch (message.command) {
         case 'readFile':
           if (message.filePath) {
-            this._loadFileContent(message.filePath);
+            if (message.pane) {
+              // ペイン指定付きでファイルを読み込む
+              this._loadFileContentForPane(message.filePath, message.pane);
+            } else {
+              // 通常のファイル読み込み
+              this._loadFileContent(message.filePath);
+            }
           }
           break;
           
@@ -534,6 +683,46 @@ export class MarkdownViewerPanel {
           
         case 'refreshContent':
           this._refreshContent();
+          break;
+          
+        case 'showFileOpenMenu':
+          // ファイルを開くメニューを表示
+          vscode.window.showQuickPick([
+            { label: '左ペインで開く', value: 'left' },
+            { label: '右ペインで開く', value: 'right' }
+          ]).then(selection => {
+            if (selection) {
+              // 選択結果をWebViewに送信
+              this._sendMessageToWebview({
+                command: 'fileOpenMenuResult',
+                filePath: message.filePath,
+                option: selection.label
+              });
+              
+              this._isSplitView = true;
+            }
+          });
+          break;
+
+        case 'showPaneSelectDialog':
+          // 分割モード解除時のペイン選択ダイアログ
+          vscode.window.showQuickPick([
+            { label: '左ペインを保持', description: path.basename(message.leftFile || '未選択'), value: 'left' },
+            { label: '右ペインを保持', description: path.basename(message.rightFile || '未選択'), value: 'right' }
+          ]).then(selection => {
+            if (selection) {
+              // 選択結果をWebViewに送信
+              this._sendMessageToWebview({
+                command: 'paneSelectResult',
+                pane: selection.value
+              });
+              
+              this._isSplitView = false;
+              
+              // 選択されたペインのファイルパスを現在のファイルパスとして設定
+              this._currentFilePath = selection.value === 'left' ? this._leftPaneFilePath : this._rightPaneFilePath;
+            }
+          });
           break;
           
         default:

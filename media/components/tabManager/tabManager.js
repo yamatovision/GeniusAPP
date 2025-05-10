@@ -90,8 +90,9 @@ class TabManager {
       // マークダウンビューワーを直接開く (マークダウンビューワーを開く専用コマンドを使用)
       stateManager.sendMessage('openMarkdownViewer');
 
-      // タブをアクティブにするだけで内容は表示しない
-      this.selectTab(tabId, true);
+      // マークダウンビューワーを開いた後、進捗状況タブに自動的に戻る
+      // これによりマークダウンビューワーから戻ってきたときにファイルタブが選択されたままになる問題を解決
+      this.selectTab('scope-progress', true);
       return;
     }
     

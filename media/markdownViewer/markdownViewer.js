@@ -14,6 +14,18 @@
   const markdownContent = document.getElementById('markdownContent');
   const refreshButton = document.getElementById('refreshButton');
   const editButton = document.getElementById('editButton');
+  const splitViewButton = document.getElementById('splitViewButton');
+  const singleViewContainer = document.getElementById('singleViewContainer');
+  const splitViewContainer = document.getElementById('splitViewContainer');
+  const leftMarkdownContent = document.getElementById('leftMarkdownContent');
+  const rightMarkdownContent = document.getElementById('rightMarkdownContent');
+  const leftPaneFilePath = document.getElementById('leftPaneFilePath');
+  const rightPaneFilePath = document.getElementById('rightPaneFilePath');
+  const leftPaneRefreshButton = document.getElementById('leftPaneRefreshButton');
+  const leftPaneEditButton = document.getElementById('leftPaneEditButton');
+  const rightPaneRefreshButton = document.getElementById('rightPaneRefreshButton');
+  const rightPaneEditButton = document.getElementById('rightPaneEditButton');
+  const paneResizer = document.getElementById('paneResizer');
 
   // 現在のフォルダパス
   let currentPath = '';
@@ -21,19 +33,52 @@
   // 状態管理
   let state = {
     files: [],
-    currentFilePath: '',
+    currentFilePath: '', // ファイルパスは保存するが、UI上の選択表示には使わない
     currentContent: '',
-    fileType: ''
+    fileType: '',
+    isSplitView: false,
+    leftPane: {
+      filePath: '',
+      content: '',
+      fileType: ''
+    },
+    rightPane: {
+      filePath: '',
+      content: '',
+      fileType: ''
+    }
   };
 
-  // 初期状態を復元
+  // 初期状態を復元するが、ファイル選択状態は復元しない
   const previousState = vscode.getState();
   if (previousState) {
-    state = previousState;
+    state = {
+      ...previousState,
+      // ファイル選択状態をリセット
+      selectedFilePath: '' // 選択状態は保持しない
+    };
     renderFileList(state.files);
-    if (state.currentContent) {
-      renderContent(state.currentContent, state.fileType);
-      currentFilePath.textContent = state.currentFilePath;
+    
+    // 分割表示の状態を復元
+    if (state.isSplitView) {
+      activateSplitView();
+      
+      // 左右のペインコンテンツを復元
+      if (state.leftPane.content) {
+        renderPaneContent('left', state.leftPane.content, state.leftPane.fileType);
+        leftPaneFilePath.textContent = state.leftPane.filePath;
+      }
+      
+      if (state.rightPane.content) {
+        renderPaneContent('right', state.rightPane.content, state.rightPane.fileType);
+        rightPaneFilePath.textContent = state.rightPane.filePath;
+      }
+    } else {
+      // 通常モードでコンテンツを復元
+      if (state.currentContent) {
+        renderContent(state.currentContent, state.fileType);
+        currentFilePath.textContent = state.currentFilePath;
+      }
     }
   }
 
@@ -72,8 +117,175 @@
       }
     });
 
+    // 分割表示ボタン
+    splitViewButton.addEventListener('click', () => {
+      toggleSplitView();
+    });
+
+    // 左ペインの更新ボタン
+    leftPaneRefreshButton.addEventListener('click', () => {
+      if (state.leftPane.filePath) {
+        vscode.postMessage({
+          command: 'readFile',
+          filePath: state.leftPane.filePath,
+          pane: 'left'
+        });
+      }
+    });
+
+    // 左ペインの編集ボタン
+    leftPaneEditButton.addEventListener('click', () => {
+      if (state.leftPane.filePath) {
+        vscode.postMessage({
+          command: 'openFileInEditor',
+          filePath: state.leftPane.filePath
+        });
+      }
+    });
+
+    // 右ペインの更新ボタン
+    rightPaneRefreshButton.addEventListener('click', () => {
+      if (state.rightPane.filePath) {
+        vscode.postMessage({
+          command: 'readFile',
+          filePath: state.rightPane.filePath,
+          pane: 'right'
+        });
+      }
+    });
+
+    // 右ペインの編集ボタン
+    rightPaneEditButton.addEventListener('click', () => {
+      if (state.rightPane.filePath) {
+        vscode.postMessage({
+          command: 'openFileInEditor',
+          filePath: state.rightPane.filePath
+        });
+      }
+    });
+
+    // リサイザーの初期化
+    initializeResizer();
+
     // 初期ファイルリストを要求
     vscode.postMessage({ command: 'refreshFileList' });
+  }
+
+  // 分割表示の切り替え
+  function toggleSplitView() {
+    if (!state.isSplitView) {
+      // 通常モード → 分割モードへ
+      state.isSplitView = true;
+      splitViewButton.classList.add('active');
+
+      // 現在表示中のファイルを左ペインにセット
+      if (state.currentFilePath) {
+        state.leftPane.filePath = state.currentFilePath;
+        state.leftPane.content = state.currentContent;
+        state.leftPane.fileType = state.fileType;
+
+        // 左ペインのファイルパス表示を更新
+        leftPaneFilePath.textContent = state.currentFilePath;
+      }
+
+      // 分割モードを有効化
+      activateSplitView();
+
+      // 左ペインを表示
+      renderPaneContent('left', state.leftPane.content, state.leftPane.fileType);
+    } else {
+      // 分割モード → 通常モードへ
+      showPaneSelectDialog();
+    }
+  }
+
+  // 分割モードへの切り替え
+  function activateSplitView() {
+    singleViewContainer.classList.remove('active');
+    splitViewContainer.classList.add('active');
+  }
+
+  // 通常モードへの切り替え
+  function activateSingleView(selectedPane) {
+    // 選択されたペインの内容を通常モードで表示
+    const paneData = selectedPane === 'left' ? state.leftPane : state.rightPane;
+    state.currentFilePath = paneData.filePath;
+    state.currentContent = paneData.content;
+    state.fileType = paneData.fileType;
+    state.isSplitView = false;
+    splitViewButton.classList.remove('active');
+
+    // コンテナの切り替え
+    splitViewContainer.classList.remove('active');
+    singleViewContainer.classList.add('active');
+
+    // 内容を表示
+    renderContent(state.currentContent, state.fileType);
+
+    // ファイルパス表示を更新
+    currentFilePath.textContent = state.currentFilePath;
+
+    // 状態を保存
+    vscode.setState(state);
+  }
+
+  // どちらのペインを保持するか選択するダイアログ
+  function showPaneSelectDialog() {
+    vscode.postMessage({
+      command: 'showPaneSelectDialog',
+      leftFile: state.leftPane.filePath || '未選択',
+      rightFile: state.rightPane.filePath || '未選択'
+    });
+  }
+
+  // リサイザーの初期化
+  function initializeResizer() {
+    if (!paneResizer) return;
+
+    const leftPane = document.getElementById('leftPane');
+    const rightPane = document.getElementById('rightPane');
+    const splitContent = document.querySelector('.split-content');
+
+    let x = 0;
+    let leftWidth = 0;
+    let isDragging = false;
+
+    // マウスダウンイベント
+    paneResizer.addEventListener('mousedown', e => {
+      x = e.clientX;
+      leftWidth = leftPane.offsetWidth;
+      isDragging = true;
+      paneResizer.classList.add('dragging');
+
+      document.addEventListener('mousemove', resize);
+      document.addEventListener('mouseup', stopResize);
+    });
+
+    // リサイズ関数
+    function resize(e) {
+      if (!isDragging) return;
+
+      const dx = e.clientX - x;
+      const newLeftWidth = leftWidth + dx;
+      const containerWidth = splitContent.offsetWidth;
+
+      // 最小幅を25%、最大幅を75%に制限
+      const minWidth = containerWidth * 0.25;
+      const maxWidth = containerWidth * 0.75;
+
+      if (newLeftWidth > minWidth && newLeftWidth < maxWidth) {
+        leftPane.style.width = `${newLeftWidth}px`;
+        rightPane.style.width = `${containerWidth - newLeftWidth - 8}px`; // 8はリサイザーの幅
+      }
+    }
+
+    // リサイズ停止
+    function stopResize() {
+      isDragging = false;
+      paneResizer.classList.remove('dragging');
+      document.removeEventListener('mousemove', resize);
+      document.removeEventListener('mouseup', stopResize);
+    }
   }
 
   // ファイルリストをフィルタリング
@@ -149,10 +361,7 @@
   function createFileListItem(file) {
     const item = document.createElement('li');
     item.className = 'file-item';
-    if (file.path === state.currentFilePath) {
-      item.classList.add('active');
-    }
-    
+
     // アイコンを決定
     let iconName = 'insert_drive_file';
     let iconClass = '';
@@ -196,23 +405,31 @@
     
     // クリックイベントを追加
     item.addEventListener('click', () => {
-      // ファイルを開くだけで選択状態は一時的にのみ表示し、すぐに解除する
+      // 一時的に選択状態を表示
+      document.querySelectorAll('.file-item.active').forEach(el => el.classList.remove('active'));
+      item.classList.add('active');
+
       if (file.isDirectory) {
         // ディレクトリの場合は、そのディレクトリ内容を表示
         navigateToDirectory(file.path);
       } else {
-        // 一時的に選択状態を表示
-        document.querySelectorAll('.file-item.active').forEach(el => el.classList.remove('active'));
-        item.classList.add('active');
-
-        // ファイルの場合は、ファイル内容を表示
-        openFile(file.path);
-
-        // 選択状態を短い時間で解除（モックアップギャラリーと同様の動作）
-        setTimeout(() => {
-          item.classList.remove('active');
-        }, 300);
+        // 分割モードの場合はどちらのペインで開くか選択
+        if (state.isSplitView) {
+          vscode.postMessage({
+            command: 'showFileOpenMenu',
+            filePath: file.path,
+            options: ['左ペインで開く', '右ペインで開く']
+          });
+        } else {
+          // 通常モードでは現在のペインにファイルを開く
+          openFile(file.path);
+        }
       }
+
+      // 選択状態を短い時間で解除
+      setTimeout(() => {
+        item.classList.remove('active');
+      }, 300);
     });
     
     return item;
@@ -232,14 +449,30 @@
       command: 'readFile',
       filePath: filePath
     });
-    
-    // 現在のファイルパスを更新
+
+    // 現在のファイルパスを更新（表示用のみ、選択状態は保持しない）
     state.currentFilePath = filePath;
     currentFilePath.textContent = filePath;
-    vscode.setState(state);
+
+    // 状態を保存するが、UI上の選択状態に影響しないように設計する
+    const stateForStorage = {
+      ...state,
+      // 明示的に選択状態をリセット
+      selectedFilePath: ''
+    };
+    vscode.setState(stateForStorage);
   }
 
-  // コンテンツを描画
+  // 指定したペインにファイルを開く
+  function openFileInPane(filePath, pane) {
+    vscode.postMessage({
+      command: 'readFile',
+      filePath: filePath,
+      pane: pane
+    });
+  }
+
+  // コンテンツを描画（通常モード用）
   function renderContent(content, fileType) {
     if (!content) {
       markdownContent.innerHTML = `
@@ -251,7 +484,7 @@
       `;
       return;
     }
-    
+
     // コンテンツタイプに応じた描画処理
     if (fileType === 'markdown') {
       // マークダウンをHTMLに変換
@@ -264,10 +497,58 @@
       // コードとしてそのまま表示
       markdownContent.innerHTML = `<pre><code>${escapeHtml(content)}</code></pre>`;
     }
-    
-    // 状態を更新
+
+    // 状態を更新（内容とタイプは保存するが、選択状態を保持しない）
     state.currentContent = content;
     state.fileType = fileType;
+
+    // 状態を保存するが、UI上の選択状態に影響しないように設計する
+    const stateForStorage = {
+      ...state,
+      // 明示的に選択状態をリセット
+      selectedFilePath: ''
+    };
+    vscode.setState(stateForStorage);
+  }
+
+  // ペインのコンテンツを描画（分割モード用）
+  function renderPaneContent(pane, content, fileType) {
+    const contentElement = pane === 'left' ? leftMarkdownContent : rightMarkdownContent;
+    
+    if (!content) {
+      contentElement.innerHTML = `
+        <div class="no-file-selected">
+          <span class="material-icons icon">description</span>
+          <h2>ファイルが選択されていません</h2>
+          <p>左側のファイルブラウザからファイルを選択してください。</p>
+        </div>
+      `;
+      return;
+    }
+
+    // コンテンツタイプに応じた描画処理
+    if (fileType === 'markdown') {
+      // マークダウンをHTMLに変換
+      const html = convertMarkdownToHtml(content);
+      contentElement.innerHTML = html;
+    } else if (fileType === 'image') {
+      // 画像を表示
+      contentElement.innerHTML = `<img src="data:image;base64,${content}" class="image-preview">`;
+    } else {
+      // コードとしてそのまま表示
+      contentElement.innerHTML = `<pre><code>${escapeHtml(content)}</code></pre>`;
+    }
+
+    // 状態を更新
+    if (pane === 'left') {
+      state.leftPane.content = content;
+      state.leftPane.fileType = fileType;
+    } else {
+      state.rightPane.content = content;
+      state.rightPane.fileType = fileType;
+    }
+
+    // 状態を保存
     vscode.setState(state);
   }
 
@@ -424,19 +705,44 @@
   // VScodeからのメッセージを処理
   window.addEventListener('message', event => {
     const message = event.data;
-    
+
     switch (message.command) {
       case 'updateFileList':
         renderFileList(message.files);
         state.files = message.files;
-        vscode.setState(state);
+        // 選択状態をリセットした状態で保存
+        const stateForStorageAfterFileList = {
+          ...state,
+          selectedFilePath: ''
+        };
+        vscode.setState(stateForStorageAfterFileList);
         break;
-        
+
       case 'updateFileContent':
       case 'updateMarkdownContent':
-        renderContent(message.content, message.fileType);
-        state.currentFilePath = message.filePath;
-        currentFilePath.textContent = message.filePath;
+        if (state.isSplitView) {
+          // ペインが指定されている場合は、指定されたペインに表示
+          if (message.pane) {
+            renderPaneContent(message.pane, message.content, message.fileType);
+            if (message.pane === 'left') {
+              state.leftPane.filePath = message.filePath;
+              leftPaneFilePath.textContent = message.filePath;
+            } else {
+              state.rightPane.filePath = message.filePath;
+              rightPaneFilePath.textContent = message.filePath;
+            }
+          } else {
+            // ペインが指定されていない場合は、左ペインに表示
+            renderPaneContent('left', message.content, message.fileType);
+            state.leftPane.filePath = message.filePath;
+            leftPaneFilePath.textContent = message.filePath;
+          }
+        } else {
+          // 通常モードの場合
+          renderContent(message.content, message.fileType);
+          state.currentFilePath = message.filePath;
+          currentFilePath.textContent = message.filePath;
+        }
         vscode.setState(state);
 
         // ファイルリストアイテムの選択状態を変更しない（モックアップギャラリーと同様の動作）
@@ -454,6 +760,33 @@
         });
         break;
         
+      case 'updatePaneContent':
+        // 特定のペインのコンテンツを更新
+        renderPaneContent(message.pane, message.content, message.fileType);
+        if (message.pane === 'left') {
+          state.leftPane.filePath = message.filePath;
+          leftPaneFilePath.textContent = message.filePath;
+        } else {
+          state.rightPane.filePath = message.filePath;
+          rightPaneFilePath.textContent = message.filePath;
+        }
+        vscode.setState(state);
+        break;
+
+      case 'fileOpenMenuResult':
+        // ファイル選択メニューの結果を処理
+        if (message.option === '左ペインで開く') {
+          openFileInPane(message.filePath, 'left');
+        } else if (message.option === '右ペインで開く') {
+          openFileInPane(message.filePath, 'right');
+        }
+        break;
+
+      case 'paneSelectResult':
+        // ペイン選択ダイアログの結果を処理
+        activateSingleView(message.pane);
+        break;
+
       case 'showError':
         alert(message.message);
         break;

@@ -266,6 +266,132 @@ body {
   padding: 24px;
 }
 
+/* 表示コンテナの切り替え */
+.view-container {
+  display: none;
+  height: 100%;
+}
+
+.view-container.active {
+  display: block;
+}
+
+/* 分割表示のレイアウト */
+.split-view {
+  height: 100%;
+}
+
+.split-content {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+}
+
+.pane {
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e2e8f0;
+  background-color: #ffffff;
+}
+
+.pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.pane-file-path {
+  font-size: 13px;
+  color: #4a69bd;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.pane-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.button-icon {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #718096;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.button-icon:hover {
+  background-color: rgba(74, 105, 189, 0.1);
+  color: #4a69bd;
+}
+
+.button-icon .material-icons {
+  font-size: 16px;
+}
+
+.pane-resizer {
+  width: 8px;
+  background-color: #f1f5fd;
+  cursor: col-resize;
+  flex-shrink: 0;
+  transition: background-color 0.2s;
+  position: relative;
+}
+
+.pane-resizer:hover, 
+.pane-resizer.dragging {
+  background-color: rgba(74, 105, 189, 0.2);
+}
+
+.pane-resizer::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 30px;
+  background-color: rgba(74, 105, 189, 0.3);
+  border-radius: 1px;
+}
+
+/* 分割表示ボタン */
+.button-toggle {
+  background-color: #f8f9fa;
+  color: #4a69bd;
+  border: 1px solid #4a69bd;
+  position: relative;
+  overflow: hidden;
+}
+
+.button-toggle.active {
+  background-color: #4a69bd;
+  color: white;
+}
+
+.button-toggle:hover {
+  background-color: rgba(74, 105, 189, 0.1);
+}
+
+.button-toggle.active:hover {
+  background-color: #3a5a9e;
+}
+
 /* マークダウン表示用スタイル - スコープマネージャーと完全一致 */
 .markdown-content {
   line-height: 1.6;
@@ -618,7 +744,7 @@ pre.code-block.directory-structure br {
 /* ボタンスタイル */
 .button {
   padding: var(--app-spacing-sm) var(--app-spacing-md);
-  font-size: var(--app-font-size-md);
+  font-size: var(--app-font-size-sm); /* フォントサイズを少し小さく調整 */
   border-radius: var(--app-border-radius);
   border: none;
   cursor: pointer;
@@ -629,13 +755,12 @@ pre.code-block.directory-structure br {
   font-weight: var(--app-font-weight-medium);
   background-color: var(--app-primary);
   color: white;
-  box-shadow: 0 2px 4px rgba(74, 105, 189, 0.25);
+  box-shadow: 0 1px 3px rgba(74, 105, 189, 0.25);
 }
 
 .button:hover {
   background-color: var(--app-primary-dark);
-  box-shadow: 0 4px 8px rgba(74, 105, 189, 0.3);
-  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(74, 105, 189, 0.3);
 }
 
 .button-secondary {

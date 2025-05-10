@@ -287,6 +287,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
               Logger.info(`【メッセージ変換】splitTerminal: ${message.splitTerminal} => ${splitTerminalValue}`);
               await this._handleLaunchPromptFromURL(message.url, message.index, message.name, splitTerminalValue);
               break;
+            case 'saveSharedTextContent':
+              await this._handleSaveSharedTextContent(message.content);
+              break;
             case 'shareText':
               await this._handleShareText(message.text, message.suggestedFilename);
               break;
@@ -711,6 +714,21 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private async _handleOpenMarkdownViewer(): Promise<void> {
     try {
       Logger.info(`ScopeManagerPanel: マークダウンビューワーを開くリクエストを受信 (projectPath=${this._projectPath})`);
+
+      // マークダウンビューワーを開く前に、アクティブなプロジェクトのタブを進捗状況タブに戻す
+      // (モックアップギャラリータブと同様の動作)
+      const activeProject = this._projectService.getActiveProject();
+      if (activeProject && activeProject.id) {
+        await this._tabStateService.saveTabState(activeProject.id, 'scope-progress');
+
+        // WebViewにもタブ選択を通知
+        this._panel.webview.postMessage({
+          command: 'selectTab',
+          tabId: 'scope-progress'
+        });
+
+        Logger.info('マークダウンビューワーを開く前に、進捗状況タブに切り替えました');
+      }
 
       // vscode.commandsを使用してマークダウンビューワーを開く
       // コマンド名を extension.ts で登録されているものに合わせる
@@ -1142,10 +1160,52 @@ export class ScopeManagerPanel extends ProtectedPanel {
     messageService.registerHandlers(handlers);
   }
 
+  /**
+   * 共有テキスト内容の保存処理
+   * @param content テキスト内容
+   */
+  private async _handleSaveSharedTextContent(content: string): Promise<void> {
+    try {
+      // コンテキストのグローバル状態に保存
+      const context = (global as any).extensionContext;
+      if (!context) {
+        Logger.error('拡張機能コンテキストが取得できません');
+        return;
+      }
+
+      // グローバル状態に保存
+      await context.globalState.update('sharedTextContent', content);
+      Logger.info('共有テキスト内容を保存しました', { length: content.length });
+    } catch (error) {
+      Logger.error('共有テキスト内容の保存に失敗しました', error as Error);
+    }
+  }
+
+  /**
+   * 保存された共有テキスト内容の取得
+   */
+  private _getSharedTextContent(): string {
+    try {
+      // コンテキストのグローバル状態から取得
+      const context = (global as any).extensionContext;
+      if (!context) {
+        Logger.error('拡張機能コンテキストが取得できません');
+        return '';
+      }
+
+      // グローバル状態から取得
+      const content = context.globalState.get('sharedTextContent') || '';
+      return content;
+    } catch (error) {
+      Logger.error('共有テキスト内容の取得に失敗しました', error as Error);
+      return '';
+    }
+  }
+
   private _showError(message: string): void {
     this._uiStateService.showError(message);
   }
-  
+
   private _showSuccess(message: string): void {
     this._uiStateService.showSuccess(message);
   }
@@ -1242,7 +1302,17 @@ export class ScopeManagerPanel extends ProtectedPanel {
             command: 'selectTab',
             tabId: activeTabId
           });
-          
+
+          // 保存されている共有テキスト内容があれば復元
+          const savedContent = this._getSharedTextContent();
+          if (savedContent) {
+            Logger.info(`ScopeManagerPanel: 保存された共有テキスト内容を復元: ${savedContent.length}文字`);
+            this._panel.webview.postMessage({
+              command: 'restoreSharedTextContent',
+              content: savedContent
+            });
+          }
+
           Logger.info(`ScopeManagerPanel: 最終確認のタブ選択メッセージを送信: アクティブタブ=${activeTabId}`);
         }, 200); // UIの描画完了を確実に待つ
         

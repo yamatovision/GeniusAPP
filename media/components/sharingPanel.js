@@ -80,6 +80,14 @@
         console.log('共有結果表示メッセージを受信:', message.data);
         showSaveNotification(message.data);
         break;
+      case 'restoreSharedTextContent':
+        console.log('保存された共有テキスト内容を復元:', message.content?.length || 0);
+        const textarea = document.getElementById('share-textarea');
+        if (textarea && message.content) {
+          textarea.value = message.content;
+          console.log('テキストエリアの内容を復元しました');
+        }
+        break;
       case 'shareSuccess': // 旧式メッセージタイプにも対応
         console.log('共有成功メッセージを受信:', message);
         showSaveNotification({
@@ -242,6 +250,11 @@
         // テキストエリアの内容を保存
         if (textarea) {
           saveTextareaContent(textarea.value);
+          // 拡張機能側にも保存（永続化）
+          vscode.postMessage({
+            command: 'saveSharedTextContent',
+            content: textarea.value
+          });
         }
       });
 
@@ -256,17 +269,32 @@
         // テキストが変更されたら自動保存する
         textarea.addEventListener('input', debounce(function() {
           saveTextareaContent(textarea.value);
+          // 拡張機能側にも保存（永続化）
+          vscode.postMessage({
+            command: 'saveSharedTextContent',
+            content: textarea.value
+          });
         }, 500)); // 500ミリ秒の遅延で保存
 
         // テキストエリアのフォーカスが外れたときに保存する
         textarea.addEventListener('blur', function() {
           saveTextareaContent(textarea.value);
+          // 拡張機能側にも保存（永続化）
+          vscode.postMessage({
+            command: 'saveSharedTextContent',
+            content: textarea.value
+          });
         });
 
         // タブやウィンドウの切り替え時にも保存
         window.addEventListener('blur', function() {
           if (textarea) {
             saveTextareaContent(textarea.value);
+            // 拡張機能側にも保存（永続化）
+            vscode.postMessage({
+              command: 'saveSharedTextContent',
+              content: textarea.value
+            });
           }
         });
 
@@ -276,6 +304,11 @@
           if (e.target && (e.target.classList.contains('tab') || e.target.closest('.tab'))) {
             if (textarea) {
               saveTextareaContent(textarea.value);
+              // 拡張機能側にも保存（永続化）
+              vscode.postMessage({
+                command: 'saveSharedTextContent',
+                content: textarea.value
+              });
             }
           }
         });
