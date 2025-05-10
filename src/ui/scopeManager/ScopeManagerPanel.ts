@@ -286,12 +286,46 @@ export class ScopeManagerPanel extends ProtectedPanel {
               try {
                 if (this._projectPath) {
                   // プロジェクトのディレクトリ構造を再取得
-                  const structure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
-                  this._panel.webview.postMessage({
-                    command: 'updateDirectoryStructure',
-                    structure: structure
-                  });
-                  Logger.info('ScopeManagerPanel: ファイルブラウザを更新しました');
+                  // まずdocsディレクトリに対する構造を取得
+                  const docsPath = path.join(this._projectPath, 'docs');
+                  if (fs.existsSync(docsPath)) {
+                    const structure = await this._fileSystemService.getDirectoryStructure(docsPath);
+                    this._panel.webview.postMessage({
+                      command: 'updateDirectoryStructure',
+                      structure: structure,
+                      currentPath: docsPath
+                    });
+
+                    // ファイルリストも直接更新（プロジェクトパス情報も含める）
+                    const files = await this._fileSystemService.listDirectory(docsPath);
+                    this._panel.webview.postMessage({
+                      command: 'updateFileList',
+                      files: files,
+                      currentPath: docsPath,
+                      projectPath: this._projectPath // プロジェクトパス情報を追加
+                    });
+
+                    Logger.info('ScopeManagerPanel: ファイルブラウザを更新しました (docsディレクトリ)');
+                  } else {
+                    // docsディレクトリが存在しない場合はプロジェクトルートを使用
+                    const structure = await this._fileSystemService.getDirectoryStructure(this._projectPath);
+                    this._panel.webview.postMessage({
+                      command: 'updateDirectoryStructure',
+                      structure: structure,
+                      currentPath: this._projectPath
+                    });
+
+                    // ファイルリストも直接更新（プロジェクトパス情報も含める）
+                    const files = await this._fileSystemService.listDirectory(this._projectPath);
+                    this._panel.webview.postMessage({
+                      command: 'updateFileList',
+                      files: files,
+                      currentPath: this._projectPath,
+                      projectPath: this._projectPath // プロジェクトパス情報を追加
+                    });
+
+                    Logger.info('ScopeManagerPanel: ファイルブラウザを更新しました (プロジェクトルート)');
+                  }
                 }
               } catch (error) {
                 Logger.error('ファイルブラウザ更新中にエラーが発生しました', error as Error);

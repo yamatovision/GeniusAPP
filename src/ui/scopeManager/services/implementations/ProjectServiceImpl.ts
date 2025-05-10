@@ -777,10 +777,21 @@ export class ProjectServiceImpl implements IProjectService {
    * @returns アクティブプロジェクトのパス。設定されていない場合は空文字列
    */
   public getActiveProjectPath(): string {
+    let projectPath = '';
+
     if (this._activeProject && this._activeProject.path) {
-      return this._activeProject.path;
+      projectPath = this._activeProject.path;
+    } else {
+      projectPath = this._projectPath;
     }
-    return this._projectPath;
+
+    // macOSの.DS_Storeパスが混入している場合、それを除去
+    if (projectPath.includes('.DS_Store')) {
+      Logger.warn(`ProjectService: 不正なパス(.DS_Store)を修正: ${projectPath}`);
+      projectPath = projectPath.replace(/\/.DS_Store(?:\/|$)/, '/');
+    }
+
+    return projectPath;
   }
   
   /**

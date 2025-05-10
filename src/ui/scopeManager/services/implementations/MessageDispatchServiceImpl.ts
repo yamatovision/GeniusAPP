@@ -664,25 +664,119 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     // Note: getMarkdownContent ハンドラーは削除
     // クライアントが直接FileSystemServiceを使用するよう変更
     
-    // Note: listDirectory ハンドラーは維持（現時点では削除せず）
+    // listDirectory ハンドラー - パス検証機能を強化
     this.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {
       if (!message.path) {
         Logger.warn('MessageDispatchServiceImpl: listDirectoryメッセージにpath必須パラメータがありません');
         this.showError(panel, 'ディレクトリパスが指定されていません');
         return;
       }
-      
+
       try {
-        const files = await this._fileSystemService.listDirectory(message.path);
+        // パスの正規化と検証
+        let directoryPath = message.path;
+
+        // .DS_Storeを含むパスをチェックして修正
+        if (directoryPath.includes('.DS_Store')) {
+          Logger.warn(`MessageDispatchServiceImpl: 不正なパス(.DS_Store)を検出: ${directoryPath}`);
+          // 親ディレクトリのみを使用
+          directoryPath = directoryPath.replace(/\/.DS_Store(\/.*)?$/, '');
+          Logger.info(`MessageDispatchServiceImpl: パスを修正しました: ${directoryPath}`);
+        }
+
+        // ディレクトリの存在を確認
+        if (!fs.existsSync(directoryPath)) {
+          // 最新のプロジェクトパスを使用して回復を試みる
+          try {
+            // message.projectPathが存在すれば、それを優先的に使用
+            // これにより、特定のコンテキストからのリクエストが優先される
+            if (message.projectPath && typeof message.projectPath === 'string') {
+              if (fs.existsSync(message.projectPath)) {
+                // メッセージに含まれるプロジェクトパスを使用
+                // プロジェクトのdocsディレクトリを試行
+                const docsPath = path.join(message.projectPath, 'docs');
+                if (fs.existsSync(docsPath)) {
+                  directoryPath = docsPath;
+                  Logger.info(`MessageDispatchServiceImpl: メッセージのプロジェクトパスからdocsディレクトリに回復: ${directoryPath}`);
+                } else {
+                  // docsディレクトリがなければ指定されたプロジェクトルートを使用
+                  directoryPath = message.projectPath;
+                  Logger.info(`MessageDispatchServiceImpl: メッセージのプロジェクトパスに回復: ${directoryPath}`);
+                }
+
+                // 正常に回復できたら続行
+                if (fs.existsSync(directoryPath)) {
+                  Logger.info(`MessageDispatchServiceImpl: 指定されたプロジェクトパスを使用: ${directoryPath}`);
+                  // 回復した有効なパスがあれば、これ以上の処理は不要
+                  // 直接リスト取得処理に進む
+                  // breakは不適切なので、この条件で直接次の処理へ進む
+                }
+              }
+            }
+
+            // messageに有効なprojectPathがない場合は、ProjectServiceから取得
+            const projectService = this._projectService;
+            if (projectService) {
+              // getActiveProjectPathではなく、直接ActiveProjectを取得
+              // これにより最も確実に最新の選択プロジェクトを取得できる
+              const activeProject = projectService.getActiveProject();
+
+              if (activeProject && activeProject.path && fs.existsSync(activeProject.path)) {
+                // アクティブプロジェクトのdocsディレクトリを試行
+                const docsPath = path.join(activeProject.path, 'docs');
+                if (fs.existsSync(docsPath)) {
+                  directoryPath = docsPath;
+                  Logger.info(`MessageDispatchServiceImpl: アクティブプロジェクト(${activeProject.name})のdocsディレクトリに回復: ${directoryPath}`);
+                } else {
+                  // docsディレクトリがなければアクティブプロジェクトルートを使用
+                  directoryPath = activeProject.path;
+                  Logger.info(`MessageDispatchServiceImpl: アクティブプロジェクト(${activeProject.name})のルートに回復: ${directoryPath}`);
+                }
+              } else {
+                // ProjectServiceのgetActiveProjectPathをフォールバックとして使用
+                const projectPath = projectService.getActiveProjectPath();
+                if (projectPath && fs.existsSync(projectPath)) {
+                  // プロジェクトのdocsディレクトリを試行
+                  const docsPath = path.join(projectPath, 'docs');
+                  if (fs.existsSync(docsPath)) {
+                    directoryPath = docsPath;
+                    Logger.info(`MessageDispatchServiceImpl: ProjectServiceからのパスでdocsディレクトリに回復: ${directoryPath}`);
+                  } else {
+                    // docsディレクトリがなければプロジェクトルートを使用
+                    directoryPath = projectPath;
+                    Logger.info(`MessageDispatchServiceImpl: ProjectServiceからのパスでプロジェクトルートに回復: ${directoryPath}`);
+                  }
+                }
+              }
+            }
+          } catch (recoveryError) {
+            Logger.warn('MessageDispatchServiceImpl: パス回復中にエラー', recoveryError as Error);
+          }
+
+          // 回復後も存在しない場合はエラー
+          if (!fs.existsSync(directoryPath)) {
+            Logger.warn(`MessageDispatchServiceImpl: ディレクトリが存在しません: ${directoryPath}`);
+            this.showError(panel, `ディレクトリが存在しないか、アクセスできません: ${directoryPath}`);
+            return;
+          }
+        }
+
+        // 有効なディレクトリパスでリスト取得
+        const files = await this._fileSystemService.listDirectory(directoryPath);
+
+        // 結果を送信
         this.sendMessage(panel, {
           command: 'updateFileList',
           files: files,
-          currentPath: message.path,
-          parentPath: path.dirname(message.path) !== message.path ? path.dirname(message.path) : null
+          currentPath: directoryPath,
+          originalPath: message.path !== directoryPath ? message.path : undefined,
+          parentPath: path.dirname(directoryPath) !== directoryPath ? path.dirname(directoryPath) : null
         });
+
+        Logger.info(`MessageDispatchServiceImpl: ディレクトリリスト更新: ${directoryPath}`);
       } catch (error) {
-        Logger.warn(`FileSystemService: ディレクトリが存在しません: ${message.path}`);
-        this.showError(panel, `ディレクトリが存在しないか、アクセスできません: ${message.path}`);
+        Logger.error(`MessageDispatchServiceImpl: ディレクトリリスト取得中にエラー: ${message.path}`, error as Error);
+        this.showError(panel, `ディレクトリの内容を取得できませんでした: ${(error as Error).message}`);
       }
     });
     

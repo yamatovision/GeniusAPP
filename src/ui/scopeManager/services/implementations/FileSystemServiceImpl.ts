@@ -545,6 +545,14 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         throw new Error('ディレクトリパスが指定されていません');
       }
 
+      // 念のため最後の部分が隠しファイルやシステムファイルを参照していないか確認
+      const lastPathComponent = path.basename(directoryPath);
+      if (lastPathComponent.startsWith('.')) {
+        Logger.warn(`FileSystemService: 不正なパス(隠しファイル参照)を検出: ${directoryPath}`);
+        // 親ディレクトリを使用
+        directoryPath = path.dirname(directoryPath);
+      }
+
       // ディレクトリが存在するか確認
       if (!fs.existsSync(directoryPath)) {
         Logger.warn(`FileSystemService: ディレクトリが存在しません: ${directoryPath}`);
@@ -556,9 +564,9 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
 
       for (const entry of entries) {
         const entryPath = path.join(directoryPath, entry.name);
-        
-        // .gitおよび.vscodeディレクトリはスキップ
-        if (entry.name === '.git' || entry.name === '.vscode' || entry.name === 'node_modules') {
+
+        // 隠しファイル（ドットで始まるファイル）、node_modulesディレクトリをスキップ
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') {
           continue;
         }
 
@@ -940,8 +948,8 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
       const entries = fs.readdirSync(dirPath, { withFileTypes: true });
       
       for (const entry of entries) {
-        // 除外するディレクトリとファイル
-        if (entry.name === '.git' || entry.name === '.vscode' || entry.name === 'node_modules') {
+        // 隠しファイル（ドットで始まるファイル）、node_modulesディレクトリをスキップ
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') {
           continue;
         }
         
