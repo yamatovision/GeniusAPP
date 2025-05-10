@@ -476,7 +476,7 @@
       // 画像の共有（ScopeManagerPanel.tsで期待されるフィールド名に合わせる）
       vscode.postMessage({
         command: 'shareImage',
-        serviceType: 'sharing',  // 新たにサービスタイプを追加
+        // serviceTypeは不要なので削除（ScopeManagerPanelで直接処理される）
         imageData: imageData,  // ScopeManagerPanel.tsは'imageData'フィールドを参照している
         fileName: fileName,
         fileType: fileType
@@ -495,12 +495,12 @@
       // テキストの共有、先頭部分をファイル名に
       const text = textarea.value.trim();
       const suggestedFilename = generateFilenameFromText(text);
-      
+
       console.log('テキストデータを送信します', { textLength: text.length, filename: suggestedFilename });
-      
+
       vscode.postMessage({
         command: 'shareText',
-        serviceType: 'sharing',  // 新たにサービスタイプを追加
+        // serviceTypeは不要なので削除（ScopeManagerPanelで直接処理される）
         text: text,
         suggestedFilename: suggestedFilename
       });
@@ -1008,10 +1008,10 @@
   function requestHistoryUpdate() {
     try {
       vscode.postMessage({
-        command: 'getHistory',
-        serviceType: 'sharing' // 新しいメッセージディスパッチサービス用のサービスタイプを指定
+        command: 'getHistory'
+        // serviceTypeは不要なので削除（ScopeManagerPanelで直接処理される）
       });
-      console.log('履歴更新リクエストを送信しました (serviceType: sharing)');
+      console.log('履歴更新リクエストを送信しました');
     } catch (error) {
       console.error('履歴更新リクエスト送信エラー:', error);
     }

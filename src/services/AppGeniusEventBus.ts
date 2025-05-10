@@ -12,25 +12,30 @@ export enum AppGeniusEventType {
   IMPLEMENTATION_PROGRESS = 'implementation-progress',
   PROJECT_STRUCTURE_UPDATED = 'project-structure-updated',
   PROJECT_CREATED = 'project-created',
-  // PROJECT_SELECTED は削除し、PROJECT_UPDATEDに統一
+  // 後方互換性のために残しているもの
+  PROJECT_SELECTED = 'project-selected', // 他のファイルで参照されているためコメントアウトせず残す
   PROJECT_DELETED = 'project-deleted',
   PROJECT_REMOVED = 'project-removed',
   PROJECT_UPDATED = 'project-updated', // プロジェクト関連の標準イベント
-  // PROJECT_PATH_UPDATED も削除し、PROJECT_UPDATEDに統一
+  PROJECT_PATH_UPDATED = 'project-path-updated', // 他のファイルで参照されているため残す
   PHASE_COMPLETED = 'phase-completed',
-  
+
   // 環境変数関連イベント
   ENV_VARIABLES_UPDATED = 'env-variables-updated',
   ENV_FILE_CREATED = 'env-file-created',
   SCOPE_PROGRESS_UPDATED = 'scope-progress-updated',
-  
+  CURRENT_STATUS_UPDATED = 'current-status-updated', // 追加: 現在のステータス更新イベント
+
   // ClaudeCode関連イベント
   CLAUDE_CODE_STARTED = 'claude-code-started',
   CLAUDE_CODE_PROGRESS = 'claude-code-progress',
   CLAUDE_CODE_COMPLETED = 'claude-code-completed',
   CLAUDE_CODE_ERROR = 'claude-code-error',
   CLAUDE_CODE_STOPPED = 'claude-code-stopped',
-  CLAUDE_CODE_LAUNCH_COUNTED = 'claude-code-launch-counted'
+  CLAUDE_CODE_LAUNCH_COUNTED = 'claude-code-launch-counted',
+
+  // タブ関連イベント
+  PROJECT_CHANGED = 'project-changed' // 追加: プロジェクト変更イベント
 }
 
 /**

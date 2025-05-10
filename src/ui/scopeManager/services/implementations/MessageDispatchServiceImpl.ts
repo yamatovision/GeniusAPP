@@ -23,7 +23,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   public readonly onMessageProcessed = this._onMessageProcessed.event;
   
   // 依存サービス
-  // 共有サービスはScopeManagerPanelで直接使用されるため削除
+  // SharingServiceはScopeManagerPanelで直接使用されるため、このクラスでは使用しない
   private _projectService?: IProjectService;
   private _fileSystemService?: IFileSystemService;
   private _uiStateService?: IUIStateService;
@@ -99,7 +99,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     uiStateService?: any;
     panelService?: any;
   }): void {
-    // 共有サービスの設定は削除（ScopeManagerPanelで直接使用）
+    // SharingServiceはScopeManagerPanelで直接使用されるため設定しない
 
     if (services.projectService) {
       this._projectService = services.projectService;
@@ -116,12 +116,12 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     if (services.panelService) {
       this._panelService = services.panelService;
     }
-    
+
     // 依存サービスが設定された後でハンドラを登録
     this.registerProjectHandlers();
     this.registerFileHandlers();
     // 共有ハンドラはScopeManagerPanelで直接処理されるため削除
-    
+
     Logger.debug('MessageDispatchServiceImpl: 依存サービスを設定しました');
   }
   
@@ -248,9 +248,6 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
           break;
         case 'project':
           service = this._projectService;
-          break;
-        case 'sharing':
-          service = this._sharingService;
           break;
         case 'uiState':
           service = this._uiStateService;

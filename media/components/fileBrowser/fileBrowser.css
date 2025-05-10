@@ -1,6 +1,25 @@
 /* ファイルブラウザコンポーネントのスタイル */
 /* ライトテーマを強制適用 */
 
+/* アイコン用追加スタイル */
+.tab-content.active #file-browser-tab .material-icons,
+.file-browser-container .material-icons,
+.breadcrumb-item .material-icons {
+  color: var(--fb-text) !important; /* 全てのアイコン色を強制上書き */
+}
+
+/* 特定のアイコン色をオーバーライド */
+.tab-content.active #file-browser-tab .folder-icon,
+.file-browser-container .folder-icon,
+.folder-header .material-icons {
+  color: #ffc107 !important; /* フォルダアイコンは黄色系を維持 */
+}
+
+.tab-content.active #file-browser-tab .file-icon,
+.file-browser-container .file-icon {
+  color: var(--fb-primary) !important; /* ファイルアイコンは青系を維持 */
+}
+
 /* ライトテーマの色定義 */
 .file-browser,
 .file-browser * {
@@ -142,6 +161,7 @@
 
 .file-item .material-icons {
   font-size: 18px;
+  color: var(--fb-text); /* デフォルトアイコン色 */
 }
 
 .file-item .folder-icon {
