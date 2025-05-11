@@ -22,6 +22,7 @@ import { IUIStateService, UIStateService } from './services/UIStateService';
 import { ServiceFactory } from './services/ServiceFactory';
 import { ITabStateService, TabStateService } from './services/TabStateService';
 import { IMessageDispatchService } from './services/interfaces/IMessageDispatchService';
+import { IFileWatcherService, FileWatcherService } from './services/FileWatcherService';
 import { IProjectInfo } from './types/ScopeManagerTypes';
 import { ScopeManagerTemplate } from './templates/ScopeManagerTemplate';
 import { HtmlTemplateGenerator } from './templates/HtmlTemplateGenerator';
@@ -56,6 +57,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private _authHandler: IAuthenticationHandler; // AuthenticationHandlerのインスタンス
   private _uiStateService: IUIStateService; // UI状態管理サービス
   private _tabStateService: ITabStateService; // タブ状態管理サービス
+  private _fileWatcherService: IFileWatcherService; // ファイル監視サービス
 
   /**
    * 実際のパネル作成・表示ロジック
@@ -156,7 +158,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
     
     // タブ状態管理サービスを初期化
     this._tabStateService = TabStateService.getInstance();
-    
+
+    // FileWatcherServiceを初期化
+    this._fileWatcherService = FileWatcherService.getInstance();
+
     // ServiceFactoryを通じてサービスを初期化
     ServiceFactory.initialize(extensionUri, context);
     
@@ -525,30 +530,38 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
 
   /**
-   * 初期化処理 - 必要最小限のプロジェクト初期化のみを行う
+   * 初期化処理 - アクティブタブに応じた適切な初期化を行う
    */
   private async _handleInitialize(): Promise<void> {
     try {
       Logger.info('ScopeManagerPanel: 初期化処理を開始（最適化版）');
-      
+
       // 最新のプロジェクト一覧を取得して送信（これは必須）
       await this._refreshProjects();
-      
+
       // ActiveProject情報を最新化
       const activeProject = this._projectService.getActiveProject();
       const activeTab = activeProject?.metadata?.activeTab || 'scope-progress';
-      
+
       Logger.info(`ScopeManagerPanel: 初期化時のアクティブタブ=${activeTab}`);
-      
+
       // 選択されたタブに応じた初期化のみを実行（タブ固有の処理）
       if (activeTab === 'scope-progress' && this._progressFilePath && fs.existsSync(this._progressFilePath)) {
         // 進捗ファイルのみ読み込み（その他のタブは選択時に読み込む）
         await this._handleGetMarkdownContent(this._progressFilePath);
         Logger.info('進捗ファイルを初期読み込みしました');
+      } else if (activeTab === 'requirements') {
+        // 要件定義タブが選択されている場合は、FileWatcherServiceを使って
+        // 要件定義ファイルを明示的に読み込む
+        await this._fileWatcherService.loadRequirementsFileNow(
+          this._projectPath,
+          async (filePath: string) => {
+            await this._handleGetMarkdownContent(filePath, { forRequirements: true });
+          },
+          { fileSystemService: this._fileSystemService }
+        );
       }
-      
-      // ファイルブラウザの初期設定コードは削除されました
-      
+
       // この時点で強制的なタブ選択は行わない（UIが自動的に処理）
     } catch (error) {
       Logger.error('ScopeManagerPanel: 初期化処理中にエラーが発生しました', error as Error);
@@ -1361,225 +1374,38 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
 
   /**
-   * ファイル監視を設定する
-   * FileSystemServiceの拡張機能を利用
+   * ファイル監視を設定する - FileWatcherServiceに委譲
    */
   private async _setupFileWatcher(): Promise<void> {
     try {
-      // 既存の監視があれば破棄
-      if (this._fileWatcher) {
-        this._fileWatcher.dispose();
-        this._fileWatcher = null;
-      }
+      // アクティブタブ情報を取得
+      const activeProject = this._projectService.getActiveProject();
+      const activeTab = activeProject?.metadata?.activeTab || 'scope-progress';
 
-      if (!this._projectPath) {
-        return;
-      }
+      Logger.info(`ScopeManagerPanel: ファイル監視設定時のアクティブタブ=${activeTab}`);
 
-      // 監視するウォッチャーを保持する配列
-      const watchers: vscode.Disposable[] = [];
-
-      // 1. 進捗ファイルの監視設定
-      Logger.info(`ScopeManagerPanel: 進捗ファイルの監視を設定します`);
-      const progressFilePath = this._fileSystemService.getProgressFilePath(this._projectPath);
-
-      // デバッグログ - 監視対象ファイルの確認
-      console.log(`★★★★ 進捗ファイル監視設定: ${progressFilePath}`);
-      Logger.info(`★★★★ 進捗ファイル監視設定: ${progressFilePath}`);
-
-      // 進捗ファイルの監視設定
-      const progressWatcher = this._fileSystemService.setupEnhancedFileWatcher(
-        progressFilePath,
-        async (filePath) => {
-          // ファイル変更を検出したらマークダウンを更新
-          console.log(`★★★★ 進捗ファイル変更検出: ${filePath}`);
-          Logger.info(`ScopeManagerPanel: 進捗ファイル変更を検出: ${filePath}`);
-          try {
-            await this._handleGetMarkdownContent(filePath);
-          } catch (readError) {
-            Logger.error(`ScopeManagerPanel: 進捗ファイル読み込みエラー: ${readError}`);
-          }
+      // ★★ 重要：FileWatcherServiceを使用してファイル監視を設定 ★★
+      this._fileWatcher = this._fileWatcherService.setupProjectFileWatchers(
+        this._projectPath,
+        // 進捗ファイル変更時のコールバック
+        async (filePath: string) => {
+          await this._handleGetMarkdownContent(filePath);
         },
-        { delayedReadTime: 500 } // 500ms後に遅延読み込み
-      );
-      watchers.push(progressWatcher);
-      Logger.info(`ScopeManagerPanel: 進捗ファイルの監視を設定しました: ${progressFilePath}`);
-
-      // 2. 要件定義ファイルの監視設定
-      Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定します`);
-
-      try {
-        // 専用メソッドが実装されているかチェック
-        if (typeof this._fileSystemService.setupRequirementsFileWatcher === 'function') {
-          // setupRequirementsFileWatcherメソッドが利用可能な場合はそれを使用
-          const requirementsWatcher = await this._fileSystemService.setupRequirementsFileWatcher(
-            this._projectPath,
-            async (filePath) => {
-              // 要件定義ファイル変更時の処理
-              console.log(`★★★★ 要件定義ファイル変更検出: ${filePath}`);
-              Logger.info(`ScopeManagerPanel: 要件定義ファイル変更を検出: ${filePath}`);
-              try {
-                await this._handleGetMarkdownContent(filePath, { forRequirements: true });
-              } catch (readError) {
-                Logger.error(`ScopeManagerPanel: 要件定義ファイル読み込みエラー: ${readError}`);
-              }
-            }
-          );
-          watchers.push(requirementsWatcher);
-          Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定しました (専用API使用)`);
-        } else {
-          // 専用メソッドが実装されていない場合は、従来の方法で要件定義ファイルを監視
-          Logger.info(`ScopeManagerPanel: setupRequirementsFileWatcherが実装されていないため、従来の方法で要件定義ファイルを監視します`);
-
-          // 要件定義ファイルのパスを取得
-          let requirementsFilePath = null;
-
-          // getRequirementsFilePathメソッドが利用可能な場合はそれを使用
-          if (typeof this._fileSystemService.getRequirementsFilePath === 'function') {
-            requirementsFilePath = await this._fileSystemService.getRequirementsFilePath(this._projectPath);
-          } else if (typeof this._fileSystemService.findRequirementsFile === 'function') {
-            // findRequirementsFileメソッドを代わりに使用
-            requirementsFilePath = await this._fileSystemService.findRequirementsFile(this._projectPath);
-          }
-
-          if (requirementsFilePath) {
-            // 通常のファイルウォッチャーを使用
-            const requirementsWatcher = this._fileSystemService.setupEnhancedFileWatcher(
-              requirementsFilePath,
-              async (filePath) => {
-                // 要件定義ファイル変更時の処理
-                console.log(`★★★★ 要件定義ファイル変更検出: ${filePath} (従来方式)`);
-                Logger.info(`ScopeManagerPanel: 要件定義ファイル変更を検出: ${filePath} (従来方式)`);
-                try {
-                  await this._handleGetMarkdownContent(filePath, { forRequirements: true });
-                } catch (readError) {
-                  Logger.error(`ScopeManagerPanel: 要件定義ファイル読み込みエラー: ${readError}`);
-                }
-              },
-              { delayedReadTime: 500 } // 500ms後に遅延読み込み
-            );
-            watchers.push(requirementsWatcher);
-            Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定しました (従来方式): ${requirementsFilePath}`);
-          } else {
-            Logger.warn(`ScopeManagerPanel: 要件定義ファイルが見つからないため監視を設定できませんでした`);
-          }
-        }
-      } catch (watchError) {
-        Logger.error(`ScopeManagerPanel: 要件定義ファイルの監視設定中にエラーが発生しました`, watchError as Error);
-        // エラーが発生しても処理を継続
-      }
-
-      // 3. プロジェクトファイル監視の設定（進捗ファイル監視）
-      try {
-        // プロジェクトパスが設定されている場合のみ実行
-        if (this._projectPath) {
-          // setupProjectFileWatcherメソッドが利用可能な場合はそれを使用
-          if (typeof this._fileSystemService.setupProjectFileWatcher === 'function') {
-            // この関数は主にSCOPE_PROGRESS.mdの監視を設定するが、
-            // 明示的に呼び出すことで、通常の監視フローも確保
-            const projectWatcher = this._fileSystemService.setupProjectFileWatcher(
-              this._projectPath,
-              async (filePath) => {
-                Logger.info(`ScopeManagerPanel: プロジェクトファイル変更を検出: ${filePath}`);
-
-                try {
-                  const isScopeProgressFile = filePath.endsWith('SCOPE_PROGRESS.md');
-                  const isRequirementsFile = filePath.toLowerCase().includes('requirements.md');
-
-                  if (isScopeProgressFile) {
-                    // 進捗ファイルの場合
-                    await this._handleGetMarkdownContent(filePath);
-                  } else if (isRequirementsFile) {
-                    // 要件定義ファイルの場合
-                    await this._handleGetMarkdownContent(filePath, { forRequirements: true });
-                  } else {
-                    // その他のファイル
-                    await this._handleGetMarkdownContent(filePath);
-                  }
-                } catch (readError) {
-                  Logger.error(`ScopeManagerPanel: ファイル読み込みエラー: ${readError}`);
-                }
-              }
-            );
-            watchers.push(projectWatcher);
-            Logger.info(`ScopeManagerPanel: プロジェクトファイル監視を設定しました`);
-          }
-        }
-      } catch (projectWatchError) {
-        Logger.error(`ScopeManagerPanel: プロジェクトファイル監視設定中にエラーが発生しました`, projectWatchError as Error);
-        // エラーが発生しても処理を継続
-      }
-
-      // 要件定義ファイルの初期読み込み
-      try {
-        let requirementsFilePath = null;
-
-        // getRequirementsFilePathメソッドが利用可能な場合はそれを使用
-        if (typeof this._fileSystemService.getRequirementsFilePath === 'function') {
-          requirementsFilePath = await this._fileSystemService.getRequirementsFilePath(this._projectPath);
-        } else if (typeof this._fileSystemService.findRequirementsFile === 'function') {
-          // 代わりにfindRequirementsFileメソッドを使用
-          requirementsFilePath = await this._fileSystemService.findRequirementsFile(this._projectPath);
-        }
-
-        if (requirementsFilePath && await this._fileSystemService.fileExists(requirementsFilePath)) {
-          Logger.info(`ScopeManagerPanel: 初期化時に要件定義ファイルを読み込みます: ${requirementsFilePath}`);
-          await this._handleGetMarkdownContent(requirementsFilePath, {
-            forRequirements: true,
-            forceRefresh: true
-          });
-        } else {
-          Logger.info(`ScopeManagerPanel: 要件定義ファイルが見つからないか、存在しません`);
-        }
-      } catch (error) {
-        Logger.error(`ScopeManagerPanel: 要件定義ファイルの初期読み込み中にエラーが発生: ${error}`);
-        // エラーが発生しても処理を継続
-      }
-
-      // 要件定義ファイル更新イベントをリッスン
-      const eventBus = AppGeniusEventBus.getInstance();
-      const requirementsUpdateListener = eventBus.onEventType(
-        AppGeniusEventType.REQUIREMENTS_UPDATED,
-        async (event) => {
-          // 自分自身が送信したイベントは無視
-          if (event.source === 'ScopeManagerPanel') {
-            return;
-          }
-
-          Logger.info(`ScopeManagerPanel: 要件定義ファイル更新イベントを受信: ${(event.data as any).path || 'undefined'}`);
-
-          // 要件定義ファイルの内容を更新
-          const requirementsPath = (event.data as any).path;
-          if (requirementsPath && await this._fileSystemService.fileExists(requirementsPath)) {
-            await this._handleGetMarkdownContent(requirementsPath, {
-              forRequirements: true,
-              forceRefresh: true
-            });
-            Logger.info(`ScopeManagerPanel: 要件定義ファイルを更新しました: ${requirementsPath}`);
-          }
+        // 要件定義ファイル変更時のコールバック
+        async (filePath: string) => {
+          await this._handleGetMarkdownContent(filePath, { forRequirements: true });
+        },
+        // オプション設定
+        {
+          fileSystemService: this._fileSystemService,
+          eventBus: AppGeniusEventBus.getInstance(),
+          activeTab: activeTab // アクティブタブ情報を明示的に渡す
         }
       );
 
-      // Disposableリストに追加
-      watchers.push(requirementsUpdateListener);
-
-      // 複合ウォッチャーを作成して全ての監視をまとめて管理
-      this._fileWatcher = {
-        dispose: () => {
-          // 全てのウォッチャーを破棄
-          for (const watcher of watchers) {
-            try {
-              watcher.dispose();
-            } catch (error) {
-              Logger.warn(`ScopeManagerPanel: ウォッチャー破棄中にエラー: ${error}`);
-            }
-          }
-        }
-      };
-
-      Logger.info(`ScopeManagerPanel: ファイル監視設定完了 (${watchers.length}個のウォッチャー)`);
+      Logger.info('ScopeManagerPanel: ファイル監視を設定しました');
     } catch (error) {
-      Logger.error('ファイル監視の設定中にエラーが発生しました', error as Error);
+      Logger.error('ScopeManagerPanel: ファイル監視の設定中にエラーが発生しました', error as Error);
     }
   }
 
