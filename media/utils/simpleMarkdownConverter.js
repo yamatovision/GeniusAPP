@@ -53,9 +53,9 @@ class SimpleMarkdownConverter {
       return id;
     });
     
-    // テーブルを保護
-    html = html.replace(/\|(.+)\|\s*\n\|(?:[-:]+\|)+\s*\n(\|(?:.+)\|\s*\n)+/g, (match) => {
-      const id = `TABLE_BLOCK_${tables.length}`;
+    // テーブルを保護 - より堅牢なパターンマッチング
+    html = html.replace(/^\|(.+\|)\s*\r?\n\|([-:\s|]+)\|\s*\r?\n(\|.+\|\s*\r?\n)+/gm, (match) => {
+      const id = `\n__TABLE_BLOCK_${tables.length}__\n`;
       tables.push(match);
       return id;
     });
@@ -115,8 +115,8 @@ class SimpleMarkdownConverter {
       return `<pre style="background-color:#1E1E1E; padding:16px; border-radius:6px; overflow-x:auto; margin:1em 0; border:1px solid #3E3E3E; box-shadow:0 2px 8px rgba(0,0,0,0.15);"><code style="background-color:transparent; padding:0; color:#E0E0E0; display:block; line-height:1.5;">${codeBlocks[Number(index)]}</code></pre>`;
     });
     
-    // テーブルの復元
-    result = result.replace(/TABLE_BLOCK_(\d+)/g, (match, index) => {
+    // テーブルの復元 - 新しい識別子形式に対応
+    result = result.replace(/__TABLE_BLOCK_(\d+)__/g, (match, index) => {
       return this._renderTable(tables[Number(index)]);
     });
     
@@ -128,13 +128,18 @@ class SimpleMarkdownConverter {
    */
   _renderTable(tableText) {
     try {
+      console.log("テーブル処理開始:", tableText);
       const lines = tableText.trim().split('\n');
-      if (lines.length < 3) return tableText;
-      
+      if (lines.length < 3) {
+        console.log("テーブル行数不足:", lines.length);
+        return tableText;
+      }
+
       // ヘッダー行を処理
       const headerRow = lines[0];
       const headers = headerRow.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
-      
+      console.log("ヘッダー:", headers);
+
       // 配置情報を処理
       const alignmentRow = lines[1];
       const alignments = alignmentRow.split('|')
@@ -145,23 +150,27 @@ class SimpleMarkdownConverter {
           if (cell.endsWith(':')) return 'right';
           return 'left';
         });
-      
-      // テーブル構築
-      let html = '<table class="md-table">\n<thead>\n<tr>\n';
-      
+      console.log("配置情報:", alignments);
+
+      // テーブル構築 - 直接HTMLタグとして処理して段落処理を回避
+      let html = '<div class="table-container">\n<table class="md-table">\n<thead>\n<tr>\n';
+
       // ヘッダー行
       headers.forEach((header, i) => {
         const align = alignments[i] || 'left';
         html += `<th style="text-align: ${align}">${header}</th>\n`;
       });
-      
+
       html += '</tr>\n</thead>\n<tbody>\n';
-      
+
       // データ行
       for (let i = 2; i < lines.length; i++) {
-        const cells = lines[i].split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+        const rowText = lines[i];
+        if (!rowText.trim() || !rowText.includes('|')) continue;
+
+        const cells = rowText.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
         if (cells.length === 0) continue;
-        
+
         html += '<tr>\n';
         cells.forEach((cell, j) => {
           const align = alignments[j] || 'left';
@@ -169,11 +178,14 @@ class SimpleMarkdownConverter {
         });
         html += '</tr>\n';
       }
-      
-      html += '</tbody>\n</table>';
+
+      html += '</tbody>\n</table>\n</div>';
+      console.log("テーブル処理完了");
       return html;
-    } catch {
-      return tableText;
+    } catch (error) {
+      console.error("テーブル処理エラー:", error);
+      // エラーが発生した場合でも最低限のテーブル表示を試みる
+      return `<div class="table-error">${tableText}</div>`;
     }
   }
   

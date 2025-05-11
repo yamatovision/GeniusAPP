@@ -329,9 +329,28 @@ class TabManager {
       });
       console.log('selectTab: 進捗状況タブに切り替えました。SCOPE_PROGRESS.mdを読み込みます');
     } 
-    // 要件定義タブが選択された場合、ファイルの読み込みをリクエスト
+    // 要件定義タブが選択された場合の処理
     else if (tabId === 'requirements') {
+      // まず保存されている要件定義データをチェック
+      const state = stateManager.getState();
+      if (state.requirementsContent) {
+        console.log('ローカルに保存された要件定義データを表示します');
+        // すでに保存されたコンテンツがあればそれを表示
+        const event = new CustomEvent('markdown-updated', {
+          detail: { content: state.requirementsContent }
+        });
+        document.dispatchEvent(event);
+      }
+
+      // 最新のデータを読み込み
       stateManager.sendMessage('loadRequirementsFile');
+
+      // 更新フラグが存在する場合はリセット
+      if (state.requirementsNeedsUpdate) {
+        stateManager.setState({
+          requirementsNeedsUpdate: false
+        }, false);
+      }
     }
     
     // UIの更新

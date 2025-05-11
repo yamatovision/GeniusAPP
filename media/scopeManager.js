@@ -319,16 +319,63 @@ try {
         // 強制更新フラグがある場合は常に処理（プロジェクト切り替え時等）
         if (message.forceRefresh) {
           console.log('マークダウン強制更新が要求されました');
-          
-          // コンテンツを更新
-          markdownViewer.updateContent(message.content);
-          
+
+          // 要件定義のコンテンツの場合
+          if (message.forRequirements) {
+            console.log(`要件定義の更新: activeTabId=${activeTabId}`);
+            // 要件定義コンテンツを状態に保存
+            stateManager.setState({
+              requirementsContent: message.content,
+              requirementsLastUpdate: Date.now()
+            }, false);
+
+            // タブがアクティブな場合は表示を更新
+            if (activeTabId === 'requirements') {
+              console.log('要件定義タブが表示中なので内容を強制更新します');
+              // 直接マークダウンを更新して確実に反映される
+              const requirementsContent = document.querySelector('#requirements-tab .markdown-content');
+              if (requirementsContent) {
+                requirementsContent.innerHTML = '';
+                setTimeout(() => {
+                  markdownViewer.updateContent(message.content);
+                  console.log('要件定義タブの内容が更新されました');
+                }, 10);
+              } else {
+                console.log('要件定義タブのコンテンツ要素が見つかりません');
+                markdownViewer.updateContent(message.content);
+              }
+            } else {
+              console.log('要件定義タブが非アクティブですが、コンテンツを保存しました');
+              // 次回表示時に更新されるようフラグを設定
+              stateManager.setState({
+                requirementsNeedsUpdate: true
+              }, false);
+            }
+          }
+          // 進捗状況のコンテンツの場合
+          else if (message.forScopeProgress) {
+            // 進捗状況コンテンツを状態に保存
+            stateManager.setState({
+              scopeProgressContent: message.content,
+              scopeProgressLastUpdate: Date.now()
+            }, false);
+
+            // タブがアクティブな場合は表示を更新
+            if (activeTabId === 'scope-progress') {
+              console.log('進捗状況タブが表示中なので内容を強制更新します');
+              markdownViewer.updateContent(message.content);
+            }
+          }
+          // その他の通常コンテンツの場合
+          else {
+            // コンテンツを更新
+            console.log('通常コンテンツを強制更新します');
+            markdownViewer.updateContent(message.content);
+          }
+
           // 更新時間の記録（無限ループ防止）
           window._lastContentUpdateTime = Date.now();
-          
-          // 進捗状況タブ自動選択は行わない（無限ループ防止のため）
-          // 以前: tabManager.selectTab('scope-progress', false);
-          
+
           break;
         }
 
@@ -349,10 +396,32 @@ try {
           break;
         }
 
-        // 要件定義用のマークダウン更新は、そのタブがアクティブな場合のみ処理
-        if (message.forRequirements && activeTabId !== 'requirements') {
-          console.log(`要件定義タブがアクティブでないため更新をスキップします (現在のタブ: ${activeTabId})`);
-          return;
+        // 要件定義用のマークダウン更新も進捗状況と同様に常に保存する
+        if (message.forRequirements) {
+          // 最新のコンテンツを状態に保存（タブが非アクティブでも保存）
+          stateManager.setState({
+            requirementsContent: message.content,
+            requirementsFilePath: message.filePath, // ファイルパスも保存
+            requirementsLastUpdate: Date.now()      // タイムスタンプを保存
+          }, false);
+
+          // 進捗状況と同様に、タブが非アクティブでも即時に内容を更新する
+          // これにより、タブを切り替えなくても内容が更新される
+          console.log(`要件定義ファイルが更新されました: ${message.filePath}`);
+
+          // タブがアクティブな場合は表示を更新
+          if (activeTabId === 'requirements') {
+            console.log(`要件定義タブが表示中なので内容を更新します`);
+            markdownViewer.updateContent(message.content);
+          } else {
+            console.log(`要件定義タブが非アクティブですが、次回表示時に更新されるようコンテンツを保存しました`);
+
+            // タブ状態に更新フラグを追加
+            stateManager.setState({
+              requirementsNeedsUpdate: true
+            }, false);
+          }
+          break;
         }
 
         // 直接markdownViewerに処理を委譲

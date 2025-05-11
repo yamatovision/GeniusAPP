@@ -437,22 +437,43 @@ export class MarkdownViewerPanel {
       return;
     }
 
-    this._currentProjectPath = projectPath;
+    // 現在表示中のファイルパスを保存（プロジェクト変更後も表示を維持するため）
+    const currentViewState = {
+      isSplitView: this._isSplitView,
+      currentFilePath: this._currentFilePath,
+      leftPaneFilePath: this._leftPaneFilePath,
+      rightPaneFilePath: this._rightPaneFilePath
+    };
 
-    // プロジェクトパス変更時にdocsディレクトリを優先して表示
-    const docsPath = path.join(projectPath, 'docs');
-    if (fs.existsSync(docsPath)) {
-      // docsディレクトリが存在すれば、それを使用
-      this._refreshFileList(docsPath);
-      Logger.info(`MarkdownViewerPanel: プロジェクト変更時にdocsディレクトリを表示: ${docsPath}`);
-    } else {
-      // 存在しない場合はプロジェクトルートを表示
-      this._refreshFileList();
-      Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示: ${projectPath}`);
-    }
+    this._currentProjectPath = projectPath;
 
     // ファイル監視を更新
     this._setupFileWatcher();
+
+    // プロジェクトパス変更時にdocsディレクトリを優先して表示（ファイル選択状態がない場合のみ）
+    let targetPath;
+    if (this._isSplitView && (this._leftPaneFilePath || this._rightPaneFilePath)) {
+      // 分割表示モードで、ファイルが選択されている場合は現在の表示を維持
+      targetPath = this._leftPaneFilePath ? path.dirname(this._leftPaneFilePath) : path.dirname(this._rightPaneFilePath);
+      Logger.info(`MarkdownViewerPanel: 現在表示中のディレクトリを維持します: ${targetPath}`);
+    } else if (this._currentFilePath) {
+      // 通常モードでファイルが選択されている場合
+      targetPath = path.dirname(this._currentFilePath);
+      Logger.info(`MarkdownViewerPanel: 現在表示中のディレクトリを維持します: ${targetPath}`);
+    } else {
+      // ファイル選択状態がない場合はdocsディレクトリを優先
+      const docsPath = path.join(projectPath, 'docs');
+      if (fs.existsSync(docsPath)) {
+        targetPath = docsPath;
+        Logger.info(`MarkdownViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
+      } else {
+        targetPath = projectPath;
+        Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示: ${projectPath}`);
+      }
+    }
+
+    // ファイルリストを更新
+    this._refreshFileList(targetPath);
 
     Logger.info(`MarkdownViewerPanel: プロジェクトパスが変更されました: ${projectPath}`);
   }
@@ -565,7 +586,7 @@ export class MarkdownViewerPanel {
 
   /**
    * ファイルリストを更新（特定のパスを指定可能）
-   * @param specificPath 特定のディレクトリパス（省略時は現在のプロジェクトパスのdocsフォルダを優先）
+   * @param specificPath 特定のディレクトリパス（省略時は現在の表示パスを維持、初期化時のみdocsフォルダを優先）
    */
   private _refreshFileList(specificPath?: string): void {
     try {
@@ -578,22 +599,32 @@ export class MarkdownViewerPanel {
         command: 'startLoading',
       });
 
-      // パスが指定されていない場合、初期表示としてdocsディレクトリを優先的に試みる
+      // パスが指定されていない場合の処理
       let pathToList = specificPath;
 
       if (!pathToList) {
-        // docsディレクトリパスを作成
-        const docsPath = path.join(this._currentProjectPath, 'docs');
-
-        // docsディレクトリの存在を同期的に確認（パフォーマンス考慮）
-        if (fs.existsSync(docsPath)) {
-          // docsディレクトリが存在すれば、それを使用
-          pathToList = docsPath;
-          Logger.info(`MarkdownViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
+        // 現在のファイルリストが存在する場合は、その親ディレクトリを優先して維持
+        if (this._isSplitView && (this._leftPaneFilePath || this._rightPaneFilePath)) {
+          // 分割表示モードで、どちらかのペインにファイルが表示されている場合
+          const filePath = this._leftPaneFilePath || this._rightPaneFilePath;
+          pathToList = path.dirname(filePath);
+          Logger.info(`MarkdownViewerPanel: 現在表示中のファイルのディレクトリを維持します: ${pathToList}`);
+        } else if (this._currentFilePath) {
+          // 通常モードでファイルが表示されている場合
+          pathToList = path.dirname(this._currentFilePath);
+          Logger.info(`MarkdownViewerPanel: 現在表示中のファイルのディレクトリを維持します: ${pathToList}`);
         } else {
-          // 存在しない場合はプロジェクトルートを使用
-          pathToList = this._currentProjectPath;
-          Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示します: ${this._currentProjectPath}`);
+          // ファイル選択状態がない場合のみ、docsディレクトリを優先
+          const docsPath = path.join(this._currentProjectPath, 'docs');
+
+          // docsディレクトリの存在を同期的に確認
+          if (fs.existsSync(docsPath)) {
+            pathToList = docsPath;
+            Logger.info(`MarkdownViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
+          } else {
+            pathToList = this._currentProjectPath;
+            Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示します: ${this._currentProjectPath}`);
+          }
         }
       }
 

@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulacrum - ボット作成（ミニマル版）</title>
+  
+  <!-- Material UI CDNs -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mui/material@5.14.5/dist/mui.min.css" />
+  
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f7fa;
+      color: #333;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 40px auto;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+    
+    .header {
+      padding: 20px 24px;
+      background-color: #f9f9f9;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 500;
+      color: #333;
+    }
+    
+    .step-indicator {
+      display: flex;
+      align-items: center;
+      color: #666;
+      font-size: 14px;
+    }
+    
+    .content {
+      padding: 32px 24px;
+    }
+    
+    .form-group {
+      margin-bottom: 24px;
+    }
+    
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #333;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+      transition: border-color 0.2s;
+    }
+    
+    .form-control:focus {
+      border-color: #1976d2;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+    }
+    
+    textarea.form-control {
+      min-height: 120px;
+      resize: vertical;
+    }
+    
+    .required:after {
+      content: ' *';
+      color: #d32f2f;
+    }
+    
+    .hint-text {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .actions {
+      padding: 16px 24px;
+      background-color: #f9f9f9;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+    
+    .btn {
+      padding: 10px 16px;
+      border-radius: 4px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      font-size: 14px;
+      transition: background-color 0.2s;
+    }
+    
+    .btn-secondary {
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    
+    .btn-secondary:hover {
+      background-color: #e5e5e5;
+    }
+    
+    .btn-primary {
+      background-color: #1976d2;
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background-color: #1565c0;
+    }
+    
+    .data-source-list {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      margin-bottom: 12px;
+    }
+    
+    .data-source-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      align-items: center;
+    }
+    
+    .data-source-item:last-child {
+      border-bottom: none;
+    }
+    
+    .data-source-checkbox {
+      margin-right: 12px;
+    }
+    
+    .data-source-name {
+      flex: 1;
+    }
+    
+    .data-source-info {
+      color: #666;
+      font-size: 12px;
+    }
+    
+    .system-prompt {
+      background-color: #f5f7fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    
+    .edit-button {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+    }
+    
+    .summary-table td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .summary-table td:first-child {
+      font-weight: 500;
+      width: 30%;
+    }
+    
+    .radio-group {
+      margin-top: 12px;
+    }
+    
+    .radio-option {
+      display: flex;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    
+    .radio-option input {
+      margin-right: 12px;
+    }
+    
+    /* Steps visibility */
+    .step {
+      display: none;
+    }
+    
+    .step.active {
+      display: block;
+    }
+    
+    /* Progress steps */
+    .progress-steps {
+      display: flex;
+      margin-bottom: 32px;
+    }
+    
+    .progress-step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+    }
+    
+    .progress-step:not(:last-child):after {
+      content: '';
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      width: 100%;
+      height: 2px;
+      background-color: #e0e0e0;
+      z-index: 1;
+    }
+    
+    .step-number {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background-color: #e0e0e0;
+      color: #666;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 8px;
+      position: relative;
+      z-index: 2;
+    }
+    
+    .progress-step.active .step-number,
+    .progress-step.completed .step-number {
+      background-color: #1976d2;
+      color: white;
+    }
+    
+    .progress-step.completed:after {
+      background-color: #1976d2;
+    }
+    
+    .step-label {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .progress-step.active .step-label {
+      color: #1976d2;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>ボット作成</h1>
+      <div class="step-indicator">
+        基本情報入力
+      </div>
+    </div>
+    
+    <div class="content">
+      <!-- Progress Steps -->
+      <div class="progress-steps">
+        <div class="progress-step active">
+          <div class="step-number">1</div>
+          <div class="step-label">基本情報</div>
+        </div>
+        <div class="progress-step">
+          <div class="step-number">2</div>
+          <div class="step-label">データソース</div>
+        </div>
+        <div class="progress-step">
+          <div class="step-number">3</div>
+          <div class="step-label">確認と公開</div>
+        </div>
+      </div>
+      
+      <!-- Step 1: Basic Information -->
+      <div id="step1" class="step active">
+        <div class="form-group">
+          <label for="bot-name" class="required">ボット名</label>
+          <input type="text" id="bot-name" class="form-control" placeholder="例: マーケティングアシスタント">
+        </div>
+        
+        <div class="form-group">
+          <label for="bot-purpose" class="required">ボットの目的</label>
+          <textarea id="bot-purpose" class="form-control" placeholder="このボットは何をするものですか？&#10;例: 顧客からのよくある質問に答える、技術文書を検索する"></textarea>
+          <div class="hint-text">自然言語で入力するだけで、AIが最適なシステムプロンプトを生成します。</div>
+        </div>
+      </div>
+      
+      <!-- Step 2: Data Sources -->
+      <div id="step2" class="step">
+        <div class="form-group">
+          <label>システムプロンプト（自動生成）</label>
+          <div class="system-prompt">
+            あなたはマーケティングの専門家です。ユーザーの質問に対して実用的かつ具体的なマーケティング戦略のアドバイスを提供してください。専門用語を適切に使いながらも、初心者にも理解できるように説明してください。適切な例や成功事例を交えて回答すると効果的です。
+            <button class="edit-button">編集</button>
+          </div>
+          <div class="hint-text">AIがボットの目的から自動生成したプロンプトです。必要に応じて編集できます。</div>
+        </div>
+        
+        <div class="form-group">
+          <label>データソース</label>
+          <div class="data-source-list">
+            <div class="data-source-item">
+              <input type="checkbox" class="data-source-checkbox" id="ds1">
+              <label for="ds1" class="data-source-name">FAQ文書.pdf</label>
+              <div class="data-source-info">2.4MB • 2025-04-20</div>
+            </div>
+            <div class="data-source-item">
+              <input type="checkbox" class="data-source-checkbox" id="ds2">
+              <label for="ds2" class="data-source-name">製品マニュアル.docx</label>
+              <div class="data-source-info">1.8MB • 2025-04-15</div>
+            </div>
+            <div class="data-source-item">
+              <input type="checkbox" class="data-source-checkbox" id="ds3">
+              <label for="ds3" class="data-source-name">よくある問い合わせ.xlsx</label>
+              <div class="data-source-info">512KB • 2025-04-10</div>
+            </div>
+          </div>
+          <button class="btn btn-secondary" style="display: flex; align-items: center; gap: 6px;">
+            <span class="material-icons" style="font-size: 18px;">add</span>
+            新しいデータソースを追加
+          </button>
+        </div>
+      </div>
+      
+      <!-- Step 3: Confirmation -->
+      <div id="step3" class="step">
+        <h3 style="margin-top: 0; margin-bottom: 16px;">ボット設定の確認</h3>
+        
+        <table class="summary-table">
+          <tr>
+            <td>ボット名</td>
+            <td id="summary-name">マーケティングアシスタント</td>
+          </tr>
+          <tr>
+            <td>目的</td>
+            <td id="summary-purpose">マーケティング戦略のアドバイスと支援</td>
+          </tr>
+          <tr>
+            <td>データソース</td>
+            <td id="summary-datasources">3ファイル</td>
+          </tr>
+        </table>
+        
+        <div class="form-group">
+          <label>公開設定</label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" id="private" name="visibility" checked>
+              <label for="private">自分だけ（デフォルト）</label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="shared" name="visibility">
+              <label for="shared">特定ユーザーと共有</label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" id="public" name="visibility">
+              <label for="public">全体に公開</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="actions">
+      <button id="back-button" class="btn btn-secondary" style="display: none;">戻る</button>
+      <button id="next-button" class="btn btn-primary">次へ</button>
+      <button id="create-button" class="btn btn-primary" style="display: none;">作成して保存</button>
+    </div>
+  </div>
+  
+  <script>
+    // Simple navigation functionality
+    let currentStep = 1;
+    const totalSteps = 3;
+    
+    const backButton = document.getElementById('back-button');
+    const nextButton = document.getElementById('next-button');
+    const createButton = document.getElementById('create-button');
+    
+    // Function to update step visibility
+    function updateSteps() {
+      // Hide all steps
+      document.querySelectorAll('.step').forEach(step => {
+        step.classList.remove('active');
+      });
+      
+      // Show current step
+      document.getElementById(`step${currentStep}`).classList.add('active');
+      
+      // Update progress steps
+      document.querySelectorAll('.progress-step').forEach((step, index) => {
+        if (index + 1 < currentStep) {
+          step.classList.add('completed');
+          step.classList.remove('active');
+        } else if (index + 1 === currentStep) {
+          step.classList.add('active');
+          step.classList.remove('completed');
+        } else {
+          step.classList.remove('active', 'completed');
+        }
+      });
+      
+      // Update step indicator text
+      const stepIndicator = document.querySelector('.step-indicator');
+      if (currentStep === 1) {
+        stepIndicator.textContent = '基本情報入力';
+      } else if (currentStep === 2) {
+        stepIndicator.textContent = 'データソース設定';
+      } else {
+        stepIndicator.textContent = '確認と公開設定';
+      }
+      
+      // Update buttons
+      if (currentStep === 1) {
+        backButton.style.display = 'none';
+      } else {
+        backButton.style.display = 'block';
+      }
+      
+      if (currentStep === totalSteps) {
+        nextButton.style.display = 'none';
+        createButton.style.display = 'block';
+      } else {
+        nextButton.style.display = 'block';
+        createButton.style.display = 'none';
+      }
+    }
+    
+    // Next button click
+    nextButton.addEventListener('click', () => {
+      // Simple validation for step 1
+      if (currentStep === 1) {
+        const botName = document.getElementById('bot-name').value;
+        const botPurpose = document.getElementById('bot-purpose').value;
+        
+        if (!botName || !botPurpose) {
+          alert('ボット名と目的を入力してください。');
+          return;
+        }
+        
+        // Update summary for step 3
+        document.getElementById('summary-name').textContent = botName;
+        document.getElementById('summary-purpose').textContent = botPurpose;
+      }
+      
+      if (currentStep < totalSteps) {
+        currentStep++;
+        updateSteps();
+      }
+    });
+    
+    // Back button click
+    backButton.addEventListener('click', () => {
+      if (currentStep > 1) {
+        currentStep--;
+        updateSteps();
+      }
+    });
+    
+    // Create button click (final step)
+    createButton.addEventListener('click', () => {
+      alert('ボットが作成されました！チャットインターフェースに移動します。');
+      // In a real app, this would submit the form data and redirect
+    });
+    
+    // Initialize
+    updateSteps();
+  </script>
+</body>
+</html>

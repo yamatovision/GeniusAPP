@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>シフト希望管理 - シフト管理システム</title>
+  
+  <!-- Material UI関連のCDN -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mui/material@5.13.0/dist/cdn.min.css" />
+  
+  <!-- カレンダー用のFullCalendar CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" />
+  
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    .app-bar {
+      background-color: #1976d2;
+      color: white;
+      padding: 10px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .app-title {
+      font-size: 1.5rem;
+      margin: 0;
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+    }
+    
+    .user-name {
+      margin-right: 15px;
+    }
+    
+    .content-area {
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      margin-top: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .page-title {
+      font-size: 1.8rem;
+      margin: 0 0 20px 0;
+      color: #333;
+    }
+    
+    .tab-container {
+      margin-bottom: 20px;
+    }
+    
+    .tab-button {
+      padding: 10px 20px;
+      margin-right: 10px;
+      border: none;
+      background-color: #eee;
+      border-radius: 4px 4px 0 0;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    
+    .tab-button.active {
+      background-color: white;
+      border-top: 2px solid #1976d2;
+    }
+    
+    .calendar-container {
+      height: 600px;
+      margin-bottom: 20px;
+    }
+    
+    .sidebar {
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      padding: 20px;
+      margin-top: 20px;
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+      color: #555;
+    }
+    
+    .form-control {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    
+    .form-select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      background-color: white;
+    }
+    
+    .time-picker-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 1rem;
+      transition: background-color 0.3s;
+    }
+    
+    .button-primary {
+      background-color: #1976d2;
+      color: white;
+    }
+    
+    .button-secondary {
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    
+    .button-primary:hover {
+      background-color: #1565c0;
+    }
+    
+    .button-secondary:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .two-columns {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .column-left {
+      flex: 2;
+    }
+    
+    .column-right {
+      flex: 1;
+    }
+    
+    .priority-chips {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .chip {
+      padding: 5px 15px;
+      border-radius: 16px;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .chip-low {
+      background-color: #e3f2fd;
+      color: #1976d2;
+      border: 1px solid #bbdefb;
+    }
+    
+    .chip-medium {
+      background-color: #fff8e1;
+      color: #ffa000;
+      border: 1px solid #ffecb3;
+    }
+    
+    .chip-high {
+      background-color: #ffebee;
+      color: #d32f2f;
+      border: 1px solid #ffcdd2;
+    }
+    
+    .chip.selected {
+      font-weight: bold;
+      box-shadow: 0 0 0 2px currentColor;
+    }
+    
+    .legend {
+      display: flex;
+      gap: 15px;
+      margin: 15px 0;
+    }
+    
+    .legend-item {
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+    }
+    
+    .legend-color {
+      width: 16px;
+      height: 16px;
+      margin-right: 8px;
+      border-radius: 4px;
+    }
+    
+    .fc-event {
+      cursor: pointer;
+    }
+    
+    .recurring-options {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      border: 1px solid #eee;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background-color: #323232;
+      color: white;
+      padding: 16px 24px;
+      border-radius: 4px;
+      box-shadow: 0 3px 5px rgba(0,0,0,0.2);
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .toast.show {
+      opacity: 1;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    /* パターン設定タブのスタイル上書き */
+    #pattern-view.tab-content.active {
+      display: block !important;
+    }
+    
+    /* ローディングインジケーター */
+    .loader {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 2s linear infinite;
+      margin: 20px auto;
+      display: none;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* 希望詳細ダイアログ */
+    .dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      display: none;
+    }
+    
+    .dialog {
+      background-color: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      width: 500px;
+      max-width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    
+    .dialog-header {
+      padding: 16px 24px;
+      border-bottom: 1px solid #eee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .dialog-title {
+      margin: 0;
+      font-size: 1.25rem;
+    }
+    
+    .dialog-close {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.5rem;
+      color: #757575;
+    }
+    
+    .dialog-content {
+      padding: 24px;
+    }
+    
+    .dialog-actions {
+      padding: 8px 24px 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* レスポンシブスタイル */
+    @media (max-width: 768px) {
+      .two-columns {
+        flex-direction: column;
+      }
+      
+      .app-bar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .user-info {
+        margin-top: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- アプリケーションバー -->
+  <div class="app-bar">
+    <h1 class="app-title">シフト管理システム</h1>
+    <div class="user-info">
+      <span class="user-name">山田 太郎（一般スタッフ）</span>
+      <button class="button button-secondary">ログアウト</button>
+    </div>
+  </div>
+  
+  <!-- メインコンテンツ -->
+  <div class="container">
+    <div class="content-area">
+      <h2 class="page-title">シフト希望管理</h2>
+      
+      <!-- タブ切り替え -->
+      <div class="tab-container">
+        <button class="tab-button active" onclick="switchTab('month-view')">月間表示</button>
+        <button class="tab-button" onclick="switchTab('week-view')">週間表示</button>
+        <button class="tab-button" onclick="switchTab('list-view')">リスト表示</button>
+        <button class="tab-button" onclick="switchTab('pattern-view')">基本パターン設定</button>
+      </div>
+      
+      <div class="alert-box" style="background-color: #f0f8ff; padding: 15px; border-radius: 4px; margin-bottom: 15px; border-left: 4px solid #1976d2;">
+        <p style="margin: 0; color: #333;"><strong>シフト希望の入力方法:</strong> ①「基本パターン設定」タブで通常の勤務可能パターンを設定 → ②カレンダーから例外となる休み希望や追加勤務可能日を個別登録</p>
+      </div>
+      
+      <!-- 2カラムレイアウト -->
+      <div class="two-columns">
+        <!-- 左カラム：カレンダー -->
+        <div class="column-left">
+          <!-- 月間表示タブ -->
+          <div id="month-view" class="tab-content active">
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #bbdefb;"></div>
+                <span>休み希望</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #ffcdd2;"></div>
+                <span>高優先度の休み希望</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #c8e6c9;"></div>
+                <span>追加勤務可能日</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #f5f5f5; border: 1px dashed #ccc;"></div>
+                <span>確定休日</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #e0e0e0; border: 1px solid #bdbdbd;"></div>
+                <span>基本勤務可能日</span>
+              </div>
+            </div>
+            <div id="calendar-month" class="calendar-container"></div>
+          </div>
+          
+          <!-- 週間表示タブ -->
+          <div id="week-view" class="tab-content">
+            <div class="legend">
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #bbdefb;"></div>
+                <span>休み希望</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #ffcdd2;"></div>
+                <span>高優先度の休み希望</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #c8e6c9;"></div>
+                <span>追加勤務可能日</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #f5f5f5; border: 1px dashed #ccc;"></div>
+                <span>確定休日</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color" style="background-color: #e0e0e0; border: 1px solid #bdbdbd;"></div>
+                <span>基本勤務可能日</span>
+              </div>
+            </div>
+            <div id="calendar-week" class="calendar-container"></div>
+          </div>
+          
+          <!-- リスト表示タブ -->
+          <div id="list-view" class="tab-content">
+            <div class="form-group">
+              <label class="form-label">表示する月</label>
+              <select class="form-select" id="month-selector">
+                <option value="2025-05">2025年5月</option>
+                <option value="2025-06">2025年6月</option>
+                <option value="2025-07">2025年7月</option>
+              </select>
+            </div>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
+              <thead>
+                <tr>
+                  <th style="padding: 10px; border-bottom: 2px solid #ddd; text-align: left;">日付</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #ddd; text-align: left;">休みタイプ</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #ddd; text-align: left;">優先度</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #ddd; text-align: left;">理由</th>
+                  <th style="padding: 10px; border-bottom: 2px solid #ddd; text-align: left;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">2025/05/10 (土)</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">終日休み</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <span class="chip chip-high" style="cursor: default;">高</span>
+                  </td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">友人の結婚式のため</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">編集</button>
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">削除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">2025/05/15 (木)</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">午前休み</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <span class="chip chip-medium" style="cursor: default;">中</span>
+                  </td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">病院の予約</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">編集</button>
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">削除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">2025/05/21 (水)</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">終日休み</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <span class="chip chip-low" style="cursor: default;">低</span>
+                  </td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">私用のため</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">編集</button>
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">削除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">2025/05/24 (土)</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">午後休み</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <span class="chip chip-low" style="cursor: default;">低</span>
+                  </td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">習い事のため（毎週）</td>
+                  <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">編集</button>
+                    <button class="button button-secondary" style="padding: 5px 10px; font-size: 0.9rem;">削除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- 右カラム：シフト希望入力フォーム -->
+        <div class="column-right">
+          <div class="sidebar">
+            <h3 style="margin-top: 0; margin-bottom: 20px;">例外希望を追加</h3>
+            
+            <div class="form-group">
+              <label class="form-label">日付</label>
+              <input type="date" class="form-control" id="preference-date" min="2025-05-01" value="2025-05-15">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">希望タイプ</label>
+              <select class="form-select" id="preference-type" onchange="toggleAdditionalFields()">
+                <option value="all-day-off">終日休み希望</option>
+                <option value="am-off">午前休み希望</option>
+                <option value="pm-off">午後休み希望</option>
+                <option value="additional-work">追加勤務可能</option>
+              </select>
+            </div>
+            
+            <div id="work-time-fields" style="display: none;">
+              <div class="form-group">
+                <label class="form-label">勤務可能時間</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="start-time" style="width: 45%;">
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00">10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                    <option value="11:30">11:30</option>
+                    <option value="12:00">12:00</option>
+                    <option value="12:30">12:30</option>
+                    <option value="13:00">13:00</option>
+                    <option value="13:30">13:30</option>
+                    <option value="14:00">14:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="end-time" style="width: 45%;">
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00">18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00">19:00</option>
+                    <option value="19:30">19:30</option>
+                    <option value="20:00">20:00</option>
+                    <option value="20:30">20:30</option>
+                    <option value="21:00">21:00</option>
+                    <option value="21:30">21:30</option>
+                    <option value="22:00">22:00</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">優先度</label>
+              <div class="priority-chips">
+                <div class="chip chip-low selected" onclick="selectPriority('low')">低</div>
+                <div class="chip chip-medium" onclick="selectPriority('medium')">中</div>
+                <div class="chip chip-high" onclick="selectPriority('high')">高</div>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">理由（特に高優先度の場合）</label>
+              <textarea class="form-control" id="reason" rows="3" placeholder="例: 友人の結婚式に参加するため"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-checkbox">
+                <input type="checkbox" id="recurring-check" onchange="toggleRecurringOptions()">
+                <span>繰り返しパターンを設定する</span>
+              </label>
+            </div>
+            
+            <div id="recurring-options" class="recurring-options" style="display: none;">
+              <div class="form-group">
+                <label class="form-label">繰り返しタイプ</label>
+                <select class="form-select" id="recurrence-type">
+                  <option value="weekly">毎週</option>
+                  <option value="biweekly">隔週</option>
+                  <option value="monthly">毎月同じ日</option>
+                </select>
+              </div>
+              
+              <div class="form-group" id="weekly-options">
+                <label class="form-label">繰り返す曜日</label>
+                <div class="checkbox-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="mon"> 月
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="tue"> 火
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="wed"> 水
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="thu"> 木
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="fri"> 金
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="sat"> 土
+                  </label>
+                  <label class="checkbox-label">
+                    <input type="checkbox" value="sun"> 日
+                  </label>
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label class="form-label">終了日</label>
+                <input type="date" class="form-control" id="recurrence-end" min="2025-05-01" value="2025-07-31">
+              </div>
+            </div>
+            
+            <div class="form-group" style="margin-top: 20px;">
+              <button class="button button-primary" style="width: 100%;" onclick="savePreference()">希望を登録</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 希望詳細ダイアログ -->
+  <div class="dialog-overlay" id="preference-dialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3 class="dialog-title">希望詳細</h3>
+        <button class="dialog-close" onclick="closeDialog()">&times;</button>
+      </div>
+      <div class="dialog-content">
+        <div class="form-group">
+          <label class="form-label">日付</label>
+          <p id="dialog-date">2025/05/10 (土)</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">希望タイプ</label>
+          <p id="dialog-type">終日休み希望</p>
+        </div>
+        
+        <div class="form-group" id="dialog-time-container" style="display: none;">
+          <label class="form-label">勤務可能時間</label>
+          <p id="dialog-time">9:00 - 18:00</p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">優先度</label>
+          <p id="dialog-priority">
+            <span class="chip chip-high" style="cursor: default;">高</span>
+          </p>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">理由</label>
+          <p id="dialog-reason">友人の結婚式のため</p>
+        </div>
+        
+        <div class="form-group" id="dialog-recurring-container">
+          <label class="form-label">繰り返し設定</label>
+          <p id="dialog-recurring">なし</p>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="button button-secondary" onclick="deletePreference()">削除</button>
+        <button class="button button-secondary" onclick="editPreference()">編集</button>
+        <button class="button button-primary" onclick="closeDialog()">閉じる</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- トースト通知 -->
+  <div class="toast" id="toast">希望が正常に登録されました</div>
+  
+  <!-- パターン設定タブの内容 -->
+  <div id="pattern-view" class="tab-content">
+    <div class="container">
+      <h3 style="margin-top: 0;">基本勤務パターン設定</h3>
+      <p class="description" style="margin-bottom: 20px; color: #666;">通常勤務可能な曜日と時間帯を設定してください。このパターンをベースに例外的な休み希望や追加勤務が適用されます。</p>
+      
+      <div class="pattern-settings" style="background: white; padding: 20px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.12);">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr>
+              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #ddd;">曜日</th>
+              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #ddd;">勤務可否</th>
+              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #ddd;">勤務可能時間</th>
+              <th style="padding: 12px 8px; text-align: left; border-bottom: 2px solid #ddd;">備考</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">月曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="monday-availability">
+                  <option value="available">勤務可能</option>
+                  <option value="unavailable">勤務不可</option>
+                  <option value="preferred">勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="monday-start" style="width: 45%;">
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00">10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="monday-end" style="width: 45%;">
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00" selected>18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00">19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="monday-note" placeholder="備考">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">火曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="tuesday-availability">
+                  <option value="available">勤務可能</option>
+                  <option value="unavailable">勤務不可</option>
+                  <option value="preferred">勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="tuesday-start" style="width: 45%;">
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00">10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="tuesday-end" style="width: 45%;">
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00" selected>18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00">19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="tuesday-note" placeholder="備考">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">水曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="wednesday-availability">
+                  <option value="available">勤務可能</option>
+                  <option value="unavailable" selected>勤務不可</option>
+                  <option value="preferred">勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="wednesday-start" style="width: 45%;" disabled>
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00">10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="wednesday-end" style="width: 45%;" disabled>
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00">18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00">19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="wednesday-note" value="学校のため" placeholder="備考">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">木曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="thursday-availability">
+                  <option value="available">勤務可能</option>
+                  <option value="unavailable">勤務不可</option>
+                  <option value="preferred" selected>勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="thursday-start" style="width: 45%;">
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00" selected>10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="thursday-end" style="width: 45%;">
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00">18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00" selected>19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="thursday-note" placeholder="備考">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">金曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="friday-availability">
+                  <option value="available" selected>勤務可能</option>
+                  <option value="unavailable">勤務不可</option>
+                  <option value="preferred">勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="friday-start" style="width: 45%;">
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00">10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="friday-end" style="width: 45%;">
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00" selected>18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00">19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="friday-note" placeholder="備考">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">土曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="saturday-availability">
+                  <option value="available">勤務可能</option>
+                  <option value="unavailable">勤務不可</option>
+                  <option value="preferred" selected>勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="saturday-start" style="width: 45%;">
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00" selected>10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="saturday-end" style="width: 45%;">
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00">18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00" selected>19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="saturday-note" placeholder="備考">
+              </td>
+            </tr>
+            <tr>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee; font-weight: 500;">日曜日</td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <select class="form-select" id="sunday-availability">
+                  <option value="available">勤務可能</option>
+                  <option value="unavailable" selected>勤務不可</option>
+                  <option value="preferred">勤務希望</option>
+                </select>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <select class="form-select" id="sunday-start" style="width: 45%;" disabled>
+                    <option value="09:00">09:00</option>
+                    <option value="09:30">09:30</option>
+                    <option value="10:00">10:00</option>
+                    <option value="10:30">10:30</option>
+                    <option value="11:00">11:00</option>
+                  </select>
+                  <span>〜</span>
+                  <select class="form-select" id="sunday-end" style="width: 45%;" disabled>
+                    <option value="17:00">17:00</option>
+                    <option value="17:30">17:30</option>
+                    <option value="18:00">18:00</option>
+                    <option value="18:30">18:30</option>
+                    <option value="19:00">19:00</option>
+                  </select>
+                </div>
+              </td>
+              <td style="padding: 12px 8px; border-bottom: 1px solid #eee;">
+                <input type="text" class="form-control" id="sunday-note" value="家庭の事情" placeholder="備考">
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="margin-top: 30px;">
+          <h4 style="margin-top: 0; margin-bottom: 15px;">特定の条件設定</h4>
+          
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" id="limit-hours-per-week">
+              <span>週間勤務時間の上限を設定</span>
+            </label>
+            <div style="margin-top: 10px; margin-left: 25px; display: none;" id="weekly-hours-container">
+              <label>週間最大勤務時間：</label>
+              <select class="form-select" style="width: 120px; display: inline-block;">
+                <option value="20">20時間</option>
+                <option value="24">24時間</option>
+                <option value="28">28時間</option>
+                <option value="32">32時間</option>
+                <option value="36">36時間</option>
+                <option value="40" selected>40時間</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" id="prefer-consecutive-days">
+              <span>連続勤務日を優先する</span>
+            </label>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-checkbox">
+              <input type="checkbox" id="avoid-closing-opening">
+              <span>閉店後の次日開店勤務を避ける</span>
+            </label>
+          </div>
+        </div>
+        
+        <div style="margin-top: 30px; display: flex; justify-content: space-between;">
+          <button class="button button-secondary">キャンセル</button>
+          <button class="button button-primary" onclick="savePattern()">パターンを保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- ローディングインジケーター -->
+  <div class="loader" id="loader"></div>
+  
+  <!-- スクリプト -->
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+  
+  <script>
+    // タブ切り替え
+    function switchTab(tabId) {
+      // すべてのタブコンテンツを非表示
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      
+      // すべてのタブボタンの選択状態を解除
+      document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active');
+      });
+      
+      // クリックされたタブを表示
+      document.getElementById(tabId).classList.add('active');
+      
+      // クリックされたタブのボタンをアクティブに
+      event.target.classList.add('active');
+      
+      // カレンダーのサイズを調整（必要に応じて）
+      if (tabId === 'month-view' && monthCalendar) {
+        monthCalendar.updateSize();
+      } else if (tabId === 'week-view' && weekCalendar) {
+        weekCalendar.updateSize();
+      }
+    }
+    
+    // 優先度の選択
+    function selectPriority(priority) {
+      document.querySelectorAll('.priority-chips .chip').forEach(chip => {
+        chip.classList.remove('selected');
+      });
+      
+      document.querySelector('.chip-' + priority).classList.add('selected');
+    }
+    
+    // 追加フィールドの表示/非表示切り替え
+    function toggleAdditionalFields() {
+      const preferenceType = document.getElementById('preference-type').value;
+      const workTimeFields = document.getElementById('work-time-fields');
+      
+      if (preferenceType === 'additional-work') {
+        workTimeFields.style.display = 'block';
+      } else {
+        workTimeFields.style.display = 'none';
+      }
+    }
+    
+    // 繰り返しオプションの表示/非表示切り替え
+    function toggleRecurringOptions() {
+      const recurringCheck = document.getElementById('recurring-check').checked;
+      const recurringOptions = document.getElementById('recurring-options');
+      
+      if (recurringCheck) {
+        recurringOptions.style.display = 'block';
+      } else {
+        recurringOptions.style.display = 'none';
+      }
+    }
+    
+    // トースト通知を表示
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+    
+    // 例外希望を保存
+    function savePreference() {
+      // 保存処理の前にローディングを表示
+      document.getElementById('loader').style.display = 'block';
+      
+      // 実際のアプリではここでAPIリクエストを送信
+      
+      // シミュレーションのために少し待機
+      setTimeout(() => {
+        // ローディングを非表示
+        document.getElementById('loader').style.display = 'none';
+        
+        const preferenceType = document.getElementById('preference-type').value;
+        let successMessage = '';
+        
+        if (preferenceType.includes('off')) {
+          successMessage = '休み希望が正常に登録されました';
+        } else if (preferenceType === 'additional-work') {
+          successMessage = '追加勤務可能日が正常に登録されました';
+        } else {
+          successMessage = '希望が正常に登録されました';
+        }
+        
+        // 保存成功時の処理
+        showToast(successMessage);
+        
+        // フォームをリセット
+        document.getElementById('preference-date').value = '2025-05-15';
+        document.getElementById('preference-type').value = 'all-day-off';
+        document.getElementById('reason').value = '';
+        document.getElementById('recurring-check').checked = false;
+        document.getElementById('recurring-options').style.display = 'none';
+        document.getElementById('work-time-fields').style.display = 'none';
+        
+        // カレンダーを更新（実際のアプリではAPIから最新データを取得）
+        if (monthCalendar) {
+          monthCalendar.refetchEvents();
+        }
+        if (weekCalendar) {
+          weekCalendar.refetchEvents();
+        }
+      }, 800);
+    }
+    
+    // 基本パターンを保存
+    function savePattern() {
+      // 保存処理の前にローディングを表示
+      document.getElementById('loader').style.display = 'block';
+      
+      // 実際のアプリではここでAPIリクエストを送信
+      
+      // シミュレーションのために少し待機
+      setTimeout(() => {
+        // ローディングを非表示
+        document.getElementById('loader').style.display = 'none';
+        
+        // 保存成功時の処理
+        showToast('基本勤務パターンが正常に保存されました');
+        
+        // タブを月間表示に戻す
+        document.querySelectorAll('.tab-button')[0].click();
+      }, 800);
+    }
+    
+    // ダイアログを開く
+    function openDialog(info) {
+      const dialog = document.getElementById('preference-dialog');
+      
+      // ダイアログのデータを設定
+      document.getElementById('dialog-date').textContent = info.dateStr;
+      document.getElementById('dialog-type').textContent = info.eventType || '終日休み希望';
+      
+      if (info.eventType === '追加勤務可能') {
+        document.getElementById('dialog-time-container').style.display = 'block';
+        document.getElementById('dialog-time').textContent = info.timeRange || '9:00 - 18:00';
+      } else {
+        document.getElementById('dialog-time-container').style.display = 'none';
+      }
+      
+      document.getElementById('dialog-priority').innerHTML = 
+        `<span class="chip chip-${info.priority || 'low'}" style="cursor: default;">${info.priorityText || '低'}</span>`;
+      
+      document.getElementById('dialog-reason').textContent = info.reason || '指定なし';
+      
+      if (info.recurring) {
+        document.getElementById('dialog-recurring-container').style.display = 'block';
+        document.getElementById('dialog-recurring').textContent = info.recurring;
+      } else {
+        document.getElementById('dialog-recurring-container').style.display = 'none';
+      }
+      
+      // ダイアログを表示
+      dialog.style.display = 'flex';
+    }
+    
+    // ダイアログを閉じる
+    function closeDialog() {
+      const dialog = document.getElementById('preference-dialog');
+      dialog.style.display = 'none';
+    }
+    
+    // 希望を削除
+    function deletePreference() {
+      if (confirm('この希望を削除してもよろしいですか？')) {
+        showToast('希望が削除されました');
+        closeDialog();
+        
+        // カレンダーを更新（実際のアプリではAPIから最新データを取得）
+        if (monthCalendar) {
+          monthCalendar.refetchEvents();
+        }
+        if (weekCalendar) {
+          weekCalendar.refetchEvents();
+        }
+      }
+    }
+    
+    // 希望を編集
+    function editPreference() {
+      // 編集モードを実装するか、フォームに値を設定
+      closeDialog();
+      showToast('編集モードは現在実装中です');
+    }
+    
+    // ダミーのイベントデータ
+    function getEvents(info, successCallback) {
+      // APIから実際のデータを取得する代わりにダミーデータを返す
+      const events = [
+        {
+          title: '休み希望（高優先）',
+          start: '2025-05-10',
+          allDay: true,
+          backgroundColor: '#ffcdd2',
+          borderColor: '#e53935',
+          extendedProps: {
+            type: '終日休み希望',
+            priority: 'high',
+            priorityText: '高',
+            reason: '友人の結婚式のため'
+          }
+        },
+        {
+          title: '午前休み',
+          start: '2025-05-15',
+          allDay: true,
+          backgroundColor: '#bbdefb',
+          borderColor: '#2196f3',
+          extendedProps: {
+            type: '午前休み希望',
+            priority: 'medium',
+            priorityText: '中',
+            reason: '病院の予約'
+          }
+        },
+        {
+          title: '追加勤務可能',
+          start: '2025-05-18T10:00:00',
+          end: '2025-05-18T15:00:00',
+          backgroundColor: '#c8e6c9',
+          borderColor: '#4caf50',
+          extendedProps: {
+            type: '追加勤務可能',
+            timeRange: '10:00 - 15:00',
+            priority: 'medium',
+            priorityText: '中',
+            reason: '通常は休みだが勤務可能'
+          }
+        },
+        {
+          title: '休み希望',
+          start: '2025-05-21',
+          allDay: true,
+          backgroundColor: '#bbdefb',
+          borderColor: '#2196f3',
+          extendedProps: {
+            type: '終日休み希望',
+            priority: 'low',
+            priorityText: '低',
+            reason: '私用のため'
+          }
+        },
+        {
+          title: '午後休み（毎週）',
+          start: '2025-05-24',
+          allDay: true,
+          backgroundColor: '#bbdefb',
+          borderColor: '#2196f3',
+          extendedProps: {
+            type: '午後休み希望',
+            priority: 'low',
+            priorityText: '低',
+            reason: '習い事のため',
+            recurring: '毎週土曜日（〜2025/07/31）'
+          }
+        },
+        {
+          title: '確定休日',
+          start: '2025-05-05',
+          allDay: true,
+          backgroundColor: '#f5f5f5',
+          borderColor: '#ccc',
+          textColor: '#999',
+          display: 'background',
+          extendedProps: {
+            type: '確定休日'
+          }
+        }
+      ];
+      
+      successCallback(events);
+    }
+    
+    // 日付クリック時のハンドラ
+    function handleDateClick(info) {
+      // 日付が過去のものであれば何もしない
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (new Date(info.dateStr) < today) {
+        showToast('過去の日付は選択できません');
+        return;
+      }
+      
+      // 選択された日付をフォームに設定
+      document.getElementById('preference-date').value = info.dateStr;
+      
+      // もしモバイル表示なら右サイドバーにスクロール
+      if (window.innerWidth <= 768) {
+        document.querySelector('.sidebar').scrollIntoView({ behavior: 'smooth' });
+      }
+    }
+    
+    // イベントクリック時のハンドラ
+    function handleEventClick(info) {
+      const event = info.event;
+      
+      // 確定休日はクリックできないようにする
+      if (event.extendedProps.type === '確定休日') {
+        return;
+      }
+      
+      // ダイアログを開く
+      openDialog({
+        dateStr: event.start.toLocaleDateString('ja-JP', { 
+          year: 'numeric', 
+          month: '2-digit', 
+          day: '2-digit', 
+          weekday: 'short' 
+        }),
+        eventType: event.extendedProps.type,
+        timeRange: event.extendedProps.timeRange,
+        priority: event.extendedProps.priority,
+        priorityText: event.extendedProps.priorityText,
+        reason: event.extendedProps.reason,
+        recurring: event.extendedProps.recurring
+      });
+    }
+    
+    // カレンダーの初期化
+    let monthCalendar;
+    let weekCalendar;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+      // 月間カレンダーの初期化
+      const monthCalendarEl = document.getElementById('calendar-month');
+      monthCalendar = new FullCalendar.Calendar(monthCalendarEl, {
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth'
+        },
+        locale: 'ja',
+        height: 'auto',
+        events: getEvents,
+        dateClick: handleDateClick,
+        eventClick: handleEventClick,
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        }
+      });
+      monthCalendar.render();
+      
+      // 週間カレンダーの初期化
+      const weekCalendarEl = document.getElementById('calendar-week');
+      weekCalendar = new FullCalendar.Calendar(weekCalendarEl, {
+        initialView: 'timeGridWeek',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'timeGridWeek'
+        },
+        locale: 'ja',
+        height: 'auto',
+        events: getEvents,
+        dateClick: handleDateClick,
+        eventClick: handleEventClick,
+        slotDuration: '00:15:00',
+        slotLabelFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        },
+        eventTimeFormat: {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        },
+        allDayText: '終日',
+        slotMinTime: '09:00:00',
+        slotMaxTime: '23:00:00'
+      });
+      
+      // 初期設定の適用
+      toggleAdditionalFields();
+    });
+  </script>
+</body>
+</html>

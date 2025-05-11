@@ -253,6 +253,9 @@ export class FileSystemService implements IFileSystemService {
    * @param onFileChanged ファイル変更時のコールバック
    */
   public setupFileWatcher(progressFilePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable {
+    // デバッグ - メソッド開始
+    console.log(`★★★★ FileSystemService.setupFileWatcher 開始: ${progressFilePath}`);
+    Logger.info(`★★★★ FileSystemService.setupFileWatcher 開始: ${progressFilePath}`);
     try {
       // 既存の監視があれば破棄
       if (this._fileWatcher) {
@@ -281,6 +284,9 @@ export class FileSystemService implements IFileSystemService {
       const watchers: vscode.FileSystemWatcher[] = [];
       const fileName = 'SCOPE_PROGRESS.md';
       const watchPath = path.join(docsDir, fileName);
+
+      console.log(`★★★★ 監視対象ファイル設定: fileName=${fileName}, watchPath=${watchPath}`);
+      Logger.info(`★★★★ 監視対象ファイル設定: fileName=${fileName}, watchPath=${watchPath}`);
       
       if (fs.existsSync(watchPath)) {
         // ファイルが存在する場合はそのファイルのみを監視
@@ -294,6 +300,7 @@ export class FileSystemService implements IFileSystemService {
         
         // ファイル変更時のイベントハンドラを設定
         watcher.onDidChange(async (uri) => {
+          console.log(`★★★★ ファイル変更イベント検出: ${uri.fsPath}`);
           Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
           
           // ファイルが存在するか確認
@@ -587,12 +594,44 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
     try {
       // 基本的なファイル監視を設定
       const baseWatcher = this.setupFileWatcher(statusFilePath, async (filePath) => {
-        // ファイル変更時に即時通知
-        Logger.info(`FileSystemService(Enhanced): ファイル変更検出: ${filePath}`);
-        
+        // ファイル変更時に即時通知（詳細ログ追加）
+        Logger.info(`★★★ FileSystemService(Enhanced): ファイル変更検出: ${filePath}`);
+        console.log(`★★★ ENHANCED FILE WATCHER: ファイル変更検出: ${filePath}`);
+
         try {
+          // ファイル拡張子を確認
+          const ext = path.extname(filePath).toLowerCase();
+          Logger.info(`ファイル拡張子: ${ext}, ベース名: ${path.basename(filePath)}`);
+
+          // ファイル情報を取得して表示（修正日時）
+          try {
+            const stats = fs.statSync(filePath);
+            Logger.info(`ファイル情報: サイズ=${stats.size}バイト, 最終更新=${stats.mtime.toISOString()}`);
+          } catch (statErr) {
+            Logger.warn(`ファイル情報取得失敗: ${statErr}`);
+          }
+
           // 即時読み込みと通知
-          await this.readMarkdownFile(filePath);
+          const content = await this.readMarkdownFile(filePath);
+          Logger.info(`★★★ ファイル読み込み成功: ${content.length}文字`);
+
+          // 要件定義ファイルの場合は特別なイベントを発行
+          if (filePath.toLowerCase().includes('requirement') ||
+              filePath.toLowerCase().includes('要件')) {
+            Logger.info(`★★★ FileSystemService(Enhanced): 要件定義ファイルの変更を検出: ${filePath}`);
+            console.log(`★★★ REQUIREMENTS FILE CHANGED: ${filePath}`);
+
+            // 既存のREQUIREMENTS_UPDATEDイベントを使用して通知
+            const eventBus = AppGeniusEventBus.getInstance();
+            eventBus.emit(AppGeniusEventType.REQUIREMENTS_UPDATED, {
+              path: filePath,
+              content: content
+            }, 'FileSystemService', this._getProjectIdFromPath(filePath));
+
+            Logger.info(`★★★ FileSystemService(Enhanced): 要件定義更新イベントを発行しました`);
+            console.log(`★★★ REQUIREMENTS_UPDATED EVENT FIRED`);
+          }
+
           onFileChanged(filePath);
           
           // 遅延読み込みオプションが有効な場合は2回目の読み込みを実行
