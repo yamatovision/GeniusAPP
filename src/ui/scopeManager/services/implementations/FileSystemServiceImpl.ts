@@ -676,17 +676,17 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
       if (!projectPath) {
         throw new Error('プロジェクトパスが指定されていません');
       }
-      
+
       // 優先順位付きの候補ファイル名一覧
       const candidateNames = [
-        'requirements.md', 
+        'requirements.md',
         'REQUIREMENTS.md',
         'Requirements.md',
         'requirement.md',
         'REQUIREMENT.md',
         'Requirement.md'
       ];
-      
+
       // 優先順位付きの検索ディレクトリ
       const searchDirs = [
         path.join(projectPath, 'docs'),     // 最優先: docs/
@@ -695,7 +695,7 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         path.join(projectPath, 'doc'),      // doc/
         path.join(projectPath, 'documents') // documents/
       ];
-      
+
       // 各ディレクトリで候補ファイルを検索
       for (const dir of searchDirs) {
         if (fs.existsSync(dir)) {
@@ -708,13 +708,93 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
           }
         }
       }
-      
+
       // 見つからなかった場合
       Logger.warn(`FileSystemService: 要件定義ファイルが見つかりませんでした: ${projectPath}`);
       return null;
     } catch (error) {
       Logger.error(`FileSystemService: 要件定義ファイル検索中にエラーが発生しました: ${projectPath}`, error as Error);
       return null;
+    }
+  }
+
+  /**
+   * 要件定義ファイルのパスを取得
+   * @param projectPath オプショナル - 指定しない場合はProjectServiceImplから最新のパスを取得
+   * @returns 要件定義ファイルのパス
+   */
+  public async getRequirementsFilePath(projectPath?: string): Promise<string | null> {
+    // プロジェクトパスが指定されていない場合はProjectServiceImplから最新のパスを取得
+    if (!projectPath) {
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { ProjectServiceImpl } = require('../implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+
+        // 最新のアクティブプロジェクトパスを取得
+        projectPath = projectService.getActiveProjectPath();
+
+        Logger.info(`FileSystemService: ProjectServiceImplから最新プロジェクトパスを取得: ${projectPath}`);
+      } catch (error) {
+        Logger.error('FileSystemService: ProjectServiceImplからのパス取得に失敗', error as Error);
+        throw new Error('有効なプロジェクトが選択されていません');
+      }
+    }
+
+    if (!projectPath) {
+      throw new Error('プロジェクトパスが取得できません');
+    }
+
+    // 要件定義ファイルを検索
+    return this.findRequirementsFile(projectPath);
+  }
+
+  /**
+   * 要件定義ファイルの監視を設定
+   * @param projectPath プロジェクトパス
+   * @param outputCallback ファイル変更時のコールバック
+   */
+  public async setupRequirementsFileWatcher(
+    projectPath?: string,
+    outputCallback?: (filePath: string) => void
+  ): Promise<vscode.Disposable> {
+    try {
+      // 要件定義ファイルのパスを取得
+      const requirementsFilePath = await this.getRequirementsFilePath(projectPath);
+
+      if (!requirementsFilePath) {
+        Logger.warn(`FileSystemService: 要件定義ファイルが見つからないため監視を設定できませんでした: ${projectPath || '不明'}`);
+        // 空のDisposableを返す
+        return { dispose: () => {} };
+      }
+
+      // outputCallbackが指定されていない場合のデフォルト処理
+      const callback = outputCallback || ((filePath: string) => {
+        Logger.info(`FileSystemService: 要件定義ファイルの変更を検出: ${filePath} (デフォルトハンドラ)`);
+
+        // 要件定義ファイル更新イベントを発火
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(AppGeniusEventType.REQUIREMENTS_UPDATED, {
+          path: filePath
+        }, 'FileSystemService');
+      });
+
+      // ファイルウォッチャーを設定
+      Logger.info(`FileSystemService: 要件定義ファイルの監視を設定します: ${requirementsFilePath}`);
+
+      const fileWatcher = this.setupEnhancedFileWatcher(
+        requirementsFilePath,
+        callback,
+        { delayedReadTime: 500 }  // 500ms後に遅延読み込み
+      );
+
+      Logger.info(`FileSystemService: 要件定義ファイルの監視を設定しました: ${requirementsFilePath}`);
+      return fileWatcher;
+    } catch (error) {
+      Logger.error(`FileSystemService: 要件定義ファイルの監視設定中にエラーが発生しました: ${projectPath || '不明'}`, error as Error);
+      // エラー時は空のDisposableを返す
+      return { dispose: () => {} };
     }
   }
   

@@ -148,9 +148,26 @@ try {
     // 4. マークダウン表示の初期化を委譲
     markdownViewer.init();
 
+    // 要件定義タブと進捗状況タブのコンテンツ領域を空に初期化
+    // これにより、マークダウンビューワーが「読み込み中...」を表示できるようになる
+    const progressContent = document.querySelector('#scope-progress-tab .markdown-content');
+    const requirementsContent = document.querySelector('#requirements-tab .markdown-content');
+    if (progressContent) progressContent.innerHTML = '';
+    if (requirementsContent) requirementsContent.innerHTML = '';
+
     // 保存されたプロジェクト状態を復元（他のパネルから戻ってきた時のため）
     // 初期化メッセージのレスポンスを優先するため、短いタイムアウト後に実行
     setTimeout(() => stateManager.restoreProjectState(), 100);
+
+    // 現在のタブ状態を取得して、要件定義タブが選択されている場合は明示的にファイル読み込みをリクエスト
+    const state = stateManager.getState();
+    if (state.activeTab === 'requirements') {
+      // 短いタイムアウトを入れて他の初期化処理が完了してから実行
+      setTimeout(() => {
+        console.log('初期表示で要件定義タブが選択されているため、ファイル読み込みをリクエストします');
+        vscode.postMessage({ command: 'loadRequirementsFile' });
+      }, 200);
+    }
   });
   
   // メッセージハンドラー

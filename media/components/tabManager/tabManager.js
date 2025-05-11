@@ -331,19 +331,40 @@ class TabManager {
     } 
     // 要件定義タブが選択された場合の処理
     else if (tabId === 'requirements') {
+      console.log('要件定義タブが選択されました');
+
+      // 要件定義タブのコンテナを取得
+      const requirementsContainer = document.querySelector('#requirements-tab .markdown-content');
+      if (requirementsContainer) {
+        // 読み込み中表示を設定
+        requirementsContainer.innerHTML = '<p>読み込み中...</p>';
+      }
+
       // まず保存されている要件定義データをチェック
       const state = stateManager.getState();
       if (state.requirementsContent) {
         console.log('ローカルに保存された要件定義データを表示します');
-        // すでに保存されたコンテンツがあればそれを表示
-        const event = new CustomEvent('markdown-updated', {
-          detail: { content: state.requirementsContent }
-        });
-        document.dispatchEvent(event);
+
+        // すでに保存されたコンテンツがあればそれを表示（少し遅延して読み込み中が表示されるようにする）
+        setTimeout(() => {
+          if (requirementsContainer) {
+            // markdownViewerを直接使用して特定のコンテナに表示
+            window.markdownViewer.updateContent(state.requirementsContent, requirementsContainer);
+            console.log('要件定義タブのコンテンツが更新されました（ローカルキャッシュ）');
+          } else {
+            // イベントで通知（従来のフォールバック方式）
+            const event = new CustomEvent('markdown-updated', {
+              detail: { content: state.requirementsContent }
+            });
+            document.dispatchEvent(event);
+            console.log('要件定義タブのコンテンツが更新されました（イベント方式）');
+          }
+        }, 10);
       }
 
-      // 最新のデータを読み込み
+      // 最新のデータを読み込み（常に最新データをバックグラウンドで取得）
       stateManager.sendMessage('loadRequirementsFile');
+      console.log('要件定義ファイルの読み込みをリクエストしました');
 
       // 更新フラグが存在する場合はリセット
       if (state.requirementsNeedsUpdate) {

@@ -1694,7 +1694,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
       console.log(`★★★★ 進捗ファイル監視設定: ${progressFilePath}`);
       Logger.info(`★★★★ 進捗ファイル監視設定: ${progressFilePath}`);
 
-      const progressWatcher = this._fileSystemService.setupFileWatcher(
+      // 進捗ファイルの監視設定
+      const progressWatcher = this._fileSystemService.setupEnhancedFileWatcher(
         progressFilePath,
         async (filePath) => {
           // ファイル変更を検出したらマークダウンを更新
@@ -1705,78 +1706,128 @@ export class ScopeManagerPanel extends ProtectedPanel {
           } catch (readError) {
             Logger.error(`ScopeManagerPanel: 進捗ファイル読み込みエラー: ${readError}`);
           }
-        }
+        },
+        { delayedReadTime: 500 } // 500ms後に遅延読み込み
       );
       watchers.push(progressWatcher);
       Logger.info(`ScopeManagerPanel: 進捗ファイルの監視を設定しました: ${progressFilePath}`);
 
-      // 2. 要件定義ファイルの監視設定（SCOPE_PROGRESS.mdと同じ方式に変更）
-      // 要件定義ファイルを探す
-      const requirementsFilePath = await this._fileSystemService.findRequirementsFile(this._projectPath);
-      if (requirementsFilePath) {
-        Logger.info(`ScopeManagerPanel: 要件定義ファイルが見つかりました: ${requirementsFilePath}`);
+      // 2. 要件定義ファイルの監視設定
+      Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定します`);
 
-        // デバッグログ - 要件定義ファイルの確認
-        console.log(`★★★★ 要件定義ファイル監視設定: ${requirementsFilePath}`);
-        Logger.info(`★★★★ 要件定義ファイル監視設定: ${requirementsFilePath}`);
-
-        // requirements.mdのファイル監視を設定（SCOPE_PROGRESS.mdと同じ方式に変更）
-        const requirementsWatcher = this._fileSystemService.setupFileWatcher(
-          requirementsFilePath,
-          async (filePath) => {
-            // 要件定義ファイル変更時の処理
-            console.log(`★★★★ 要件定義ファイル変更検出: ${filePath}`);
-            Logger.info(`ScopeManagerPanel: 要件定義ファイル変更を検出: ${filePath}`);
-            try {
-              await this._handleGetMarkdownContent(filePath, { forRequirements: true });
-            } catch (readError) {
-              Logger.error(`ScopeManagerPanel: 要件定義ファイル読み込みエラー: ${readError}`);
+      try {
+        // 専用メソッドが実装されているかチェック
+        if (typeof this._fileSystemService.setupRequirementsFileWatcher === 'function') {
+          // setupRequirementsFileWatcherメソッドが利用可能な場合はそれを使用
+          const requirementsWatcher = await this._fileSystemService.setupRequirementsFileWatcher(
+            this._projectPath,
+            async (filePath) => {
+              // 要件定義ファイル変更時の処理
+              console.log(`★★★★ 要件定義ファイル変更検出: ${filePath}`);
+              Logger.info(`ScopeManagerPanel: 要件定義ファイル変更を検出: ${filePath}`);
+              try {
+                await this._handleGetMarkdownContent(filePath, { forRequirements: true });
+              } catch (readError) {
+                Logger.error(`ScopeManagerPanel: 要件定義ファイル読み込みエラー: ${readError}`);
+              }
             }
-          }
-        );
-        watchers.push(requirementsWatcher);
-        Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定しました: ${requirementsFilePath}`);
+          );
+          watchers.push(requirementsWatcher);
+          Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定しました (専用API使用)`);
+        } else {
+          // 専用メソッドが実装されていない場合は、従来の方法で要件定義ファイルを監視
+          Logger.info(`ScopeManagerPanel: setupRequirementsFileWatcherが実装されていないため、従来の方法で要件定義ファイルを監視します`);
 
-        // 要件定義ファイルの内容を最初の1回だけ読み込み
-        try {
-          const exists = await this._fileSystemService.fileExists(requirementsFilePath);
-          if (exists) {
-            Logger.info(`ScopeManagerPanel: 初期化時に要件定義ファイルを読み込みます: ${requirementsFilePath}`);
-            await this._handleGetMarkdownContent(requirementsFilePath, { forRequirements: true });
+          // 要件定義ファイルのパスを取得
+          let requirementsFilePath = null;
+
+          // getRequirementsFilePathメソッドが利用可能な場合はそれを使用
+          if (typeof this._fileSystemService.getRequirementsFilePath === 'function') {
+            requirementsFilePath = await this._fileSystemService.getRequirementsFilePath(this._projectPath);
+          } else if (typeof this._fileSystemService.findRequirementsFile === 'function') {
+            // findRequirementsFileメソッドを代わりに使用
+            requirementsFilePath = await this._fileSystemService.findRequirementsFile(this._projectPath);
           }
-        } catch (error) {
-          Logger.error(`ScopeManagerPanel: 要件定義ファイルの初期読み込み中にエラーが発生: ${error}`);
+
+          if (requirementsFilePath) {
+            // 通常のファイルウォッチャーを使用
+            const requirementsWatcher = this._fileSystemService.setupEnhancedFileWatcher(
+              requirementsFilePath,
+              async (filePath) => {
+                // 要件定義ファイル変更時の処理
+                console.log(`★★★★ 要件定義ファイル変更検出: ${filePath} (従来方式)`);
+                Logger.info(`ScopeManagerPanel: 要件定義ファイル変更を検出: ${filePath} (従来方式)`);
+                try {
+                  await this._handleGetMarkdownContent(filePath, { forRequirements: true });
+                } catch (readError) {
+                  Logger.error(`ScopeManagerPanel: 要件定義ファイル読み込みエラー: ${readError}`);
+                }
+              },
+              { delayedReadTime: 500 } // 500ms後に遅延読み込み
+            );
+            watchers.push(requirementsWatcher);
+            Logger.info(`ScopeManagerPanel: 要件定義ファイルの監視を設定しました (従来方式): ${requirementsFilePath}`);
+          } else {
+            Logger.warn(`ScopeManagerPanel: 要件定義ファイルが見つからないため監視を設定できませんでした`);
+          }
+        }
+      } catch (watchError) {
+        Logger.error(`ScopeManagerPanel: 要件定義ファイルの監視設定中にエラーが発生しました`, watchError as Error);
+        // エラーが発生しても処理を継続
+      }
+
+      // 要件定義ファイルの初期読み込み
+      try {
+        let requirementsFilePath = null;
+
+        // getRequirementsFilePathメソッドが利用可能な場合はそれを使用
+        if (typeof this._fileSystemService.getRequirementsFilePath === 'function') {
+          requirementsFilePath = await this._fileSystemService.getRequirementsFilePath(this._projectPath);
+        } else if (typeof this._fileSystemService.findRequirementsFile === 'function') {
+          // 代わりにfindRequirementsFileメソッドを使用
+          requirementsFilePath = await this._fileSystemService.findRequirementsFile(this._projectPath);
         }
 
-        // 要件定義ファイル更新イベントをリッスン
-        const eventBus = AppGeniusEventBus.getInstance();
-        const requirementsUpdateListener = eventBus.onEventType(
-          AppGeniusEventType.REQUIREMENTS_UPDATED,
-          async (event) => {
-            // 自分自身が送信したイベントは無視
-            if (event.source === 'ScopeManagerPanel') {
-              return;
-            }
-
-            Logger.info(`ScopeManagerPanel: 要件定義ファイル更新イベントを受信: ${(event.data as any).path || 'undefined'}`);
-
-            // 要件定義ファイルの内容を更新
-            const requirementsPath = (event.data as any).path;
-            if (requirementsPath && await this._fileSystemService.fileExists(requirementsPath)) {
-              await this._handleGetMarkdownContent(requirementsPath, {
-                forRequirements: true,
-                forceRefresh: true
-              });
-              Logger.info(`ScopeManagerPanel: 要件定義ファイルを更新しました: ${requirementsPath}`);
-            }
-          }
-        );
-
-        // Disposableリストに追加
-        watchers.push(requirementsUpdateListener);
-      } else {
-        Logger.warn(`ScopeManagerPanel: 要件定義ファイルが見つかりませんでした`);
+        if (requirementsFilePath && await this._fileSystemService.fileExists(requirementsFilePath)) {
+          Logger.info(`ScopeManagerPanel: 初期化時に要件定義ファイルを読み込みます: ${requirementsFilePath}`);
+          await this._handleGetMarkdownContent(requirementsFilePath, {
+            forRequirements: true,
+            forceRefresh: true
+          });
+        } else {
+          Logger.info(`ScopeManagerPanel: 要件定義ファイルが見つからないか、存在しません`);
+        }
+      } catch (error) {
+        Logger.error(`ScopeManagerPanel: 要件定義ファイルの初期読み込み中にエラーが発生: ${error}`);
+        // エラーが発生しても処理を継続
       }
+
+      // 要件定義ファイル更新イベントをリッスン
+      const eventBus = AppGeniusEventBus.getInstance();
+      const requirementsUpdateListener = eventBus.onEventType(
+        AppGeniusEventType.REQUIREMENTS_UPDATED,
+        async (event) => {
+          // 自分自身が送信したイベントは無視
+          if (event.source === 'ScopeManagerPanel') {
+            return;
+          }
+
+          Logger.info(`ScopeManagerPanel: 要件定義ファイル更新イベントを受信: ${(event.data as any).path || 'undefined'}`);
+
+          // 要件定義ファイルの内容を更新
+          const requirementsPath = (event.data as any).path;
+          if (requirementsPath && await this._fileSystemService.fileExists(requirementsPath)) {
+            await this._handleGetMarkdownContent(requirementsPath, {
+              forRequirements: true,
+              forceRefresh: true
+            });
+            Logger.info(`ScopeManagerPanel: 要件定義ファイルを更新しました: ${requirementsPath}`);
+          }
+        }
+      );
+
+      // Disposableリストに追加
+      watchers.push(requirementsUpdateListener);
 
       // 複合ウォッチャーを作成して全ての監視をまとめて管理
       this._fileWatcher = {

@@ -10,10 +10,14 @@ class MarkdownViewer {
   
   initialize() {
     // 初期化時に何もない場合は「読み込み中...」を表示
-    if (this.container && !this.container.innerHTML.trim()) {
+    if (this.container) {
+      // 常に「読み込み中...」を表示（HTMLテンプレートの内容を優先しない）
       this.container.innerHTML = '<p>読み込み中...</p>';
+      console.log('MarkdownViewer: 初期化時に「読み込み中...」を表示しました');
+    } else {
+      console.warn('MarkdownViewer: コンテナ要素が見つかりません');
     }
-    
+
     // カスタムイベントのリスナーを設定
     this._setupEventListeners();
   }

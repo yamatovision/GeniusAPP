@@ -722,8 +722,42 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
     
     // Note: 重複したopenFileAsTabハンドラーの定義は削除
     
-    // Note: getMarkdownContent ハンドラーは削除
-    // クライアントが直接FileSystemServiceを使用するよう変更
+    // getMarkdownContent ハンドラー - 要件定義ファイル読み込み問題に対処するため再実装
+    this.registerHandler('getMarkdownContent', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchServiceImpl: getMarkdownContentメッセージにfilePath必須パラメータがありません');
+        this.showError(panel, 'ファイルパスが指定されていません');
+        return;
+      }
+
+      try {
+        Logger.info(`MessageDispatchServiceImpl: マークダウンコンテンツを取得します: ${message.filePath}`);
+
+        // FileSystemServiceを使用してファイルを読み込む
+        const content = await this._fileSystemService.readMarkdownFile(message.filePath);
+
+        // SCOPE_PROGRESS.mdかrequirements.mdかを判定
+        const isScopeProgressFile = message.filePath.endsWith('SCOPE_PROGRESS.md');
+        const isRequirementsFile = message.filePath.endsWith('requirements.md') || message.forRequirements === true;
+
+        // Webviewにコンテンツを送信
+        this.sendMessage(panel, {
+          command: 'updateMarkdownContent',
+          content: content,
+          timestamp: Date.now(),
+          priority: 'high',
+          filePath: message.filePath,
+          forScopeProgress: isScopeProgressFile || message.forScopeProgress === true,
+          forRequirements: isRequirementsFile || message.forRequirements === true,
+          forceRefresh: message.forceRefresh === true
+        });
+
+        Logger.info(`MessageDispatchServiceImpl: マークダウンコンテンツを送信しました: ${message.filePath} (scopeProgress=${isScopeProgressFile}, requirements=${isRequirementsFile})`);
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: マークダウンコンテンツの取得に失敗しました: ${message.filePath}`, error as Error);
+        this.showError(panel, `マークダウンファイルの読み込みに失敗しました: ${(error as Error).message}`);
+      }
+    });
     
     // listDirectory ハンドラー - パス検証機能を強化
     this.registerHandler('listDirectory', async (message: Message, panel: vscode.WebviewPanel) => {

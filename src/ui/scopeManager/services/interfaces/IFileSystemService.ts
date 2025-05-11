@@ -38,9 +38,16 @@ export interface IFileSystemService extends IService {
   // ファイルパスとテンプレート取得
   getProgressFilePath(projectPath: string): string;
   findRequirementsFile(projectPath: string): Promise<string | null>;
+  getRequirementsFilePath(projectPath?: string): Promise<string | null>;
 
   // 新規メソッド
   loadProgressFile(projectPath: string, outputCallback?: (content: string) => void): Promise<string>;
+
+  // 要件定義ファイル監視メソッド
+  setupRequirementsFileWatcher(
+    projectPath?: string,
+    outputCallback?: (filePath: string) => void
+  ): Promise<vscode.Disposable>;
 
   // ファイルブラウザ関連のメソッド
   listDirectory(directoryPath: string, recursive?: boolean): Promise<IProjectDocument[]>;
