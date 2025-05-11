@@ -61,23 +61,45 @@
     
     // 分割表示の状態を復元
     if (state.isSplitView) {
+      // ヘッダーの表示切り替え
+      if (document.getElementById('singleViewHeader')) {
+        document.getElementById('singleViewHeader').style.display = 'none';
+      }
+      if (document.getElementById('splitViewHeader')) {
+        document.getElementById('splitViewHeader').style.display = 'flex';
+      }
+
       activateSplitView();
-      
+
       // 左右のペインコンテンツを復元
       if (state.leftPane.content) {
         renderPaneContent('left', state.leftPane.content, state.leftPane.fileType);
-        leftPaneFilePath.textContent = state.leftPane.filePath;
+        if (leftPaneFilePath) {
+          leftPaneFilePath.textContent = state.leftPane.filePath;
+        }
       }
-      
+
       if (state.rightPane.content) {
         renderPaneContent('right', state.rightPane.content, state.rightPane.fileType);
-        rightPaneFilePath.textContent = state.rightPane.filePath;
+        if (rightPaneFilePath) {
+          rightPaneFilePath.textContent = state.rightPane.filePath;
+        }
       }
     } else {
+      // ヘッダーの表示切り替え
+      if (document.getElementById('splitViewHeader')) {
+        document.getElementById('splitViewHeader').style.display = 'none';
+      }
+      if (document.getElementById('singleViewHeader')) {
+        document.getElementById('singleViewHeader').style.display = 'flex';
+      }
+
       // 通常モードでコンテンツを復元
       if (state.currentContent) {
         renderContent(state.currentContent, state.fileType);
-        currentFilePath.textContent = state.currentFilePath;
+        if (currentFilePath) {
+          currentFilePath.textContent = state.currentFilePath;
+        }
       }
     }
   }
@@ -102,15 +124,38 @@
       filterFileList();
     });
 
-    // 更新ボタン
-    refreshButton.addEventListener('click', () => {
-      vscode.postMessage({ command: 'refreshContent' });
-    });
+    // 更新機能はボタンを削除したので不要
+    // 代わりに左右ペインの編集ボタンのイベントを追加
+    if (leftPaneEditButton) {
+      leftPaneEditButton.addEventListener('click', () => {
+        if (state.leftPane.filePath) {
+          vscode.postMessage({
+            command: 'openFileInEditor',
+            filePath: state.leftPane.filePath
+          });
+        }
+      });
+    }
+
+    if (rightPaneEditButton) {
+      rightPaneEditButton.addEventListener('click', () => {
+        if (state.rightPane.filePath) {
+          vscode.postMessage({
+            command: 'openFileInEditor',
+            filePath: state.rightPane.filePath
+          });
+        }
+      });
+    }
 
     // 編集ボタン
     editButton.addEventListener('click', () => {
-      if (state.currentFilePath) {
-        vscode.postMessage({ 
+      if (state.isSplitView) {
+        // 分割表示モードの場合、どのファイルを編集するか選択するモーダルを表示
+        showEditFileModalDialog();
+      } else if (state.currentFilePath) {
+        // 通常モードの場合
+        vscode.postMessage({
           command: 'openFileInEditor',
           filePath: state.currentFilePath
         });
@@ -120,48 +165,6 @@
     // 分割表示ボタン
     splitViewButton.addEventListener('click', () => {
       toggleSplitView();
-    });
-
-    // 左ペインの更新ボタン
-    leftPaneRefreshButton.addEventListener('click', () => {
-      if (state.leftPane.filePath) {
-        vscode.postMessage({
-          command: 'readFile',
-          filePath: state.leftPane.filePath,
-          pane: 'left'
-        });
-      }
-    });
-
-    // 左ペインの編集ボタン
-    leftPaneEditButton.addEventListener('click', () => {
-      if (state.leftPane.filePath) {
-        vscode.postMessage({
-          command: 'openFileInEditor',
-          filePath: state.leftPane.filePath
-        });
-      }
-    });
-
-    // 右ペインの更新ボタン
-    rightPaneRefreshButton.addEventListener('click', () => {
-      if (state.rightPane.filePath) {
-        vscode.postMessage({
-          command: 'readFile',
-          filePath: state.rightPane.filePath,
-          pane: 'right'
-        });
-      }
-    });
-
-    // 右ペインの編集ボタン
-    rightPaneEditButton.addEventListener('click', () => {
-      if (state.rightPane.filePath) {
-        vscode.postMessage({
-          command: 'openFileInEditor',
-          filePath: state.rightPane.filePath
-        });
-      }
     });
 
     // リサイザーの初期化
@@ -183,9 +186,19 @@
         state.leftPane.filePath = state.currentFilePath;
         state.leftPane.content = state.currentContent;
         state.leftPane.fileType = state.fileType;
+      }
 
-        // 左ペインのファイルパス表示を更新
-        leftPaneFilePath.textContent = state.currentFilePath;
+      // ヘッダーの表示切り替え
+      if (document.getElementById('singleViewHeader')) {
+        document.getElementById('singleViewHeader').style.display = 'none';
+      }
+      if (document.getElementById('splitViewHeader')) {
+        document.getElementById('splitViewHeader').style.display = 'flex';
+      }
+
+      // 左ペインのファイルパス表示を更新
+      if (leftPaneFilePath && state.leftPane.filePath) {
+        leftPaneFilePath.textContent = state.leftPane.filePath;
       }
 
       // 分割モードを有効化
@@ -195,7 +208,7 @@
       renderPaneContent('left', state.leftPane.content, state.leftPane.fileType);
     } else {
       // 分割モード → 通常モードへ
-      showPaneSelectDialog();
+      showPaneSelectModalDialog();
     }
   }
 
@@ -215,6 +228,14 @@
     state.isSplitView = false;
     splitViewButton.classList.remove('active');
 
+    // ヘッダーの表示切り替え
+    if (document.getElementById('splitViewHeader')) {
+      document.getElementById('splitViewHeader').style.display = 'none';
+    }
+    if (document.getElementById('singleViewHeader')) {
+      document.getElementById('singleViewHeader').style.display = 'flex';
+    }
+
     // コンテナの切り替え
     splitViewContainer.classList.remove('active');
     singleViewContainer.classList.add('active');
@@ -223,68 +244,96 @@
     renderContent(state.currentContent, state.fileType);
 
     // ファイルパス表示を更新
-    currentFilePath.textContent = state.currentFilePath;
+    if (currentFilePath) {
+      currentFilePath.textContent = state.currentFilePath ? path.basename(state.currentFilePath) : '選択されていません';
+    }
 
     // 状態を保存
     vscode.setState(state);
   }
 
-  // どちらのペインを保持するか選択するダイアログ
-  function showPaneSelectDialog() {
-    vscode.postMessage({
-      command: 'showPaneSelectDialog',
-      leftFile: state.leftPane.filePath || '未選択',
-      rightFile: state.rightPane.filePath || '未選択'
+  // WebView内でモーダルを表示してペイン選択を行う
+  function showPaneSelectModalDialog() {
+    const leftFileName = state.leftPane.filePath ? path.basename(state.leftPane.filePath) : '未選択';
+    const rightFileName = state.rightPane.filePath ? path.basename(state.rightPane.filePath) : '未選択';
+
+    // モーダルダイアログを作成
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+
+    modalContent.innerHTML = `
+      <div class="modal-header">
+        <h2>維持する画面を選択</h2>
+      </div>
+      <div class="modal-body">
+        <p>分割表示を解除します。どちらの画面を残しますか？</p>
+        <div class="modal-buttons">
+          <button id="keepLeftButton" class="button button-primary">
+            <span>左画面を残す</span>
+            <span class="file-name">${leftFileName}</span>
+          </button>
+          <button id="keepRightButton" class="button button-primary">
+            <span>右画面を残す</span>
+            <span class="file-name">${rightFileName}</span>
+          </button>
+          <button id="cancelPaneSelectButton" class="button button-secondary">
+            <span>キャンセル</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    // ボタンイベントを設定
+    document.getElementById('keepLeftButton').addEventListener('click', () => {
+      activateSingleView('left');
+      document.body.removeChild(modalOverlay);
+    });
+
+    document.getElementById('keepRightButton').addEventListener('click', () => {
+      activateSingleView('right');
+      document.body.removeChild(modalOverlay);
+    });
+
+    document.getElementById('cancelPaneSelectButton').addEventListener('click', () => {
+      document.body.removeChild(modalOverlay);
+    });
+
+    // オーバーレイクリックでもキャンセル
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        document.body.removeChild(modalOverlay);
+      }
     });
   }
 
-  // リサイザーの初期化
+  // path.basenameの簡易実装（VSCodeのWebViewにはpathモジュールがないため）
+  const path = {
+    basename: function(filePath) {
+      if (!filePath) return '';
+      return filePath.split(/[/\\]/).pop();
+    }
+  };
+
+  // リサイザー機能は無効化
   function initializeResizer() {
+    // 機能を無効化
     if (!paneResizer) return;
 
+    // 左右のペインを等しい幅に設定（50:50の固定分割）
     const leftPane = document.getElementById('leftPane');
     const rightPane = document.getElementById('rightPane');
     const splitContent = document.querySelector('.split-content');
 
-    let x = 0;
-    let leftWidth = 0;
-    let isDragging = false;
-
-    // マウスダウンイベント
-    paneResizer.addEventListener('mousedown', e => {
-      x = e.clientX;
-      leftWidth = leftPane.offsetWidth;
-      isDragging = true;
-      paneResizer.classList.add('dragging');
-
-      document.addEventListener('mousemove', resize);
-      document.addEventListener('mouseup', stopResize);
-    });
-
-    // リサイズ関数
-    function resize(e) {
-      if (!isDragging) return;
-
-      const dx = e.clientX - x;
-      const newLeftWidth = leftWidth + dx;
-      const containerWidth = splitContent.offsetWidth;
-
-      // 最小幅を25%、最大幅を75%に制限
-      const minWidth = containerWidth * 0.25;
-      const maxWidth = containerWidth * 0.75;
-
-      if (newLeftWidth > minWidth && newLeftWidth < maxWidth) {
-        leftPane.style.width = `${newLeftWidth}px`;
-        rightPane.style.width = `${containerWidth - newLeftWidth - 8}px`; // 8はリサイザーの幅
-      }
-    }
-
-    // リサイズ停止
-    function stopResize() {
-      isDragging = false;
-      paneResizer.classList.remove('dragging');
-      document.removeEventListener('mousemove', resize);
-      document.removeEventListener('mouseup', stopResize);
+    if (leftPane && rightPane && splitContent) {
+      // 分割表示の各ペインを同じ幅（50%）に設定
+      leftPane.style.width = '50%';
+      rightPane.style.width = '50%';
     }
   }
 
@@ -415,11 +464,7 @@
       } else {
         // 分割モードの場合はどちらのペインで開くか選択
         if (state.isSplitView) {
-          vscode.postMessage({
-            command: 'showFileOpenMenu',
-            filePath: file.path,
-            options: ['左ペインで開く', '右ペインで開く']
-          });
+          showFileOpenModalDialog(file.path);
         } else {
           // 通常モードでは現在のペインにファイルを開く
           openFile(file.path);
@@ -452,7 +497,7 @@
 
     // 現在のファイルパスを更新（表示用のみ、選択状態は保持しない）
     state.currentFilePath = filePath;
-    currentFilePath.textContent = filePath;
+    currentFilePath.textContent = path.basename(filePath);
 
     // 状態を保存するが、UI上の選択状態に影響しないように設計する
     const stateForStorage = {
@@ -461,6 +506,145 @@
       selectedFilePath: ''
     };
     vscode.setState(stateForStorage);
+  }
+
+  // 編集するファイルを選択するモーダルダイアログを表示
+  function showEditFileModalDialog() {
+    const leftFileName = state.leftPane.filePath ? path.basename(state.leftPane.filePath) : '未選択';
+    const rightFileName = state.rightPane.filePath ? path.basename(state.rightPane.filePath) : '未選択';
+
+    // モーダルダイアログを作成
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+
+    modalContent.innerHTML = `
+      <div class="modal-header">
+        <h2>編集するファイルを選択</h2>
+      </div>
+      <div class="modal-body">
+        <p>どちらの画面のファイルを編集しますか？</p>
+        <div class="modal-buttons">
+          <button id="editLeftButton" class="button button-primary" ${!state.leftPane.filePath ? 'disabled' : ''}>
+            <span>左画面を編集</span>
+            <span class="file-name">${leftFileName}</span>
+          </button>
+          <button id="editRightButton" class="button button-primary" ${!state.rightPane.filePath ? 'disabled' : ''}>
+            <span>右画面を編集</span>
+            <span class="file-name">${rightFileName}</span>
+          </button>
+          <button id="cancelEditButton" class="button button-secondary">
+            <span>キャンセル</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    // ボタンイベントを設定
+    if (state.leftPane.filePath) {
+      document.getElementById('editLeftButton').addEventListener('click', () => {
+        vscode.postMessage({
+          command: 'openFileInEditor',
+          filePath: state.leftPane.filePath
+        });
+        document.body.removeChild(modalOverlay);
+      });
+    }
+
+    if (state.rightPane.filePath) {
+      document.getElementById('editRightButton').addEventListener('click', () => {
+        vscode.postMessage({
+          command: 'openFileInEditor',
+          filePath: state.rightPane.filePath
+        });
+        document.body.removeChild(modalOverlay);
+      });
+    }
+
+    document.getElementById('cancelEditButton').addEventListener('click', () => {
+      document.body.removeChild(modalOverlay);
+    });
+
+    // オーバーレイクリックでもキャンセル
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        document.body.removeChild(modalOverlay);
+      }
+    });
+  }
+
+  // ファイルを開くモーダルダイアログを表示（自動選択機能付き）
+  function showFileOpenModalDialog(filePath) {
+    const fileName = path.basename(filePath);
+
+    // 左ペインか右ペインのどちらかが空いていれば、そちらに自動的に表示
+    if (!state.leftPane.filePath) {
+      // 左ペインが空いている場合は自動的に左ペインを選択
+      openFileInPane(filePath, 'left');
+      return;
+    } else if (!state.rightPane.filePath) {
+      // 右ペインが空いている場合は自動的に右ペインを選択
+      openFileInPane(filePath, 'right');
+      return;
+    }
+
+    // 両方のペインが埋まっている場合はモーダルを表示
+    // モーダルダイアログを作成
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'modal-overlay';
+
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal-content';
+
+    modalContent.innerHTML = `
+      <div class="modal-header">
+        <h2>ファイルを開く場所を選択</h2>
+      </div>
+      <div class="modal-body">
+        <p>「${fileName}」をどちらの画面で開きますか？</p>
+        <div class="modal-buttons">
+          <button id="openLeftButton" class="button button-primary">
+            <span>左画面で表示</span>
+          </button>
+          <button id="openRightButton" class="button button-primary">
+            <span>右画面で表示</span>
+          </button>
+          <button id="cancelOpenButton" class="button button-secondary">
+            <span>キャンセル</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    // ボタンイベントを設定
+    document.getElementById('openLeftButton').addEventListener('click', () => {
+      openFileInPane(filePath, 'left');
+      document.body.removeChild(modalOverlay);
+    });
+
+    document.getElementById('openRightButton').addEventListener('click', () => {
+      openFileInPane(filePath, 'right');
+      document.body.removeChild(modalOverlay);
+    });
+
+    document.getElementById('cancelOpenButton').addEventListener('click', () => {
+      document.body.removeChild(modalOverlay);
+    });
+
+    // オーバーレイクリックでもキャンセル
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) {
+        document.body.removeChild(modalOverlay);
+      }
+    });
   }
 
   // 指定したペインにファイルを開く
@@ -514,7 +698,7 @@
   // ペインのコンテンツを描画（分割モード用）
   function renderPaneContent(pane, content, fileType) {
     const contentElement = pane === 'left' ? leftMarkdownContent : rightMarkdownContent;
-    
+
     if (!content) {
       contentElement.innerHTML = `
         <div class="no-file-selected">
@@ -543,9 +727,17 @@
     if (pane === 'left') {
       state.leftPane.content = content;
       state.leftPane.fileType = fileType;
+      // ヘッダーのパス表示も更新
+      currentFilePath.textContent = `【左画面】${path.basename(state.leftPane.filePath)}`;
     } else {
       state.rightPane.content = content;
       state.rightPane.fileType = fileType;
+      // ヘッダーのパス表示も更新
+      if (state.leftPane.filePath) {
+        currentFilePath.textContent = `【左画面】${path.basename(state.leftPane.filePath)} | 【右画面】${path.basename(state.rightPane.filePath)}`;
+      } else {
+        currentFilePath.textContent = `【右画面】${path.basename(state.rightPane.filePath)}`;
+      }
     }
 
     // 状態を保存
@@ -765,11 +957,31 @@
         renderPaneContent(message.pane, message.content, message.fileType);
         if (message.pane === 'left') {
           state.leftPane.filePath = message.filePath;
-          leftPaneFilePath.textContent = message.filePath;
+          if (leftPaneFilePath) {
+            leftPaneFilePath.textContent = message.filePath;
+          }
         } else {
           state.rightPane.filePath = message.filePath;
-          rightPaneFilePath.textContent = message.filePath;
+          if (rightPaneFilePath) {
+            rightPaneFilePath.textContent = message.filePath;
+          }
         }
+
+        // ヘッダー内の統合表示も更新
+        if (currentFilePath && state.isSplitView) {
+          let headerText = '';
+          if (state.leftPane.filePath) {
+            headerText += `【左画面】${path.basename(state.leftPane.filePath)}`;
+          }
+          if (state.rightPane.filePath) {
+            if (headerText) {
+              headerText += ' | ';
+            }
+            headerText += `【右画面】${path.basename(state.rightPane.filePath)}`;
+          }
+          currentFilePath.textContent = headerText;
+        }
+
         vscode.setState(state);
         break;
 

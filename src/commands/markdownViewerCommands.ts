@@ -14,14 +14,39 @@ export function registerMarkdownViewerCommands(context: vscode.ExtensionContext)
       try {
         Logger.info('コマンドパレットからマークダウンビューワーを開きます');
 
-        // ワークスペースフォルダがある場合はそれを使用
+        // 現在のアクティブなプロジェクトパスを取得
         let projectPath = '';
-        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
-          projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        try {
+          // ProjectServiceImplを動的にインポート
+          const { ProjectServiceImpl } = await import('../ui/scopeManager/services/implementations/ProjectServiceImpl');
+          // FileSystemServiceImplを動的にインポート
+          const { FileSystemServiceImpl } = await import('../ui/scopeManager/services/implementations/FileSystemServiceImpl');
+
+          // FileSystemServiceを初期化
+          const fileSystemService = FileSystemServiceImpl.getInstance();
+
+          // ProjectServiceを初期化してアクティブプロジェクトパスを取得
+          const projectService = ProjectServiceImpl.getInstance(fileSystemService);
+          const activeProjectPath = projectService.getActiveProjectPath();
+
+          if (activeProjectPath) {
+            projectPath = activeProjectPath;
+            Logger.info(`コマンドパレットからマークダウンビューワーを開く: アクティブプロジェクトパス=${projectPath}`);
+          } else {
+            Logger.info('コマンドパレットからマークダウンビューワーを開く: アクティブプロジェクトが見つかりません');
+          }
+        } catch (projectError) {
+          Logger.warn('アクティブプロジェクトの取得に失敗しました、ワークスペースフォルダを使用します', projectError as Error);
         }
 
-        // マークダウンビューワーを直接開く
-        MarkdownViewerPanel.createOrShow(context.extensionUri);
+        // ProjectServiceから取得できなかった場合はワークスペースフォルダを使用
+        if (!projectPath && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+          projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+          Logger.info(`コマンドパレットからマークダウンビューワーを開く: ワークスペースフォルダを使用=${projectPath}`);
+        }
+
+        // マークダウンビューワーを直接開く（プロジェクトパスを渡す）
+        MarkdownViewerPanel.createOrShow(context.extensionUri, undefined, projectPath);
 
         Logger.info('コマンドパレットからマークダウンビューワーを開きました');
         vscode.window.showInformationMessage('マークダウンビューワーを開きました');
@@ -35,24 +60,38 @@ export function registerMarkdownViewerCommands(context: vscode.ExtensionContext)
   // 通常のマークダウンビューワーを開くコマンド (内部使用)
   const openMarkdownViewerCommand = vscode.commands.registerCommand(
     'appgenius.openMarkdownViewer',
-    (projectPath?: string) => {
+    async (projectPath?: string) => {
       try {
         // デバッグログを追加
         Logger.info(`マークダウンビューワーを開く: コマンド実行開始 (projectPath=${projectPath || 'なし'})`);
 
-        // マークダウンビューワーを開く (プロジェクトパスを設定)
-        const panel = MarkdownViewerPanel.createOrShow(context.extensionUri);
+        // プロジェクトパスが指定されていない場合は、現在のアクティブプロジェクトパスを取得
+        if (!projectPath) {
+          try {
+            // ProjectServiceImplを動的にインポート
+            const { ProjectServiceImpl } = await import('../ui/scopeManager/services/implementations/ProjectServiceImpl');
+            // FileSystemServiceImplを動的にインポート
+            const { FileSystemServiceImpl } = await import('../ui/scopeManager/services/implementations/FileSystemServiceImpl');
 
-        // プロジェクトパスが指定されている場合は、そのパスを設定
-        if (projectPath && panel) {
-          Logger.info(`マークダウンビューワーを開くコマンドがプロジェクトパス付きで実行されました: ${projectPath}`);
-          // 明示的にパネル側のprojectPathを設定 (関数を公開する必要あり)
-          if (typeof panel.setCurrentProjectPath === 'function') {
-            panel.setCurrentProjectPath(projectPath);
+            // FileSystemServiceを初期化
+            const fileSystemService = FileSystemServiceImpl.getInstance();
+
+            // ProjectServiceを初期化してアクティブプロジェクトパスを取得
+            const projectService = ProjectServiceImpl.getInstance(fileSystemService);
+            const activeProjectPath = projectService.getActiveProjectPath();
+
+            if (activeProjectPath) {
+              projectPath = activeProjectPath;
+              Logger.info(`マークダウンビューワーを開く: アクティブプロジェクトパスを使用=${projectPath}`);
+            }
+          } catch (projectError) {
+            Logger.warn('アクティブプロジェクトの取得に失敗しました', projectError as Error);
           }
-        } else {
-          Logger.info('マークダウンビューワーを開くコマンドが実行されました');
         }
+
+        // マークダウンビューワーを開く (プロジェクトパスを直接渡す)
+        const panel = MarkdownViewerPanel.createOrShow(context.extensionUri, undefined, projectPath);
+        Logger.info(`マークダウンビューワーを開くコマンドが実行されました${projectPath ? `: プロジェクトパス=${projectPath}` : ''}`);
       } catch (error) {
         Logger.error('マークダウンビューワーを開く際にエラーが発生しました', error as Error);
         // 無限ループ防止のため特定のクライアントエラーメッセージのみ送信
@@ -71,13 +110,41 @@ export function registerMarkdownViewerCommands(context: vscode.ExtensionContext)
   // マークダウンファイルをビューワーで開くコマンド
   const openMarkdownFileCommand = vscode.commands.registerCommand(
     'appgenius.openMarkdownFile',
-    (uri: vscode.Uri) => {
+    async (uri: vscode.Uri) => {
       try {
-        const panel = MarkdownViewerPanel.createOrShow(context.extensionUri);
+        // ファイルのプロジェクトパスを取得
+        const filePath = uri.fsPath;
+        let projectPath = '';
+
+        try {
+          // ProjectServiceImplを動的にインポート
+          const { ProjectServiceImpl } = await import('../ui/scopeManager/services/implementations/ProjectServiceImpl');
+          // FileSystemServiceImplを動的にインポート
+          const { FileSystemServiceImpl } = await import('../ui/scopeManager/services/implementations/FileSystemServiceImpl');
+
+          // FileSystemServiceを初期化
+          const fileSystemService = FileSystemServiceImpl.getInstance();
+
+          // ProjectServiceを初期化してアクティブプロジェクトパスを取得
+          const projectService = ProjectServiceImpl.getInstance(fileSystemService);
+          const activeProjectPath = projectService.getActiveProjectPath();
+
+          if (activeProjectPath) {
+            projectPath = activeProjectPath;
+            Logger.info(`マークダウンファイルをビューワーで開く: アクティブプロジェクトパス=${projectPath}`);
+          }
+        } catch (projectError) {
+          Logger.warn('アクティブプロジェクトの取得に失敗しました', projectError as Error);
+        }
+
+        // マークダウンビューワーを直接開く（プロジェクトパスを渡す）
+        const panel = MarkdownViewerPanel.createOrShow(context.extensionUri, undefined, projectPath);
+
         // パネルが初期化された後にファイルを開くためのメッセージを送信
         setTimeout(() => {
           vscode.commands.executeCommand('workbench.action.focusActiveEditorGroup');
         }, 300);
+
         Logger.info(`マークダウンファイルをビューワーで開くコマンドが実行されました: ${uri.fsPath}`);
       } catch (error) {
         Logger.error(`マークダウンファイルを開く際にエラーが発生しました: ${uri.fsPath}`, error as Error);

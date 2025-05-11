@@ -45,11 +45,13 @@ export class MarkdownViewerPanel {
    * パネルが既に存在する場合はそれを表示し、存在しない場合は新しいパネルを作成
    * @param extensionUri 拡張機能のURI
    * @param messageDispatchService メッセージディスパッチサービス
+   * @param initialProjectPath 初期プロジェクトパス（オプション）
    * @returns MarkdownViewerPanelのインスタンス
    */
   public static createOrShow(
     extensionUri: vscode.Uri,
-    messageDispatchService?: IMessageDispatchService
+    messageDispatchService?: IMessageDispatchService,
+    initialProjectPath?: string
   ): MarkdownViewerPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
@@ -60,6 +62,13 @@ export class MarkdownViewerPanel {
       if (MarkdownViewerPanel._currentPanel) {
         Logger.info('MarkdownViewerPanel: 既存のパネルを表示します');
         MarkdownViewerPanel._currentPanel._panel.reveal(column);
+
+        // 初期プロジェクトパスが指定されている場合は、既存パネルのプロジェクトパスを更新
+        if (initialProjectPath && initialProjectPath !== MarkdownViewerPanel._currentPanel._currentProjectPath) {
+          Logger.info(`MarkdownViewerPanel: プロジェクトパスを更新します: ${initialProjectPath}`);
+          MarkdownViewerPanel._currentPanel.setCurrentProjectPath(initialProjectPath);
+        }
+
         return MarkdownViewerPanel._currentPanel;
       }
 
@@ -81,8 +90,8 @@ export class MarkdownViewerPanel {
       );
 
       // 新しいインスタンスを作成
-      MarkdownViewerPanel._currentPanel = new MarkdownViewerPanel(panel, extensionUri, messageDispatchService);
-      Logger.info('MarkdownViewerPanel: 新しいインスタンスを作成しました');
+      MarkdownViewerPanel._currentPanel = new MarkdownViewerPanel(panel, extensionUri, messageDispatchService, initialProjectPath);
+      Logger.info(`MarkdownViewerPanel: 新しいインスタンスを作成しました${initialProjectPath ? ` (初期プロジェクトパス: ${initialProjectPath})` : ''}`);
       return MarkdownViewerPanel._currentPanel;
     } catch (error) {
       Logger.error('MarkdownViewerPanel: createOrShowでエラーが発生しました', error as Error);
@@ -95,11 +104,13 @@ export class MarkdownViewerPanel {
    * @param panel WebViewパネル
    * @param extensionUri 拡張機能のURI
    * @param messageDispatchService メッセージディスパッチサービス（オプション）
+   * @param initialProjectPath 初期プロジェクトパス（オプション）
    */
   private constructor(
     panel: vscode.WebviewPanel,
     extensionUri: vscode.Uri,
-    messageDispatchService?: IMessageDispatchService
+    messageDispatchService?: IMessageDispatchService,
+    initialProjectPath?: string
   ) {
     this._panel = panel;
     this._extensionUri = extensionUri;
@@ -132,6 +143,12 @@ export class MarkdownViewerPanel {
 
     // プロジェクトパスの変更をリッスン
     this._setupProjectPathListener();
+
+    // 初期プロジェクトパスが指定されている場合は、それを使用
+    if (initialProjectPath) {
+      this._currentProjectPath = initialProjectPath;
+      Logger.info(`MarkdownViewerPanel: 初期プロジェクトパスを設定しました: ${initialProjectPath}`);
+    }
 
     // 初期コンテンツの読み込み
     this._initializeContent();
@@ -246,20 +263,42 @@ export class MarkdownViewerPanel {
           <!-- メインコンテンツエリア -->
           <div class="content-area">
             <div class="content-header">
-              <div class="current-file-path" id="currentFilePath">ファイルが選択されていません</div>
-              <div class="content-actions">
-                <!-- 分割表示ボタンを追加 -->
+              <!-- 通常表示モード用の要素 -->
+              <div class="single-view-header" id="singleViewHeader">
+                <div class="current-file-path" id="currentFilePath">ファイルが選択されていません</div>
+                <div class="content-actions">
+                  <button class="button button-primary" id="editButton">
+                    <span class="material-icons">edit</span>
+                    <span>編集</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- 分割表示モード用の要素 -->
+              <div class="split-view-header" id="splitViewHeader" style="display: none;">
+                <div class="split-panes-info">
+                  <div class="left-pane-info">
+                    <span class="pane-label">左画面：</span>
+                    <span class="pane-file-path" id="leftPaneFilePath">ファイルが選択されていません</span>
+                    <button class="button-icon" id="leftPaneEditButton" title="左画面を編集">
+                      <span class="material-icons">edit</span>
+                    </button>
+                  </div>
+                  <div class="right-pane-info">
+                    <span class="pane-label">右画面：</span>
+                    <span class="pane-file-path" id="rightPaneFilePath">ファイルが選択されていません</span>
+                    <button class="button-icon" id="rightPaneEditButton" title="右画面を編集">
+                      <span class="material-icons">edit</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 常に表示される分割表示切り替えボタン -->
+              <div class="split-toggle">
                 <button class="button button-toggle" id="splitViewButton" title="分割表示の切り替え">
                   <span class="material-icons">vertical_split</span>
                   <span>分割表示</span>
-                </button>
-                <button class="button button-secondary" id="refreshButton">
-                  <span class="material-icons">refresh</span>
-                  <span>更新</span>
-                </button>
-                <button class="button button-primary" id="editButton">
-                  <span class="material-icons">edit</span>
-                  <span>編集</span>
                 </button>
               </div>
             </div>
@@ -280,17 +319,6 @@ export class MarkdownViewerPanel {
                 <!-- 分割コンテンツエリア -->
                 <div class="split-content">
                   <div id="leftPane" class="pane">
-                    <div class="pane-header">
-                      <div class="pane-file-path" id="leftPaneFilePath">左ペイン</div>
-                      <div class="pane-actions">
-                        <button class="button-icon" id="leftPaneRefreshButton" title="更新">
-                          <span class="material-icons">refresh</span>
-                        </button>
-                        <button class="button-icon" id="leftPaneEditButton" title="編集">
-                          <span class="material-icons">edit</span>
-                        </button>
-                      </div>
-                    </div>
                     <div id="leftMarkdownContent" class="markdown-content">
                       <div class="no-file-selected">
                         <span class="material-icons icon">description</span>
@@ -303,17 +331,6 @@ export class MarkdownViewerPanel {
                   <div class="pane-resizer" id="paneResizer"></div>
 
                   <div id="rightPane" class="pane">
-                    <div class="pane-header">
-                      <div class="pane-file-path" id="rightPaneFilePath">右ペイン</div>
-                      <div class="pane-actions">
-                        <button class="button-icon" id="rightPaneRefreshButton" title="更新">
-                          <span class="material-icons">refresh</span>
-                        </button>
-                        <button class="button-icon" id="rightPaneEditButton" title="編集">
-                          <span class="material-icons">edit</span>
-                        </button>
-                      </div>
-                    </div>
                     <div id="rightMarkdownContent" class="markdown-content">
                       <div class="no-file-selected">
                         <span class="material-icons icon">description</span>
@@ -419,21 +436,49 @@ export class MarkdownViewerPanel {
    */
   private _initializeContent(): void {
     try {
-      // 現在のプロジェクトパスを取得
-      this._currentProjectPath = this._projectService.getActiveProjectPath();
-
+      // 既にプロジェクトパスが設定されていない場合のみ取得
       if (!this._currentProjectPath) {
-        // アクティブなプロジェクトがない場合はワークスペースフォルダを使用
-        const workspaceFolders = vscode.workspace.workspaceFolders;
-        if (workspaceFolders && workspaceFolders.length > 0) {
-          this._currentProjectPath = workspaceFolders[0].uri.fsPath;
+        // 現在のプロジェクトパスを取得
+        this._currentProjectPath = this._projectService.getActiveProjectPath();
+
+        if (!this._currentProjectPath) {
+          // アクティブなプロジェクトがない場合はワークスペースフォルダを使用
+          const workspaceFolders = vscode.workspace.workspaceFolders;
+          if (workspaceFolders && workspaceFolders.length > 0) {
+            this._currentProjectPath = workspaceFolders[0].uri.fsPath;
+          }
         }
+      } else {
+        // 既にプロジェクトパスが設定されている場合はログ出力
+        Logger.info(`MarkdownViewerPanel: 既に設定されているプロジェクトパスを使用します: ${this._currentProjectPath}`);
       }
 
       if (this._currentProjectPath) {
-        this._refreshFileList();
-        this._setupFileWatcher();
-        Logger.info(`MarkdownViewerPanel: 初期コンテンツを読み込みました: ${this._currentProjectPath}`);
+        // docsディレクトリを初期表示として試みる
+        const docsPath = path.join(this._currentProjectPath, 'docs');
+
+        // docsディレクトリが存在するか確認
+        this._fileSystemService.fileExists(docsPath)
+          .then(exists => {
+            if (exists) {
+              // docsディレクトリが存在する場合はそこを表示
+              this._refreshFileList(docsPath);
+              Logger.info(`MarkdownViewerPanel: docsディレクトリを初期表示します: ${docsPath}`);
+            } else {
+              // 存在しない場合はプロジェクトルートを表示
+              this._refreshFileList(this._currentProjectPath);
+              Logger.info(`MarkdownViewerPanel: プロジェクトルートを初期表示します: ${this._currentProjectPath}`);
+            }
+
+            // ファイル監視を設定
+            this._setupFileWatcher();
+          })
+          .catch(error => {
+            // エラーが発生した場合はプロジェクトルートを表示
+            this._refreshFileList(this._currentProjectPath);
+            this._setupFileWatcher();
+            Logger.error('MarkdownViewerPanel: docsディレクトリの確認に失敗しました', error as Error);
+          });
       } else {
         this._sendMessageToWebview({
           command: 'showError',
@@ -447,9 +492,10 @@ export class MarkdownViewerPanel {
   }
 
   /**
-   * ファイルリストを更新
+   * ファイルリストを更新（特定のパスを指定可能）
+   * @param specificPath 特定のディレクトリパス（省略時は現在のプロジェクトパスまたはdocsフォルダ）
    */
-  private _refreshFileList(): void {
+  private _refreshFileList(specificPath?: string): void {
     try {
       if (!this._currentProjectPath) {
         return;
@@ -460,25 +506,35 @@ export class MarkdownViewerPanel {
         command: 'startLoading',
       });
 
+      // パスが指定されていない場合、初期表示として/docsディレクトリを試みる
+      const pathToList = specificPath || this._currentProjectPath;
+
       // ディレクトリ内のファイルとフォルダを一覧取得
-      this._fileSystemService.listDirectory(this._currentProjectPath, false)
+      this._fileSystemService.listDirectory(pathToList, false)
         .then((files) => {
           // WebViewにファイルリストを送信
           this._sendMessageToWebview({
             command: 'updateFileList',
             files: files,
-            currentPath: this._currentProjectPath
+            currentPath: pathToList
           });
-          
-          Logger.debug(`MarkdownViewerPanel: ファイルリストを更新しました (${files.length}件)`);
+
+          Logger.debug(`MarkdownViewerPanel: ファイルリストを更新しました (${files.length}件): ${pathToList}`);
         })
         .catch((error) => {
+          // docsディレクトリが存在しない場合やアクセスできない場合は、プロジェクトルートを表示
+          if (!specificPath && pathToList.endsWith('/docs')) {
+            Logger.info('MarkdownViewerPanel: docsディレクトリにアクセスできないため、プロジェクトルートを表示します');
+            this._refreshFileList(this._currentProjectPath);
+            return;
+          }
+
           this._sendMessageToWebview({
             command: 'showError',
             message: `ファイルリストの取得に失敗しました: ${error.message}`
           });
-          
-          Logger.error('MarkdownViewerPanel: ファイルリストの取得に失敗しました', error);
+
+          Logger.error(`MarkdownViewerPanel: ファイルリストの取得に失敗しました: ${pathToList}`, error);
         });
     } catch (error) {
       Logger.error('MarkdownViewerPanel: ファイルリスト更新中にエラーが発生しました', error as Error);
@@ -685,45 +741,6 @@ export class MarkdownViewerPanel {
           this._refreshContent();
           break;
           
-        case 'showFileOpenMenu':
-          // ファイルを開くメニューを表示
-          vscode.window.showQuickPick([
-            { label: '左ペインで開く', value: 'left' },
-            { label: '右ペインで開く', value: 'right' }
-          ]).then(selection => {
-            if (selection) {
-              // 選択結果をWebViewに送信
-              this._sendMessageToWebview({
-                command: 'fileOpenMenuResult',
-                filePath: message.filePath,
-                option: selection.label
-              });
-              
-              this._isSplitView = true;
-            }
-          });
-          break;
-
-        case 'showPaneSelectDialog':
-          // 分割モード解除時のペイン選択ダイアログ
-          vscode.window.showQuickPick([
-            { label: '左ペインを保持', description: path.basename(message.leftFile || '未選択'), value: 'left' },
-            { label: '右ペインを保持', description: path.basename(message.rightFile || '未選択'), value: 'right' }
-          ]).then(selection => {
-            if (selection) {
-              // 選択結果をWebViewに送信
-              this._sendMessageToWebview({
-                command: 'paneSelectResult',
-                pane: selection.value
-              });
-              
-              this._isSplitView = false;
-              
-              // 選択されたペインのファイルパスを現在のファイルパスとして設定
-              this._currentFilePath = selection.value === 'left' ? this._leftPaneFilePath : this._rightPaneFilePath;
-            }
-          });
-          break;
           
         default:
           Logger.warn(`MarkdownViewerPanel: 未知のコマンドを受信: ${message.command}`);
