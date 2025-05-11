@@ -713,6 +713,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleOpenMarkdownViewer(): Promise<void> {
     try {
+      // 現在のプロジェクトパスをログ出力
       Logger.info(`ScopeManagerPanel: マークダウンビューワーを開くリクエストを受信 (projectPath=${this._projectPath})`);
 
       // マークダウンビューワーを開く前に、アクティブなプロジェクトのタブを進捗状況タブに戻す
@@ -730,9 +731,33 @@ export class ScopeManagerPanel extends ProtectedPanel {
         Logger.info('マークダウンビューワーを開く前に、進捗状況タブに切り替えました');
       }
 
+      // 重要：直接拡張機能のコマンドを実行する前に、ProjectServiceImplを使ってプロジェクトを選択する
+      // これにより、全体のシステム状態でのプロジェクト選択を確実に同期する
+      if (this._projectPath) {
+        try {
+          // ProjectServiceImplを取得
+          const { ProjectServiceImpl } = require('../scopeManager/services/implementations/ProjectServiceImpl');
+          const projectService = ProjectServiceImpl.getInstance();
+
+          // プロジェクト名を取得
+          const projectName = path.basename(this._projectPath);
+
+          // プロジェクトを明示的に選択
+          await projectService.selectProject(projectName, this._projectPath);
+          Logger.info(`マークダウンビューワーを開く前に、プロジェクトを明示的に選択: ${projectName}, ${this._projectPath}`);
+
+          // 少し待機してプロジェクト選択が確実に処理されるようにする
+          await new Promise(resolve => setTimeout(resolve, 50));
+        } catch (error) {
+          Logger.warn(`プロジェクト選択に失敗しました: ${error}`);
+        }
+      }
+
+      // コマンドを実行する前にグローバル状態を更新するのが重要
+      global.__lastSelectedProjectPath = this._projectPath;
+
       // vscode.commandsを使用してマークダウンビューワーを開く
-      // コマンド名を extension.ts で登録されているものに合わせる
-      // プロジェクトパスを明示的に渡す
+      // プロジェクトパスを明示的に渡す - 現在のアクティブなパスを使用
       await vscode.commands.executeCommand('appgenius-ai.openMarkdownViewer', this._projectPath);
 
       Logger.info(`マークダウンビューワーを開きました: プロジェクト=${this._projectPath}`);

@@ -65,6 +65,15 @@ export function registerMarkdownViewerCommands(context: vscode.ExtensionContext)
         // デバッグログを追加
         Logger.info(`マークダウンビューワーを開く: コマンド実行開始 (projectPath=${projectPath || 'なし'})`);
 
+        // グローバル変数からプロジェクトパスを取得（ScopeManagerPanelから設定された場合）
+        if (!projectPath && (global as any).__lastSelectedProjectPath) {
+          projectPath = (global as any).__lastSelectedProjectPath;
+          Logger.info(`マークダウンビューワーを開く: グローバル変数から取得したパス=${projectPath}`);
+
+          // グローバル変数をクリア（1回限りの使用）
+          (global as any).__lastSelectedProjectPath = undefined;
+        }
+
         // プロジェクトパスが指定されていない場合は、現在のアクティブプロジェクトパスを取得
         if (!projectPath) {
           try {
@@ -76,13 +85,21 @@ export function registerMarkdownViewerCommands(context: vscode.ExtensionContext)
             // FileSystemServiceを初期化
             const fileSystemService = FileSystemServiceImpl.getInstance();
 
-            // ProjectServiceを初期化してアクティブプロジェクトパスを取得
+            // ProjectServiceを初期化
             const projectService = ProjectServiceImpl.getInstance(fileSystemService);
-            const activeProjectPath = projectService.getActiveProjectPath();
 
-            if (activeProjectPath) {
-              projectPath = activeProjectPath;
-              Logger.info(`マークダウンビューワーを開く: アクティブプロジェクトパスを使用=${projectPath}`);
+            // まずアクティブなプロジェクトオブジェクトを取得
+            const activeProject = projectService.getActiveProject();
+            if (activeProject && activeProject.path) {
+              projectPath = activeProject.path;
+              Logger.info(`マークダウンビューワーを開く: アクティブプロジェクト(${activeProject.name})から取得したパス=${projectPath}`);
+            } else {
+              // フォールバック: getActiveProjectPathを使用
+              const activeProjectPath = projectService.getActiveProjectPath();
+              if (activeProjectPath) {
+                projectPath = activeProjectPath;
+                Logger.info(`マークダウンビューワーを開く: getActiveProjectPathから取得したパス=${projectPath}`);
+              }
             }
           } catch (projectError) {
             Logger.warn('アクティブプロジェクトの取得に失敗しました', projectError as Error);

@@ -545,11 +545,35 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
    */
   private async _handleOpenMarkdownViewer(message: Message, panel: vscode.WebviewPanel): Promise<void> {
     try {
-      // プロジェクトパスを取得
-      const projectPath = message.projectPath ||
-        (this._projectService ? this._projectService.getActiveProjectPath() : '');
+      // プロジェクトパスを取得（デバッグ用詳細ログを追加）
+      let projectPath = '';
 
-      Logger.info(`MessageDispatchServiceImpl: マークダウンビューワーを開く (projectPath=${projectPath})`);
+      // 1. まずメッセージからプロジェクトパスを取得
+      if (message.projectPath) {
+        projectPath = message.projectPath;
+        Logger.info(`MessageDispatchServiceImpl: メッセージから取得したプロジェクトパス: ${projectPath}`);
+      }
+      // 2. メッセージにプロジェクトパスがない場合は、アクティブなプロジェクトパスを取得
+      else if (this._projectService) {
+        // アクティブなプロジェクトオブジェクトを取得
+        const activeProject = this._projectService.getActiveProject();
+        if (activeProject && activeProject.path) {
+          projectPath = activeProject.path;
+          Logger.info(`MessageDispatchServiceImpl: アクティブプロジェクト(${activeProject.name})から取得したパス: ${projectPath}`);
+        } else {
+          // フォールバック: getActiveProjectPathを使用
+          projectPath = this._projectService.getActiveProjectPath();
+          Logger.info(`MessageDispatchServiceImpl: getActiveProjectPathから取得したパス: ${projectPath}`);
+        }
+      }
+
+      // プロジェクトパスが取得できなかった場合のフォールバック
+      if (!projectPath && vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+        projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+        Logger.info(`MessageDispatchServiceImpl: ワークスペースフォルダから取得したパス: ${projectPath}`);
+      }
+
+      Logger.info(`MessageDispatchServiceImpl: マークダウンビューワーを開く (最終的に使用するprojectPath=${projectPath})`);
 
       // VSCodeコマンドを使用してマークダウンビューワーを開く
       await vscode.commands.executeCommand('appgenius-ai.openMarkdownViewer', projectPath);

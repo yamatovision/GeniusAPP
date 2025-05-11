@@ -32,12 +32,55 @@ export class MarkdownViewerPanel {
   private _rightPaneFilePath: string = '';
 
   // 公開メソッドを追加
+  /**
+   * プロジェクトパスを設定してファイルリストとタイトルを更新
+   * @param projectPath 新しいプロジェクトパス
+   */
   public setCurrentProjectPath(projectPath: string): void {
-    if (projectPath && projectPath !== this._currentProjectPath) {
+    if (!projectPath) {
+      Logger.warn('MarkdownViewerPanel: 無効なプロジェクトパスが設定されました');
+      return;
+    }
+
+    Logger.info(`MarkdownViewerPanel: setCurrentProjectPathが呼び出されました: ${projectPath} (現在のパス: ${this._currentProjectPath})`);
+
+    if (projectPath !== this._currentProjectPath) {
+      // ProjectServiceImplを更新（利用可能な場合）
+      try {
+        // ProjectServiceImplのインスタンスを取得
+        const { ProjectServiceImpl } = require('../scopeManager/services/implementations/ProjectServiceImpl');
+        const projectService = ProjectServiceImpl.getInstance();
+
+        // プロジェクト名を取得
+        const projectName = path.basename(projectPath);
+
+        // ProjectServiceImplを更新
+        projectService.selectProject(projectName, projectPath);
+        Logger.info(`MarkdownViewerPanel: ProjectServiceImplを更新しました: ${projectName}, ${projectPath}`);
+      } catch (error) {
+        Logger.warn(`MarkdownViewerPanel: ProjectServiceImplの更新に失敗しました: ${error}`);
+      }
+
+      // 内部状態を更新
       this._currentProjectPath = projectPath;
+
+      // パネルのタイトルを更新
+      this._panel.title = `マークダウンビューワー: ${path.basename(projectPath)}`;
+
+      // ファイルリストとウォッチャーを更新
       this._refreshFileList();
       this._setupFileWatcher();
-      Logger.info(`MarkdownViewerPanel: プロジェクトパスを設定しました: ${projectPath}`);
+
+      // WebViewにプロジェクト変更を通知
+      this._sendMessageToWebview({
+        command: 'projectChanged',
+        projectPath: projectPath,
+        projectName: path.basename(projectPath)
+      });
+
+      Logger.info(`MarkdownViewerPanel: プロジェクトパスを更新しました: ${projectPath}`);
+    } else {
+      Logger.info(`MarkdownViewerPanel: 同じプロジェクトパスが指定されました: ${projectPath}`);
     }
   }
 
@@ -58,15 +101,29 @@ export class MarkdownViewerPanel {
       : undefined;
 
     try {
+      Logger.info(`MarkdownViewerPanel: createOrShow呼び出し (initialProjectPath=${initialProjectPath || 'なし'})`);
+
       // パネルが既に存在する場合は、それを表示
       if (MarkdownViewerPanel._currentPanel) {
         Logger.info('MarkdownViewerPanel: 既存のパネルを表示します');
         MarkdownViewerPanel._currentPanel._panel.reveal(column);
 
         // 初期プロジェクトパスが指定されている場合は、既存パネルのプロジェクトパスを更新
-        if (initialProjectPath && initialProjectPath !== MarkdownViewerPanel._currentPanel._currentProjectPath) {
-          Logger.info(`MarkdownViewerPanel: プロジェクトパスを更新します: ${initialProjectPath}`);
-          MarkdownViewerPanel._currentPanel.setCurrentProjectPath(initialProjectPath);
+        if (initialProjectPath) {
+          // 現在のパスと比較
+          if (initialProjectPath !== MarkdownViewerPanel._currentPanel._currentProjectPath) {
+            Logger.info(`MarkdownViewerPanel: プロジェクトパスを更新します: ${initialProjectPath} (現在のパス: ${MarkdownViewerPanel._currentPanel._currentProjectPath})`);
+
+            // パネルのタイトルを更新
+            MarkdownViewerPanel._currentPanel._panel.title = `マークダウンビューワー: ${path.basename(initialProjectPath)}`;
+
+            // プロジェクトパスを更新
+            MarkdownViewerPanel._currentPanel.setCurrentProjectPath(initialProjectPath);
+          } else {
+            Logger.info(`MarkdownViewerPanel: 同じプロジェクトパスが指定されました: ${initialProjectPath}`);
+          }
+        } else {
+          Logger.info('MarkdownViewerPanel: 初期プロジェクトパスが指定されていません');
         }
 
         return MarkdownViewerPanel._currentPanel;
@@ -74,10 +131,14 @@ export class MarkdownViewerPanel {
 
       Logger.info('MarkdownViewerPanel: 新しいパネルを作成します');
 
-      // 新しいパネルを作成
+      // 新しいパネルを作成（パネルタイトルにプロジェクト名を含める）
+      const panelTitle = initialProjectPath
+        ? `マークダウンビューワー: ${path.basename(initialProjectPath)}`
+        : 'マークダウンビューワー';
+
       const panel = vscode.window.createWebviewPanel(
         MarkdownViewerPanel.viewType,
-        'ファイルブラウザ＆マークダウンビューワー',
+        panelTitle,
         column || vscode.ViewColumn.One,
         {
           enableScripts: true,
@@ -377,11 +438,22 @@ export class MarkdownViewerPanel {
     }
 
     this._currentProjectPath = projectPath;
-    this._refreshFileList();
-    
+
+    // プロジェクトパス変更時にdocsディレクトリを優先して表示
+    const docsPath = path.join(projectPath, 'docs');
+    if (fs.existsSync(docsPath)) {
+      // docsディレクトリが存在すれば、それを使用
+      this._refreshFileList(docsPath);
+      Logger.info(`MarkdownViewerPanel: プロジェクト変更時にdocsディレクトリを表示: ${docsPath}`);
+    } else {
+      // 存在しない場合はプロジェクトルートを表示
+      this._refreshFileList();
+      Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示: ${projectPath}`);
+    }
+
     // ファイル監視を更新
     this._setupFileWatcher();
-    
+
     Logger.info(`MarkdownViewerPanel: プロジェクトパスが変更されました: ${projectPath}`);
   }
 
@@ -493,7 +565,7 @@ export class MarkdownViewerPanel {
 
   /**
    * ファイルリストを更新（特定のパスを指定可能）
-   * @param specificPath 特定のディレクトリパス（省略時は現在のプロジェクトパスまたはdocsフォルダ）
+   * @param specificPath 特定のディレクトリパス（省略時は現在のプロジェクトパスのdocsフォルダを優先）
    */
   private _refreshFileList(specificPath?: string): void {
     try {
@@ -506,8 +578,24 @@ export class MarkdownViewerPanel {
         command: 'startLoading',
       });
 
-      // パスが指定されていない場合、初期表示として/docsディレクトリを試みる
-      const pathToList = specificPath || this._currentProjectPath;
+      // パスが指定されていない場合、初期表示としてdocsディレクトリを優先的に試みる
+      let pathToList = specificPath;
+
+      if (!pathToList) {
+        // docsディレクトリパスを作成
+        const docsPath = path.join(this._currentProjectPath, 'docs');
+
+        // docsディレクトリの存在を同期的に確認（パフォーマンス考慮）
+        if (fs.existsSync(docsPath)) {
+          // docsディレクトリが存在すれば、それを使用
+          pathToList = docsPath;
+          Logger.info(`MarkdownViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
+        } else {
+          // 存在しない場合はプロジェクトルートを使用
+          pathToList = this._currentProjectPath;
+          Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示します: ${this._currentProjectPath}`);
+        }
+      }
 
       // ディレクトリ内のファイルとフォルダを一覧取得
       this._fileSystemService.listDirectory(pathToList, false)
@@ -522,9 +610,9 @@ export class MarkdownViewerPanel {
           Logger.debug(`MarkdownViewerPanel: ファイルリストを更新しました (${files.length}件): ${pathToList}`);
         })
         .catch((error) => {
-          // docsディレクトリが存在しない場合やアクセスできない場合は、プロジェクトルートを表示
-          if (!specificPath && pathToList.endsWith('/docs')) {
-            Logger.info('MarkdownViewerPanel: docsディレクトリにアクセスできないため、プロジェクトルートを表示します');
+          // 指定されたパスにアクセスできない場合
+          if (pathToList !== this._currentProjectPath) {
+            Logger.info(`MarkdownViewerPanel: ${pathToList}にアクセスできないため、プロジェクトルートを表示します`);
             this._refreshFileList(this._currentProjectPath);
             return;
           }
