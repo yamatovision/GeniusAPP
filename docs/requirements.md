@@ -1,72 +1,9 @@
 # 小規模事業者向け受発注システム要件定義書
-## 1. プロジェクト概要ああああああああああああ
-
-あああああ
-
-あああああああ
+## 1. プロジェクト概要
 
 
 
 
-進捗状況ログ
-[2025-05-12T00:43:09.251Z] [INFO] 【重要】FileSystemService: ファイル変更イベント検出: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md, 監視対象ファイル=SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.252Z] [INFO] 【デバッグ詳細】イベント: path=/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md, baseFileName=SCOPE_PROGRESS.md, isRequirements=false
-[2025-05-12T00:43:09.252Z] [INFO] FileSystemService: ファイル情報 - 最終更新: Mon May 12 2025 09:43:09 GMT+0900 (日本標準時), サイズ: 43489バイト
-[2025-05-12T00:43:09.253Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md (サイズ: 24451 バイト)
-[2025-05-12T00:43:09.253Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.253Z] [INFO] FileSystemService: ファイル読み込み成功 - 長さ: 24451文字
-[2025-05-12T00:43:09.253Z] [INFO] FileSystemService: イベント発火完了 - onProgressFileChanged
-[2025-05-12T00:43:09.254Z] [INFO] ★★★ FileSystemService(Enhanced): ファイル変更検出: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.254Z] [INFO] ファイル拡張子: .md, ベース名: SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.254Z] [INFO] ファイル情報: サイズ=43489バイト, 最終更新=2025-05-12T00:43:09.059Z
-[2025-05-12T00:43:09.255Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md (サイズ: 24451 バイト)
-[2025-05-12T00:43:09.255Z] [INFO] FileSystemService: コールバック実行完了 - onFileChanged
-[2025-05-12T00:43:09.255Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.255Z] [INFO] ★★★ ファイル読み込み成功: 24451文字
-[2025-05-12T00:43:09.255Z] [INFO] FileWatcherService: 進捗ファイル変更を検出: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.255Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md (サイズ: 24451 バイト)
-[2025-05-12T00:43:09.256Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.256Z] [INFO] FileSystemServiceを使用してマークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.761Z] [INFO] FileSystemService(Enhanced): 遅延読み込み(500ms後): /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.762Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md (サイズ: 24451 バイト)
-[2025-05-12T00:43:09.763Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.764Z] [INFO] FileWatcherService: 進捗ファイル変更を検出: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.764Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md (サイズ: 24451 バイト)
-[2025-05-12T00:43:09.765Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-[2025-05-12T00:43:09.766Z] [INFO] FileSystemServiceを使用してマークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/SCOPE_PROGRESS.md
-
-
-
-
-要件定義ログ
-[2025-05-12T00:43:48.785Z] [INFO] 【重要】FileSystemService: 要件定義ファイル変更イベント検出: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md, 監視対象ファイル=requirements.md
-[2025-05-12T00:43:48.786Z] [INFO] FileSystemService: 要件定義ファイル情報 - 最終更新: Mon May 12 2025 09:43:48 GMT+0900 (日本標準時), サイズ: 26109バイト
-[2025-05-12T00:43:48.787Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md (サイズ: 14333 バイト)
-[2025-05-12T00:43:48.787Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md
-[2025-05-12T00:43:48.788Z] [INFO] FileSystemService: 要件定義ファイル読み込み成功 - 長さ: 14333文字
-[2025-05-12T00:43:48.788Z] [INFO] FileWatcherService: 要件定義ファイル変更を検出: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md
-[2025-05-12T00:43:48.788Z] [DEBUG] ファイルを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md (サイズ: 14333 バイト)
-[2025-05-12T00:43:48.788Z] [INFO] FileSystemService: 要件定義ファイル変更通知完了
-[2025-05-12T00:43:48.789Z] [INFO] FileSystemService: マークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md
-[2025-05-12T00:43:48.790Z] [INFO] FileSystemServiceを使用してマークダウンコンテンツを読み込みました: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/requirements.md
-
-
-
-
-
-
-あああああ
-
-
-gaga
-
-
-ああ
-
-あああ
-ああああああああ
-
-あああ
 
 進捗ファイル（SCOPE_PROGRESS.md）に関連すある関数のリストです：
 
