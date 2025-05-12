@@ -16,8 +16,6 @@ export class SimpleAuthService {
   private _accessToken: string | undefined;
   private _refreshToken: string | undefined;
   private _tokenExpiry: number | undefined;
-  private _apiKey: string | undefined;
-  private _needApiKeyRefresh: boolean = false; // APIキーのリフレッシュが必要かのフラグ
   
   // APIベースURL
   private readonly API_BASE_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/simple';
@@ -27,7 +25,6 @@ export class SimpleAuthService {
   private readonly REFRESH_TOKEN_KEY = 'appgenius.simple.refreshToken';
   private readonly TOKEN_EXPIRY_KEY = 'appgenius.simple.tokenExpiry';
   private readonly USER_DATA_KEY = 'appgenius.simple.userData';
-  private readonly API_KEY_DATA_KEY = 'appgenius.simple.apiKey';
   
   // イベントエミッター
   private _onStateChanged = new vscode.EventEmitter<AuthState>();
@@ -192,13 +189,7 @@ export class SimpleAuthService {
         Logger.error('SimpleAuthService: トークン有効期限取得エラー', expiryError as Error);
       }
       
-      // APIキー取得
-      try {
-        this._apiKey = await this.secretStorage.get(this.API_KEY_DATA_KEY) || undefined;
-        Logger.debug(`SimpleAuthService: APIキー取得 - キー=${this.API_KEY_DATA_KEY}, 結果=${this._apiKey ? 'あり' : 'なし'}`);
-      } catch (apiKeyError) {
-        Logger.error('SimpleAuthService: APIキー取得エラー', apiKeyError as Error);
-      }
+      // APIキー機能は廃止されました
       
       // 結果のまとめ
       if (this._accessToken) {
@@ -207,9 +198,7 @@ export class SimpleAuthService {
         Logger.warn('SimpleAuthService: 保存済みトークンなし - これは問題の原因かもしれません');
       }
       
-      if (this._apiKey) {
-        Logger.info('SimpleAuthService: APIキーロード成功');
-      }
+      // APIキー機能は廃止されました
       
       // デバッグ対応: アクセストークンが存在しない場合でも認証状態を有効化
       if (!this._accessToken) {
@@ -288,14 +277,12 @@ export class SimpleAuthService {
       this._accessToken = undefined;
       this._refreshToken = undefined;
       this._tokenExpiry = undefined;
-      this._apiKey = undefined;
       
       // セキュアストレージから削除
       await this.secretStorage.delete(this.ACCESS_TOKEN_KEY);
       await this.secretStorage.delete(this.REFRESH_TOKEN_KEY);
       await this.secretStorage.delete(this.TOKEN_EXPIRY_KEY);
       await this.secretStorage.delete(this.USER_DATA_KEY);
-      await this.secretStorage.delete(this.API_KEY_DATA_KEY);
       
       Logger.info('SimpleAuthService: トークンクリア完了');
     } catch (error) {
@@ -370,81 +357,20 @@ export class SimpleAuthService {
       // 詳細なユーザー情報の構造をログ出力
       Logger.info(`SimpleAuthService: セッション復元中のユーザー情報構造: ${JSON.stringify(userInfo)}`);
       
-      // APIキーのチェック - もしAPIキーがなければ追加で取得を試みる
-      if (!this._apiKey) {
-        Logger.warn('SimpleAuthService: セッション復元中にAPIキーが見つかりません。専用エンドポイントからの取得を試みます');
-        try {
-          // APIキー取得専用エンドポイントを呼び出し
-          const apiKeyResponse = await axios.get(`${this.API_BASE_URL}/user/apikey`, {
-            headers: {
-              'Authorization': `Bearer ${this._accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          
-          if (apiKeyResponse.data && apiKeyResponse.data.success && apiKeyResponse.data.data) {
-            // 新しいフォーマット対応
-            if (apiKeyResponse.data.data.key) {
-              this._apiKey = apiKeyResponse.data.data.key;
-            } else if (apiKeyResponse.data.data.keyValue) {
-              this._apiKey = apiKeyResponse.data.data.keyValue;
-            } else if (apiKeyResponse.data.data.apiKey) {
-              this._apiKey = apiKeyResponse.data.data.apiKey;
-            }
-            
-            if (this._apiKey) {
-              await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-              Logger.info(`SimpleAuthService: セッション復元中に専用エンドポイントからAPIキーを取得・保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-            } else {
-              // 最後の手段 - userInfo内を深く探索
-              Logger.warn('SimpleAuthService: 専用エンドポイントのレスポンスにAPIキーが含まれていません。userInfo内を探索します');
-              
-              // APIキーオブジェクトからの抽出
-              if (userInfo.apiKey && userInfo.apiKey.keyValue) {
-                this._apiKey = userInfo.apiKey.keyValue;
-                await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-                Logger.info(`SimpleAuthService: userInfo.apiKey.keyValueからAPIキーを発見・保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-              } else if (userInfo.apiKey) {
-                this._apiKey = userInfo.apiKey;
-                await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-                Logger.info(`SimpleAuthService: userInfo内からAPIキーを発見・保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-              } else if (userInfo.api_key) {
-                this._apiKey = userInfo.api_key;
-                await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-                Logger.info(`SimpleAuthService: userInfo内のapi_keyからAPIキーを発見・保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-              }
-            }
-          }
-        } catch (apiKeyError) {
-          Logger.warn('SimpleAuthService: セッション復元中のAPIキー取得でエラーが発生しました', apiKeyError as Error);
-          // APIキー取得エラーはログインプロセスを中断しない
-        }
-      }
+      // APIキー機能は廃止されました
       
       // user情報がネストされている可能性を考慮
       let userData = userInfo;
       if (userInfo.user) {
         userData = userInfo.user;
         Logger.info(`SimpleAuthService: user情報がネストされていたため内部データを使用します: ${JSON.stringify(userData)}`);
-        
-        // ネストされたユーザー情報からもAPIキーを検索
-        if (!this._apiKey && userData.apiKey) {
-          this._apiKey = userData.apiKey;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-          Logger.info(`SimpleAuthService: ネストされたuser情報からAPIキーを発見・保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-        }
       }
       
       // ロール情報の取得
       const roleStr = userData.role;
       Logger.info(`SimpleAuthService: セッション復元中に取得したロール: ${roleStr}`);
       
-      // APIキーの有無をログ出力
-      if (this._apiKey) {
-        Logger.info(`SimpleAuthService: セッション復元時にAPIキーが設定されています (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-      } else {
-        Logger.warn('SimpleAuthService: セッション復元完了しましたが、APIキーがありません。アクセストークンのみで動作します');
-      }
+      // APIキー機能は廃止されました
       
       // ユーザー情報を認証状態に反映
       const roleEnum = this._mapStringToRole(roleStr);
@@ -520,13 +446,6 @@ export class SimpleAuthService {
           this.USER_DATA_KEY, 
           JSON.stringify(userData)
         );
-        
-        // APIキーが含まれている場合は保存
-        if (userData.apiKey) {
-          this._apiKey = userData.apiKey;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-          Logger.info(`SimpleAuthService: APIキーを保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-        }
         
         return userData;
       }
@@ -658,64 +577,7 @@ export class SimpleAuthService {
       if (response.data && response.data.success && response.data.data.accessToken) {
         Logger.info('SimpleAuthService: ログイン成功');
         
-        // APIキーをレスポンスから直接取得（修正したバックエンドバージョンで使用）
-        if (response.data.data.apiKey && response.data.data.apiKey.keyValue) {
-          this._apiKey = response.data.data.apiKey.keyValue;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-          const maskedApiKey = this._apiKey.substring(0, 5) + '...' + this._apiKey.substring(this._apiKey.length - 4);
-          Logger.info(`【認証情報】ログイン応答からAPIキー取得成功: ${maskedApiKey} (${this._apiKey.length}文字)`);
-          Logger.info(`SimpleAuthService: ログイン応答からAPIキー値を直接保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-        } 
-        // レガシー互換性のためのフォールバック
-        else if (response.data.data.apiKey) {
-          this._apiKey = response.data.data.apiKey;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-          Logger.info(`SimpleAuthService: ログイン応答からAPIキーを保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-        } else {
-          // ログイン応答にAPIキーがない場合、APIキー取得エンドポイントを直接呼び出す
-          try {
-            Logger.info('SimpleAuthService: APIキーを専用エンドポイントから取得します');
-            // トークンを先に保存（APIキー取得に認証が必要なため）
-            await this._saveTokens(
-              response.data.data.accessToken,
-              response.data.data.refreshToken,
-              // 有効期限の指定がなければ24時間（秒単位）
-              86400
-            );
-            
-            // APIキー取得専用エンドポイントを呼び出し
-            const apiKeyResponse = await axios.get(`${this.API_BASE_URL}/user/apikey`, {
-              headers: {
-                'Authorization': `Bearer ${response.data.data.accessToken}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            
-            if (apiKeyResponse.data && apiKeyResponse.data.success && apiKeyResponse.data.data) {
-              // 新しいフォーマット対応
-              if (apiKeyResponse.data.data.key) {
-                this._apiKey = apiKeyResponse.data.data.key;
-              } else if (apiKeyResponse.data.data.keyValue) {
-                this._apiKey = apiKeyResponse.data.data.keyValue;
-              } else if (apiKeyResponse.data.data.apiKey) {
-                this._apiKey = apiKeyResponse.data.data.apiKey;
-              }
-              
-              if (this._apiKey) {
-                await this.secretStorage.store(this.API_KEY_DATA_KEY, this._apiKey);
-                const maskedApiKey = this._apiKey.substring(0, 5) + '...' + this._apiKey.substring(this._apiKey.length - 4);
-                Logger.info(`【認証情報】専用エンドポイントからAPIキー取得成功: ${maskedApiKey} (${this._apiKey.length}文字)`);
-                Logger.info(`SimpleAuthService: 専用エンドポイントからAPIキーを取得・保存しました (接頭辞=${this._apiKey.substring(0, 5)}...)`);
-              } else {
-                Logger.warn('【認証情報】専用エンドポイントからのAPIキー取得失敗: レスポンスにキーが含まれていません');
-                Logger.warn('SimpleAuthService: 専用エンドポイントのレスポンスにAPIキーが含まれていません');
-              }
-            }
-          } catch (apiKeyError) {
-            Logger.warn('SimpleAuthService: APIキー取得中にエラーが発生しました', apiKeyError as Error);
-            // APIキー取得に失敗してもログイン自体は続行
-          }
-        }
+        // APIキー機能は廃止されました
         
         // まだトークンを保存していない場合（APIキー取得が失敗した場合など）
         if (!this._accessToken) {
@@ -756,13 +618,7 @@ export class SimpleAuthService {
         const userRole = this._currentState.userData?.role || 'なし';
         const userId = this._currentState.userData?.id || 'なし';
         
-        // APIキーの取得状況をログに出力（セキュリティのためマスキング）
-        if (this._apiKey) {
-          const maskedApiKey = this._apiKey.substring(0, 5) + '...' + this._apiKey.substring(this._apiKey.length - 4);
-          Logger.info(`【認証情報】APIキー取得成功: ${maskedApiKey} (${this._apiKey.length}文字)`);
-        } else {
-          Logger.warn(`【認証情報】APIキー取得失敗: APIキーが見つかりませんでした`);
-        }
+        // APIキー機能は廃止されました
         
         Logger.info(`============================================================`);
         Logger.info(`SimpleAuthServiceログイン成功: ユーザー=${userName}, ID=${userId}, ロール=${userRole}`);
@@ -867,13 +723,8 @@ export class SimpleAuthService {
       // ユーザーデータがあれば返す
       const userData = this._currentState.userData;
       
-      // APIキーの有無をログ出力
-      const hasApiKey = !!this._apiKey;
-      const apiKeyInfo = hasApiKey 
-        ? `APIキー: ${this._apiKey?.substring(0, 5)}...${this._apiKey?.substring(this._apiKey.length - 4)}` 
-        : 'APIキーなし';
-      
-      Logger.debug(`【認証情報確認】ユーザー: ${userData?.name || 'unknown'}, ID: ${userData?.id || 'unknown'}, ${apiKeyInfo}`);
+      Logger.debug(`【認証情報確認】ユーザー: ${userData?.name || 'unknown'}, ID: ${userData?.id || 'unknown'}`);
+      // APIキー機能は廃止されました
       
       return userData;
     } catch (error) {
@@ -898,9 +749,13 @@ export class SimpleAuthService {
   }
   
   /**
-   * Note: APIキー取得機能は不要になったため削除されました。
-   * このコメントは関連機能の参照のために残しています。
+   * APIキー機能は廃止されました
+   * @deprecated
    */
+  public async getApiKey(): Promise<string | undefined> {
+    Logger.warn('SimpleAuthService: getApiKeyメソッドは廃止されました');
+    return undefined;
+  }
   
   /**
    * 認証状態の検証
@@ -946,7 +801,7 @@ export class SimpleAuthService {
       return false;
     }
   }
-  
+
   /**
    * サーバーとの通信でトークン検証
    */
@@ -1042,5 +897,4 @@ export class SimpleAuthService {
 
       return false;
     }
-  }
-}
+  }}

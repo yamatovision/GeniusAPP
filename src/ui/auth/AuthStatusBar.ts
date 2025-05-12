@@ -171,16 +171,15 @@ export class AuthStatusBar {
     }
     
     const state = this._simpleAuthService.getCurrentState();
-    const hasApiKey = !!this._simpleAuthService.getApiKey();
-    
-    // APIキーを持っている場合は特別なアイコン表示
-    const icon = hasApiKey ? this.ICON_API_KEY : this.ICON_LOGGED_IN;
+
+    // APIキー機能は廃止されたため、常に通常のログインアイコンを表示
+    const icon = this.ICON_LOGGED_IN;
     const displayName = state.username || 'ユーザー';
     
     this._statusBarItem.text = `${icon} ${displayName}`;
     
     // ツールチップにAPIキー情報を追加
-    const apiKeyInfo = hasApiKey ? 'APIキー認証' : 'トークン認証';
+    const apiKeyInfo = 'トークン認証'; // APIキー機能は廃止されました
     this._statusBarItem.tooltip = `AppGenius: ${displayName} としてログイン中 (Simple認証: ${apiKeyInfo})\nクリックしてログアウト`;
     
     this._statusBarItem.command = 'appgenius.logout';

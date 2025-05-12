@@ -56,23 +56,11 @@ export class ClaudeCodeApiClient {
   private async _getApiConfig() {
     let authHeader = {};
     
-    // SimpleAuthを使用している場合は直接ヘッダーを取得
+    // SimpleAuthを使用している場合は認証ヘッダーを取得
     if (this._useSimpleAuth && this._simpleAuthService) {
-      // APIキーの有無を確認 (非同期で取得)
-      const apiKey = await this._simpleAuthService.getApiKey();
-      
-      if (apiKey) {
-        // APIキーがある場合はAPIキーヘッダーを設定
-        authHeader = {
-          'x-api-key': apiKey,
-          'Content-Type': 'application/json'
-        };
-        Logger.debug('ClaudeCodeApiClient: APIキーを使用します');
-      } else {
-        // 通常の認証ヘッダーを取得
-        authHeader = this._simpleAuthService.getAuthHeader();
-        Logger.debug('ClaudeCodeApiClient: SimpleAuthServiceからヘッダーを取得しました');
-      }
+      // 通常の認証ヘッダーを取得
+      authHeader = this._simpleAuthService.getAuthHeader();
+      Logger.debug('ClaudeCodeApiClient: SimpleAuthServiceからヘッダーを取得しました');
     } 
     // レガシー認証の場合は非同期で取得
     else if (this._legacyAuthService) {
