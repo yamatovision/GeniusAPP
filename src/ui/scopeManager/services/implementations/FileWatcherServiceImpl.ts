@@ -248,30 +248,34 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
       // デバッグログ
       Logger.info(`FileWatcherService: 要件定義ファイル監視設定: ${requirementsFilePath}`);
 
-      // 要件定義ファイルの監視設定 - 専用のセットアップ関数を使用
-      const requirementsWatcher = fileSystemService.setupRequirementsWatcher
+      // 要件定義ファイルの監視設定 - 進捗ファイルと同じく条件付き分岐でsetupRequirementsWatcherを使用
+      // ただし必ず遅延読み込みオプションを適用
+      const delayReadTimeOption = { delayedReadTime: 500 }; // 500ms後に遅延読み込み（進捗ファイルと同様）
+      const requirementsWatcher = fileSystemService.setupRequirementsWatcher && typeof fileSystemService.setupRequirementsWatcher === 'function'
         ? fileSystemService.setupRequirementsWatcher(
             requirementsFilePath,
             async (filePath: string) => {
-          Logger.info(`FileWatcherService: 要件定義ファイル変更を検出: ${filePath}`);
-          try {
-            // 要件定義ファイル変更をコールバックに通知
-            await onRequirementsFileChanged(filePath);
+              Logger.info(`FileWatcherService: 要件定義ファイル変更を検出: ${filePath}`);
+              try {
+                // 要件定義ファイル変更をコールバックに通知
+                await onRequirementsFileChanged(filePath);
 
-            // 特別なイベントメッセージを発行（進捗ファイルと同様の処理）
-            if (fileSystemService.dispatchMessage && typeof fileSystemService.dispatchMessage === 'function') {
-              // messageDispatchServiceを使用して特別な更新メッセージを送信
-              fileSystemService.dispatchMessage({
-                command: 'requirementsFileChanged',
-                filePath: filePath,
-                timestamp: Date.now()
-              });
-              Logger.info(`FileWatcherService: 要件定義ファイル変更イベントを送信しました: ${filePath}`);
-            }
-          } catch (readError) {
-            Logger.error(`FileWatcherService: 要件定義ファイル読み込みエラー: ${readError}`);
-          }
-        })
+                // 特別なイベントメッセージを発行（進捗ファイルと同様の処理）
+                if (fileSystemService.dispatchMessage && typeof fileSystemService.dispatchMessage === 'function') {
+                  // messageDispatchServiceを使用して特別な更新メッセージを送信
+                  fileSystemService.dispatchMessage({
+                    command: 'requirementsFileChanged',
+                    filePath: filePath,
+                    timestamp: Date.now()
+                  });
+                  Logger.info(`FileWatcherService: 要件定義ファイル変更イベントを送信しました: ${filePath}`);
+                }
+              } catch (readError) {
+                Logger.error(`FileWatcherService: 要件定義ファイル読み込みエラー: ${readError}`);
+              }
+            },
+            delayReadTimeOption // 遅延読み込み設定を明示的に渡す
+          )
         : fileSystemService.setupEnhancedFileWatcher(
             requirementsFilePath,
             async (filePath: string) => {
@@ -289,7 +293,7 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
                 Logger.error(`FileWatcherService: 要件定義ファイル読み込みエラー（fallback）: ${readError}`);
               }
             },
-            { delayedReadTime: 500 } // 500ms後に遅延読み込み
+            delayReadTimeOption // 遅延読み込み設定を共通化
           );
 
       watchers.push(requirementsWatcher);

@@ -782,7 +782,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       }
     });
 
-    // 要件定義ファイルの変更を処理するハンドラー
+    // 要件定義ファイルの変更を処理するハンドラー - 信頼性向上のためのログ強化版
     this.registerHandler('requirementsFileChanged', async (message: Message, panel: vscode.WebviewPanel) => {
       if (!message.filePath) {
         Logger.warn('MessageDispatchServiceImpl: requirementsFileChangedメッセージにfilePath必須パラメータがありません');
@@ -793,28 +793,45 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
         Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル変更を処理します: ${message.filePath}`);
 
         // 要件定義ファイルの内容を即時反映
+        Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル読み込み開始: ${message.filePath}`);
         const content = await this._fileSystemService.readMarkdownFile(message.filePath);
+        Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル読み込み完了 (コンテンツ長: ${content.length}文字)`);
 
-        // 二重のメッセージ送信
+        // 二重のメッセージ送信 - 信頼性向上のためログを強化
         // 1. まず直接requirementsFileChangedメッセージを送信（コンテンツ付き）
-        this.sendMessage(panel, {
-          command: 'requirementsFileChanged',  // 同じcommandを返す（特殊処理）
-          filePath: message.filePath,
-          content: content,                    // コンテンツも含める
-          timestamp: Date.now(),
-          priority: 'high'
-        });
+        Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル変更メッセージ送信準備 - パス: ${message.filePath}`);
+        try {
+          this.sendMessage(panel, {
+            command: 'requirementsFileChanged',  // 同じcommandを返す（特殊処理）
+            filePath: message.filePath,
+            content: content,                    // コンテンツも含める
+            timestamp: Date.now(),
+            priority: 'high'
+          });
+          Logger.info(`MessageDispatchServiceImpl: requirementsFileChangedメッセージ送信成功`);
+        } catch (firstError) {
+          Logger.error(`MessageDispatchServiceImpl: 要件定義ファイル変更メッセージ(1)送信エラー`, firstError as Error);
+        }
+
+        // 少し遅延させることで、通知の順序とUIの更新タイミングを安定させる
+        await new Promise(resolve => setTimeout(resolve, 50));
 
         // 2. 通常の更新コマンドも送信（後方互換性のため）
-        this.sendMessage(panel, {
-          command: 'updateMarkdownContent',
-          content: content,
-          timestamp: Date.now() + 1,  // タイムスタンプを少しずらす（1ms）
-          priority: 'high',
-          filePath: message.filePath,
-          forRequirements: true,
-          forceRefresh: true
-        });
+        Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル更新コマンド送信準備`);
+        try {
+          this.sendMessage(panel, {
+            command: 'updateMarkdownContent',
+            content: content,
+            timestamp: Date.now() + 1,  // タイムスタンプを少しずらす（1ms）
+            priority: 'high',
+            filePath: message.filePath,
+            forRequirements: true,
+            forceRefresh: true
+          });
+          Logger.info(`MessageDispatchServiceImpl: updateMarkdownContentメッセージ送信成功`);
+        } catch (secondError) {
+          Logger.error(`MessageDispatchServiceImpl: 要件定義ファイル変更メッセージ(2)送信エラー`, secondError as Error);
+        }
 
         Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル変更を2重通知で反映しました: ${message.filePath}`);
       } catch (error) {

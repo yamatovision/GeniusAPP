@@ -183,11 +183,12 @@ try {
 
     // ファイル監視機能の最強改善: 要件定義ファイル変更検出時の特別ハンドラー
     if (message.command === 'requirementsFileChanged') {
-      // ファイル変更を検出したログを出力
-      console.log(`🔥 要件定義ファイル変更検出: タイムスタンプ=${message.timestamp}`);
+      // ファイル変更を検出したログを出力 - タイムスタンプとファイルパス詳細
+      console.log(`🔥🔥 要件定義ファイル変更検出: タイムスタンプ=${message.timestamp}, ファイルパス=${message.filePath}`);
 
       if (message.filePath) {
-        // ファイルパスから直接コンテンツ取得
+        // ファイルパスから直接コンテンツ取得 - ファイル再読み込みコマンドを送信
+        console.log(`🔄🔄 要件定義ファイル再読込リクエスト送信開始: ${message.filePath}`);
         vscode.postMessage({
           command: 'getMarkdownContent',
           filePath: message.filePath,
@@ -195,48 +196,69 @@ try {
           forceRefresh: true,     // 強制更新
           timestamp: Date.now()
         });
-
-        console.log(`🔄 要件定義ファイル再読込リクエスト送信: ${message.filePath}`);
+        console.log(`🔄🔄 要件定義ファイル再読込リクエスト送信完了: ${message.filePath}`);
 
         // 要件定義タブが表示中かチェック
         const activeTabId = stateManager.getState().activeTab;
+        console.log(`要件定義ファイル変更処理: 現在のアクティブタブ=${activeTabId}`);
+
         if (activeTabId === 'requirements') {
           console.log('要件定義タブがアクティブなため、UI更新準備をします');
           // コンテンツが来る前に一度マークダウン表示エリアをクリアして更新準備
           const requirementsContainer = document.querySelector('#requirements-tab .markdown-content');
           if (requirementsContainer) {
             requirementsContainer.innerHTML = '<p>ファイルを読み込み中...</p>';
+            console.log('要件定義タブの読み込み中表示を設定しました');
+          } else {
+            console.warn('要件定義タブのコンテナが見つかりません');
           }
+        } else {
+          console.log(`要件定義タブが非アクティブですが、コンテンツを保存します (現在のタブ: ${activeTabId})`);
         }
 
         // すでにコンテンツが提供されている場合は即時更新（最速対応）
         if (message.content) {
-          console.log(`即時更新: 直接提供されたコンテンツで更新します (長さ: ${message.content.length})`);
+          console.log(`📄📄 即時更新: 直接提供されたコンテンツで更新します (長さ: ${message.content.length}文字)`);
 
-          // コンテンツを状態に保存
+          // コンテンツを状態に保存 - デバッグログの強化
           stateManager.setState({
             requirementsContent: message.content,
             requirementsLastUpdate: Date.now(),
             requirementsFilePath: message.filePath
           }, false);
+          console.log('状態にコンテンツを保存しました: requirementsContent, lastUpdate, filePath');
 
           // タブがアクティブならコンテンツを更新
-          const activeTabId = stateManager.getState().activeTab;
           if (activeTabId === 'requirements') {
             // 要件定義タブのコンテナを取得
             const requirementsContainer = document.querySelector('#requirements-tab .markdown-content');
+            console.log(`要件定義タブコンテナ存在: ${requirementsContainer ? 'あり' : 'なし'}`);
+            console.log(`マークダウンビューワー存在: ${window.markdownViewer ? 'あり' : 'なし'}`);
+
             if (requirementsContainer && window.markdownViewer) {
               window.markdownViewer.updateContent(message.content, requirementsContainer);
-              console.log('要件定義タブが即時更新されました');
+              console.log('✅✅ 要件定義タブが即時更新されました (タブはアクティブ)');
+            } else {
+              console.warn('⚠️ 要件定義タブまたはマークダウンビューワーが取得できません');
+              // フォールバック: デフォルトのマークダウンビューワーを使用
+              if (window.markdownViewer) {
+                window.markdownViewer.updateContent(message.content);
+                console.log('✅ フォールバック: デフォルトコンテナで更新しました');
+              }
             }
           } else {
-            console.log('要件定義タブが非表示のため状態のみ更新されました');
+            console.log('⚠️ 要件定義タブが非表示のため状態のみ更新されました');
             // 次回表示時に更新されるようフラグを設定
             stateManager.setState({
               requirementsNeedsUpdate: true
             }, false);
+            console.log('次回表示時に更新されるよう requirementsNeedsUpdate フラグを設定しました');
           }
+        } else {
+          console.log('⚠️ メッセージにコンテンツが含まれていないため、getMarkdownContent経由での更新を待ちます');
         }
+      } else {
+        console.error('❌ requirementsFileChangedメッセージにfilePath必須パラメータがありません');
       }
 
       return; // 他の処理は行わない
