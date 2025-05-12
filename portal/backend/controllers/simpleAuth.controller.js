@@ -417,11 +417,12 @@ exports.checkAuth = async (req, res) => {
       });
     }
     
-    // 無効なアカウント
-    if (user.status !== 'active') {
+    // ユーザーが無効化または削除された場合
+    if (user.status !== 'active' || user.deleted === true) {
       return res.status(401).json({
         success: false,
-        message: 'アカウントが無効化されています'
+        message: 'アカウントが無効化または削除されました',
+        errorCode: 'ACCOUNT_DELETED'
       });
     }
     

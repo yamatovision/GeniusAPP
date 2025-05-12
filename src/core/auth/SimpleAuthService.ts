@@ -898,357 +898,9 @@ export class SimpleAuthService {
   }
   
   /**
-   * APIキー取得
-   * ClaudeCode統合用
+   * Note: APIキー取得機能は不要になったため削除されました。
+   * このコメントは関連機能の参照のために残しています。
    */
-  public async getApiKey(): Promise<string | undefined> {
-    // デバッグログ - 呼び出し元の情報
-    const stack = new Error().stack;
-    Logger.debug(`【APIキー詳細】getApiKey()呼び出し: ${stack?.split('\n')[2] || '不明'}`);
-    
-    // 認証状態の詳細ログ
-    Logger.debug(`【APIキー詳細】認証状態: ${this._currentState.isAuthenticated ? '認証済み' : '未認証'}, ` + 
-                 `ユーザー: ${this._currentState.userData?.name || 'なし'}, ` + 
-                 `ID: ${this._currentState.userData?.id || 'なし'}`);
-    
-    // アクセストークンの状態を詳細にログ
-    Logger.debug(`【APIキー詳細】アクセストークン存在: ${this._accessToken ? 'あり' : 'なし'}, ` + 
-                 `長さ: ${this._accessToken?.length || 0}文字, ` + 
-                 `APIキー存在: ${this._apiKey ? 'あり' : 'なし'}`);
-    
-    if (this._accessToken) {
-      Logger.debug(`【APIキー詳細】トークンプレビュー: ${this._accessToken.substring(0, 10)}...${this._accessToken.substring(this._accessToken.length - 5) || ''}`);
-    }
-    
-    // APIキーが存在する場合はそれを返す
-    if (this._apiKey) {
-      // APIキーがある場合はマスクして表示
-      const maskedApiKey = this._apiKey.substring(0, 5) + '...' + this._apiKey.substring(this._apiKey.length - 4);
-      Logger.debug(`SimpleAuthService: APIキー取得要求に成功 (${maskedApiKey})`);
-      return this._apiKey;
-    }
-    
-    Logger.info('SimpleAuthService: APIキーが見つからないため、サーバーから取得を試みます');
-    
-    // サーバーから直接APIキーを取得
-    try {
-      // 詳細チェック - アクセストークンの検証
-      const currentToken = this._accessToken;
-      if (!currentToken) {
-        Logger.warn('SimpleAuthService: アクセストークンがないためAPIキーを取得できません');
-        Logger.debug(`【APIキー詳細】現在の認証状態: ${this._currentState.isAuthenticated ? '認証済み' : '未認証'}`);
-        Logger.debug(`【APIキー詳細】アクセストークン変数: ${currentToken === undefined ? 'undefined' : currentToken === null ? 'null' : currentToken === '' ? '空文字' : '不明なエラー'}`);
-        
-        // グローバル変数からのトークン取得を試みる (クロスインスタンス問題対策)
-        if (global._appgenius_auth_token) {
-          Logger.debug(`【APIキー詳細】グローバル変数からトークンを取得しました: ${global._appgenius_auth_token.substring(0, 10)}...`);
-          this._accessToken = global._appgenius_auth_token;
-        }
-        
-        // 再度チェック
-        if (!this._accessToken) {
-          // ダミーAPIキーを発行して返す（デバッグモード専用）
-          if (process.env.NODE_ENV === 'development' || process.env.APP_DEBUG === 'true') {
-            const dummyApiKey = 'sk-dummy-api-key-for-development-' + Date.now();
-            this._apiKey = dummyApiKey;
-            await this.secretStorage.store(this.API_KEY_DATA_KEY, dummyApiKey);
-            Logger.warn(`SimpleAuthService: デバッグモードのためダミーAPIキーを発行しました: ${dummyApiKey.substring(0, 10)}...`);
-            return dummyApiKey;
-          }
-
-          // ユーザーにAPIキーの入力を促す
-          try {
-            const apiKey = await vscode.window.showInputBox({
-              prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
-              placeHolder: 'sk-ant-api...',
-              password: true,
-              ignoreFocusOut: true,
-              validateInput: (text) => {
-                if (!text) {
-                  return 'APIキーを入力してください';
-                }
-                if (!text.startsWith('sk-')) {
-                  return 'APIキーはsk-で始まる必要があります';
-                }
-                return null;
-              }
-            });
-            
-            if (apiKey) {
-              // ユーザー入力のAPIキーを保存
-              this._apiKey = apiKey;
-              await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
-              const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
-              Logger.info(`SimpleAuthService: ユーザー入力からAPIキーを設定しました: ${maskedKey}`);
-              return apiKey;
-            } else {
-              Logger.warn('SimpleAuthService: ユーザーがAPIキー入力をキャンセルしました');
-              throw new Error('APIキーの入力がキャンセルされました。設定から再度APIキーを入力してください。');
-            }
-          } catch (inputError) {
-            Logger.error('SimpleAuthService: APIキー入力中にエラーが発生しました', inputError as Error);
-            throw new Error('APIキーの入力プロセスでエラーが発生しました。VSCodeを再起動して再試行するか、管理者に連絡してください。');
-          }
-        }
-      }
-      
-      Logger.debug('【APIキー詳細】AnthropicApiKeyモデルからAPIキーの取得を試みます...');
-      try {
-        // 新しいエンドポイント：AnthropicApiKeyモデルからAPIキーを取得
-        const apiKeyResponse = await axios.get(`${this.API_BASE_URL}/user/anthropic-api-key`, {
-          headers: {
-            'Authorization': `Bearer ${this._accessToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        Logger.debug(`【APIキー詳細】AnthropicApiKeyレスポンス: ${JSON.stringify(apiKeyResponse.data)}`);
-        
-        if (apiKeyResponse.data?.success) {
-          // 新方式: AnthropicApiKeyモデルからのレスポンス
-          if (apiKeyResponse.data?.data?.apiKeyFull) {
-            const apiKey = apiKeyResponse.data.data.apiKeyFull;
-            const maskedKey = apiKey.substring(0, 8) + '...' + apiKey.substring(apiKey.length - 8);
-            Logger.info(`【APIキー詳細】AnthropicApiKeyモデルからAPIキーを取得しました: ${maskedKey}`);
-            
-            // APIキーをメモリとストレージに保存
-            this._apiKey = apiKey;
-            await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
-            return apiKey;
-          }
-        }
-        
-        Logger.debug('【APIキー詳細】AnthropicApiKeyモデルからの取得に失敗、ユーザー入力を試行します');
-      } catch (apiKeyError) {
-        Logger.debug(`【APIキー詳細】AnthropicApiKeyエンドポイントエラー: ${(apiKeyError as Error).message}`);
-      }
-      
-      // サーバーからの取得に失敗した場合、ユーザーにAPIキーの入力を促す
-      try {
-        const apiKey = await vscode.window.showInputBox({
-          prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
-          placeHolder: 'sk-ant-api...',
-          password: true,
-          ignoreFocusOut: true,
-          validateInput: (text) => {
-            if (!text) {
-              return 'APIキーを入力してください';
-            }
-            if (!text.startsWith('sk-')) {
-              return 'APIキーはsk-で始まる必要があります';
-            }
-            return null;
-          }
-        });
-        
-        if (apiKey) {
-          // ユーザー入力のAPIキーを保存
-          this._apiKey = apiKey;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
-          const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
-          Logger.info(`SimpleAuthService: ユーザー入力からAPIキーを設定しました: ${maskedKey}`);
-          return apiKey;
-        } else {
-          Logger.warn('SimpleAuthService: ユーザーがAPIキー入力をキャンセルしました');
-          throw new Error('APIキーの入力がキャンセルされました。設定から再度APIキーを入力してください。');
-        }
-      } catch (inputError) {
-        Logger.error('SimpleAuthService: APIキー入力中にエラーが発生しました', inputError as Error);
-        
-        // エラー情報を表示
-        const errorMessage = `
-【重大エラー】AnthropicAPIキーが設定できませんでした
-----------------------------------------
-APIキーの取得または設定中にエラーが発生しました。
-
-問題の解決方法:
-1. VSCodeを再起動して再試行してください
-2. 管理者に連絡してAPIキーの設定を依頼してください
-
-エラーコード: ANTHROPIC_API_KEY_ERROR
-ユーザーID: ${this._currentState.userId || '不明'}
-認証状態: ${this._currentState.isAuthenticated ? '認証済み' : '未認証'}
-エラー詳細: ${(inputError as Error).message}
-`;
-        Logger.error(errorMessage);
-        throw new Error('APIキーの入力プロセスでエラーが発生しました。VSCodeを再起動して再試行するか、管理者に連絡してください。');
-      }
-    } catch (error) {
-      Logger.error('SimpleAuthService: サーバーからのAPIキー取得に失敗しました', error as Error);
-      
-      // エラーの詳細をログに記録
-      if (axios.isAxiosError(error) && error.response) {
-        Logger.error(`SimpleAuthService: HTTPステータス: ${error.response.status}`);
-        Logger.error(`SimpleAuthService: レスポンス: ${JSON.stringify(error.response.data)}`);
-        
-        // 401エラーの場合はトークンリフレッシュを試みる
-        if (error.response.status === 401) {
-          Logger.info('SimpleAuthService: 認証エラー、トークンリフレッシュ後に再試行します');
-          const refreshed = await this._refreshAccessToken();
-          if (refreshed) {
-            Logger.info('SimpleAuthService: トークンリフレッシュ成功、APIキー取得を再試行します');
-            // 再帰的に自身を呼び出して再試行
-            return this.getApiKey();
-          }
-        }
-      }
-      
-      // ユーザー入力をリトライ
-      try {
-        const apiKey = await vscode.window.showInputBox({
-          prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
-          placeHolder: 'sk-ant-api...',
-          password: true,
-          ignoreFocusOut: true,
-          validateInput: (text) => {
-            if (!text) {
-              return 'APIキーを入力してください';
-            }
-            if (!text.startsWith('sk-')) {
-              return 'APIキーはsk-で始まる必要があります';
-            }
-            return null;
-          }
-        });
-        
-        if (apiKey) {
-          // ユーザー入力のAPIキーを保存
-          this._apiKey = apiKey;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
-          const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
-          Logger.info(`SimpleAuthService: エラー後のリトライでAPIキーを設定しました: ${maskedKey}`);
-          return apiKey;
-        } else {
-          throw new Error('APIキーの入力がキャンセルされました。設定から再度APIキーを入力してください。');
-        }
-      } catch (retryError) {
-        throw new Error('APIキーの設定に失敗しました。VSCodeを再起動して再試行するか、管理者に連絡してください。');
-      }
-    }
-    
-    // APIキーの取得に失敗した場合、問題診断を行う
-    this._diagnoseApiKeyIssue();
-    
-    // 次回のログイン時に確実にAPIキーを取得するよう、内部フラグを設定
-    this._needApiKeyRefresh = true;
-    
-    // それでも失敗した場合、最終手段としてユーザーデータからAPIキーを探す
-    try {
-      const userData = this._currentState.userData;
-      if (userData) {
-        Logger.info('SimpleAuthService: ユーザーデータからAPIキーを探索します');
-        
-        // ユーザーデータに直接APIキーが含まれている可能性を探索
-        if (userData.apiKey && typeof userData.apiKey === 'string') {
-          this._apiKey = userData.apiKey;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, userData.apiKey);
-          Logger.info(`SimpleAuthService: ユーザーデータからAPIキーを発見しました: ${userData.apiKey.substring(0, 5)}...`);
-          return userData.apiKey;
-        }
-        
-        // ネストされた構造の場合
-        if (userData.apiKey && typeof userData.apiKey === 'object' && userData.apiKey.keyValue) {
-          this._apiKey = userData.apiKey.keyValue;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, userData.apiKey.keyValue);
-          Logger.info(`SimpleAuthService: ユーザーデータのネスト構造からAPIキーを発見しました: ${userData.apiKey.keyValue.substring(0, 5)}...`);
-          return userData.apiKey.keyValue;
-        }
-        
-        // さらに深くネストされた形式の場合
-        if (userData.apiKey && typeof userData.apiKey === 'object' && userData.apiKey.apiKeyFull) {
-          this._apiKey = userData.apiKey.apiKeyFull;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, userData.apiKey.apiKeyFull);
-          Logger.info(`SimpleAuthService: ユーザーデータからAnthropicApiKeyとしてAPIキーを発見しました: ${userData.apiKey.apiKeyFull.substring(0, 5)}...`);
-          return userData.apiKey.apiKeyFull;
-        }
-        
-        // 別名でのキー
-        if (userData.api_key) {
-          this._apiKey = userData.api_key;
-          await this.secretStorage.store(this.API_KEY_DATA_KEY, userData.api_key);
-          Logger.info(`SimpleAuthService: ユーザーデータからapi_keyとしてAPIキーを発見しました: ${userData.api_key.substring(0, 5)}...`);
-          return userData.api_key;
-        }
-      }
-    } catch (userDataError) {
-      Logger.error('SimpleAuthService: ユーザーデータからのAPIキー抽出に失敗しました', userDataError as Error);
-    }
-    
-    // 最終手段として、もう一度ユーザーにAPIキーの入力を促す
-    try {
-      const apiKey = await vscode.window.showInputBox({
-        prompt: 'AnthropicのAPIキーを入力してください (形式: sk-ant-api...)',
-        placeHolder: 'sk-ant-api...',
-        password: true,
-        ignoreFocusOut: true,
-        validateInput: (text) => {
-          if (!text) {
-            return 'APIキーを入力してください';
-          }
-          if (!text.startsWith('sk-')) {
-            return 'APIキーはsk-で始まる必要があります';
-          }
-          return null;
-        }
-      });
-      
-      if (apiKey) {
-        // ユーザー入力のAPIキーを保存
-        this._apiKey = apiKey;
-        await this.secretStorage.store(this.API_KEY_DATA_KEY, apiKey);
-        const maskedKey = apiKey.substring(0, 5) + '...' + apiKey.substring(apiKey.length - 4);
-        Logger.info(`SimpleAuthService: 最終手段としてユーザー入力からAPIキーを設定しました: ${maskedKey}`);
-        return apiKey;
-      }
-    } catch (finalError) {
-      Logger.error('SimpleAuthService: 最終的なAPIキー入力試行中にエラーが発生しました', finalError as Error);
-    }
-    
-    return this._apiKey;
-  }
-  
-  /**
-   * APIキー問題の診断
-   * APIキーが見つからない場合の原因を診断するための内部メソッド
-   */
-  private _diagnoseApiKeyIssue(): void {
-    try {
-      Logger.info('【APIキー診断】APIキーが見つからない問題を診断します...');
-      
-      // 現在のユーザー情報を確認
-      const userData = this._currentState.userData;
-      if (!userData) {
-        Logger.warn('【APIキー診断】ユーザーデータが存在しません');
-        return;
-      }
-      
-      // ユーザーのロールを確認
-      Logger.info(`【APIキー診断】ユーザー: ${userData.name || 'なし'}, ロール: ${userData.role || 'なし'}`);
-      
-      // トークンの状態を確認
-      Logger.info(`【APIキー診断】アクセストークン: ${this._accessToken ? '存在する' : '存在しない'}`);
-      Logger.info(`【APIキー診断】トークン有効期限: ${this._tokenExpiry ? new Date(this._tokenExpiry).toISOString() : 'なし'}`);
-      
-      // ストレージから直接APIキーの読み込みを試みる
-      this.secretStorage.get(this.API_KEY_DATA_KEY).then(storedApiKey => {
-        if (storedApiKey) {
-          Logger.info(`【APIキー診断】ストレージにAPIキーが存在します: ${storedApiKey.substring(0, 5)}...`);
-          
-          // もしストレージにあるのにメモリにない場合はメモリに復元
-          if (!this._apiKey) {
-            this._apiKey = storedApiKey;
-            Logger.info('【APIキー診断】ストレージからAPIキーをメモリに復元しました');
-          }
-        } else {
-          Logger.warn('【APIキー診断】ストレージにもAPIキーが存在しません');
-        }
-      }).then(undefined, error => {
-        Logger.error('【APIキー診断】ストレージ読み込みエラー', error as Error);
-      });
-    } catch (error) {
-      Logger.error('【APIキー診断】診断中にエラーが発生しました', error as Error);
-    }
-  }
   
   /**
    * 認証状態の検証
@@ -1256,30 +908,41 @@ APIキーの取得または設定中にエラーが発生しました。
    */
   public async verifyAuthState(): Promise<boolean> {
     try {
-      Logger.info('SimpleAuthService: 認証状態検証開始');
-      
+      Logger.info('SimpleAuthService: 認証状態検証開始 - 定期実行チェック');
+      console.log('SimpleAuthService: 認証状態検証開始 - 定期実行チェック'); // コンソールにも出力
+
       if (!this._accessToken) {
         Logger.info('SimpleAuthService: アクセストークンなし');
+        console.log('SimpleAuthService: アクセストークンなし');
         return false;
       }
-      
+
+      Logger.info(`SimpleAuthService: アクセストークン存在 - トークン接頭辞=${this._accessToken.substring(0, 5)}...`);
+
       // トークン有効期限チェック
       if (this._tokenExpiry && this._tokenExpiry < Date.now()) {
         Logger.info('SimpleAuthService: トークン期限切れ、リフレッシュ試行');
+        console.log('SimpleAuthService: トークン期限切れ、リフレッシュ試行');
         const refreshed = await this._refreshAccessToken();
         if (!refreshed) {
           Logger.info('SimpleAuthService: リフレッシュ失敗');
+          console.log('SimpleAuthService: リフレッシュ失敗');
           return false;
         }
       }
-      
+
+      Logger.info('SimpleAuthService: サーバーとの通信でトークン検証を開始します');
+      console.log('SimpleAuthService: サーバーとの通信でトークン検証を開始します');
+
       // サーバーと通信してトークン検証
       const verified = await this._verifyTokenWithServer();
       Logger.info(`SimpleAuthService: トークン検証結果=${verified}`);
-      
+      console.log(`SimpleAuthService: トークン検証結果=${verified}`);
+
       return verified;
     } catch (error) {
       Logger.error('SimpleAuthService: 認証状態検証エラー', error as Error);
+      console.error('SimpleAuthService: 認証状態検証エラー', error);
       return false;
     }
   }
@@ -1290,36 +953,93 @@ APIキーの取得または設定中にエラーが発生しました。
   private async _verifyTokenWithServer(): Promise<boolean> {
     try {
       Logger.info('SimpleAuthService: サーバートークン検証開始');
-      
+      console.log('SimpleAuthService: サーバートークン検証開始');
+
       if (!this._accessToken) {
         Logger.info('SimpleAuthService: アクセストークンなし');
+        console.log('SimpleAuthService: アクセストークンなし');
         return false;
       }
-      
+
+      // リクエスト情報をログに記録
+      const requestUrl = `${this.API_BASE_URL}/auth/check`;
+      Logger.info(`SimpleAuthService: リクエスト送信 URL=${requestUrl}`);
+      console.log(`SimpleAuthService: リクエスト送信 URL=${requestUrl}`);
+      console.log(`SimpleAuthService: トークン接頭辞=${this._accessToken.substring(0, 8)}...`);
+
       // APIリクエスト
-      const response = await axios.get(`${this.API_BASE_URL}/auth/check`, {
+      const response = await axios.get(requestUrl, {
         headers: {
           'Authorization': `Bearer ${this._accessToken}`,
           'Content-Type': 'application/json'
         }
       });
-      
+
+      // レスポンスをログに記録
+      Logger.info(`SimpleAuthService: レスポンス受信 status=${response.status}`);
+      console.log(`SimpleAuthService: レスポンス受信 status=${response.status}`);
+      console.log('SimpleAuthService: レスポンス内容', response.data);
+
       if (response.data && response.data.success) {
         Logger.info('SimpleAuthService: サーバー検証成功');
+        console.log('SimpleAuthService: サーバー検証成功');
         return true;
       }
-      
+
       Logger.info('SimpleAuthService: サーバー検証失敗', response.data);
+      console.log('SimpleAuthService: サーバー検証失敗', response.data);
       return false;
     } catch (error: any) {
+      console.error('SimpleAuthService: サーバー検証エラー', error);
+
+      // エラーレスポンスの詳細情報をログに記録
+      if (error?.response) {
+        Logger.info(`SimpleAuthService: エラーレスポンス status=${error.response.status}`);
+        console.log(`SimpleAuthService: エラーレスポンス status=${error.response.status}`);
+        console.log('SimpleAuthService: エラーレスポンス内容', error.response.data);
+
+        // エラーレスポンスが特定のエラーコードを持つか確認
+        if (error.response.data?.errorCode === 'ACCOUNT_DELETED') {
+          Logger.warn('SimpleAuthService: ユーザーアカウントが削除されました');
+          console.log('SimpleAuthService: ユーザーアカウントが削除されました');
+          console.log('SimpleAuthService: ACCOUNT_DELETED エラーコードを検出しました');
+
+          // 専用のログアウト通知を表示
+          try {
+            const LogoutNotification = (await import('../../ui/auth/LogoutNotification')).LogoutNotification;
+            const notification = LogoutNotification.getInstance();
+            console.log('SimpleAuthService: LogoutNotificationインスタンス取得成功');
+            notification.showLogoutNotification('ACCOUNT_DELETED');
+            console.log('SimpleAuthService: ログアウト通知を表示しました');
+          } catch (notificationError) {
+            console.error('SimpleAuthService: ログアウト通知表示エラー', notificationError);
+          }
+
+          // トークンをクリアしてログアウト
+          try {
+            await this._clearTokens();
+            console.log('SimpleAuthService: トークンをクリアしました');
+            this._updateAuthState(AuthStateBuilder.guest().build());
+            console.log('SimpleAuthService: 認証状態をゲストに更新しました');
+            this._onLogout.fire();
+            console.log('SimpleAuthService: ログアウトイベントを発火しました');
+          } catch (logoutError) {
+            console.error('SimpleAuthService: ログアウト処理エラー', logoutError);
+          }
+
+          return false;
+        }
+      }
+
       Logger.error('SimpleAuthService: サーバー検証エラー', error?.response?.data || error);
-      
+
       // トークン切れや認証エラーの場合
       if (error?.response?.status === 401) {
         Logger.info('SimpleAuthService: 認証エラー、トークンリフレッシュ試行');
+        console.log('SimpleAuthService: 認証エラー、トークンリフレッシュ試行');
         return await this._refreshAccessToken();
       }
-      
+
       return false;
     }
   }

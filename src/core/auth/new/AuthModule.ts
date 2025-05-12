@@ -59,12 +59,9 @@ export class AuthModule {
       })
     );
     
-    // ログアウトコマンド
-    this._context.subscriptions.push(
-      vscode.commands.registerCommand('appgenius.logout', async () => {
-        await this._authService.logout();
-      })
-    );
+    // 注: ログアウトコマンドはauthCommands.tsで既に登録されているため
+    // ここでは登録しない。AuthenticationServiceのログアウト処理は
+    // SimpleAuthServiceの状態変更リスナーを通じて行われる。
   }
   
   /**

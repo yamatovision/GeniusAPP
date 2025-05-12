@@ -263,10 +263,17 @@ const Dashboard = () => {
 
   // ユーザー削除ダイアログの開閉
   const handleOpenDeleteDialog = (userId) => {
-    setDeleteUserId(userId);
-    setOpenDeleteDialog(true);
+    // アクティブな要素があれば、フォーカスを解除して、aria-hidden問題を回避
+    if (document.activeElement) {
+      document.activeElement.blur();
+    }
+    // requestAnimationFrameを使用して、DOMの更新を待ってからダイアログを開く
+    requestAnimationFrame(() => {
+      setDeleteUserId(userId);
+      setOpenDeleteDialog(true);
+    });
   };
-  
+
   const handleCloseDeleteDialog = () => {
     setOpenDeleteDialog(false);
     setDeleteUserId(null);
@@ -276,36 +283,65 @@ const Dashboard = () => {
   const handleDeleteUser = async () => {
     try {
       setLoading(true);
-      
+      setError(''); // エラーメッセージをクリア
+
       if (!deleteUserId) {
         setError('削除するユーザーが指定されていません');
         setLoading(false);
         return;
       }
-      
+
       // ユーザー自身を削除しようとした場合
-      if (deleteUserId === user._id) {
+      if (deleteUserId === user?._id) {
         setError('自分自身を削除することはできません');
         setLoading(false);
         setOpenDeleteDialog(false);
         return;
       }
-      
+
+      console.log(`ユーザー削除開始: ID ${deleteUserId}`);
+
       // ユーザー削除APIの呼び出し
       const response = await deleteUser(deleteUserId);
-      
+
+      console.log('ユーザー削除レスポンス:', response);
+
       if (response && response.success) {
-        // ユーザー一覧を更新
-        const updatedUsersResponse = await getUsers();
-        if (updatedUsersResponse && updatedUsersResponse.data) {
-          setUsers(updatedUsersResponse.data);
-        }
-        
         // ダイアログを閉じる
         setOpenDeleteDialog(false);
         setDeleteUserId(null);
+
+        // 成功メッセージを表示
         setError('');
+
+        // 少し待ってからユーザー一覧を更新（レース状態回避）
+        setTimeout(async () => {
+          try {
+            console.log('削除前のユーザー一覧:', users.map(u => ({ id: u._id, name: u.name })));
+            console.log(`削除対象ユーザーID: ${deleteUserId}`);
+
+            const updatedUsersResponse = await getUsers();
+            console.log('API応答:', updatedUsersResponse);
+
+            if (updatedUsersResponse && updatedUsersResponse.data) {
+              // 削除されたユーザーが含まれていないか確認
+              const deletedUserStillExists = updatedUsersResponse.data.some(u => u._id === deleteUserId);
+              console.log(`削除されたユーザーがまだ存在: ${deletedUserStillExists}`);
+
+              // 強制的にフィルタリングして削除ユーザーを除外
+              const filteredUsers = updatedUsersResponse.data.filter(u => u._id !== deleteUserId);
+              console.log('フィルタリング後のユーザー数:', filteredUsers.length);
+
+              // フィルタリングしたユーザーリストを設定
+              setUsers(filteredUsers);
+              console.log('ユーザー一覧を更新しました');
+            }
+          } catch (refreshErr) {
+            console.error('ユーザー一覧更新エラー:', refreshErr);
+          }
+        }, 1000);
       } else {
+        console.error('削除API呼び出しエラー:', response);
         setError(response?.message || 'ユーザーの削除に失敗しました');
         setOpenDeleteDialog(false);
       }
@@ -616,15 +652,21 @@ const Dashboard = () => {
       </Dialog>
       
       {/* ユーザー削除確認ダイアログ */}
-      <Dialog open={openDeleteDialog} onClose={handleCloseDeleteDialog}>
-        <DialogTitle>ユーザー削除の確認</DialogTitle>
+      <Dialog
+        open={openDeleteDialog}
+        onClose={handleCloseDeleteDialog}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+        disableRestoreFocus
+      >
+        <DialogTitle id="delete-dialog-title">ユーザー削除の確認</DialogTitle>
         <DialogContent>
-          <DialogContentText>
+          <DialogContentText id="delete-dialog-description">
             このユーザーを削除してもよろしいですか？この操作は元に戻せません。
           </DialogContentText>
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
-          <Button onClick={handleCloseDeleteDialog} color="primary">
+          <Button onClick={handleCloseDeleteDialog} color="primary" autoFocus>
             キャンセル
           </Button>
           <Button onClick={handleDeleteUser} color="error" variant="contained" disabled={loading}>

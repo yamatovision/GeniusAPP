@@ -78,15 +78,35 @@ export const addSimpleOrganizationUser = async (organizationId, name, email, pas
 // ユーザーを削除
 export const deleteUser = async (userId) => {
   try {
+    console.log(`deleteUser: ユーザー削除リクエスト開始 - ID: ${userId}`);
+
+    // オプションでタイムアウトを指定
     const response = await axios.delete(
-      `${API_SIMPLE_URL}/users/${userId}`, 
-      { headers: simpleAuthHeader() }
+      `${API_SIMPLE_URL}/users/${userId}`,
+      {
+        headers: simpleAuthHeader(),
+        timeout: 10000 // 10秒のタイムアウト
+      }
     );
+
+    console.log(`deleteUser: サーバーレスポンス - ステータス: ${response.status}`);
+    console.log(`deleteUser: レスポンスデータ:`, response.data);
+
     return response.data;
   } catch (error) {
+    console.error(`deleteUser: エラー発生 - `, error);
+
+    // エラーの詳細情報をログ出力
     if (error.response) {
+      console.error(`deleteUser: サーバーエラーレスポンス - ステータス: ${error.response.status}`);
+      console.error(`deleteUser: エラー詳細:`, error.response.data);
       throw error.response.data;
     }
+
+    if (error.request) {
+      console.error(`deleteUser: リクエストは送信されましたが、レスポンスがありません`);
+    }
+
     throw new Error('接続エラーが発生しました');
   }
 };

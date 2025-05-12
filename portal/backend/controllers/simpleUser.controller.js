@@ -468,41 +468,41 @@ exports.updateUser = async (req, res) => {
 };
 
 /**
- * ユーザーを削除（無効化）
+ * ユーザーを完全に削除
  * @route DELETE /api/simple/users/:id
  */
 exports.deleteUser = async (req, res) => {
   try {
     const requesterId = req.userId;
     const targetId = req.params.id;
-    
+
     // 削除対象のユーザーを取得
     const targetUser = await SimpleUser.findById(targetId);
-    
+
     if (!targetUser) {
       return res.status(404).json({
         success: false,
         message: 'ユーザーが見つかりません'
       });
     }
-    
+
     // リクエスト実行者の権限チェック
     const requester = await SimpleUser.findById(requesterId);
-    
+
     // アクセス権チェック
     const hasSuperAdminAccess = requester.isSuperAdmin();
-    const hasAdminAccess = requester.isAdmin() && 
-                          requester.organizationId && 
-                          targetUser.organizationId && 
+    const hasAdminAccess = requester.isAdmin() &&
+                          requester.organizationId &&
+                          targetUser.organizationId &&
                           requester.organizationId.toString() === targetUser.organizationId.toString();
-    
+
     if (!hasSuperAdminAccess && !hasAdminAccess) {
       return res.status(403).json({
         success: false,
         message: 'このユーザーを削除する権限がありません'
       });
     }
-    
+
     // SuperAdminの削除は他のSuperAdminのみが可能
     if (targetUser.role === 'SuperAdmin' && !requester.isSuperAdmin()) {
       return res.status(403).json({
@@ -510,7 +510,7 @@ exports.deleteUser = async (req, res) => {
         message: 'SuperAdminユーザーを削除する権限がありません'
       });
     }
-    
+
     // 自分自身を削除することはできない
     if (targetId === requesterId) {
       return res.status(400).json({
@@ -518,15 +518,28 @@ exports.deleteUser = async (req, res) => {
         message: '自分自身を削除することはできません'
       });
     }
-    
-    // ユーザーを無効化（完全削除ではなく）
+
+    // シンプルな論理削除 - JWT認証との整合性のため
+    console.log(`ユーザー論理削除実行: ID=${targetId}, 名前=${targetUser.name}, メール=${targetUser.email}`);
+
+    // ユーザーを論理削除としてマーク
     targetUser.status = 'disabled';
+    targetUser.deleted = true;
+    targetUser.deletedAt = new Date();
+
+    // 認証情報を無効化
     targetUser.refreshToken = null;
+    targetUser.apiKeyValue = null;  // APIキー情報は削除（セキュリティ対策）
+
+    // 変更を保存
     await targetUser.save();
-    
+
+    console.log(`ユーザーを論理削除しました: ${targetId}`);
+
     return res.status(200).json({
       success: true,
-      message: 'ユーザーが正常に削除されました'
+      message: 'ユーザーが削除されました',
+      userStatus: 'deleted'
     });
   } catch (error) {
     console.error('ユーザー削除エラー:', error);

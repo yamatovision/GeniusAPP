@@ -109,21 +109,38 @@ export class AuthenticationHandler implements IAuthenticationHandler {
       // 1分ごとに認証状態をチェック
       const interval = setInterval(() => {
         try {
-          // ログイン状態をチェック
-          if (!this.checkLoggedIn()) {
-            Logger.info('AuthenticationHandler: 認証状態が無効になりました');
-            // コールバックを呼び出し
-            onExpired();
-            return;
-          }
+          Logger.info('AuthenticationHandler: 定期的な認証状態チェックを実行しています');
 
-          // 権限チェック
-          if (!this.checkPermission(Feature.SCOPE_MANAGER)) {
-            Logger.warn('AuthenticationHandler: 権限が失効しました');
-            // コールバックを呼び出し
-            onPermissionLost();
-            return;
-          }
+          // SimpleAuthServiceに直接トークン検証を依頼
+          const simpleAuthService = SimpleAuthManager.getInstance().getAuthService();
+          simpleAuthService.verifyAuthState().then(isValid => {
+            Logger.info(`AuthenticationHandler: トークン検証結果: ${isValid ? '有効' : '無効'}`);
+
+            // 有効でない場合はコールバックを実行
+            if (!isValid) {
+              Logger.warn('AuthenticationHandler: 認証状態が無効になりました');
+              onExpired();
+              return;
+            }
+
+            // ログイン状態をチェック（バックアップ）
+            if (!this.checkLoggedIn()) {
+              Logger.info('AuthenticationHandler: checkLoggedInによる認証状態が無効になりました');
+              // コールバックを呼び出し
+              onExpired();
+              return;
+            }
+
+            // 権限チェック
+            if (!this.checkPermission(Feature.SCOPE_MANAGER)) {
+              Logger.warn('AuthenticationHandler: 権限が失効しました');
+              // コールバックを呼び出し
+              onPermissionLost();
+              return;
+            }
+          }).catch(err => {
+            Logger.error('AuthenticationHandler: トークン検証中にエラー', err);
+          });
         } catch (checkError) {
           Logger.error('AuthenticationHandler: 認証状態チェック中にエラーが発生しました', checkError as Error);
         }

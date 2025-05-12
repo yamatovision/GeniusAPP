@@ -26,7 +26,7 @@ export class ClaudeCodeAuthSync {
   private _execPromise = promisify(exec);
   private _lastTokenRefresh: number = 0; // 最後にトークンをリフレッシュした時刻
   private _claudeCliLoginStatus: boolean = false; // Claude CLIのログイン状態
-  private API_KEY_DATA_KEY: string = 'appgenius.simple.apiKey'; // APIキーを保存するStorageのキー
+  // 削除：APIキー関連の定数は不要になりました
 
   /**
    * コンストラクタ
@@ -167,125 +167,23 @@ export class ClaudeCodeAuthSync {
     try {
       // 分離認証モードは常に有効（シンプル化のため）
       Logger.info(`認証同期モード: 分離認証モード (標準設定)`);
-      
+
       // 環境変数で同期が無効化されている場合は何もしない
       if (process.env.CLAUDE_INTEGRATION_ENABLED === 'false') {
         Logger.debug('ClaudeCode CLI同期が環境変数により無効化されています');
         return;
       }
-      
+
       // 認証情報取得の詳細ログ
       Logger.info('ClaudeCode CLI同期: 認証情報の取得を開始します');
-      
-      // AnthropicApiKeyモデルからAPIキーを取得（フォールバックなし）
-      let apiKeyValue: string | undefined;
-      try {
-        apiKeyValue = await this._authService.getApiKey();
-        if (apiKeyValue) {
-          Logger.info(`ClaudeCode CLI同期: AnthropicApiKeyモデルからAPIキーを取得しました (${apiKeyValue.substring(0, 5)}...)`);
-        } else {
-          // APIキーがない場合はエラーを投げる
-          throw new Error('AnthropicApiKeyモデルからAPIキーを取得できませんでした。APIキーの設定を確認してください。');
-        }
-      } catch (apiKeyError) {
-        // エラーの詳細情報をログに記録
-        Logger.error('ClaudeCode CLI同期: APIキー取得エラー', apiKeyError as Error);
-        
-        // ユーザーへの詳細なデバッグ情報
-        const errorMessage = `
-【APIキー取得エラー】
-エラー: ${(apiKeyError as Error).message}
-考えられる原因:
-1. AnthropicApiKeyモデルが正しく設定されていない
-2. ユーザーにAPIキーが割り当てられていない
-3. APIキー取得エンドポイントへのアクセス失敗
 
-デバッグ手順:
-1. ポータル管理画面でAPIキーが設定されているか確認
-2. バックエンドのログを確認
-3. 管理者に連絡してAPIキーの設定を依頼
+      // アクセストークンの確認
+      const accessToken = this._authService.getAccessToken();
+      if (!accessToken) {
+        Logger.warn('ClaudeCode CLI同期: アクセストークンが見つかりません。同期をスキップします');
+        return;
+      }
 
-詳細エラー: ${JSON.stringify(apiKeyError)}
-`;
-        Logger.error(errorMessage);
-        
-        // エラーを再スローして呼び出し元に通知
-        throw new Error(`APIキー取得中にエラーが発生しました: ${(apiKeyError as Error).message}`);
-      }
-      
-      // APIキーのみを使用（アクセストークンのフォールバックなし）
-      const authToken = apiKeyValue;
-      
-      // APIキーの詳細情報をログに記録
-      if (apiKeyValue) {
-        const userInfo = this._authService.getCurrentUser();
-        const userId = userInfo?.id || 'unknown';
-        const userName = userInfo?.name || 'unknown';
-        const userRole = userInfo?.role || 'unknown';
-        const apiKeyMasked = apiKeyValue.substring(0, 5) + '...' + apiKeyValue.substring(apiKeyValue.length - 4);
-        
-        Logger.info(`【認証情報】詳細ユーザー情報:
-        ユーザーID: ${userId}
-        名前: ${userName}
-        ロール: ${userRole}
-        APIキー: ${apiKeyMasked}
-        認証方法: APIキー認証
-        保存場所: ${'appgenius.simple.apiKey'}`);
-        
-        // APIキーの保存元を調査（デバッグ用）
-        Logger.debug('【認証情報】詳細分析:');
-        try {
-          // SimpleAuthServiceがgetCurrentUserをサポートしているか確認
-          const hasGetCurrentUserMethod = typeof this._authService.getCurrentUser === 'function';
-          Logger.debug(`getCurrentUserメソッド存在: ${hasGetCurrentUserMethod}`);
-          
-          // APIキーがどのように取得されたかの履歴
-          const getApiKeyMethod = typeof this._authService.getApiKey === 'function';
-          Logger.debug(`getApiKeyメソッド存在: ${getApiKeyMethod}`);
-          
-          // APIキーの取得元をログ (取得元は判別できないためシンプル化)
-          Logger.debug(`APIキー取得: 成功 (${apiKeyValue ? apiKeyValue.substring(0, 5) + '...' : 'なし'})`);
-          Logger.debug(`APIキー種別: AnthropicApiKey対応版`);
-          
-          // ユーザーデータがシリアライズ可能か確認
-          let userDataJson = '不明';
-          try {
-            userDataJson = JSON.stringify(userInfo);
-          } catch (e) {
-            userDataJson = '取得失敗 - シリアライズエラー';
-          }
-          Logger.debug(`ユーザーデータ: ${userDataJson}`);
-        } catch (analyzeError) {
-          Logger.warn('APIキー詳細分析中にエラーが発生しました', analyzeError as Error);
-        }
-      } else {
-        Logger.warn('【認証情報】APIキーが見つかりません。アクセストークンを使用して認証します');
-        Logger.debug('【認証情報】APIキー調査');
-        
-        try {
-          // SimpleAuthServiceのデバッグ情報
-          const authServiceName = this._authService.constructor.name;
-          Logger.debug(`使用中の認証サービス: ${authServiceName}`);
-          
-          // 内部状態の詳細確認
-          const isAuthMethod = typeof this._authService.isAuthenticated === 'function';
-          Logger.debug(`isAuthenticatedメソッド存在: ${isAuthMethod}`);
-          
-          if (isAuthMethod) {
-            const isAuth = this._authService.isAuthenticated();
-            Logger.debug(`認証状態: ${isAuth ? '認証済み' : '未認証'}`);
-          }
-          
-          // APIキーがない理由を探る
-          Logger.debug('可能性のある問題:');
-          Logger.debug('1. ログイン/セッション復元時にAPIキーが取得されていない');
-          Logger.debug('2. バックエンドがAPIキーを提供していない');
-          Logger.debug('3. APIキーがストレージに正しく保存されていない');
-        } catch (debugError) {
-          Logger.warn('APIキー欠如原因分析中にエラーが発生しました', debugError as Error);
-        }
-      }
-      
       // トークンの有効性を確認（SimpleAuthServiceを使用）
       try {
         const isValid = await this._authService.verifyAuthState();
@@ -297,37 +195,76 @@ export class ClaudeCodeAuthSync {
         Logger.warn('認証状態の確認中にエラーが発生しました。CLIとの同期をスキップします', authCheckError as Error);
         return;
       }
+
+      // ユーザー情報の詳細ログ記録
+      const userInfo = this._authService.getCurrentUser();
+      const userId = userInfo?.id || 'unknown';
+      const userName = userInfo?.name || 'unknown';
+      const userRole = userInfo?.role || 'unknown';
+
+      Logger.info(`【認証情報】詳細ユーザー情報:
+      ユーザーID: ${userId}
+      名前: ${userName}
+      ロール: ${userRole}
+      認証方法: アクセストークン認証
+      `);
+
+      // SimpleAuthServiceのデバッグ情報
+      try {
+        const authServiceName = this._authService.constructor.name;
+        Logger.debug(`使用中の認証サービス: ${authServiceName}`);
+
+        // 内部状態の詳細確認
+        const isAuthMethod = typeof this._authService.isAuthenticated === 'function';
+        Logger.debug(`isAuthenticatedメソッド存在: ${isAuthMethod}`);
+
+        if (isAuthMethod) {
+          const isAuth = this._authService.isAuthenticated();
+          Logger.debug(`認証状態: ${isAuth ? '認証済み' : '未認証'}`);
+        }
+
+        // ユーザーデータがシリアライズ可能か確認
+        let userDataJson = '不明';
+        try {
+          userDataJson = JSON.stringify(userInfo);
+        } catch (e) {
+          userDataJson = '取得失敗 - シリアライズエラー';
+        }
+        Logger.debug(`ユーザーデータ: ${userDataJson}`);
+      } catch (debugError) {
+        Logger.warn('認証情報分析中にエラーが発生しました', debugError as Error);
+      }
       
       // 認証情報ディレクトリとファイルパスを決定
       // AppGenius専用の認証情報ディレクトリを使用
       const authDir = this._getAppGeniusAuthDir();
       const authFileName = 'auth.json';
       Logger.info(`分離認証モードを使用: AppGenius専用の認証情報を保存します (ディレクトリ: ${authDir})`);
-      
+
       // ディレクトリが存在するか確認し、存在しなければ作成
       try {
         // fs-extraのensureDirを使用してディレクトリを確実に作成
         await fs.ensureDir(authDir, { mode: 0o700 }); // 所有者のみ読み書き実行可能
-        
+
         // Unix系OSの場合は、パーミッションを明示的に設定
         if (process.platform !== 'win32') {
           await fs.chmod(authDir, 0o700);
           Logger.debug(`ディレクトリのパーミッションを設定しました (700): ${authDir}`);
         }
-        
+
         Logger.info(`認証情報ディレクトリを確認/作成しました: ${authDir}`);
-        
+
         // ホームディレクトリの.appgeniusフォルダも確保（標準的な場所）
         const dotAppGeniusDir = path.join(os.homedir(), '.appgenius');
         if (!fs.existsSync(dotAppGeniusDir)) {
           await fs.ensureDir(dotAppGeniusDir, { mode: 0o700 });
           Logger.info(`標準の.appgeniusディレクトリを作成しました: ${dotAppGeniusDir}`);
-          
+
           if (process.platform !== 'win32') {
             await fs.chmod(dotAppGeniusDir, 0o700);
           }
         }
-        
+
         // OSごとの標準的な設定ディレクトリも確保
         let osSpecificDir: string;
         if (process.platform === 'darwin') {
@@ -337,36 +274,36 @@ export class ClaudeCodeAuthSync {
         } else {
           osSpecificDir = path.join(os.homedir(), '.config', 'appgenius');
         }
-        
+
         if (!fs.existsSync(osSpecificDir)) {
           await fs.ensureDir(osSpecificDir, { mode: 0o700 });
           Logger.info(`OS固有の設定ディレクトリを作成しました: ${osSpecificDir}`);
-          
+
           if (process.platform !== 'win32') {
             await fs.chmod(osSpecificDir, 0o700);
           }
         }
       } catch (dirError) {
         Logger.error(`認証情報ディレクトリの作成に失敗しました: ${authDir}`, dirError as Error);
-        
+
         // エラー発生時の代替ディレクトリを試みる（フォールバックメカニズム）
         Logger.info('分離認証モードで代替ディレクトリを試みます');
-        
+
         // 代替ディレクトリのリスト（優先順）
         const altDirs = [
           // 1. ホームの.appgenius（標準）
           path.join(os.homedir(), '.appgenius'),
           // 2. OS固有の標準的な設定ディレクトリ
           path.join(
-            os.homedir(), 
-            process.platform === 'darwin' ? 'Library/Application Support/appgenius' : 
-            process.platform === 'win32' ? 'AppData/Roaming/appgenius' : 
+            os.homedir(),
+            process.platform === 'darwin' ? 'Library/Application Support/appgenius' :
+            process.platform === 'win32' ? 'AppData/Roaming/appgenius' :
             '.config/appgenius'
           ),
           // 3. 最終手段として一時ディレクトリ
           path.join(os.tmpdir(), 'appgenius-auth')
         ];
-        
+
         // 代替ディレクトリを順番に試す
         let success = false;
         for (const dir of altDirs) {
@@ -383,30 +320,27 @@ export class ClaudeCodeAuthSync {
             Logger.warn(`代替ディレクトリの作成に失敗しました: ${dir} - ${(altError as Error).message}`);
           }
         }
-        
+
         // すべての代替ディレクトリが失敗した場合
         if (!success) {
           throw new Error(`すべての認証ディレクトリの作成に失敗しました: ${(dirError as Error).message}`);
         }
       }
-      
+
       // 認証状態から有効期限を取得
       const state = this._authService.getCurrentState();
       const expiresAt = state.expiresAt || (Date.now() + 3600000); // デフォルトは1時間後
-      
-      // APIキーの取得を確実に行う
-      // authTokenは既に取得済みなので、それを使用（二重取得を避ける）
-      
+
       // トークン情報をJSONに変換（必ず文字列として保存）
       const authInfo = {
-        accessToken: authToken, // すでに文字列として確実に取得済み
+        accessToken: accessToken, // アクセストークンを使用
         refreshToken: 'appgenius-refresh-token', // ダミーリフレッシュトークン
         expiresAt: expiresAt,
         source: 'appgenius-extension',
         syncedAt: Date.now(),
         updatedAt: Date.now(),
         isolatedAuth: true,
-        isApiKey: !!apiKeyValue // APIキーを使用しているかどうかのフラグ
+        isApiKey: false // APIキーを使用していない
       };
       
       // デバッグ用に変換後の型を確認

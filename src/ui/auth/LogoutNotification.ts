@@ -16,8 +16,10 @@ export class LogoutNotification {
     EXPIRED: 'トークンの期限が切れました',
     REVOKED: '管理者によってアクセスが無効化されました',
     ACCOUNT_DISABLED: 'アカウントが無効化されました',
+    ACCOUNT_DELETED: 'アカウントが削除されました',
     SECURITY: 'セキュリティ上の理由によりログアウトされました',
     USER_REQUESTED: 'ユーザーによるログアウトリクエスト',
+    TIMEOUT: 'サーバー接続がタイムアウトしました',
     UNKNOWN: '不明な理由によりログアウトされました'
   };
 
@@ -58,18 +60,54 @@ export class LogoutNotification {
    * ログアウト通知を表示
    * @param reason ログアウト理由のコード
    */
-  public showLogoutNotification(reason: string = 'UNKNOWN'): void {
-    const reasonMessage = this.LOGOUT_REASONS[reason] || this.LOGOUT_REASONS.UNKNOWN;
-    
-    // ログアウト通知を表示
-    vscode.window.showWarningMessage(
-      `AppGenius: ${reasonMessage}`,
-      'ログインページを開く'
-    ).then(selection => {
-      if (selection === 'ログインページを開く') {
-        vscode.commands.executeCommand('appgenius.login');
+  public showLogoutNotification(reason: 'EXPIRED' | 'TIMEOUT' | 'ACCOUNT_DELETED' | 'MANUAL' = 'MANUAL'): void {
+    try {
+      let message = 'ログアウトしました';
+      let detail = '';
+
+      switch (reason) {
+        case 'EXPIRED':
+          message = 'セッションの有効期限が切れました';
+          detail = '再度ログインしてください。';
+          break;
+        case 'TIMEOUT':
+          message = 'サーバー接続がタイムアウトしました';
+          detail = 'ネットワーク接続を確認し、再度ログインしてください。';
+          break;
+        case 'ACCOUNT_DELETED':
+          message = 'アカウントが削除されました';
+          detail = 'このアカウントは管理者によって削除されました。別のアカウントでログインするか、管理者に連絡してください。';
+          break;
+        case 'MANUAL':
+        default:
+          message = 'ログアウトしました';
+          detail = '再度ログインするには認証してください。';
+          break;
       }
-    });
+
+      // ログアウト通知を表示
+      vscode.window.showWarningMessage(
+        `AppGenius: ${message}`,
+        { detail: detail, modal: reason === 'ACCOUNT_DELETED' },
+        'ログインページを開く'
+      ).then(selection => {
+        if (selection === 'ログインページを開く') {
+          vscode.commands.executeCommand('appgenius.login');
+        }
+      });
+    } catch (error) {
+      // エラーハンドリング
+      console.error('ログアウト通知の表示中にエラーが発生しました', error);
+      // フォールバックとして基本的な通知を表示
+      vscode.window.showWarningMessage(
+        `AppGenius: ログアウトしました`,
+        'ログインページを開く'
+      ).then(selection => {
+        if (selection === 'ログインページを開く') {
+          vscode.commands.executeCommand('appgenius.login');
+        }
+      });
+    }
   }
 
   /**
