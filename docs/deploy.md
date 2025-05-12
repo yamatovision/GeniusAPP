@@ -1,4 +1,4 @@
-# AppGenius デプロイ情報（2025/04/04更新）
+# AppGenius デプロイ情報（2025/05/12更新）
 
 ## プロンプト管理システムのデプロイ構成
 
@@ -15,136 +15,162 @@ AppGeniusのプロンプト管理システムは以下の3つの主要コンポ�
 ### デプロイ環境とURL
 
 **本番環境**
-- バックエンド: 
-  - メイン: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
-  - テスト環境: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+- バックエンド:
+  - **テスト環境（最新・推奨）**: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+  - 旧環境（非推奨）: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
 - フロントエンド: https://geniemon.vercel.app
 - データベース: MongoDB Atlas
 
-### バックエンドデプロイ（Google Cloud Run）
+### バックエンドデプロイ方法（Google Cloud Run）
+
+#### 【重要】標準デプロイ手順（推奨）
+
+ポータルディレクトリに既に標準化されたデプロイスクリプト(`deploy.sh`)が用意されています。これを使用することで、環境差異を気にせず、一貫したデプロイが可能です。
+
+```bash
+# ポータルディレクトリに移動
+cd /path/to/AppGenius/portal
+
+# デプロイスクリプトを実行
+./deploy.sh
+```
+
+このスクリプトは以下の処理を行います：
+1. 最新の検証済みイメージを使用
+2. 適切なサービス名（appgenius-portal-test）とリージョン設定
+3. 最適なリソース設定（メモリ、CPU、インスタンス数など）
+4. デプロイ完了後のURL表示
+
+スクリプトの実行には、Google Cloud SDKとgcloudコマンドラインツールのインストールおよび認証が必要です。
+
+### バックエンドデプロイの詳細情報
 
 Google Cloud Runは軽量コンテナをサーバーレスで実行するマネージドサービスで、高い可用性と自動スケーリングを提供します。
 
-#### Google Cloud Runへのデプロイ手順
+#### 手動デプロイの場合の重要パラメーター
 
-1. **必要なファイル**
-   - プロジェクトディレクトリに`Dockerfile`
-   - 同じく`.dockerignore`
+独自にデプロイコマンドを実行する場合は、以下の点に注意してください：
 
-2. **Dockerfileの準備例**
-   ```dockerfile
-   FROM --platform=linux/amd64 node:16
-   
-   WORKDIR /app
-   
-   COPY package*.json ./
-   COPY server.js ./
-   
-   RUN npm install
-   
-   COPY backend ./backend
-   
-   # 環境変数を設定
-   ENV PORT=5000
-   ENV NODE_ENV=production
-   ENV API_HOST=appgenius-portal-backend-235426778039.asia-northeast1.run.app
-   
-   # ポート5000を開放
-   EXPOSE 5000
-   
-   CMD [ "npm", "start" ]
-   ```
-
-3. **Google Cloud環境の設定**
-   - Google Cloud SDKをインストール
-   - プロジェクトを設定: `gcloud config set project yamatovision-blue-lamp`
-   - 必要なAPIを有効化:
-     ```bash
-     gcloud services enable cloudbuild.googleapis.com run.googleapis.com secretmanager.googleapis.com
-     ```
-
-4. **シークレットの管理**
-   - Secret Managerでシークレット情報を保管:
-     ```bash
-     echo "mongodb+srv://user:password@cluster.mongodb.net/dbname" | gcloud secrets create mongodb-uri --data-file=-
-     
-     # Secret Managerのアクセス権を設定
-     gcloud secrets add-iam-policy-binding mongodb-uri \
-       --member="serviceAccount:$(gcloud projects describe PROJECT_ID --format='value(projectNumber)')-compute@developer.gserviceaccount.com" \
-       --role="roles/secretmanager.secretAccessor"
-     ```
-
-5. **マルチプラットフォームビルドとデプロイ（Apple Siliconから）**
+1. **サービス名**: 必ず `appgenius-portal-test` を使用すること
    ```bash
-   # buildxでマルチプラットフォームビルダーを設定
-   docker buildx create --use --name multi-arch-builder
-   
-   # AMD64向けにビルドとプッシュ
-   docker buildx build --platform linux/amd64 \
-     -t gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest \
-     -f Dockerfile \
-     --push .
-   
-   # Cloud Runにデプロイ
-   gcloud run deploy appgenius-portal-backend \
-     --image gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest \
-     --platform managed \
-     --region asia-northeast1 \
-     --allow-unauthenticated \
-     --port 5000 \
-     --memory 512Mi \
-     --cpu 1000m \
-     --max-instances 100 \
-     --concurrency 80 \
-     --timeout 5m
+   # 正しいサービス名
+   --service-name appgenius-portal-test
    ```
 
-6. **環境変数の設定**
-   - Google Cloud Runのサービス設定で環境変数またはシークレットを設定
-   - MongoDB URI、JWT Secret、CORS設定などを構成
+2. **リージョン**: 必ず `asia-northeast1` （東京リージョン）を使用すること
+   ```bash
+   # 正しいリージョン設定
+   --region asia-northeast1
+   ```
+
+3. **コンテナイメージ**: 最新の安定版イメージを使用すること
+   ```bash
+   # 最新の安定版イメージ
+   --image gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest
+   ```
+
+4. **注意**: `geniemon-portal-backend` というサービス名は使用しないでください（古い設定であり、現在は使用されていません）
+
+#### 環境変数の設定
+
+デプロイ時に設定すべき主要な環境変数：
+
+1. **API_HOST**: 必ず `appgenius-portal-test-235426778039.asia-northeast1.run.app` を設定
+2. **CORS_ORIGIN**: フロントエンドのURLを含める（例: `https://geniemon.vercel.app,https://geniemon-yamatovisions-projects.vercel.app`）
+
+#### Dockerfileの例
+
+カスタムイメージを作成する場合の Dockerfile の例：
+
+```dockerfile
+FROM --platform=linux/amd64 node:16
+
+WORKDIR /app
+
+COPY package*.json ./
+COPY server.js ./
+
+RUN npm install
+
+COPY backend ./backend
+
+# 環境変数を設定
+ENV PORT=5000
+ENV NODE_ENV=production
+ENV API_HOST=appgenius-portal-test-235426778039.asia-northeast1.run.app
+ENV DB_SERVER_TIMEOUT_MS=30000
+ENV DB_SOCKET_TIMEOUT_MS=45000
+ENV DB_CONNECT_TIMEOUT_MS=30000
+ENV DB_MAX_POOL_SIZE=10
+ENV CORS_ORIGIN=https://geniemon.vercel.app,https://geniemon-yamatovisions-projects.vercel.app
+
+# ポート5000を開放
+EXPOSE 5000
+
+CMD [ "npm", "start" ]
+```
 
 #### デプロイ検証
+- デプロイ完了後、サービスURLにアクセスして動作確認（例: https://appgenius-portal-test-235426778039.asia-northeast1.run.app）
 - Google Cloud Runのログと指標を確認
-- 生成されたURLにアクセスして動作確認（例: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app）
 
 ### フロントエンドデプロイ（Vercel）
 
+#### 【重要】フロントエンドデプロイ時の注意点
+
+フロントエンドのデプロイでは、**必ず正しいバックエンドURLを使用してください**:
+
+```
+https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+```
+
+古いURL (`https://appgenius-portal-backend-235426778039.asia-northeast1.run.app`) や別名のURLを使用すると、CORS問題が発生し、認証などの機能が正常に動作しなくなる可能性があります。
+
+#### 標準デプロイ手順
+
 1. **Vercelアカウント設定**
-   - [Vercel](https://vercel.com/)でアカウント作成
-   - GitHubリポジトリ連携
+   - [Vercel](https://vercel.com/)にログイン（既にプロジェクトは作成済み）
 
-2. **プロジェクト作成**
-   - 「New Project」→「Import Git Repository」
-   - リポジトリ: yamatovision/GeniusAPP
-   - Frame Preset: Create React App
-   - Root Directory: portal/frontend
-   - 「Deploy」ボタンをクリック
+2. **環境変数の確認**
+   - Vercelダッシュボードでプロジェクトを選択
+   - 「Settings」→「Environment Variables」を開く
+   - `REACT_APP_API_URL`が正しいバックエンドURLを指していることを確認:
+     ```
+     REACT_APP_API_URL=https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api
+     ```
 
-3. **環境変数設定**
-   - Vercelプロジェクト設定の「Environment Variables」:
-     - `REACT_APP_API_URL`: Google Cloud RunのバックエンドURL + /api（例: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api）
-
-4. **APIリライト設定（vercel.json）**
+3. **vercel.jsonの確認**
+   - `portal/frontend/vercel.json`ファイルを確認
+   - 以下のような設定になっていることを確認:
    ```json
    {
      "rewrites": [
        {
          "source": "/api/:path*",
-         "destination": "https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api/:path*"
+         "destination": "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/:path*"
        }
      ],
      "env": {
-       "REACT_APP_API_URL": "https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api"
+       "REACT_APP_API_URL": "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api"
      },
      "github": {
        "enabled": true
-     }
+     },
+     "alias": ["geniemon.vercel.app"]
    }
    ```
 
-5. **ドメイン設定**
-   - デフォルトで生成される https://geniemon.vercel.app を使用
-   - カスタムドメインが必要な場合は「Settings」→「Domains」から設定
+4. **デプロイコマンド**
+   - フロントエンドディレクトリに移動し、ビルドとデプロイを実行:
+   ```bash
+   cd portal/frontend
+   npm run build
+   vercel --prod
+   ```
+
+5. **デプロイURL**
+   - デプロイ後のURL: https://geniemon.vercel.app
+   - エイリアスURLも同じく: https://geniemon.vercel.app
 
 ## 2. 開発環境構築
 
@@ -186,23 +212,49 @@ npm start
 
 ### パッケージング・公開
 
-**開発版使用（非公開）**:
-1. プロジェクトをビルド:
+#### ローカルでのテストと開発用ビルド（推奨）
+
+最新のコードで拡張機能をビルドし、ローカルで使用する手順：
+
+1. **クリーンビルド**:
    ```bash
+   # プロジェクトのルートディレクトリで実行
+   cd /path/to/AppGenius
+
+   # 依存関係をインストール
    npm install
+
+   # TypeScriptをコンパイル
    npm run compile
    ```
 
-2. VSIX形式でパッケージング:
+2. **VSIX形式でパッケージング**:
    ```bash
+   # プロジェクトのルートディレクトリで実行
    npm run package
+
+   # ビルドが正常に完了すると、'appgenius-ai-[バージョン].vsix'という名前のファイルが作成されます
+   # 例: appgenius-ai-1.0.22.vsix
    ```
 
-3. 生成された.vsixファイルをVSCodeにインストール:
-   - VSCodeで`Extensions` > `...` > `Install from VSIX...`
+3. **生成された.vsixファイルをVSCodeにインストール**:
+   - VSCodeを起動
+   - 拡張機能ビューを開く（Ctrl+Shift+X または Cmd+Shift+X）
+   - `...` メニューをクリック
+   - `Install from VSIX...` を選択
    - 生成された.vsixファイルを選択
+   - 「インストール」または「再読み込み」をクリックして VSCode を再起動
 
-**VSCode Marketplaceへの公開（詳細手順）**:
+#### バージョン管理の基本方針
+
+- バージョン番号は `package.json` のversion要素で管理
+- セマンティックバージョニングを採用: `major.minor.patch`
+  - `major`: 互換性を破壊する変更（例: 1.0.0 → 2.0.0）
+  - `minor`: 後方互換性のある機能追加（例: 1.0.0 → 1.1.0）
+  - `patch`: バグ修正（例: 1.0.0 → 1.0.1）
+- 各バージョンの変更内容は `CHANGELOG.md` に記録
+
+#### VS Code Marketplaceへの公開（本番用）
 
 ### 拡張機能の公開と更新の詳細手順
 

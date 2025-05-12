@@ -203,8 +203,7 @@ export class NoProjectViewPanel {
       // グローバル変数とextensions APIの両方からコンテキストを取得（フォールバック方式）
       const extensionContext = (global as any).__extensionContext ||
                              (global as any).extensionContext ||
-                             (global as any).appgeniusContext ||
-                             vscode.extensions.getExtension('mikoto.appgenius-ai')?.extensionContext;
+                             (global as any).appgeniusContext;
 
       if (!extensionContext) {
         Logger.warn('NoProjectViewPanel: 拡張機能コンテキストが見つかりませんでした - コマンド経由で実行します');
@@ -244,8 +243,7 @@ export class NoProjectViewPanel {
         // グローバル変数とextensions APIの両方からコンテキストを取得（フォールバック方式）
         const extensionContext = (global as any).__extensionContext ||
                                (global as any).extensionContext ||
-                               (global as any).appgeniusContext ||
-                               vscode.extensions.getExtension('mikoto.appgenius-ai')?.extensionContext;
+                               (global as any).appgeniusContext;
 
         if (!extensionContext) {
           Logger.warn('NoProjectViewPanel: 拡張機能コンテキストが見つかりませんでした - コマンド経由で実行します');
