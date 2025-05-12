@@ -50,6 +50,8 @@ import { AuthGuard } from './ui/auth/AuthGuard';
 import { Feature } from './core/auth/roles';
 import { AuthStorageManager } from './utils/AuthStorageManager';
 import { MarkdownViewerPanel } from './ui/markdownViewer/MarkdownViewerPanel'; // 追加: マークダウンビューワーパネル
+import { ProjectStateService } from './services/projectState/ProjectStateService'; // 追加: プロジェクト状態管理サービス
+import { NoProjectViewPanel } from './ui/noProjectView/NoProjectViewPanel'; // 追加: プロジェクト選択画面
 // SimpleModelViewerPanel is removed - not needed anymore
 
 // グローバル変数としてExtensionContextを保持（安全対策）

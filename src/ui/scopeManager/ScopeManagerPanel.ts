@@ -64,9 +64,34 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * ProtectedPanelから呼び出される
    */
   public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string): ScopeManagerPanel | undefined {
+    // プロジェクトパスの有効性をチェック - プロジェクト未選択状態の可能性があるため
+    if (!projectPath || projectPath.trim() === '') {
+      // ProjectStateServiceが使用可能かチェック
+      try {
+        // ProjectStateServiceを取得して状態を確認
+        const { ProjectStateService } = require('../../services/projectState/ProjectStateService');
+        const projectStateService = ProjectStateService.getInstance(context);
+
+        // プロジェクト状態を確認
+        const hasActiveProject = projectStateService.hasActiveProject();
+        Logger.info(`ScopeManagerPanel.createOrShow: プロジェクト状態チェック - hasActiveProject=${hasActiveProject}`);
+
+        if (!hasActiveProject) {
+          // プロジェクトが選択されていない場合はNoProjectViewを表示
+          const { NoProjectViewPanel } = require('../../ui/noProjectView/NoProjectViewPanel');
+          Logger.info('ScopeManagerPanel: プロジェクトが選択されていないため、プロジェクト選択画面を表示します');
+          NoProjectViewPanel.createOrShow(extensionUri);
+          return undefined;
+        }
+      } catch (error) {
+        // ProjectStateServiceが使用できない場合はログ出力のみ
+        Logger.warn('ScopeManagerPanel: ProjectStateServiceが使用できません - 通常モードで続行します', error as Error);
+      }
+    }
+
     // 認証ハンドラーを取得
     const authHandler = AuthenticationHandler.getInstance();
-    
+
     // 認証チェック：ログインしていない場合はログイン画面に直接遷移
     if (!authHandler.checkLoggedIn()) {
       Logger.info('スコープマネージャー: 未認証のためログイン画面に誘導します');
