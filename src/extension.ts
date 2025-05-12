@@ -77,9 +77,15 @@ export function activate(context: vscode.ExtensionContext) {
 	// グローバルコンテキストを設定（安全対策）
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(global as any).__extensionContext = context;
-	// 互換性のために両方の変数名を設定
+	// 互換性のために複数の変数名を設定
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(global as any).extensionContext = context;
+	// ClaudeCodeApiClient用のコンテキスト設定
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	(global as any).appgeniusContext = context;
+
+	// コンテキスト設定を記録
+	Logger.info('グローバルコンテキスト変数が正常に設定されました');
 	
 	// ロガーの初期化（自動表示をオンにする）
 	Logger.initialize('AppGenius AI', LogLevel.DEBUG, true);

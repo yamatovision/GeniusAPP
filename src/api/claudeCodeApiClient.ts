@@ -21,16 +21,20 @@ export class ClaudeCodeApiClient {
   private constructor() {
     // SimpleAuthServiceを使用
     try {
-      const context = (global as any).appgeniusContext;
+      // VSCode拡張のコンテキストを取得（複数の変数名に対応）
+      const context = (global as any).__extensionContext || (global as any).extensionContext;
       if (context) {
         this._simpleAuthService = SimpleAuthService.getInstance(context);
         Logger.info('ClaudeCodeApiClient: SimpleAuthServiceを使用します');
       } else {
-        throw new Error('コンテキストが見つかりません');
+        // グローバルコンテキストが見つからない場合はエラーログを記録してnullを設定する
+        Logger.warn('ClaudeCodeApiClient: 拡張コンテキストが見つかりません。認証機能が制限されます。');
+        this._simpleAuthService = undefined;
       }
     } catch (error) {
       Logger.error('ClaudeCodeApiClient: SimpleAuthServiceの取得に失敗しました', error as Error);
-      throw error;
+      // エラーを投げる代わりにnullを設定して継続する
+      this._simpleAuthService = undefined;
     }
 
     this._errorHandler = ErrorHandler.getInstance();
@@ -55,12 +59,23 @@ export class ClaudeCodeApiClient {
   private async _getApiConfig() {
     let authHeader = {};
 
-    // SimpleAuthServiceから認証ヘッダーを取得
-    if (this._simpleAuthService) {
-      authHeader = this._simpleAuthService.getAuthHeader();
-      Logger.debug('ClaudeCodeApiClient: SimpleAuthServiceからヘッダーを取得しました');
-    } else {
-      Logger.warn('ClaudeCodeApiClient: SimpleAuthServiceが初期化されていません');
+    try {
+      // SimpleAuthServiceから認証ヘッダーを取得
+      if (this._simpleAuthService) {
+        try {
+          authHeader = this._simpleAuthService.getAuthHeader();
+          Logger.debug('ClaudeCodeApiClient: SimpleAuthServiceからヘッダーを取得しました');
+        } catch (headerError) {
+          Logger.warn('ClaudeCodeApiClient: 認証ヘッダーの取得中にエラーが発生しました', headerError as Error);
+          // エラーが発生しても空のヘッダーで継続
+          authHeader = {};
+        }
+      } else {
+        Logger.warn('ClaudeCodeApiClient: SimpleAuthServiceが初期化されていません');
+      }
+    } catch (error) {
+      // 何らかの予期しないエラーが発生した場合でも処理を継続
+      Logger.error('ClaudeCodeApiClient: API設定の取得中に予期しないエラーが発生しました', error as Error);
     }
 
     return {
@@ -494,6 +509,18 @@ export class ClaudeCodeApiClient {
    */
   public async incrementClaudeCodeLaunchCount(userId: string): Promise<any> {
     try {
+      // ユーザーIDが無効な場合は早期リターン
+      if (!userId) {
+        Logger.warn(`【API連携】ClaudeCode起動カウンター: 無効なユーザーID`);
+        return null;
+      }
+
+      // 認証サービスが初期化されていない場合は警告して処理をスキップ
+      if (!this._simpleAuthService) {
+        Logger.warn(`【API連携】ClaudeCode起動カウンター: 認証サービスが初期化されていないため、更新をスキップします`);
+        return null;
+      }
+
       // ログの簡素化（セキュリティ向上）
       Logger.info(`【API連携】ClaudeCode起動カウンターを更新します`);
 
@@ -502,19 +529,20 @@ export class ClaudeCodeApiClient {
       const hasAuthHeader = config?.headers && (config.headers['Authorization'] || config.headers['authorization'] || config.headers['x-api-key']);
       Logger.info(`【デバッグ】API認証ヘッダー: ${hasAuthHeader ? '存在します' : '存在しません'}`);
 
-      // ヘッダーの存在のみをログに出力（内容は出力しない）
-      if (hasAuthHeader) {
-        Logger.info(`【デバッグ】認証ヘッダーは正常に設定されています`);
+      // 認証ヘッダーがない場合はスキップ
+      if (!hasAuthHeader) {
+        Logger.warn(`【API連携】ClaudeCode起動カウンター: 認証ヘッダーがないため、更新をスキップします`);
+        return null;
       }
 
-      // APIエンドポイントURL - 直接ログに出力しない
+      // APIエンドポイントURL
       const url = `${this._baseUrl}/simple/users/${userId}/increment-claude-code-launch`;
 
-      // APIリクエスト送信 - 詳細なURLをログに出力しない
+      // APIリクエスト送信
       Logger.info(`【デバッグ】API呼び出し開始`);
       const response = await axios.post(url, {}, config);
 
-      // レスポンス分析（最小限の情報のみ）
+      // レスポンス分析
       Logger.info(`【デバッグ】API呼び出しステータス: ${response.status}`);
 
       if (response.status === 200) {
@@ -539,7 +567,12 @@ export class ClaudeCodeApiClient {
         }
       }
 
-      this._handleApiError(error);
+      // エラーハンドリングでも例外が発生しないように try-catch で囲む
+      try {
+        this._handleApiError(error);
+      } catch (handlerError) {
+        Logger.error('【API連携】エラーハンドラでさらにエラーが発生しました', handlerError as Error);
+      }
       return null;
     }
   }

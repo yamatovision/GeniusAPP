@@ -3,15 +3,15 @@ import { SimpleAuthService } from './SimpleAuthService';
 import { SimpleAuthManager } from './SimpleAuthManager';
 import { LoginWebviewPanel } from '../../ui/auth/LoginWebviewPanel';
 import { AuthStatusBar } from '../../ui/auth/AuthStatusBar';
-import { UsageIndicator } from '../../ui/auth/UsageIndicator';
+// UsageIndicator のインポートを削除
 import { LogoutNotification } from '../../ui/auth/LogoutNotification';
 
 /**
  * registerAuthCommands - 認証関連のコマンドを登録する関数
- * 
+ *
  * VSCode拡張機能内で認証関連のコマンドを登録し、ユーザーが認証操作を行えるように
  * します。
- * 
+ *
  * @param context VSCode拡張のコンテキスト
  */
 export function registerAuthCommands(context: vscode.ExtensionContext): void {
@@ -41,12 +41,10 @@ export function registerAuthCommands(context: vscode.ExtensionContext): void {
     })
   );
 
-  // 使用量詳細表示コマンド
+  // 使用量詳細表示コマンド - ダミー応答を提供
   context.subscriptions.push(
     vscode.commands.registerCommand('appgenius.showUsageDetails', () => {
-      // 使用量詳細画面を表示するロジック
-      // 今後実装予定
-      vscode.window.showInformationMessage('使用量詳細機能は現在実装中です');
+      vscode.window.showInformationMessage('使用量詳細機能は現在利用できません');
     })
   );
 
@@ -56,8 +54,7 @@ export function registerAuthCommands(context: vscode.ExtensionContext): void {
   // 認証状態表示を初期化
   initAuthStatusBar(context);
 
-  // 使用量表示を初期化
-  initUsageIndicator(context);
+  // UsageIndicator の初期化を削除
 
   // ログアウト通知を初期化
   initLogoutNotification(context);
@@ -71,13 +68,7 @@ function initAuthStatusBar(context: vscode.ExtensionContext): void {
   context.subscriptions.push(statusBar);
 }
 
-/**
- * 使用量インジケーターの初期化
- */
-function initUsageIndicator(context: vscode.ExtensionContext): void {
-  const usageIndicator = UsageIndicator.getInstance();
-  context.subscriptions.push(usageIndicator);
-}
+// UsageIndicator初期化関数を削除
 
 /**
  * ログアウト通知の初期化

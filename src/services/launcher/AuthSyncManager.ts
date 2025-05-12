@@ -19,29 +19,47 @@ export class AuthSyncManager {
     try {
       // 認証同期サービスを取得（ExtensionContextを渡す）
       if (!this.authSync) {
-        this.authSync = await import('../ClaudeCodeAuthSync')
-          .then(module => module.ClaudeCodeAuthSync.getInstance(context));
+        try {
+          this.authSync = await import('../ClaudeCodeAuthSync')
+            .then(module => module.ClaudeCodeAuthSync.getInstance(context))
+            .catch(error => {
+              Logger.warn('ClaudeCodeAuthSyncの初期化に失敗しました', error as Error);
+              return null;
+            });
+        } catch (syncError) {
+          Logger.warn('ClaudeCodeAuthSyncモジュールのインポートに失敗しました', syncError as Error);
+          this.authSync = null;
+        }
       }
-      
+
       // 認証サービスを取得 (AuthenticationServiceは削除されたため不要)
       this.authService = null;
-      
+
       // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
       if (!this.simpleAuthService) {
         try {
           const SimpleAuthServiceModule = await import('../../core/auth/SimpleAuthService');
-          if ((global as any).appgeniusContext) {
-            this.simpleAuthService = SimpleAuthServiceModule.SimpleAuthService.getInstance((global as any).appgeniusContext);
+
+          // グローバルコンテキストを取得（複数の変数名に対応）
+          const globalContext = (global as any).__extensionContext ||
+                               (global as any).extensionContext ||
+                               (global as any).appgeniusContext;
+
+          if (globalContext) {
+            this.simpleAuthService = SimpleAuthServiceModule.SimpleAuthService.getInstance(globalContext);
             Logger.info('SimpleAuthServiceのインスタンスを取得しました');
           } else {
-            Logger.warn('appgeniusContextが見つかりません。SimpleAuthServiceの初期化をスキップします');
+            // contextがグローバル変数に設定されていない場合は、引数のcontextを使用
+            Logger.info('グローバルコンテキストが見つからないため、引数のcontextを使用します');
+            this.simpleAuthService = SimpleAuthServiceModule.SimpleAuthService.getInstance(context);
+            Logger.info('SimpleAuthServiceのインスタンスを引数のcontextから取得しました');
           }
         } catch (error) {
           Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました', error as Error);
           // SimpleAuthService無しでも続行可能
         }
       }
-      
+
       return true;
     } catch (error) {
       Logger.error('認証サービスの初期化に失敗しました', error as Error);
