@@ -265,6 +265,20 @@ try {
     }
 
     switch (message.command) {
+      case 'createNewProject':
+        // projectNavigationの機能を呼び出す
+        if (projectNavigation) {
+          console.log('scopeManager: noProjectViewからの新規プロジェクト作成リクエストを処理');
+          projectNavigation.showNewProjectModal();
+        }
+        break;
+      case 'loadExistingProject':
+        // projectNavigationの機能を呼び出す
+        if (projectNavigation) {
+          console.log('scopeManager: noProjectViewからのプロジェクト読み込みリクエストを処理');
+          projectNavigation.loadExistingProject();
+        }
+        break;
       case 'updateState':
         // StateManagerに処理を委譲
         stateManager.handleUpdateState(message);
