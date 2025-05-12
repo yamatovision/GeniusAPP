@@ -195,8 +195,24 @@ export class SpecializedLaunchHandlers {
       try {
         Logger.info('【ClaudeCode起動カウンター】スコープ実行時のカウントイベントを発行します');
 
-        // 特定のユーザーIDを固定値として使用
-        const userId = "67e207d18ccc8aab3e3b6a8f"; // ユーザーID
+        // SimpleAuthServiceから現在のユーザーIDを取得
+        let userId = null;
+        try {
+          const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
+          const authService = SimpleAuthService.getInstance();
+          // 現在のユーザー情報を取得
+          const currentUser = authService.getCurrentUser();
+          userId = currentUser?.id || null;
+          Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
+        } catch (userIdError) {
+          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
+        }
+
+        // ユーザーIDが取得できない場合はイベントをスキップ
+        if (!userId) {
+          Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
+          return;
+        }
 
         this.eventBus.emit(
           AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
@@ -458,8 +474,24 @@ export class SpecializedLaunchHandlers {
       try {
         Logger.info('【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行します');
 
-        // 特定のユーザーIDを固定値として使用
-        const userId = "67e207d18ccc8aab3e3b6a8f"; // ユーザーID
+        // SimpleAuthServiceから現在のユーザーIDを取得
+        let userId = null;
+        try {
+          const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
+          const authService = SimpleAuthService.getInstance();
+          // 現在のユーザー情報を取得
+          const currentUser = authService.getCurrentUser();
+          userId = currentUser?.id || null;
+          Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
+        } catch (userIdError) {
+          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
+        }
+
+        // ユーザーIDが取得できない場合はイベントをスキップ
+        if (!userId) {
+          Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
+          return;
+        }
 
         this.eventBus.emit(
           AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
@@ -708,8 +740,24 @@ export class SpecializedLaunchHandlers {
       try {
         Logger.info('【ClaudeCode起動カウンター】モックアップ解析時のカウントイベントを発行します');
 
-        // 特定のユーザーIDを固定値として使用
-        const userId = "67e207d18ccc8aab3e3b6a8f"; // ユーザーID
+        // SimpleAuthServiceから現在のユーザーIDを取得
+        let userId = null;
+        try {
+          const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
+          const authService = SimpleAuthService.getInstance();
+          // 現在のユーザー情報を取得
+          const currentUser = authService.getCurrentUser();
+          userId = currentUser?.id || null;
+          Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
+        } catch (userIdError) {
+          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
+        }
+
+        // ユーザーIDが取得できない場合はイベントをスキップ
+        if (!userId) {
+          Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
+          return;
+        }
 
         this.eventBus.emit(
           AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
@@ -748,7 +796,7 @@ export class SpecializedLaunchHandlers {
         setTimeout(() => {
           if (fs.existsSync(promptFilePath)) {
             fs.unlinkSync(promptFilePath);
-            Logger.info(`プロンプトファイルを削除しました: ${promptFilePath}`);
+            // プロンプトファイル削除完了（ログを記録しない）
           }
         }, 30000); // ファイルが読み込まれる時間を考慮して30秒後に削除
       }
@@ -760,7 +808,7 @@ export class SpecializedLaunchHandlers {
             try {
               if (fs.existsSync(promptFilePath)) {
                 fs.unlinkSync(promptFilePath);
-                Logger.info(`プロンプトファイルを削除しました（ターミナル終了時）: ${promptFilePath}`);
+                // プロンプトファイル削除完了（ターミナル終了時）（ログを記録しない）
               }
             } catch (unlinkError) {
               Logger.error(`ファイル削除エラー（ターミナル終了時）: ${unlinkError}`);

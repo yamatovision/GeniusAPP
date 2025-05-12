@@ -650,7 +650,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       );
       
       if (success) {
-        Logger.info(`ClaudeCode起動成功: ${promptFilePath}, 分割モード: ${useSplitTerminal ? '有効' : '無効'}`);
+        Logger.info(`ClaudeCode起動成功, 分割モード: ${useSplitTerminal ? '有効' : '無効'}`);
         
         // 成功通知をUIに送信（デバッグ用）
         this._panel.webview.postMessage({

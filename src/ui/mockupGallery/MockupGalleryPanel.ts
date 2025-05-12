@@ -845,7 +845,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
           try {
             if (fs.existsSync(tempTemplatePath)) {
               fs.unlinkSync(tempTemplatePath);
-              Logger.info(`一時プロンプトファイルを削除しました: ${tempTemplatePath}`);
+              // 一時プロンプトファイル削除完了（ログを記録しない）
             }
           } catch (err) {
             Logger.error(`一時ファイル削除エラー: ${(err as Error).message}`);

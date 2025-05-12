@@ -104,15 +104,30 @@ export class TerminalProvisionService {
     try {
       Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行します');
 
-      // ユーザーIDを固定値として設定
-      const userId = "67e207d18ccc8aab3e3b6a8f"; // ユーザーID
+      // SimpleAuthServiceから現在のユーザーIDを取得
+      let userId = null;
+      try {
+        const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
+        const authService = SimpleAuthService.getInstance();
+        // 現在のユーザー情報を取得
+        const currentUser = authService.getCurrentUser();
+        userId = currentUser?.id || null;
+        Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
+      } catch (userIdError) {
+        Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
+      }
+
+      // ユーザーIDが取得できない場合はイベントをスキップ
+      if (!userId) {
+        Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
+        return;
+      }
 
       const eventBus = AppGeniusEventBus.getInstance();
       eventBus.emit(
         AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
         {
-          userId: userId, // 重要: ユーザーIDのみをイベントデータに含める
-          // センシティブな情報は含めない
+          userId: userId, // ユーザーIDのみをイベントデータに含める
         },
         'TerminalProvisionService'
       );
