@@ -76,12 +76,12 @@ declare global {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-	// グローバルコンテキストを設定（安全対策）
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	(global as any).__extensionContext = context;
-	// 互換性のために複数の変数名を設定
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	(global as any).extensionContext = context;
+  // グローバルにExtensionContextを保存（複数の方法で参照できるようにする）
+  (global as any).__extensionContext = context;
+  (global as any).extensionContext = context;
+  (global as any).appgeniusContext = context; // 互換性のための追加変数
+
+  Logger.info('グローバル拡張機能コンテキスト変数を設定しました');
 	// ClaudeCodeApiClient用のコンテキスト設定
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	(global as any).appgeniusContext = context;
