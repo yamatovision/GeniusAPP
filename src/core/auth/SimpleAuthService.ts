@@ -293,17 +293,24 @@ export class SimpleAuthService {
   /**
    * 認証状態更新
    */
-  private _updateAuthState(newState: AuthState): void {
+  private _updateAuthState(newState: AuthState & {userData?: any}): void {
     const oldState = this._currentState;
+
+    // 既存のuserDataを保持（新しいStateにuserDataがない場合）
+    if (!('userData' in newState) && oldState && 'userData' in oldState) {
+      (newState as any).userData = oldState.userData;
+    }
+
     this._currentState = newState;
-    
+
     // 状態を詳細ログ出力
     Logger.info(`SimpleAuthService: 認証状態更新 [${oldState.isAuthenticated} => ${newState.isAuthenticated}]`);
-    
+    Logger.debug(`SimpleAuthService: ユーザーデータあり: ${!!newState.userData}`);
+
     // 認証状態が未認証→認証済みに変わった場合のみ、追加ログを出力 (デバッグ用)
     if (!oldState.isAuthenticated && newState.isAuthenticated) {
       Logger.info(`SimpleAuthService: 未認証から認証済みに変更されました - ログイン成功のトリガーを発行します`);
-      
+
       // 少し遅延させてからイベントを発火（他の処理が完了するのを待つ）
       setTimeout(() => {
         try {
@@ -384,10 +391,16 @@ export class SimpleAuthService {
         .setPermissions(userData.permissions || [])
         .setExpiresAt(this._tokenExpiry)
         .build();
-      
-      // 認証状態更新
-      this._updateAuthState(newState);
-      Logger.info(`SimpleAuthService: セッション復元完了, ユーザー=${userData.name}, ロール=${roleEnum}`);
+
+      // userData情報を含む拡張した状態を作成
+      const extendedState = {
+        ...newState,
+        userData: userData  // ユーザーデータ全体を保存
+      };
+
+      // 認証状態更新（拡張版を使用）
+      this._updateAuthState(extendedState as any);
+      Logger.info(`SimpleAuthService: セッション復元完了, ユーザー=${userData.name}, ロール=${roleEnum}, userData保存=${!!extendedState.userData}`);
       return true;
     } catch (error) {
       Logger.error('SimpleAuthService: セッション復元エラー', error as Error);
@@ -718,18 +731,35 @@ export class SimpleAuthService {
     if (!this.isAuthenticated()) {
       return null;
     }
-    
+
     try {
-      // ユーザーデータがあれば返す
+      // ユーザーデータを確認
       const userData = this._currentState.userData;
-      
+
+      // userData情報のデバッグログ
       Logger.debug(`【認証情報確認】ユーザー: ${userData?.name || 'unknown'}, ID: ${userData?.id || 'unknown'}`);
-      // APIキー機能は廃止されました
-      
+
+      // userData情報がない場合は現在の認証状態から基本情報を構築して返す
+      if (!userData) {
+        Logger.warn('SimpleAuthService: userData情報がないため、現在の認証状態から基本情報を構築します');
+        return {
+          id: this._currentState.userId || 'unknown',
+          name: this._currentState.username || 'unknown',
+          role: this._currentState.role.toString(),
+          permissions: this._currentState.permissions || []
+        };
+      }
+
       return userData;
     } catch (error) {
       Logger.warn('ユーザー情報の取得中にエラーが発生しました', error as Error);
-      return null;
+
+      // エラー発生時もできるだけ情報を返す
+      return {
+        id: this._currentState.userId || 'unknown',
+        name: this._currentState.username || 'unknown',
+        role: this._currentState.role.toString()
+      };
     }
   }
   
