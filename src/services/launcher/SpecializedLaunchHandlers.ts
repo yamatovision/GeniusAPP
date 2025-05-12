@@ -16,6 +16,7 @@ import {
 } from './LauncherTypes';
 import { TerminalProvisionService } from './TerminalProvisionService';
 import { AuthSyncManager } from './AuthSyncManager';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 
 /**
  * 各種アシスタント固有の起動ロジックを扱うクラス
@@ -26,7 +27,7 @@ export class SpecializedLaunchHandlers {
   private eventBus: AppGeniusEventBus;
   private platformManager: PlatformManager;
   private scopeExporter: ScopeExporter;
-  
+
   constructor(
     terminalService: TerminalProvisionService,
     authManager: AuthSyncManager,
@@ -37,6 +38,81 @@ export class SpecializedLaunchHandlers {
     this.eventBus = eventBus;
     this.platformManager = PlatformManager.getInstance();
     this.scopeExporter = ScopeExporter.getInstance();
+  }
+
+  /**
+   * 現在のユーザーIDを安全に取得する共通メソッド
+   * グローバル変数からSimpleAuthServiceを取得してユーザーIDを返す
+   * エラーハンドリングを強化し、詳細なログを出力
+   */
+  private async _getUserId(): Promise<string | null> {
+    let userId = null;
+
+    try {
+      // 複数の方法でSimpleAuthServiceを取得を試みる
+
+      // 方法1: グローバル変数からSimpleAuthServiceインスタンスを取得
+      let authService = global._appgenius_simple_auth_service as SimpleAuthService | undefined;
+
+      // グローバル変数のSimpleAuthService存在確認をログに出力
+      Logger.debug(`【認証情報確認】グローバル変数authServiceインスタンス: ${authService ? '存在します' : '存在しません'}`);
+
+      // グローバル変数に存在しない場合は直接インポートを試みる
+      if (!authService) {
+        try {
+          // 方法2: インポートしてシングルトンインスタンスを取得
+          authService = SimpleAuthService.getInstance();
+          Logger.debug('【認証情報確認】直接インポートからSimpleAuthServiceインスタンスを取得しました');
+        } catch (importError) {
+          Logger.warn(`【認証情報確認】SimpleAuthServiceインポートエラー: ${(importError as Error).message}`);
+
+          // 方法3: requireを使用したバックアップ方法
+          try {
+            const SimpleAuthServiceClass = require('../../core/auth/SimpleAuthService').SimpleAuthService;
+            authService = SimpleAuthServiceClass.getInstance();
+            Logger.debug('【認証情報確認】require()を使用してSimpleAuthServiceインスタンスを取得しました');
+          } catch (requireError) {
+            Logger.warn(`【認証情報確認】require()を使用したSimpleAuthService取得エラー: ${(requireError as Error).message}`);
+          }
+        }
+      }
+
+      // 認証サービスが取得できた場合、ユーザー情報を取得
+      if (authService) {
+        try {
+          // isAuthenticatedの確認を先に行う
+          const isAuthenticated = authService.isAuthenticated();
+          Logger.debug(`【認証情報確認】認証状態: ${isAuthenticated ? '認証済み' : '未認証'}`);
+
+          if (isAuthenticated) {
+            // 現在のユーザー情報を取得
+            const currentUser = authService.getCurrentUser();
+
+            // ユーザー情報の詳細をデバッグログに出力（センシティブ情報は除く）
+            if (currentUser) {
+              Logger.debug(`【認証情報確認】ユーザー: ${currentUser.name || 'unknown'}, ID: ${currentUser.id || 'unknown'}`);
+              userId = currentUser.id || null;
+            } else {
+              Logger.warn('【認証情報確認】認証済みですがユーザー情報がnullです');
+            }
+          } else {
+            Logger.warn('【認証情報確認】未認証状態のためユーザーIDを取得できません');
+          }
+        } catch (getUserError) {
+          Logger.warn(`【認証情報確認】ユーザー情報取得エラー: ${(getUserError as Error).message}`);
+        }
+      } else {
+        Logger.warn('【認証情報確認】SimpleAuthServiceインスタンスを取得できませんでした');
+      }
+    } catch (error) {
+      // 最上位のエラーハンドリング
+      Logger.error(`【認証情報確認】ユーザーID取得中に予期せぬエラー: ${(error as Error).message}`);
+    }
+
+    // 取得結果をログに出力
+    Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
+
+    return userId;
   }
   
   /**
@@ -201,18 +277,8 @@ export class SpecializedLaunchHandlers {
       try {
         Logger.info('【ClaudeCode起動カウンター】スコープ実行時のカウントイベントを発行します');
 
-        // SimpleAuthServiceから現在のユーザーIDを取得
-        let userId = null;
-        try {
-          const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
-          const authService = SimpleAuthService.getInstance();
-          // 現在のユーザー情報を取得
-          const currentUser = authService.getCurrentUser();
-          userId = currentUser?.id || null;
-          Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
-        } catch (userIdError) {
-          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
-        }
+        // 共通関数を使ってユーザーIDを取得
+        const userId = await this._getUserId();
 
         // ユーザーIDが取得できた場合のみイベントを発行（取得できなくてもエラーにはしない）
         if (userId) {
@@ -232,7 +298,7 @@ export class SpecializedLaunchHandlers {
         }
       } catch (error) {
         // エラーをログに記録するだけで、プロセス全体は中断しない
-        Logger.error('【ClaudeCode起動カウンター】スコープ実行時のイベント発行エラー', error as Error);
+        Logger.error(`【ClaudeCode起動カウンター】スコープ実行時のイベント発行エラー: ${(error as Error).message}`, error as Error);
         // エラーが発生してもプロセスは続行
       }
       
@@ -489,18 +555,8 @@ export class SpecializedLaunchHandlers {
       try {
         Logger.info('【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行します');
 
-        // SimpleAuthServiceから現在のユーザーIDを取得
-        let userId = null;
-        try {
-          const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
-          const authService = SimpleAuthService.getInstance();
-          // 現在のユーザー情報を取得
-          const currentUser = authService.getCurrentUser();
-          userId = currentUser?.id || null;
-          Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
-        } catch (userIdError) {
-          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー: ' + (userIdError as Error).message);
-        }
+        // 共通関数を使ってユーザーIDを取得
+        const userId = await this._getUserId();
 
         // ユーザーIDが取得できた場合のみイベントを発行（取得できなくてもエラーにはしない）
         if (userId) {
@@ -519,7 +575,7 @@ export class SpecializedLaunchHandlers {
         }
       } catch (error) {
         // エラーをログに記録するだけで、プロセス全体は中断しない
-        Logger.error('【ClaudeCode起動カウンター】コマンド実行時のイベント発行エラー', error as Error);
+        Logger.error(`【ClaudeCode起動カウンター】コマンド実行時のイベント発行エラー: ${(error as Error).message}`, error as Error);
         // エラーが発生してもプロセスは続行
       }
       
@@ -772,18 +828,8 @@ export class SpecializedLaunchHandlers {
       try {
         Logger.info('【ClaudeCode起動カウンター】モックアップ解析時のカウントイベントを発行します');
 
-        // SimpleAuthServiceから現在のユーザーIDを取得
-        let userId = null;
-        try {
-          const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
-          const authService = SimpleAuthService.getInstance();
-          // 現在のユーザー情報を取得
-          const currentUser = authService.getCurrentUser();
-          userId = currentUser?.id || null;
-          Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
-        } catch (userIdError) {
-          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
-        }
+        // 共通関数を使ってユーザーIDを取得
+        const userId = await this._getUserId();
 
         // ユーザーIDが取得できた場合のみイベントを発行（取得できなくてもエラーにはしない）
         if (userId) {
@@ -803,7 +849,7 @@ export class SpecializedLaunchHandlers {
         }
       } catch (error) {
         // エラーをログに記録するだけで、プロセス全体は中断しない
-        Logger.error('【ClaudeCode起動カウンター】モックアップ解析時のイベント発行エラー', error as Error);
+        Logger.error(`【ClaudeCode起動カウンター】モックアップ解析時のイベント発行エラー: ${(error as Error).message}`, error as Error);
         // エラーが発生してもプロセスは続行
       }
       
