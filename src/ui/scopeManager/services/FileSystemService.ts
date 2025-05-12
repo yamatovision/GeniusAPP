@@ -261,8 +261,8 @@ export class FileSystemService implements IFileSystemService {
   }
   
   /**
-   * ファイル変更の監視を設定
-   * @param filePath 監視対象のファイルパス
+   * 進捗ファイル（SCOPE_PROGRESS.md）の変更監視を設定
+   * @param filePath 監視ファイルのパス（実際にはプロジェクトパスから自動計算）
    * @param onFileChanged ファイル変更時のコールバック
    */
   public setupFileWatcher(filePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable {
@@ -275,31 +275,31 @@ export class FileSystemService implements IFileSystemService {
         this._fileWatcher.dispose();
         this._fileWatcher = null;
       }
-      
+
       if (this._docsDirWatcher) {
         this._docsDirWatcher.close();
         this._docsDirWatcher = null;
       }
-      
+
       if (!filePath) {
         throw new Error('監視対象のファイルパスが指定されていません');
       }
 
       const projectPath = path.dirname(path.dirname(filePath)); // docs/<file>からプロジェクトパスを取得
-      
+
       // docs ディレクトリが存在しない場合は作成
       const docsDir = path.join(projectPath, 'docs');
       if (!fs.existsSync(docsDir)) {
         fs.mkdirSync(docsDir, { recursive: true });
       }
-      
-      // SCOPE_PROGRESS.md を監視（ハードコードに戻す）
+
+      // SCOPE_PROGRESS.md を監視（ハードコード版）
       const watchers: vscode.FileSystemWatcher[] = [];
       const fileName = 'SCOPE_PROGRESS.md';
       const watchPath = path.join(docsDir, fileName);
 
-      console.log(`★★★★ 監視対象ファイル設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
-      Logger.info(`★★★★ 監視対象ファイル設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
+      console.log(`★★★★ 進捗ファイル監視設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
+      Logger.info(`★★★★ 進捗ファイル監視設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
       
       if (fs.existsSync(watchPath)) {
         // ファイルが存在する場合はそのファイルのみを監視
@@ -607,6 +607,157 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
     }
   }
   
+  /**
+   * 要件定義ファイル（requirements.md）の変更監視を設定
+   * @param filePath 監視ファイルのパス（実際にはプロジェクトパスから自動計算）
+   * @param onFileChanged ファイル変更時のコールバック
+   */
+  public setupRequirementsWatcher(filePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable {
+    // デバッグ - メソッド開始
+    console.log(`★★★★ FileSystemService.setupRequirementsWatcher 開始: ${filePath}`);
+    Logger.info(`★★★★ FileSystemService.setupRequirementsWatcher 開始: ${filePath}`);
+    try {
+      // 既存の監視があれば破棄（対応する変数があれば）
+      // 注：将来的には要件定義ファイル専用の_requirementsWatcherなどを作成すると良い
+
+      if (!filePath) {
+        throw new Error('監視対象のファイルパスが指定されていません');
+      }
+
+      const projectPath = path.dirname(path.dirname(filePath)); // docs/<file>からプロジェクトパスを取得
+
+      // docs ディレクトリが存在しない場合は作成
+      const docsDir = path.join(projectPath, 'docs');
+      if (!fs.existsSync(docsDir)) {
+        fs.mkdirSync(docsDir, { recursive: true });
+      }
+
+      // requirements.md を監視（ハードコード版）
+      const watchers: vscode.FileSystemWatcher[] = [];
+      const fileName = 'requirements.md';
+      const watchPath = path.join(docsDir, fileName);
+
+      console.log(`★★★★ 要件定義ファイル監視設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
+      Logger.info(`★★★★ 要件定義ファイル監視設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
+
+      if (fs.existsSync(watchPath)) {
+        // ファイルが存在する場合はそのファイルのみを監視
+        const pattern = new vscode.RelativePattern(vscode.Uri.file(docsDir), fileName);
+
+        // より詳細なログを出力
+        console.log(`★★★★ 要件定義ファイル VSCodeウォッチャー設定: docsDir=${docsDir}, fileName=${fileName}`);
+        Logger.info(`★★★★ 要件定義ファイル VSCodeウォッチャー設定: relativePattern=${pattern.pattern}`);
+
+        const watcher = vscode.workspace.createFileSystemWatcher(
+          pattern,
+          false, // 作成イベントを無視しない
+          false, // 変更イベントを無視しない
+          false  // 削除イベントを無視しない
+        );
+
+        // ファイル変更時のイベントハンドラを設定
+        watcher.onDidChange(async (uri) => {
+          console.log(`★★★★ 要件定義ファイル変更イベント検出: ${uri.fsPath}, 監視していたファイル=${fileName}`);
+          Logger.info(`【重要】FileSystemService: 要件定義ファイル変更イベント検出: ${uri.fsPath}, 監視対象ファイル=${fileName}`);
+
+          // ファイルが存在するか確認
+          if (fs.existsSync(uri.fsPath)) {
+            // 最終更新日時を取得して確実に変更を検出
+            const stats = fs.statSync(uri.fsPath);
+            Logger.info(`FileSystemService: 要件定義ファイル情報 - 最終更新: ${stats.mtime}, サイズ: ${stats.size}バイト`);
+
+            // ファイル内容をすぐに読み込んで通知
+            try {
+              const content = await this.readMarkdownFile(uri.fsPath);
+              Logger.info(`FileSystemService: 要件定義ファイル読み込み成功 - 長さ: ${content.length}文字`);
+
+              // イベント発火とコールバック
+              onFileChanged(uri.fsPath);
+              Logger.info(`FileSystemService: 要件定義ファイル変更通知完了`);
+            } catch (error) {
+              Logger.error(`FileSystemService: 要件定義ファイル変更検出後の読み込みに失敗: ${uri.fsPath}`, error as Error);
+              onFileChanged(uri.fsPath);
+            }
+          } else {
+            Logger.warn(`FileSystemService: 変更が検出された要件定義ファイルが存在しません: ${uri.fsPath}`);
+          }
+        });
+
+        // ファイル作成時のイベントハンドラを設定
+        watcher.onDidCreate(async (uri) => {
+          Logger.info(`FileSystemService: 要件定義ファイルが作成されました: ${uri.fsPath}`);
+          onFileChanged(uri.fsPath);
+        });
+
+        watchers.push(watcher);
+        Logger.info(`FileSystemService: ${fileName}ファイルの監視を設定: ${watchPath}`);
+      } else {
+        // ファイルが存在しない場合でも、ファイル作成を監視
+        const pattern = new vscode.RelativePattern(vscode.Uri.file(docsDir), fileName);
+
+        // より詳細なログを出力
+        console.log(`★★★★ 要件定義ファイル未存在時の監視設定: docsDir=${docsDir}, fileName=${fileName}`);
+        Logger.info(`★★★★ 要件定義ファイル未存在時の監視設定: relativePattern=${pattern.pattern}`);
+
+        const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+        // ファイル作成時にマークダウンコンテンツを更新
+        watcher.onDidCreate(async (uri) => {
+          Logger.info(`FileSystemService: 要件定義ファイルが作成されました: ${uri.fsPath}`);
+          onFileChanged(uri.fsPath);
+        });
+
+        // ファイル変更時にマークダウンコンテンツを更新
+        watcher.onDidChange(async (uri) => {
+          Logger.info(`FileSystemService: 要件定義ファイル変更を検出: ${uri.fsPath}`);
+          onFileChanged(uri.fsPath);
+        });
+
+        watchers.push(watcher);
+        Logger.info(`FileSystemService: ${fileName}ファイル（未存在）の監視を設定: ${docsDir}`);
+      }
+
+      // Node.jsのfs.watchを追加（バックアップ監視として）
+      try {
+        this._docsDirWatcher = fs.watch(docsDir, (eventType, filename) => {
+          // requirements.mdの変更のみに反応
+          if (filename === 'requirements.md' && eventType === 'change') {
+            const fullPath = path.join(docsDir, filename);
+            Logger.info(`FileSystemService: Node.jsのウォッチャーが要件定義ファイル変更を検出: ${fullPath}`);
+            if (fs.existsSync(fullPath)) {
+              onFileChanged(fullPath);
+            }
+          }
+        });
+        Logger.info(`FileSystemService: Node.jsのウォッチャーを設定: ${docsDir}`);
+      } catch (error) {
+        Logger.warn(`FileSystemService: Node.jsのウォッチャー設定に失敗: ${error}`);
+      }
+
+      // 複合ウォッチャーを返す
+      if (watchers.length === 0) {
+        // ウォッチャーが作成されなかった場合は空のDisposableを返す
+        return { dispose: () => {} };
+      } else if (watchers.length === 1) {
+        // ウォッチャーが1つだけなら、そのまま返す
+        return watchers[0];
+      } else {
+        // 複数のウォッチャーがある場合は複合Disposableを返す
+        return {
+          dispose: () => {
+            for (const watcher of watchers) {
+              watcher.dispose();
+            }
+          }
+        };
+      }
+    } catch (error) {
+      Logger.error(`FileSystemService: 要件定義ファイルウォッチャーの設定中にエラーが発生しました: ${filePath}`, error as Error);
+      // エラー時は空のDisposableを返す
+      return { dispose: () => {} };
+    }
+  }
+
   /**
    * 拡張されたファイル監視機能
    * ファイル変更時の遅延読み込みオプションなど追加機能を提供

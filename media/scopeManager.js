@@ -198,6 +198,17 @@ try {
 
         console.log(`🔄 要件定義ファイル再読込リクエスト送信: ${message.filePath}`);
 
+        // 要件定義タブが表示中かチェック
+        const activeTabId = stateManager.getState().activeTab;
+        if (activeTabId === 'requirements') {
+          console.log('要件定義タブがアクティブなため、UI更新準備をします');
+          // コンテンツが来る前に一度マークダウン表示エリアをクリアして更新準備
+          const requirementsContainer = document.querySelector('#requirements-tab .markdown-content');
+          if (requirementsContainer) {
+            requirementsContainer.innerHTML = '<p>ファイルを読み込み中...</p>';
+          }
+        }
+
         // すでにコンテンツが提供されている場合は即時更新（最速対応）
         if (message.content) {
           console.log(`即時更新: 直接提供されたコンテンツで更新します (長さ: ${message.content.length})`);
@@ -404,11 +415,13 @@ try {
               if (requirementsContent) {
                 requirementsContent.innerHTML = '';
                 setTimeout(() => {
-                  markdownViewer.updateContent(message.content);
-                  console.log('要件定義タブの内容が更新されました');
+                  // 重要：コンテナを明示的に指定して更新
+                  markdownViewer.updateContent(message.content, requirementsContent);
+                  console.log('要件定義タブの内容が更新されました (コンテナ指定)');
                 }, 10);
               } else {
                 console.log('要件定義タブのコンテンツ要素が見つかりません');
+                // 直接デフォルトコンテナに更新
                 markdownViewer.updateContent(message.content);
               }
             } else {
@@ -479,7 +492,15 @@ try {
           // タブがアクティブな場合は表示を更新
           if (activeTabId === 'requirements') {
             console.log(`要件定義タブが表示中なので内容を更新します`);
-            markdownViewer.updateContent(message.content);
+            // 明示的にコンテナを指定して更新
+            const requirementsContainer = document.querySelector('#requirements-tab .markdown-content');
+            if (requirementsContainer && window.markdownViewer) {
+              window.markdownViewer.updateContent(message.content, requirementsContainer);
+              console.log('要件定義タブの内容が明示的なコンテナ指定で更新されました');
+            } else {
+              console.log('要件定義タブのコンテナが見つからないため、代替方法で更新');
+              markdownViewer.updateContent(message.content);
+            }
           } else {
             console.log(`要件定義タブが非アクティブですが、次回表示時に更新されるようコンテンツを保存しました`);
 

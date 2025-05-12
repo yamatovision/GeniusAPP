@@ -19,7 +19,8 @@ export interface IFileSystemService extends IService {
   ensureDirectoryExists(dirPath: string): Promise<void>;
 
   // ファイル監視
-  setupFileWatcher(statusFilePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable;
+  setupFileWatcher(filePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable;
+  setupRequirementsWatcher(filePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable;
   setupEnhancedFileWatcher(
     statusFilePath: string,
     onFileChanged: (filePath: string) => void,
