@@ -25,16 +25,17 @@ export class SimpleAuthManager {
   private constructor(context: vscode.ExtensionContext) {
     this._authService = SimpleAuthService.getInstance(context);
     
-    // ステータスバーアイテム作成
+    // ステータスバーアイテムは非表示に設定（AuthStatusBarと重複するため）
+    // 注: AuthStatusBarに統合されたため、ここでのステータスバー表示は無効化
     this._statusBar = vscode.window.createStatusBarItem(
       vscode.StatusBarAlignment.Right,
       100
     );
     this._statusBar.command = 'appgenius.simpleAuth.showMenu';
     this._statusBar.tooltip = 'AppGenius認証状態';
-    this._statusBar.show();
-    
-    // ステータス表示更新
+    // this._statusBar.show(); // 重複表示を避けるため非表示
+
+    // ステータス表示更新は行うが表示はされない
     this._updateStatusBar(this._authService.getCurrentState());
     
     // イベントの初期化
