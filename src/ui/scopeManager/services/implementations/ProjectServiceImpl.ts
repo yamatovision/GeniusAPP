@@ -747,17 +747,26 @@ export class ProjectServiceImpl implements IProjectService {
    */
   public async setProjectPath(projectPath: string): Promise<void> {
     this._projectPath = projectPath;
-    
+
     // FileSystemServiceから進捗ファイルパスを取得
     this._progressFilePath = this._fileSystemService.getProgressFilePath(projectPath);
-    
+
     Logger.info(`ProjectService: プロジェクトパスを設定しました: ${projectPath}`);
     Logger.info(`ProjectService: 進捗ファイルパス: ${this._progressFilePath}, ファイル存在: ${fs.existsSync(this._progressFilePath) ? 'はい' : 'いいえ'}`);
-    
+
     // 進捗ファイルを作成（必要な場合）
     if (!fs.existsSync(this._progressFilePath)) {
       // SCOPE_PROGRESS.mdを作成
       await this._fileSystemService.createProgressFile(projectPath);
+    }
+
+    // 重要: VSCode設定にも現在のプロジェクトパスを直接保存
+    // これにより、他のコンポーネントも同じプロジェクトパスを参照できる
+    try {
+      await vscode.workspace.getConfiguration('appgenius').update('currentProjectPath', projectPath, true);
+      Logger.info(`ProjectService: VSCode設定にプロジェクトパスを保存しました: ${projectPath}`);
+    } catch (error) {
+      Logger.warn(`ProjectService: VSCode設定へのプロジェクトパス保存に失敗しました: ${error}`);
     }
   }
   

@@ -380,6 +380,11 @@
           "type": "object",
           "default": {},
           "description": "ユーザーの基本情報（センシティブ情報は含まない）"
+        },
+        "appgenius.currentProjectPath": {
+          "type": "string",
+          "default": "",
+          "description": "現在選択中のプロジェクトパス"
         }
       }
     }
