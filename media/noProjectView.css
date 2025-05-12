@@ -1,0 +1,313 @@
+.no-project-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  text-align: center;
+  padding: 0 20px;
+  background-color: #f5f5f5; /* ライトグレー背景（固定） */
+  color: #333333; /* ダークグレーテキスト（固定） */
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+.no-project-card {
+  background-color: #ffffff; /* 白背景（固定） */
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  width: 90%;
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #e0e0e0; /* 薄いグレーボーダー（固定） */
+}
+
+.no-project-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0078d4, #2b88d8, #83b9f9, #0078d4); /* 拡張グラデーション（固定） */
+  background-size: 200% auto;
+  animation: gradient 3s linear infinite;
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.no-project-icon {
+  font-size: 72px;
+  margin-bottom: 24px;
+  color: #0078d4; /* Microsoftブルー（固定） */
+  background-color: rgba(0, 120, 212, 0.1); /* 薄いブルー背景（固定） */
+  padding: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  animation: pulse 2s infinite ease-in-out;
+  box-shadow: 0 0 0 rgba(0, 120, 212, 0.4);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(0, 120, 212, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(0, 120, 212, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 120, 212, 0);
+  }
+}
+
+.no-project-title {
+  font-size: 28px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  color: #333333; /* ダークグレー（固定） */
+  background: linear-gradient(90deg, #0078d4, #2b88d8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+  animation: shine 2s ease-in-out infinite alternate;
+}
+
+@keyframes shine {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.no-project-text {
+  max-width: 500px;
+  margin-bottom: 32px;
+  line-height: 1.7;
+  color: #666666; /* ミディアムグレー（固定） */
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+.project-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.project-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+  min-width: 180px;
+  justify-content: center;
+}
+
+.primary-button {
+  background: linear-gradient(45deg, #0078d4, #2b88d8); /* グラデーションボタン */
+  color: #ffffff; /* 白テキスト（固定） */
+  box-shadow: 0 4px 6px rgba(0, 120, 212, 0.2);
+  transition: all 0.3s ease;
+}
+
+.primary-button:hover {
+  background: linear-gradient(45deg, #006cbe, #1a7ed0); /* 少し暗いグラデーション */
+  transform: translateY(-2px) scale(1.03);
+  box-shadow: 0 6px 12px rgba(0, 120, 212, 0.3);
+}
+
+.secondary-button {
+  background-color: #f9f9f9; /* 明るいグレー（固定） */
+  color: #0078d4; /* ブルーテキスト（固定） */
+  border: 1px solid #c7e0f4; /* 薄いブルーボーダー（固定） */
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.secondary-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 120, 212, 0.05), transparent);
+  transition: all 0.6s ease;
+  z-index: -1;
+}
+
+.secondary-button:hover {
+  background-color: #f0f8ff; /* 薄いブルー背景（固定） */
+  color: #0066b8; /* 濃いブルーテキスト（固定） */
+  border-color: #83b9f9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 120, 212, 0.1);
+}
+
+.secondary-button:hover::before {
+  left: 100%;
+}
+
+.project-button-icon {
+  font-size: 18px;
+}
+
+/* Material Iconsの基本スタイル */
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'liga';
+}
+
+/* モーダル共通スタイル */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  opacity: 0;
+  animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal-content {
+  background-color: #ffffff;
+  border-radius: 8px;
+  width: 480px;
+  max-width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  transform: translateY(-20px);
+  animation: slideIn 0.3s ease forwards;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid #ddd;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-footer {
+  padding: 16px 20px;
+  border-top: 1px solid #ddd;
+  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: #333;
+}
+
+.form-group .required {
+  color: #d83b01;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.3s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #0078d4;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.2);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* レスポンシブ対応 */
+@media (max-width: 600px) {
+  .project-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .project-button {
+    width: 100%;
+  }
+
+  .no-project-card {
+    padding: 30px 15px;
+  }
+
+  .modal-content {
+    width: 95%;
+  }
+}

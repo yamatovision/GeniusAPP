@@ -66,26 +66,35 @@ export class ScopeManagerPanel extends ProtectedPanel {
   public static createOrShow(extensionUri: vscode.Uri, context: vscode.ExtensionContext, projectPath?: string): ScopeManagerPanel | undefined {
     // プロジェクトパスの有効性をチェック - プロジェクト未選択状態の可能性があるため
     if (!projectPath || projectPath.trim() === '') {
-      // ProjectStateServiceが使用可能かチェック
       try {
-        // ProjectStateServiceを取得して状態を確認
-        const { ProjectStateService } = require('../../services/projectState/ProjectStateService');
-        const projectStateService = ProjectStateService.getInstance(context);
+        // 直接ProjectServiceImplを使用してプロジェクト確認 - 最もシンプルで信頼性の高い方法
+        const { ProjectServiceImpl } = require('./services/implementations/ProjectServiceImpl');
+        const { FileSystemServiceImpl } = require('./services/implementations/FileSystemServiceImpl');
 
-        // プロジェクト状態を確認
-        const hasActiveProject = projectStateService.hasActiveProject();
-        Logger.info(`ScopeManagerPanel.createOrShow: プロジェクト状態チェック - hasActiveProject=${hasActiveProject}`);
+        const fileSystemService = FileSystemServiceImpl.getInstance();
+        const projectService = ProjectServiceImpl.getInstance(fileSystemService);
 
-        if (!hasActiveProject) {
+        // プロジェクト一覧を取得
+        const allProjects = projectService.getAllProjects();
+        const activeProject = projectService.getActiveProject();
+
+        Logger.info(`ScopeManagerPanel.createOrShow: プロジェクト数=${allProjects.length}, アクティブプロジェクト=${activeProject ? activeProject.name : 'なし'}`);
+
+        // プロジェクトが1件も存在しないか、アクティブプロジェクトがない場合はNoProjectViewを表示
+        if (allProjects.length === 0 || !activeProject) {
           // プロジェクトが選択されていない場合はNoProjectViewを表示
           const { NoProjectViewPanel } = require('../../ui/noProjectView/NoProjectViewPanel');
-          Logger.info('ScopeManagerPanel: プロジェクトが選択されていないため、プロジェクト選択画面を表示します');
+          Logger.info('ScopeManagerPanel: プロジェクトが存在しないか選択されていないため、プロジェクト選択画面を表示します');
           NoProjectViewPanel.createOrShow(extensionUri);
           return undefined;
         }
+
+        // プロジェクトがあればそのパスを使用
+        projectPath = activeProject.path;
+        Logger.info(`ScopeManagerPanel: アクティブプロジェクトを使用します: ${projectPath}`);
       } catch (error) {
-        // ProjectStateServiceが使用できない場合はログ出力のみ
-        Logger.warn('ScopeManagerPanel: ProjectStateServiceが使用できません - 通常モードで続行します', error as Error);
+        // エラーが発生した場合はログ出力のみ
+        Logger.warn('ScopeManagerPanel: プロジェクト判定中にエラーが発生しました - 通常モードで続行します', error as Error);
       }
     }
 
