@@ -123,8 +123,10 @@ export class SpecializedLaunchHandlers {
         // 同期エラーの情報を詳細に表示
         Logger.error('認証情報の同期に失敗しました', syncError as Error);
         
-        // ターミナルを閉じる
-        terminal.dispose();
+        // ターミナルを閉じる（nullチェック追加）
+        if (terminal) {
+          terminal.dispose();
+        }
         
         // ユーザーに通知
         await vscode.window.showErrorMessage(
@@ -138,8 +140,12 @@ export class SpecializedLaunchHandlers {
       // AppGenius専用の認証ファイルパスを取得
       const appGeniusAuthFilePath = this.authManager.getAppGeniusAuthFilePath();
       
-      // AppGeniusの認証情報を使用するよう環境変数を設定
-      this.terminalService.setupAuthEnvironment(terminal, appGeniusAuthFilePath);
+      // AppGeniusの認証情報を使用するよう環境変数を設定（nullチェック追加）
+      if (terminal) {
+        this.terminalService.setupAuthEnvironment(terminal, appGeniusAuthFilePath);
+      } else {
+        Logger.warn('ターミナルオブジェクトがnullのため認証環境変数を設定できません');
+      }
       
       // コマンド設定
       let baseCommand = 'claude';
@@ -208,24 +214,26 @@ export class SpecializedLaunchHandlers {
           Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
         }
 
-        // ユーザーIDが取得できない場合はイベントをスキップ
-        if (!userId) {
+        // ユーザーIDが取得できた場合のみイベントを発行（取得できなくてもエラーにはしない）
+        if (userId) {
+          this.eventBus.emit(
+            AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+            {
+              scopeId,
+              userId: userId // 重要: ユーザーIDをイベントデータに含める
+              // センシティブな情報は含めない
+            },
+            'SpecializedLaunchHandlers'
+          );
+          Logger.info(`【ClaudeCode起動カウンター】スコープ実行時のカウントイベントを発行しました`);
+        } else {
           Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
-          return;
+          // ここでreturnしないように修正（処理は続行）
         }
-
-        this.eventBus.emit(
-          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-          {
-            scopeId,
-            userId: userId // 重要: ユーザーIDをイベントデータに含める
-            // センシティブな情報は含めない
-          },
-          'SpecializedLaunchHandlers'
-        );
-        Logger.info(`【ClaudeCode起動カウンター】スコープ実行時のカウントイベントを発行しました`);
       } catch (error) {
-        Logger.error('【ClaudeCode起動カウンター】スコープ実行時のイベント発行エラー');
+        // エラーをログに記録するだけで、プロセス全体は中断しない
+        Logger.error('【ClaudeCode起動カウンター】スコープ実行時のイベント発行エラー', error as Error);
+        // エラーが発生してもプロセスは続行
       }
       
       // 成功結果を返す
@@ -428,8 +436,8 @@ export class SpecializedLaunchHandlers {
         ...terminalOptions
       });
       
-      // 作成後のターミナル情報を確認
-      Logger.debug(`作成されたターミナル: ${terminal.name || 'name未設定'}`);
+      // 作成後のターミナル情報を確認（nullチェック追加）
+      Logger.debug(`作成されたターミナル: ${terminal && terminal.name ? terminal.name : 'name未設定'}`);
       
       // AppGenius専用の認証情報を保存・同期
       try {
@@ -438,8 +446,10 @@ export class SpecializedLaunchHandlers {
         // 同期エラーの情報を詳細に表示
         Logger.error('認証情報の同期に失敗しました', syncError as Error);
         
-        // ターミナルを閉じる
-        terminal.dispose();
+        // ターミナルを閉じる（nullチェック追加）
+        if (terminal) {
+          terminal.dispose();
+        }
         
         // ユーザーに通知
         await vscode.window.showErrorMessage(
@@ -466,9 +476,14 @@ export class SpecializedLaunchHandlers {
         escapedPromptFilePath, 
         additionalParams
       );
-      terminal.sendText(command);
-      
-      Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: ${command}`);
+      // nullチェックを追加
+      if (terminal) {
+        terminal.sendText(command);
+        Logger.info(`ClaudeCode起動コマンド（AppGenius認証使用・自動応答と日本語指示付き）: ${command}`);
+      } else {
+        Logger.error('ターミナルオブジェクトがnullのためコマンドを送信できません');
+        throw new Error('ターミナルオブジェクトがnullです');
+      }
       
       // コマンド実行時にも確実にカウンターイベントを発行
       try {
@@ -484,31 +499,46 @@ export class SpecializedLaunchHandlers {
           userId = currentUser?.id || null;
           Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
         } catch (userIdError) {
-          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
+          Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー: ' + (userIdError as Error).message);
         }
 
-        // ユーザーIDが取得できない場合はイベントをスキップ
-        if (!userId) {
+        // ユーザーIDが取得できた場合のみイベントを発行（取得できなくてもエラーにはしない）
+        if (userId) {
+          this.eventBus.emit(
+            AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+            {
+              userId: userId, // 重要: ユーザーIDをイベントデータに含める
+              // センシティブな情報は含めない
+            },
+            'SpecializedLaunchHandlers'
+          );
+          Logger.info(`【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行しました`);
+        } else {
           Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
-          return;
+          // ユーザーIDが取得できなくても処理を続行します
         }
-
-        this.eventBus.emit(
-          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-          {
-            userId: userId, // 重要: ユーザーIDをイベントデータに含める
-            // センシティブな情報は含めない
-          },
-          'SpecializedLaunchHandlers'
-        );
-        Logger.info(`【ClaudeCode起動カウンター】コマンド実行時のカウントイベントを発行しました`);
       } catch (error) {
-        Logger.error('【ClaudeCode起動カウンター】コマンド実行時のイベント発行エラー');
+        // エラーをログに記録するだけで、プロセス全体は中断しない
+        Logger.error('【ClaudeCode起動カウンター】コマンド実行時のイベント発行エラー', error as Error);
+        // エラーが発生してもプロセスは続行
       }
       
       // プロンプトファイルを即時削除（セキュリティ対策）
-      if (deletePromptFile) {
+      if (deletePromptFile && terminal) {
         this._schedulePromptFileDeletion(promptFilePath, terminal);
+      } else if (deletePromptFile) {
+        Logger.warn('ターミナルオブジェクトがnullのためプロンプトファイル削除スケジュールを設定できません');
+        // ターミナルがなくてもファイルは削除する試み
+        try {
+          setTimeout(() => {
+            if (fs.existsSync(promptFilePath)) {
+              fs.unlinkSync(promptFilePath);
+              Logger.info(`プロンプトファイルを削除しました: ${promptFilePath}`);
+            }
+          }, 30000);
+        } catch (error) {
+          Logger.error(`プロンプトファイルの削除に失敗しました: ${error}`);
+        }
       }
       
       // イベント発火
@@ -692,8 +722,10 @@ export class SpecializedLaunchHandlers {
         // 同期エラーの情報を詳細に表示
         Logger.error('認証情報の同期に失敗しました', syncError as Error);
         
-        // ターミナルを閉じる
-        terminal.dispose();
+        // ターミナルを閉じる（nullチェック追加）
+        if (terminal) {
+          terminal.dispose();
+        }
         
         // ユーザーに通知
         await vscode.window.showErrorMessage(
@@ -753,24 +785,26 @@ export class SpecializedLaunchHandlers {
           Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
         }
 
-        // ユーザーIDが取得できない場合はイベントをスキップ
-        if (!userId) {
+        // ユーザーIDが取得できた場合のみイベントを発行（取得できなくてもエラーにはしない）
+        if (userId) {
+          this.eventBus.emit(
+            AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+            {
+              processId: processInfo.id,
+              userId: userId // 重要: ユーザーIDをイベントデータに含める
+              // センシティブな情報は含めない
+            },
+            'SpecializedLaunchHandlers'
+          );
+          Logger.info(`【ClaudeCode起動カウンター】モックアップ解析時のカウントイベントを発行しました`);
+        } else {
           Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
-          return;
+          // ここでreturnしないように修正（処理は続行）
         }
-
-        this.eventBus.emit(
-          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-          {
-            processId: processInfo.id,
-            userId: userId // 重要: ユーザーIDをイベントデータに含める
-            // センシティブな情報は含めない
-          },
-          'SpecializedLaunchHandlers'
-        );
-        Logger.info(`【ClaudeCode起動カウンター】モックアップ解析時のカウントイベントを発行しました`);
       } catch (error) {
-        Logger.error('【ClaudeCode起動カウンター】モックアップ解析時のイベント発行エラー');
+        // エラーをログに記録するだけで、プロセス全体は中断しない
+        Logger.error('【ClaudeCode起動カウンター】モックアップ解析時のイベント発行エラー', error as Error);
+        // エラーが発生してもプロセスは続行
       }
       
       return {
@@ -791,16 +825,23 @@ export class SpecializedLaunchHandlers {
    */
   private _schedulePromptFileDeletion(promptFilePath: string, terminal: vscode.Terminal): void {
     try {
+      // nullチェックを追加
+      if (!terminal) {
+        Logger.warn('ターミナルオブジェクトがnullのためプロンプトファイル削除スケジュールを設定できません');
+        return;
+      }
+
       // Windowsでは使用中のファイルは削除できないため、Linuxとmacのみ遅延削除
       if (process.platform !== 'win32') {
         setTimeout(() => {
           if (fs.existsSync(promptFilePath)) {
             fs.unlinkSync(promptFilePath);
-            // プロンプトファイル削除完了（ログを記録しない）
+            // プロンプトファイル削除完了（ログを記録）
+            Logger.debug(`プロンプトファイルを30秒後に削除しました: ${promptFilePath}`);
           }
         }, 30000); // ファイルが読み込まれる時間を考慮して30秒後に削除
       }
-      
+
       // ターミナル終了時のイベントリスナーを設定（全プラットフォーム対応）
       const disposable = vscode.window.onDidCloseTerminal(closedTerminal => {
         if (closedTerminal === terminal) {
@@ -808,7 +849,8 @@ export class SpecializedLaunchHandlers {
             try {
               if (fs.existsSync(promptFilePath)) {
                 fs.unlinkSync(promptFilePath);
-                // プロンプトファイル削除完了（ターミナル終了時）（ログを記録しない）
+                // プロンプトファイル削除完了（ターミナル終了時）（ログを記録）
+                Logger.debug(`ターミナル終了後にプロンプトファイルを削除しました: ${promptFilePath}`);
               }
             } catch (unlinkError) {
               Logger.error(`ファイル削除エラー（ターミナル終了時）: ${unlinkError}`);

@@ -183,24 +183,61 @@ export class CoreLauncherService {
     try {
       // 起動カウンターイベントを発行
       Logger.info('【ClaudeCode起動カウンター】プロンプト使用起動のカウントイベントを発行します');
-      this.eventBus.emit(
-        AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-        { projectPath: options.projectPath, promptFilePath: options.promptFilePath },
-        'CoreLauncherService'
-      );
-      Logger.info('【ClaudeCode起動カウンター】プロンプト使用起動のカウントイベントを発行しました');
-      
+      try {
+        this.eventBus.emit(
+          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+          {
+            projectPath: options.projectPath,
+            promptFilePath: options.promptFilePath
+          },
+          'CoreLauncherService'
+        );
+        Logger.info('【ClaudeCode起動カウンター】プロンプト使用起動のカウントイベントを発行しました');
+      } catch (eventError) {
+        // イベント発行エラーはログに記録するが、処理は継続
+        Logger.warn('【ClaudeCode起動カウンター】イベント発行エラー（処理は継続）', eventError as Error);
+      }
+
       // プロンプトファイルを使用してClaudeCodeを起動
-      const result = await this.specializedHandlers.launchWithPrompt(options);
-      
+      let result: { success: boolean; error?: string; } = { success: false };
+
+      try {
+        result = await this.specializedHandlers.launchWithPrompt(options);
+      } catch (launchError) {
+        // 起動エラーをキャッチして適切に処理
+        Logger.error('専用ハンドラーでの起動中にエラーが発生しました', launchError as Error);
+        result = {
+          success: false,
+          error: `起動処理エラー: ${(launchError as Error).message}`
+        };
+      }
+
       if (result.success) {
         // 状態更新
         this.status = ClaudeCodeExecutionStatus.RUNNING;
-        
         return true;
       } else {
         this.status = ClaudeCodeExecutionStatus.FAILED;
-        Logger.error('プロンプトを使用したClaudeCodeの起動に失敗しました', new Error(result.error || 'Unknown error'));
+        const errorMessage = result.error || 'Unknown error';
+        Logger.error('プロンプトを使用したClaudeCodeの起動に失敗しました', new Error(errorMessage));
+
+        // UIにエラーメッセージを表示
+        const serviceName = 'UIStateService';
+        try {
+          // エラーメッセージを表示するためのサービスを使用
+          const uiStateService = require('../AppGeniusStateManager').AppGeniusStateManager.getInstance().getService(serviceName);
+          if (uiStateService && typeof uiStateService.showErrorMessage === 'function') {
+            uiStateService.showErrorMessage('ClaudeCodeの起動に失敗しました');
+          } else {
+            // 直接VSCodeのAPIを使用
+            vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${errorMessage}`);
+          }
+        } catch (uiError) {
+          // UIサービスが利用できない場合は直接VSCodeのAPIを使用
+          Logger.warn('UIStateServiceが利用できないためVSCodeのAPIを使用します', uiError as Error);
+          vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${errorMessage}`);
+        }
+
         return false;
       }
     } catch (error) {

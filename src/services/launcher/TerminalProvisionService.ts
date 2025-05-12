@@ -114,27 +114,30 @@ export class TerminalProvisionService {
         userId = currentUser?.id || null;
         Logger.info(`【ClaudeCode起動カウンター】ユーザーIDを取得しました: ${userId ? '成功' : '失敗'}`);
       } catch (userIdError) {
-        Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー');
+        Logger.warn('【ClaudeCode起動カウンター】ユーザーID取得エラー: ' + (userIdError as Error).message);
       }
 
-      // ユーザーIDが取得できない場合はイベントをスキップ
-      if (!userId) {
+      // ユーザーIDが取得できた場合のみイベントを発行
+      if (userId) {
+        const eventBus = AppGeniusEventBus.getInstance();
+        eventBus.emit(
+          AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
+          {
+            userId: userId, // ユーザーIDのみをイベントデータに含める
+          },
+          'TerminalProvisionService'
+        );
+        Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行しました');
+      } else {
         Logger.info('【ClaudeCode起動カウンター】有効なユーザーIDがないため、カウントをスキップします');
-        return;
+        // ユーザーIDが取得できなくても処理を続行
       }
-
-      const eventBus = AppGeniusEventBus.getInstance();
-      eventBus.emit(
-        AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-        {
-          userId: userId, // ユーザーIDのみをイベントデータに含める
-        },
-        'TerminalProvisionService'
-      );
-      Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行しました');
     } catch (error) {
-      Logger.error('【ClaudeCode起動カウンター】イベント発行中にエラーが発生しました');
+      Logger.error('【ClaudeCode起動カウンター】イベント発行中にエラーが発生しました: ' + (error as Error).message);
+      // エラーが発生しても処理を続行
     }
+
+    // ターミナルは必ず返す - ユーザーID取得の成否に関わらず続行する
     
     // 環境設定を適用
     // 分割ターミナルの場合は少し遅延を入れて環境設定を適用（初期化の時間を考慮）
