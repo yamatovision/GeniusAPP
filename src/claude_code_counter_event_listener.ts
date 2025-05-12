@@ -34,30 +34,14 @@ export function registerClaudeCodeLaunchCountEventListener(context: vscode.Exten
             return; // イベントデータからユーザーIDが取得できた場合は、ここで処理を終了
           }
           
-          // 方法2: 現在ログイン中のユーザーIDを取得（バックアップ方法）
-          try {
-            const authService = SimpleAuthService.getInstance();
-            const userData = await authService.getCurrentUser();
-            
-            if (userData && userData.id) {
-              // バックエンドAPIを呼び出してカウンターをインクリメント
-              userId = userData.id;
-              Logger.info(`【デバッグ】ClaudeCode起動カウンター: 認証サービスからのユーザーIDでAPI呼び出し: ユーザーID=${userId}`);
-              const claudeCodeApiClient = ClaudeCodeApiClient.getInstance();
-              const result = await claudeCodeApiClient.incrementClaudeCodeLaunchCount(userId);
-              if (result) {
-                Logger.info(`ClaudeCode起動カウンターが更新されました: ユーザーID ${userId}, 新しい値=${result.data?.claudeCodeLaunchCount || 'N/A'}`);
-              } else {
-                Logger.warn(`ClaudeCode起動カウンターの更新に失敗しました: ユーザーID ${userId}`);
-              }
-            } else {
-              Logger.warn('ClaudeCode起動カウンター更新: ユーザーIDが取得できませんでした');
-            }
-          } catch (authError) {
-            Logger.error('ClaudeCode起動カウンター更新: 認証サービスからのユーザーID取得エラー:', authError as Error);
+          // ユーザーIDが取得できない場合はいったん諦める - エラーのログ抑制のため
+          if (!userId) {
+            Logger.info('ClaudeCode起動カウンター: ユーザーIDが取得できないため、カウント処理をスキップします');
+            return;
           }
         } catch (error) {
-          Logger.error('ClaudeCode起動カウンター更新エラー:', error as Error);
+          // エラーも抑制して静かに失敗する
+          Logger.debug('ClaudeCode起動カウンター更新処理中にエラーが発生しましたが無視します', error as Error);
         }
       }
     );

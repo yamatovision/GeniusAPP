@@ -14,7 +14,7 @@ export class AuthService {
   private _authStore: AuthStore;
   
   // APIベースURL
-  private readonly API_BASE_URL = 'http://localhost:5000/api/simple';
+  private readonly API_BASE_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/simple';
   
   /**
    * コンストラクタ

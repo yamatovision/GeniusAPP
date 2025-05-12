@@ -4,9 +4,6 @@ import { SimpleAuthService } from './SimpleAuthService';
 import { Role, Feature, RoleFeatureMap, FeatureDisplayNames } from './roles';
 import { Logger } from '../../utils/logger';
 
-// 新認証システムのインポート
-import { PermissionService } from './new/PermissionService';
-
 /**
  * アクセス拒否時のアクション情報
  */
@@ -18,17 +15,16 @@ export interface AccessDeniedAction {
 
 /**
  * PermissionManager - 機能へのアクセス権限をチェックするクラス
- * 
- * 新認証システムのラッパー。後方互換性のために提供されるが、内部的には
- * PermissionServiceを使用する。
+ *
+ * 認証サービスと連携して機能へのアクセス権限を管理します。
  */
 export class PermissionManager {
   private static instance: PermissionManager;
   private _authService: AuthenticationService | SimpleAuthService;
   private _onPermissionsChanged = new vscode.EventEmitter<void>();
   
-  // 新認証システムへの参照
-  private _permissionService: PermissionService | undefined;
+  // 権限サービスへの参照（将来の拡張用）
+  private _permissionService: any;
   
   // 公開イベント
   public readonly onPermissionsChanged = this._onPermissionsChanged.event;
@@ -44,20 +40,9 @@ export class PermissionManager {
       this._onPermissionsChanged.fire();
     });
     
-    // 新認証システムの初期化
-    try {
-      this._permissionService = (global._appgenius_auth_module?.getPermissionService) ? 
-                                global._appgenius_auth_module.getPermissionService() : undefined;
-                               
-      if (this._permissionService) {
-        // 権限変更イベントを購読して既存システムと同期
-        this._permissionService.onPermissionsChanged(() => {
-          this._onPermissionsChanged.fire();
-        });
-      }
-    } catch (error) {
-      Logger.warn('PermissionManager: 新認証システムの初期化に失敗しました', error as Error);
-    }
+    // 権限サービスの初期化 (将来の拡張のために残しておく)
+    this._permissionService = undefined;
+    Logger.info('PermissionManager: 基本認証システムを使用します');
   }
   
   /**
@@ -78,20 +63,15 @@ export class PermissionManager {
    */
   public canAccess(feature: Feature): boolean {
     try {
-      // 新認証システムが利用可能な場合はそちらを使用
-      if (this._permissionService) {
-        return this._permissionService.canAccess(feature);
-      }
-      
       // 認証状態を取得
       const state = this._authService.getCurrentState();
       const role = state.isAuthenticated ? state.role : Role.GUEST;
-      
+
       // 管理者は常にアクセス可能
       if (role === Role.ADMIN || role === Role.SUPER_ADMIN) {
         return true;
       }
-      
+
       // 権限チェック
       const allowedFeatures = RoleFeatureMap[role] || [];
       return allowedFeatures.includes(feature);
@@ -106,17 +86,12 @@ export class PermissionManager {
    * 権限がなければエラーメッセージを表示
    */
   public checkAccessWithFeedback(feature: Feature): boolean {
-    // 新認証システムが利用可能な場合はそちらを使用
-    if (this._permissionService) {
-      return this._permissionService.checkAccessWithFeedback(feature);
-    }
-    
-    // 以下は従来の処理
+    // アクセス権限をチェック
     const hasAccess = this.canAccess(feature);
-    
+
     if (!hasAccess) {
       const action = this.getAccessDeniedAction(feature);
-      
+
       // メッセージ表示とアクション
       if (action.action === 'login') {
         vscode.window.showInformationMessage(action.message, 'ログインページを開く')
@@ -130,7 +105,7 @@ export class PermissionManager {
         vscode.window.showErrorMessage(action.message);
       }
     }
-    
+
     return hasAccess;
   }
   
@@ -161,37 +136,22 @@ export class PermissionManager {
    * 現在のユーザーが管理者かどうかを確認
    */
   public isAdmin(): boolean {
-    // 新認証システムが利用可能な場合はそちらを使用
-    if (this._permissionService) {
-      return this._permissionService.isAdmin();
-    }
-    
     // 認証状態を取得
     const state = this._authService.getCurrentState();
     return state.isAuthenticated && (state.role === Role.ADMIN || state.role === Role.SUPER_ADMIN);
   }
-  
+
   /**
    * 現在ログイン中かどうかを確認
    */
   public isLoggedIn(): boolean {
-    // 新認証システムが利用可能な場合はそちらを使用
-    if (this._permissionService) {
-      return this._permissionService.isLoggedIn();
-    }
-    
     return this._authService.isAuthenticated();
   }
-  
+
   /**
    * 現在のロールを取得
    */
   public getCurrentRole(): Role {
-    // 新認証システムが利用可能な場合はそちらを使用
-    if (this._permissionService) {
-      return this._permissionService.getCurrentRole();
-    }
-    
     const state = this._authService.getCurrentState();
     return state.role;
   }

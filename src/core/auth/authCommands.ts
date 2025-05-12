@@ -17,8 +17,7 @@ import { LogoutNotification } from '../../ui/auth/LogoutNotification';
 export function registerAuthCommands(context: vscode.ExtensionContext): void {
   const authService = AuthenticationService.getInstance();
   
-  // 従来のログインコマンドは削除 - 新認証システムで登録済み
-  // ログインコマンドは AuthModule で登録されるため、ここでは登録しない
+  // ログインコマンドは別の場所で登録されているため、ここでは登録しない
   
   // 従来のログアウトコマンド
   context.subscriptions.push(
@@ -28,14 +27,14 @@ export function registerAuthCommands(context: vscode.ExtensionContext): void {
         'ログアウト',
         'キャンセル'
       );
-      
+
       if (answer === 'ログアウト') {
         await authService.logout();
         vscode.window.showInformationMessage('AppGeniusからログアウトしました');
       }
     })
   );
-  
+
   // 使用量詳細表示コマンド
   context.subscriptions.push(
     vscode.commands.registerCommand('appgenius.showUsageDetails', () => {
@@ -44,16 +43,16 @@ export function registerAuthCommands(context: vscode.ExtensionContext): void {
       vscode.window.showInformationMessage('使用量詳細機能は現在実装中です');
     })
   );
-  
-  // 新しいシンプル認証コマンド
-  registerSimpleAuthCommands(context);
-  
+
+  // 注：シンプル認証コマンドはSimpleAuthManagerで登録済みのため削除
+  // registerSimpleAuthCommands(context);
+
   // 認証状態表示を初期化
   initAuthStatusBar(context);
-  
+
   // 使用量表示を初期化
   initUsageIndicator(context);
-  
+
   // ログアウト通知を初期化
   initLogoutNotification(context);
 }

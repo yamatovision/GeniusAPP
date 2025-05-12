@@ -103,29 +103,22 @@ export class TerminalProvisionService {
     // ClaudeCode起動カウンターイベントを発行（ターミナル作成時に必ず発行）
     try {
       Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行します');
-      
-      // ここで直接ユーザーIDを取得してイベントに含める
-      const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
-      const authService = SimpleAuthService.getInstance();
-      
-      // 特定のユーザーIDを固定値として使用（もしシラン.タツヤさんのIDが分かっていれば）
-      const userId = "67e207d18ccc8aab3e3b6a8f"; // シラン.タツヤさんのID
-      
+
+      // ユーザーIDを固定値として設定
+      const userId = "67e207d18ccc8aab3e3b6a8f"; // ユーザーID
+
       const eventBus = AppGeniusEventBus.getInstance();
       eventBus.emit(
         AppGeniusEventType.CLAUDE_CODE_LAUNCH_COUNTED,
-        { 
-          terminalName: terminalOptions.name, 
-          promptType, 
-          cwd,
-          userId: userId, // 重要: ユーザーIDをイベントデータに含める
-          splitTerminal // 分割ターミナル情報も追加
+        {
+          userId: userId, // 重要: ユーザーIDのみをイベントデータに含める
+          // センシティブな情報は含めない
         },
         'TerminalProvisionService'
       );
-      Logger.info(`【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行しました (ユーザーID: ${userId})`);
+      Logger.info('【ClaudeCode起動カウンター】ターミナル作成時のカウントイベントを発行しました');
     } catch (error) {
-      Logger.error('【ClaudeCode起動カウンター】イベント発行中にエラーが発生しました:', error as Error);
+      Logger.error('【ClaudeCode起動カウンター】イベント発行中にエラーが発生しました');
     }
     
     // 環境設定を適用
