@@ -1,6 +1,57 @@
-# 小規模事業者向け受発注システム要件定義書あああああああ
-ああああああ
-## 1. プロジェクト概ああ要あああああああああ
+# 小規模事業者向け受発注システム要件定義書あああ
+## 1. プロジェクト概要ああああああああああああ
+
+あああああ
+
+あああああ
+
+
+ああ
+
+
+ああああああああ
+
+あああ
+
+進捗ファイル（SCOPE_PROGRESS.md）に関連すある関数のリストです：
+
+  進捗ファイル関連の関数
+進捗ファイル監視機能チェックリスト（処理フロー順）
+
+  1. 初期化と設定
+    - FileWatcherServiceImpl.setupProjectFileWatchers -
+  プロジェクトのファイル監視の初期設定
+    - FileWatcherServiceImpl.setupProgressFileWatcher -
+  進捗ファイル監視設定
+    - FileSystemServiceImpl.getProgressFilePath -
+  進捗ファイルのパスを取得
+    - FileSystemServiceImpl.setupProjectFileWatcher -
+  具体的なファイル監視設定
+  2. 初期読み込み
+    - MessageDispatchServiceImpl.initialize
+  ハンドラーでの進捗ファイル読み込み
+    - FileWatcherServiceImpl.initializeInitialFileContent -
+  初期内容読み込み（特にアクティブタブ判定）
+    - FileSystemServiceImpl.loadProgressFile -
+  実際のファイル読み込み処理
+    - scopeManager.js - progressContent要素初期化
+  3. 監視と更新
+    - FileSystemServiceImpl.setupEnhancedFileWatcher -
+  進捗ファイル変更監視
+    - scopeManager.js - markdown-updatedイベントリスナー
+    - scopeManager.js -
+  updateMarkdownContentハンドラーでのforScopeProgress処理
+  4. データ表示
+    - scopeManager.js - タブステート確認と条件付き表示
+    - markdownViewer.updateContent - 実際のコンテンツ表示
+  5. エラーハンドリング
+    - ファイル不在時の作成処理（createProgressFile）
+    - ファイル監視中のエラー処理
+    - ファイル読み込み失敗時のエラー処理
+
+
+
+
 
 本プロジェクトは、漁業、水産業、林産業、加工業社、商社などの小規模事業者向けに、手頃な価格で利用できる受発注システムを開発し、月額サブスクリプションモデルで提供するものである。従来の高価な販売管理システム（弥生販売など）に代わる、使いやすく機能的なシステムを目指す。
 

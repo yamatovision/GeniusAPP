@@ -423,7 +423,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
                   priority: 'high',
                   forScopeProgress: true
                 });
-                
+
                 Logger.info('MessageDispatchServiceImpl: 進捗ファイルを読み込みました');
               } else {
                 // docsディレクトリが存在するか確認
@@ -437,13 +437,36 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
                     Logger.warn(`MessageDispatchServiceImpl: docsディレクトリの作成に失敗: ${docsPath}`, mkdirError as Error);
                   }
                 }
-                
+
                 // 進捗ファイルが見つからないことをログに記録するのみ（エラー表示なし）
                 Logger.info(`MessageDispatchServiceImpl: 進捗ファイルが見つかりません: ${progressFilePath}`);
               }
             } catch (error) {
               // エラーをログに記録するのみ（UIにエラーは表示しない）
               Logger.warn(`MessageDispatchServiceImpl: 進捗ファイルのアクセスでエラーが発生: ${progressFilePath}`, error as Error);
+            }
+
+            // 要件定義ファイルもロード
+            const requirementsFilePath = path.join(activeProject.path, 'docs', 'requirements.md');
+            try {
+              if (fs.existsSync(requirementsFilePath)) {
+                const content = await this._fileSystemService.readMarkdownFile(requirementsFilePath);
+                this.sendMessage(panel, {
+                  command: 'updateMarkdownContent',
+                  content: content,
+                  timestamp: Date.now(),
+                  priority: 'high',
+                  forRequirements: true
+                });
+
+                Logger.info('MessageDispatchServiceImpl: 要件定義ファイルを読み込みました');
+              } else {
+                // 要件定義ファイルが見つからないことをログに記録するのみ（エラー表示なし）
+                Logger.info(`MessageDispatchServiceImpl: 要件定義ファイルが見つかりません: ${requirementsFilePath}`);
+              }
+            } catch (error) {
+              // エラーをログに記録するのみ（UIにエラーは表示しない）
+              Logger.warn(`MessageDispatchServiceImpl: 要件定義ファイルのアクセスでエラーが発生: ${requirementsFilePath}`, error as Error);
             }
           }
           
@@ -756,6 +779,46 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       } catch (error) {
         Logger.error(`MessageDispatchServiceImpl: マークダウンコンテンツの取得に失敗しました: ${message.filePath}`, error as Error);
         this.showError(panel, `マークダウンファイルの読み込みに失敗しました: ${(error as Error).message}`);
+      }
+    });
+
+    // 要件定義ファイルの変更を処理するハンドラー
+    this.registerHandler('requirementsFileChanged', async (message: Message, panel: vscode.WebviewPanel) => {
+      if (!message.filePath) {
+        Logger.warn('MessageDispatchServiceImpl: requirementsFileChangedメッセージにfilePath必須パラメータがありません');
+        return;
+      }
+
+      try {
+        Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル変更を処理します: ${message.filePath}`);
+
+        // 要件定義ファイルの内容を即時反映
+        const content = await this._fileSystemService.readMarkdownFile(message.filePath);
+
+        // 二重のメッセージ送信
+        // 1. まず直接requirementsFileChangedメッセージを送信（コンテンツ付き）
+        this.sendMessage(panel, {
+          command: 'requirementsFileChanged',  // 同じcommandを返す（特殊処理）
+          filePath: message.filePath,
+          content: content,                    // コンテンツも含める
+          timestamp: Date.now(),
+          priority: 'high'
+        });
+
+        // 2. 通常の更新コマンドも送信（後方互換性のため）
+        this.sendMessage(panel, {
+          command: 'updateMarkdownContent',
+          content: content,
+          timestamp: Date.now() + 1,  // タイムスタンプを少しずらす（1ms）
+          priority: 'high',
+          filePath: message.filePath,
+          forRequirements: true,
+          forceRefresh: true
+        });
+
+        Logger.info(`MessageDispatchServiceImpl: 要件定義ファイル変更を2重通知で反映しました: ${message.filePath}`);
+      } catch (error) {
+        Logger.error(`MessageDispatchServiceImpl: 要件定義ファイル変更反映中にエラー: ${message.filePath}`, error as Error);
       }
     });
     

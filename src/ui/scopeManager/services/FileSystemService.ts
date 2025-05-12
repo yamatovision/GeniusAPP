@@ -128,6 +128,19 @@ export class FileSystemService implements IFileSystemService {
   }
 
   /**
+   * 要件定義ファイルのパスを取得
+   * @param projectPath プロジェクトパス
+   * @returns 要件定義ファイルのパス
+   */
+  public getRequirementsFilePath(projectPath?: string): string {
+    if (!projectPath) {
+      throw new Error('プロジェクトパスが指定されていません');
+    }
+    const docsDir = path.join(projectPath, 'docs');
+    return path.join(docsDir, 'requirements.md');
+  }
+
+  /**
    * 進捗ファイルを作成 - SCOPE_PROGRESS.mdのみ対応
    * @param projectPath プロジェクトパス
    * @param projectName プロジェクト名
@@ -249,13 +262,13 @@ export class FileSystemService implements IFileSystemService {
   
   /**
    * ファイル変更の監視を設定
-   * @param progressFilePath 監視対象の進捗ファイルパス
+   * @param filePath 監視対象のファイルパス
    * @param onFileChanged ファイル変更時のコールバック
    */
-  public setupFileWatcher(progressFilePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable {
+  public setupFileWatcher(filePath: string, onFileChanged: (filePath: string) => void): vscode.Disposable {
     // デバッグ - メソッド開始
-    console.log(`★★★★ FileSystemService.setupFileWatcher 開始: ${progressFilePath}`);
-    Logger.info(`★★★★ FileSystemService.setupFileWatcher 開始: ${progressFilePath}`);
+    console.log(`★★★★ FileSystemService.setupFileWatcher 開始: ${filePath}`);
+    Logger.info(`★★★★ FileSystemService.setupFileWatcher 開始: ${filePath}`);
     try {
       // 既存の監視があれば破棄
       if (this._fileWatcher) {
@@ -268,11 +281,11 @@ export class FileSystemService implements IFileSystemService {
         this._docsDirWatcher = null;
       }
       
-      if (!progressFilePath) {
+      if (!filePath) {
         throw new Error('監視対象のファイルパスが指定されていません');
       }
-      
-      const projectPath = path.dirname(path.dirname(progressFilePath)); // docs/<file>からプロジェクトパスを取得
+
+      const projectPath = path.dirname(path.dirname(filePath)); // docs/<file>からプロジェクトパスを取得
       
       // docs ディレクトリが存在しない場合は作成
       const docsDir = path.join(projectPath, 'docs');
@@ -280,17 +293,23 @@ export class FileSystemService implements IFileSystemService {
         fs.mkdirSync(docsDir, { recursive: true });
       }
       
-      // SCOPE_PROGRESS.md を監視
+      // SCOPE_PROGRESS.md を監視（ハードコードに戻す）
       const watchers: vscode.FileSystemWatcher[] = [];
       const fileName = 'SCOPE_PROGRESS.md';
       const watchPath = path.join(docsDir, fileName);
 
-      console.log(`★★★★ 監視対象ファイル設定: fileName=${fileName}, watchPath=${watchPath}`);
-      Logger.info(`★★★★ 監視対象ファイル設定: fileName=${fileName}, watchPath=${watchPath}`);
+      console.log(`★★★★ 監視対象ファイル設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
+      Logger.info(`★★★★ 監視対象ファイル設定(ハードコード版): fileName=${fileName}, watchPath=${watchPath}`);
       
       if (fs.existsSync(watchPath)) {
         // ファイルが存在する場合はそのファイルのみを監視
+        // 元の実装に戻す - RelativePatternを使用
         const pattern = new vscode.RelativePattern(vscode.Uri.file(docsDir), fileName);
+
+        // より詳細なログを出力
+        console.log(`★★★★ VSCodeウォッチャー設定: docsDir=${docsDir}, fileName=${fileName}`);
+        Logger.info(`★★★★ VSCodeウォッチャー設定: relativePattern=${pattern.pattern}`);
+
         const watcher = vscode.workspace.createFileSystemWatcher(
           pattern,
           false, // 作成イベントを無視しない
@@ -300,8 +319,9 @@ export class FileSystemService implements IFileSystemService {
         
         // ファイル変更時のイベントハンドラを設定
         watcher.onDidChange(async (uri) => {
-          console.log(`★★★★ ファイル変更イベント検出: ${uri.fsPath}`);
-          Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
+          console.log(`★★★★ ファイル変更イベント検出: ${uri.fsPath}, 監視していたファイル=${fileName}, pattern=${pattern.pattern}`);
+          Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}, 監視対象ファイル=${fileName}`);
+          Logger.info(`【デバッグ詳細】イベント: path=${uri.fsPath}, baseFileName=${path.basename(uri.fsPath)}, isRequirements=${path.basename(uri.fsPath) === 'requirements.md'}`);
           
           // ファイルが存在するか確認
           if (fs.existsSync(uri.fsPath)) {
@@ -342,7 +362,13 @@ export class FileSystemService implements IFileSystemService {
         Logger.info(`FileSystemService: ${fileName}ファイルの監視を設定: ${watchPath}`);
       } else {
         // ファイルが存在しない場合でも、ファイル作成を監視
-        const pattern = new vscode.RelativePattern(docsDir, fileName);
+        // 元の実装に戻す - RelativePatternを使用
+        const pattern = new vscode.RelativePattern(vscode.Uri.file(docsDir), fileName);
+
+        // より詳細なログを出力
+        console.log(`★★★★ VSCodeウォッチャー設定(ファイル未存在): docsDir=${docsDir}, fileName=${fileName}`);
+        Logger.info(`★★★★ VSCodeウォッチャー設定(ファイル未存在): relativePattern=${pattern.pattern}`);
+
         const watcher = vscode.workspace.createFileSystemWatcher(pattern);
         
         // ファイル作成時にマークダウンコンテンツを更新
@@ -354,7 +380,9 @@ export class FileSystemService implements IFileSystemService {
         
         // ファイル変更時にマークダウンコンテンツを更新
         watcher.onDidChange(async (uri) => {
-          Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}`);
+          console.log(`★★★★ ファイル変更イベント検出(ファイル未存在時の監視): ${uri.fsPath}, 監視していたファイル=${fileName}, pattern=${pattern.pattern}`);
+          Logger.info(`【重要】FileSystemService: ファイル変更イベント検出: ${uri.fsPath}, 監視対象ファイル=${fileName}`);
+          Logger.info(`【デバッグ詳細】イベント: path=${uri.fsPath}, baseFileName=${path.basename(uri.fsPath)}, isRequirements=${path.basename(uri.fsPath) === 'requirements.md'}`);
           
           // ファイルが存在するか確認
           if (fs.existsSync(uri.fsPath)) {
@@ -587,11 +615,15 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
    * @param options オプション設定（遅延読み込み時間など）
    */
   public setupEnhancedFileWatcher(
-    statusFilePath: string, 
+    statusFilePath: string,
     onFileChanged: (filePath: string) => void,
     options?: { delayedReadTime?: number }
   ): vscode.Disposable {
     try {
+      // 詳細なログを追加
+      console.log(`★★★★ 拡張ファイル監視設定開始: path=${statusFilePath}, fileName=${path.basename(statusFilePath)}`);
+      Logger.info(`★★★★ 拡張ファイル監視設定開始: path=${statusFilePath}, fileName=${path.basename(statusFilePath)}`);
+
       // 基本的なファイル監視を設定
       const baseWatcher = this.setupFileWatcher(statusFilePath, async (filePath) => {
         // ファイル変更時に即時通知（詳細ログ追加）
@@ -616,8 +648,14 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
           Logger.info(`★★★ ファイル読み込み成功: ${content.length}文字`);
 
           // 要件定義ファイルの場合は特別なイベントを発行
-          if (filePath.toLowerCase().includes('requirement') ||
+          const fileBaseName = path.basename(filePath).toLowerCase();
+          if (fileBaseName === 'requirements.md' ||
+              filePath.toLowerCase().includes('requirement') ||
               filePath.toLowerCase().includes('要件')) {
+
+            // より詳細なログを出力
+            console.log(`★★★★ 要件定義ファイル変更を検出: path=${filePath}, baseName=${fileBaseName}`);
+            Logger.info(`★★★★ 要件定義ファイル変更を検出: path=${filePath}, baseName=${fileBaseName}`);
             Logger.info(`★★★ FileSystemService(Enhanced): 要件定義ファイルの変更を検出: ${filePath}`);
             console.log(`★★★ REQUIREMENTS FILE CHANGED: ${filePath}`);
 
@@ -1002,17 +1040,17 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
       if (!projectPath) {
         throw new Error('プロジェクトパスが指定されていません');
       }
-      
+
       // 優先順位付きの候補ファイル名一覧
       const candidateNames = [
-        'requirements.md', 
+        'requirements.md',
         'REQUIREMENTS.md',
         'Requirements.md',
         'requirement.md',
         'REQUIREMENT.md',
         'Requirement.md'
       ];
-      
+
       // 優先順位付きの検索ディレクトリ
       const searchDirs = [
         path.join(projectPath, 'docs'),     // 最優先: docs/
@@ -1020,7 +1058,7 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         path.join(projectPath, 'doc'),      // 代替: doc/
         path.join(projectPath, 'documents') // 代替: documents/
       ];
-      
+
       // 各ディレクトリで候補ファイルを検索
       for (const dir of searchDirs) {
         if (fs.existsSync(dir)) {
@@ -1031,32 +1069,32 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
               return filePath;
             }
           }
-          
+
           // ディレクトリ内のすべての.mdファイルをチェック
           try {
             const files = fs.readdirSync(dir);
             for (const file of files) {
               if (path.extname(file).toLowerCase() === '.md') {
                 const filePath = path.join(dir, file);
-                
+
                 // ファイル名に「要件」「requirement」が含まれているかチェック
                 const fileName = path.basename(file).toLowerCase();
                 if (
-                  fileName.includes('要件') || 
+                  fileName.includes('要件') ||
                   fileName.includes('requirement') ||
                   fileName.includes('youken')
                 ) {
                   Logger.info(`FileSystemService: 要件関連のマークダウンファイルを見つけました: ${filePath}`);
                   return filePath;
                 }
-                
+
                 // ファイル内容をチェック（最初の数行だけ）
                 try {
                   const content = fs.readFileSync(filePath, 'utf8').slice(0, 1000).toLowerCase();
                   if (
-                    content.includes('# 要件') || 
-                    content.includes('# requirement') || 
-                    content.includes('要件定義') || 
+                    content.includes('# 要件') ||
+                    content.includes('# requirement') ||
+                    content.includes('要件定義') ||
                     content.includes('requirements definition')
                   ) {
                     Logger.info(`FileSystemService: 内容から要件定義ファイルと判断: ${filePath}`);
@@ -1074,13 +1112,69 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
           }
         }
       }
-      
+
       // 見つからなかった場合
       Logger.warn('FileSystemService: 要件定義ファイルが見つかりませんでした');
       return null;
     } catch (error) {
       Logger.error(`FileSystemService: 要件定義ファイル検索中にエラー: ${(error as Error).message}`, error as Error);
       return null;
+    }
+  }
+
+  /**
+   * パスからプロジェクトIDを抽出するヘルパーメソッド
+   * ファイルパスから適切なプロジェクトIDを生成する
+   */
+  private _getProjectIdFromPath(projectPath: string): string {
+    if (!projectPath) {
+      return '';
+    }
+
+    // パスの最後の部分をプロジェクトIDとして使用
+    const parts = projectPath.split(/[/\\]/);
+    const lastPart = parts[parts.length - 1];
+
+    // IDとして使えるように整形（空白を削除し、特殊文字を置き換え）
+    return lastPart.replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
+  /**
+   * 要件定義ファイルの監視を設定
+   * @param projectPath プロジェクトパス
+   * @param outputCallback ファイル変更時のコールバック
+   * @returns 監視オブジェクト
+   */
+  public async setupRequirementsFileWatcher(
+    projectPath?: string,
+    outputCallback?: (filePath: string) => void
+  ): Promise<vscode.Disposable> {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+
+      // コールバックが未指定の場合のデフォルト処理
+      const callback = outputCallback || ((filePath: string) => {
+        Logger.info(`FileSystemService: 要件定義ファイル変更を検出（デフォルト処理）: ${filePath}`);
+      });
+
+      // 要件定義ファイルのパスを取得
+      const requirementsFilePath = this.getRequirementsFilePath(projectPath);
+
+      // ファイルウォッチャーを設定
+      Logger.info(`FileSystemService: 要件定義ファイルの監視を設定します: ${requirementsFilePath}`);
+      const fileWatcher = this.setupEnhancedFileWatcher(
+        requirementsFilePath,
+        callback,
+        { delayedReadTime: 500 }  // 500ms後に遅延読み込み
+      );
+
+      return fileWatcher;
+    } catch (error) {
+      Logger.error(`FileSystemService: 要件定義ファイル監視の設定に失敗しました: ${projectPath || '不明'}`, error as Error);
+      // エラー時は空のDisposableを返す
+      return { dispose: () => {} };
     }
   }
 

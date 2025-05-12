@@ -6,12 +6,13 @@ import { AppGeniusEventBus, AppGeniusEventType } from '../AppGeniusEventBus';
 import { ScopeExporter } from '../../utils/ScopeExporter';
 import { PlatformManager } from '../../utils/PlatformManager';
 import { MessageBroker, MessageType } from '../../utils/MessageBroker';
-import { 
-  ClaudeCodeExecutionStatus, 
+import { ProjectManagementService } from '../ProjectManagementService';
+import {
+  ClaudeCodeExecutionStatus,
   MockupAnalysisProcess,
   ScopeExecutionOptions,
   PromptExecutionOptions,
-  MockupAnalysisOptions 
+  MockupAnalysisOptions
 } from './LauncherTypes';
 import { TerminalProvisionService } from './TerminalProvisionService';
 import { AuthSyncManager } from './AuthSyncManager';
@@ -58,9 +59,14 @@ export class SpecializedLaunchHandlers {
       
       // ProjectServiceImplから最新のプロジェクトパスを取得
       try {
-        // ProjectServiceImplのインスタンスを取得
-        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
-        const projectService = ProjectServiceImpl.getInstance();
+        // ProjectServiceImplの代わりにProjectManagementServiceを使用
+        const projectManagementService = ProjectManagementService.getInstance();
+        // アクティブプロジェクト情報を取得
+        const activeProject = projectManagementService.getActiveProject();
+        // プロジェクトサービスとして使用できる最小限のインターフェースを提供
+        const projectService = {
+          getActiveProjectPath: () => activeProject?.path || ''
+        };
         // 最新のアクティブプロジェクトパスを取得
         const activeProjectPath = projectService.getActiveProjectPath();
         
@@ -239,9 +245,14 @@ export class SpecializedLaunchHandlers {
       // ProjectServiceImplから最新のプロジェクトパスを取得
       let projectPath = requestedProjectPath;
       try {
-        // ProjectServiceImplのインスタンスを取得
-        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
-        const projectService = ProjectServiceImpl.getInstance();
+        // ProjectServiceImplの代わりにProjectManagementServiceを使用
+        const projectManagementService = ProjectManagementService.getInstance();
+        // アクティブプロジェクト情報を取得
+        const activeProject = projectManagementService.getActiveProject();
+        // プロジェクトサービスとして使用できる最小限のインターフェースを提供
+        const projectService = {
+          getActiveProjectPath: () => activeProject?.path || ''
+        };
         // 最新のアクティブプロジェクトパスを取得
         const activeProjectPath = projectService.getActiveProjectPath();
         
@@ -336,9 +347,14 @@ export class SpecializedLaunchHandlers {
       // ProjectServiceImplから最新のプロジェクトパスを取得
       let projectPath = requestedProjectPath;
       try {
-        // ProjectServiceImplのインスタンスを取得
-        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
-        const projectService = ProjectServiceImpl.getInstance();
+        // ProjectServiceImplの代わりにProjectManagementServiceを使用
+        const projectManagementService = ProjectManagementService.getInstance();
+        // アクティブプロジェクト情報を取得
+        const activeProject = projectManagementService.getActiveProject();
+        // プロジェクトサービスとして使用できる最小限のインターフェースを提供
+        const projectService = {
+          getActiveProjectPath: () => activeProject?.path || ''
+        };
         // 最新のアクティブプロジェクトパスを取得
         const activeProjectPath = projectService.getActiveProjectPath();
         
@@ -613,9 +629,14 @@ export class SpecializedLaunchHandlers {
       // ProjectServiceImplから最新のプロジェクトパスを取得
       let projectPath = processInfo.projectPath;
       try {
-        // ProjectServiceImplのインスタンスを取得
-        const { ProjectServiceImpl } = require('../../../ui/scopeManager/services/implementations/ProjectServiceImpl');
-        const projectService = ProjectServiceImpl.getInstance();
+        // ProjectServiceImplの代わりにProjectManagementServiceを使用
+        const projectManagementService = ProjectManagementService.getInstance();
+        // アクティブプロジェクト情報を取得
+        const activeProject = projectManagementService.getActiveProject();
+        // プロジェクトサービスとして使用できる最小限のインターフェースを提供
+        const projectService = {
+          getActiveProjectPath: () => activeProject?.path || ''
+        };
         // 最新のアクティブプロジェクトパスを取得
         const activeProjectPath = projectService.getActiveProjectPath();
         

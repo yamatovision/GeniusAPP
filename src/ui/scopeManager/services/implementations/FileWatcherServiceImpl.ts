@@ -22,6 +22,24 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
   private constructor() {}
 
   /**
+   * プロジェクトパスからプロジェクトIDを取得する（補助メソッド）
+   * @param projectPath プロジェクトパス
+   * @returns プロジェクトID（パスから抽出）
+   */
+  private _getProjectIdFromPath(projectPath: string): string {
+    if (!projectPath) {
+      return '';
+    }
+
+    // パスの最後の部分をプロジェクトIDとして使用
+    const parts = projectPath.split(/[/\\]/);
+    const lastPart = parts[parts.length - 1];
+
+    // IDとして使えるように整形（空白を削除し、特殊文字を置き換え）
+    return lastPart.replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
+  /**
    * プロジェクトのファイル監視を設定
    */
   public setupProjectFileWatchers(
@@ -134,7 +152,7 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
     projectPath: string,
     callback: (filePath: string) => Promise<void>,
     options?: { fileSystemService?: any }
-  ): Promise<string | null> {
+  ): Promise<string> {
     try {
       Logger.info(`FileWatcherService: 要件定義ファイルを明示的に読み込みます：${projectPath}`);
       const fileSystemService = options?.fileSystemService;
@@ -143,28 +161,24 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
       }
 
       // 要件定義ファイルのパスを取得
-      let requirementsFilePath = null;
+      // 進捗ファイルと同様にサービスのメソッドを経由してパスを取得
+      const requirementsFilePath = fileSystemService.getRequirementsFilePath(projectPath);
 
-      // getRequirementsFilePathメソッドが利用可能な場合はそれを使用
-      if (typeof fileSystemService.getRequirementsFilePath === 'function') {
-        requirementsFilePath = await fileSystemService.getRequirementsFilePath(projectPath);
-      } else if (typeof fileSystemService.findRequirementsFile === 'function') {
-        // 代わりにfindRequirementsFileメソッドを使用
-        requirementsFilePath = await fileSystemService.findRequirementsFile(projectPath);
-      }
+      // デバッグログを追加
+      Logger.info(`FileWatcherService: 取得した要件定義ファイルパス: ${requirementsFilePath}`);
 
       if (requirementsFilePath && await fileSystemService.fileExists(requirementsFilePath)) {
         // ファイル内容をコールバック経由で読み込む
         await callback(requirementsFilePath);
         Logger.info(`FileWatcherService: 要件定義ファイルを初期読み込みしました: ${requirementsFilePath}`);
-        return requirementsFilePath;
       } else {
-        Logger.warn('FileWatcherService: 要件定義ファイルが見つからないか、存在しません');
-        return null;
+        Logger.warn('FileWatcherService: 要件定義ファイルが見つかりません');
       }
+
+      return requirementsFilePath;
     } catch (error) {
       Logger.error('FileWatcherService: 要件定義ファイルの読み込みに失敗しました', error as Error);
-      return null;
+      throw error;
     }
   }
 
@@ -190,7 +204,19 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
         async (filePath: string) => {
           Logger.info(`FileWatcherService: 進捗ファイル変更を検出: ${filePath}`);
           try {
+            // 進捗ファイル変更をコールバックに通知
             await onProgressFileChanged(filePath);
+
+            // 特別なイベントメッセージを発行（要件定義ファイルと同様の処理）
+            if (fileSystemService.dispatchMessage && typeof fileSystemService.dispatchMessage === 'function') {
+              // messageDispatchServiceを使用して特別な更新メッセージを送信
+              fileSystemService.dispatchMessage({
+                command: 'progressFileChanged',
+                filePath: filePath,
+                timestamp: Date.now()
+              });
+              Logger.info(`FileWatcherService: 進捗ファイル変更イベントを送信しました: ${filePath}`);
+            }
           } catch (readError) {
             Logger.error(`FileWatcherService: 進捗ファイル読み込みエラー: ${readError}`);
           }
@@ -216,32 +242,42 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
   ): void {
     try {
       Logger.info(`FileWatcherService: 要件定義ファイルの監視を設定します`);
+      // 進捗ファイルと同様にサービスのメソッドを経由してパスを取得
+      const requirementsFilePath = fileSystemService.getRequirementsFilePath(projectPath);
 
-      // 専用メソッドが実装されているかチェック
-      if (typeof fileSystemService.setupRequirementsFileWatcher === 'function') {
-        // setupRequirementsFileWatcherメソッドが利用可能な場合はそれを使用
-        fileSystemService.setupRequirementsFileWatcher(
-          projectPath,
-          async (filePath: string) => {
-            Logger.info(`FileWatcherService: 要件定義ファイル変更を検出: ${filePath}`);
-            try {
-              await onRequirementsFileChanged(filePath);
-            } catch (readError) {
-              Logger.error(`FileWatcherService: 要件定義ファイル読み込みエラー: ${readError}`);
+      // デバッグログ
+      Logger.info(`FileWatcherService: 要件定義ファイル監視設定: ${requirementsFilePath}`);
+
+      // 要件定義ファイルの監視設定
+      const requirementsWatcher = fileSystemService.setupEnhancedFileWatcher(
+        requirementsFilePath,
+        async (filePath: string) => {
+          Logger.info(`FileWatcherService: 要件定義ファイル変更を検出: ${filePath}`);
+          try {
+            // 要件定義ファイル変更をコールバックに通知
+            await onRequirementsFileChanged(filePath);
+
+            // 特別なイベントメッセージを発行（進捗ファイルと同様の処理）
+            if (fileSystemService.dispatchMessage && typeof fileSystemService.dispatchMessage === 'function') {
+              // messageDispatchServiceを使用して特別な更新メッセージを送信
+              fileSystemService.dispatchMessage({
+                command: 'requirementsFileChanged',
+                filePath: filePath,
+                timestamp: Date.now()
+              });
+              Logger.info(`FileWatcherService: 要件定義ファイル変更イベントを送信しました: ${filePath}`);
             }
+          } catch (readError) {
+            Logger.error(`FileWatcherService: 要件定義ファイル読み込みエラー: ${readError}`);
           }
-        ).then((watcher: vscode.Disposable) => {
-          watchers.push(watcher);
-          Logger.info(`FileWatcherService: 要件定義ファイルの監視を設定しました (専用API使用)`);
-        }).catch((error: Error) => {
-          Logger.error(`FileWatcherService: 要件定義ファイル監視の設定に失敗しました`, error);
-        });
-      } else {
-        // 従来の方法
-        this.setupLegacyRequirementsFileWatcher(projectPath, fileSystemService, onRequirementsFileChanged, watchers);
-      }
+        },
+        { delayedReadTime: 500 } // 500ms後に遅延読み込み
+      );
+
+      watchers.push(requirementsWatcher);
+      Logger.info(`FileWatcherService: 要件定義ファイルの監視を設定しました: ${requirementsFilePath}`);
     } catch (error) {
-      Logger.error(`FileWatcherService: 要件定義ファイルの監視設定中にエラーが発生しました`, error as Error);
+      Logger.error(`FileWatcherService: 要件定義ファイル監視設定中にエラーが発生しました`, error as Error);
     }
   }
 
@@ -273,7 +309,15 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
           async (filePath: string) => {
             Logger.info(`FileWatcherService: 要件定義ファイル変更を検出: ${filePath} (従来方式)`);
             try {
+              // 即時反映するようにする
               await onRequirementsFileChanged(filePath);
+
+              // イベントバスを通じて他のコンポーネントに通知
+              const eventBus = AppGeniusEventBus.getInstance();
+              eventBus.emit(AppGeniusEventType.REQUIREMENTS_UPDATED, {
+                path: filePath,
+                timestamp: Date.now()
+              }, 'FileWatcherService', this._getProjectIdFromPath(projectPath));
             } catch (readError) {
               Logger.error(`FileWatcherService: 要件定義ファイル読み込みエラー: ${readError}`);
             }
@@ -315,8 +359,24 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
         // 要件定義ファイルの内容を更新
         const requirementsPath = (event.data as any).path;
         if (requirementsPath && await fileSystemService.fileExists(requirementsPath)) {
+          // 要件定義ファイルの変更を即時反映
           await onRequirementsFileChanged(requirementsPath);
           Logger.info(`FileWatcherService: 要件定義ファイルを更新しました: ${requirementsPath}`);
+
+          // タブの状態に関係なく要件定義ファイルを更新するよう促す
+          if (fileSystemService.dispatchMessage && typeof fileSystemService.dispatchMessage === 'function') {
+            try {
+              // messageDispatchServiceを使用して特別な更新メッセージを送信
+              fileSystemService.dispatchMessage({
+                command: 'requirementsFileChanged',
+                filePath: requirementsPath,
+                timestamp: Date.now()
+              });
+              Logger.info(`FileWatcherService: requirementsFileChangedメッセージを送信しました: ${requirementsPath}`);
+            } catch (dispatchError) {
+              Logger.error(`FileWatcherService: メッセージ送信エラー`, dispatchError as Error);
+            }
+          }
         }
       }
     );

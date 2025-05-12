@@ -173,14 +173,64 @@ try {
   // メッセージハンドラー
   window.addEventListener('message', event => {
     const message = event.data;
-    
+
     // シェアリングパネル関連のメッセージは無視（sharingPanel.jsが処理）
     if (['showShareResult', 'updateSharingHistory', 'commandCopied', 'resetDropZone'].includes(message.command)) {
       // sharingPanel.jsに処理を任せるが、念のためmessageオブジェクトを出力
       console.log('共有パネル関連メッセージをsharingPanel.jsに転送:', message.command);
       return;
     }
-    
+
+    // ファイル監視機能の最強改善: 要件定義ファイル変更検出時の特別ハンドラー
+    if (message.command === 'requirementsFileChanged') {
+      // ファイル変更を検出したログを出力
+      console.log(`🔥 要件定義ファイル変更検出: タイムスタンプ=${message.timestamp}`);
+
+      if (message.filePath) {
+        // ファイルパスから直接コンテンツ取得
+        vscode.postMessage({
+          command: 'getMarkdownContent',
+          filePath: message.filePath,
+          forRequirements: true,  // 要件定義タブ用
+          forceRefresh: true,     // 強制更新
+          timestamp: Date.now()
+        });
+
+        console.log(`🔄 要件定義ファイル再読込リクエスト送信: ${message.filePath}`);
+
+        // すでにコンテンツが提供されている場合は即時更新（最速対応）
+        if (message.content) {
+          console.log(`即時更新: 直接提供されたコンテンツで更新します (長さ: ${message.content.length})`);
+
+          // コンテンツを状態に保存
+          stateManager.setState({
+            requirementsContent: message.content,
+            requirementsLastUpdate: Date.now(),
+            requirementsFilePath: message.filePath
+          }, false);
+
+          // タブがアクティブならコンテンツを更新
+          const activeTabId = stateManager.getState().activeTab;
+          if (activeTabId === 'requirements') {
+            // 要件定義タブのコンテナを取得
+            const requirementsContainer = document.querySelector('#requirements-tab .markdown-content');
+            if (requirementsContainer && window.markdownViewer) {
+              window.markdownViewer.updateContent(message.content, requirementsContainer);
+              console.log('要件定義タブが即時更新されました');
+            }
+          } else {
+            console.log('要件定義タブが非表示のため状態のみ更新されました');
+            // 次回表示時に更新されるようフラグを設定
+            stateManager.setState({
+              requirementsNeedsUpdate: true
+            }, false);
+          }
+        }
+      }
+
+      return; // 他の処理は行わない
+    }
+
     switch (message.command) {
       case 'updateState':
         // StateManagerに処理を委譲

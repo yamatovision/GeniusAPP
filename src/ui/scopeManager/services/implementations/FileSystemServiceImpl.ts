@@ -17,13 +17,13 @@ import { Message } from '../interfaces/common';
 export class FileSystemServiceImpl implements IFileSystemService, IWebViewCommunication {
   private _onProgressFileChanged = new vscode.EventEmitter<string>();
   public readonly onProgressFileChanged = this._onProgressFileChanged.event;
-  
+
   private _onDirectoryStructureUpdated = new vscode.EventEmitter<string>();
   public readonly onDirectoryStructureUpdated = this._onDirectoryStructureUpdated.event;
-  
+
   private _onFileBrowserUpdated = new vscode.EventEmitter<IProjectDocument[]>();
   public readonly onFileBrowserUpdated = this._onFileBrowserUpdated.event;
-  
+
   private _disposables: vscode.Disposable[] = [];
   private _fileManager: FileOperationManager;
   private _fileWatcher: vscode.Disposable | null = null;
@@ -31,6 +31,58 @@ export class FileSystemServiceImpl implements IFileSystemService, IWebViewCommun
   private _extensionPath: string;
   private _currentFileList: IProjectDocument[] = [];
   private _messageDispatchService: IMessageDispatchService | null = null;
+
+  /**
+   * メッセージをディスパッチする（パネルが必要ない場合のメッセージ送信用）
+   * 任意のコマンドを登録されたメッセージハンドラに送信する
+   * @param message 送信するメッセージ
+   */
+  public dispatchMessage(message: Message): void {
+    try {
+      if (this._messageDispatchService) {
+        // 登録されているパネルに送信（デフォルトパネルがあれば使用）
+        const activePanel = this._getPanelFromMessageDispatchService();
+        if (activePanel) {
+          this._messageDispatchService.handleMessage(message, activePanel);
+          Logger.info(`FileSystemService: メッセージをディスパッチしました: ${message.command}`);
+        } else {
+          Logger.warn(`FileSystemService: アクティブパネルが見つかりません: ${message.command}`);
+        }
+      } else {
+        Logger.warn(`FileSystemService: messageDispatchServiceが設定されていないため、メッセージをディスパッチできません: ${message.command}`);
+      }
+    } catch (error) {
+      Logger.error(`FileSystemService: メッセージディスパッチエラー: ${message.command}`, error as Error);
+    }
+  }
+
+  /**
+   * MessageDispatchServiceからパネルを取得する（内部ヘルパー）
+   * @returns 利用可能なWebViewパネル、見つからない場合はnull
+   */
+  private _getPanelFromMessageDispatchService(): vscode.WebviewPanel | null {
+    try {
+      // MessageDispatchServiceImpl実装の内部構造に依存する実装（注意が必要）
+      if (this._messageDispatchService) {
+        // @ts-ignore - MessageDispatchServiceImplの内部プロパティにアクセス
+        const activePanel = (this._messageDispatchService as any)._activePanel || null;
+        if (activePanel) {
+          return activePanel;
+        }
+
+        // UIStateServiceから取得を試みる
+        // @ts-ignore - MessageDispatchServiceImplの内部プロパティにアクセス
+        const uiStateService = (this._messageDispatchService as any)._uiStateService;
+        if (uiStateService && typeof uiStateService.getPanel === 'function') {
+          return uiStateService.getPanel();
+        }
+      }
+      return null;
+    } catch (error) {
+      Logger.warn('FileSystemService: パネル取得中にエラー', error as Error);
+      return null;
+    }
+  }
   
   // シングルトンインスタンス
   private static _instance: FileSystemServiceImpl;
@@ -723,7 +775,7 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
    * @param projectPath オプショナル - 指定しない場合はProjectServiceImplから最新のパスを取得
    * @returns 要件定義ファイルのパス
    */
-  public async getRequirementsFilePath(projectPath?: string): Promise<string | null> {
+  public getRequirementsFilePath(projectPath?: string): string {
     // プロジェクトパスが指定されていない場合はProjectServiceImplから最新のパスを取得
     if (!projectPath) {
       try {
@@ -746,8 +798,9 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
       throw new Error('プロジェクトパスが取得できません');
     }
 
-    // 要件定義ファイルを検索
-    return this.findRequirementsFile(projectPath);
+    // docs/requirements.mdというパスを構築
+    const docsDir = path.join(projectPath, 'docs');
+    return path.join(docsDir, 'requirements.md');
   }
 
   /**
@@ -760,39 +813,48 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
     outputCallback?: (filePath: string) => void
   ): Promise<vscode.Disposable> {
     try {
-      // 要件定義ファイルのパスを取得
-      const requirementsFilePath = await this.getRequirementsFilePath(projectPath);
+      // プロジェクトパスが指定されていない場合はProjectServiceImplから最新のパスを取得
+      if (!projectPath) {
+        try {
+          // ProjectServiceImplのインスタンスを取得
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { ProjectServiceImpl } = require('../implementations/ProjectServiceImpl');
+          const projectService = ProjectServiceImpl.getInstance();
 
-      if (!requirementsFilePath) {
-        Logger.warn(`FileSystemService: 要件定義ファイルが見つからないため監視を設定できませんでした: ${projectPath || '不明'}`);
-        // 空のDisposableを返す
-        return { dispose: () => {} };
+          // 最新のアクティブプロジェクトパスを取得
+          projectPath = projectService.getActiveProjectPath();
+
+          Logger.info(`FileSystemService: ProjectServiceImplから最新プロジェクトパスを取得: ${projectPath}`);
+        } catch (error) {
+          Logger.error('FileSystemService: ProjectServiceImplからのパス取得に失敗', error as Error);
+          throw new Error('有効なプロジェクトが選択されていません');
+        }
+      }
+
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが取得できません');
       }
 
       // outputCallbackが指定されていない場合のデフォルト処理
       const callback = outputCallback || ((filePath: string) => {
-        Logger.info(`FileSystemService: 要件定義ファイルの変更を検出: ${filePath} (デフォルトハンドラ)`);
-
-        // 要件定義ファイル更新イベントを発火
-        const eventBus = AppGeniusEventBus.getInstance();
-        eventBus.emit(AppGeniusEventType.REQUIREMENTS_UPDATED, {
-          path: filePath
-        }, 'FileSystemService');
+        Logger.info(`FileSystemService: ファイル変更を検出: ${filePath} (デフォルトハンドラ)`);
       });
 
-      // ファイルウォッチャーを設定
-      Logger.info(`FileSystemService: 要件定義ファイルの監視を設定します: ${requirementsFilePath}`);
+      // 要件定義ファイルのパスを取得 - 直接構築（エラー回避）
+      const docsDir = path.join(projectPath, 'docs');
+      const requirementsFilePath = path.join(docsDir, 'requirements.md');
 
+      // ファイルウォッチャーを設定
       const fileWatcher = this.setupEnhancedFileWatcher(
         requirementsFilePath,
         callback,
         { delayedReadTime: 500 }  // 500ms後に遅延読み込み
       );
 
-      Logger.info(`FileSystemService: 要件定義ファイルの監視を設定しました: ${requirementsFilePath}`);
+      Logger.info(`FileSystemService: 要件定義ファイルウォッチャーを設定しました: ${requirementsFilePath}`);
       return fileWatcher;
     } catch (error) {
-      Logger.error(`FileSystemService: 要件定義ファイルの監視設定中にエラーが発生しました: ${projectPath || '不明'}`, error as Error);
+      Logger.error(`FileSystemService: 要件定義ファイルウォッチャーの設定中にエラーが発生しました: ${projectPath || '不明'}`, error as Error);
       // エラー時は空のDisposableを返す
       return { dispose: () => {} };
     }
