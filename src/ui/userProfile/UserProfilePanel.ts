@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AuthenticationService } from '../../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 
 /**
  * ユーザープロファイルパネルクラス
@@ -25,7 +25,7 @@ export class UserProfilePanel {
   /**
    * 認証サービス
    */
-  private _authService: AuthenticationService;
+  private _authService: SimpleAuthService;
 
   /**
    * 新しいパネルの作成または既存パネルを表示するスタティックメソッド
@@ -64,7 +64,19 @@ export class UserProfilePanel {
    */
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
     this._panel = panel;
-    this._authService = AuthenticationService.getInstance();
+
+    // SimpleAuthServiceを初期化
+    try {
+      const context = (global as any).appgeniusContext;
+      if (context) {
+        this._authService = SimpleAuthService.getInstance(context);
+      } else {
+        throw new Error('コンテキストが見つかりません');
+      }
+    } catch (error) {
+      console.error('SimpleAuthServiceの初期化に失敗しました:', error);
+      throw error;
+    }
 
     // webviewの内容を設定
     this._initWebview(extensionUri);
@@ -98,7 +110,7 @@ export class UserProfilePanel {
   private async _loadUserProfile(): Promise<void> {
     try {
       // ユーザーの認証状態を確認
-      const isAuthenticated = await this._authService.isAuthenticated();
+      const isAuthenticated = this._authService.isAuthenticated();
       
       if (!isAuthenticated) {
         // 認証されていない場合
@@ -110,7 +122,7 @@ export class UserProfilePanel {
       }
       
       // ユーザー情報を取得
-      const userInfo = await this._authService.getUserInfo();
+      const userInfo = this._authService.getCurrentUser();
       
       // データをWebviewに送信
       this._panel.webview.postMessage({
@@ -134,20 +146,20 @@ export class UserProfilePanel {
    */
   private async _updateProfile(profileData: any): Promise<void> {
     try {
-      // プロフィール更新APIを呼び出す
-      await this._authService.updateProfile(profileData);
-      
-      // 成功メッセージをWebviewに送信
+      // 注: SimpleAuthServiceにはupdateProfileメソッドが存在しないため、
+      // このメソッドは実際には機能しません。将来的な実装のためのスタブです。
+
+      // 成功メッセージをWebviewに送信（テスト用）
       this._panel.webview.postMessage({
         type: 'success',
-        message: 'プロファイルが正常に更新されました'
+        message: 'プロファイル更新機能は現在利用できません'
       });
-      
+
       // プロファイル情報を再取得
       this._loadUserProfile();
     } catch (error) {
       console.error('プロファイル更新エラー:', error);
-      
+
       // エラーメッセージをWebviewに送信
       this._panel.webview.postMessage({
         type: 'error',
@@ -161,17 +173,17 @@ export class UserProfilePanel {
    */
   private async _changePassword(passwordData: { currentPassword: string; newPassword: string }): Promise<void> {
     try {
-      // パスワード変更APIを呼び出す
-      await this._authService.changePassword(passwordData.currentPassword, passwordData.newPassword);
-      
-      // 成功メッセージをWebviewに送信
+      // 注: SimpleAuthServiceにはchangePasswordメソッドが存在しないため、
+      // このメソッドは実際には機能しません。将来的な実装のためのスタブです。
+
+      // 成功メッセージをWebviewに送信（テスト用）
       this._panel.webview.postMessage({
         type: 'success',
-        message: 'パスワードが正常に変更されました'
+        message: 'パスワード変更機能は現在利用できません'
       });
     } catch (error) {
       console.error('パスワード変更エラー:', error);
-      
+
       // エラーメッセージをWebviewに送信
       this._panel.webview.postMessage({
         type: 'error',

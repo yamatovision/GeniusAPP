@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { Feature } from '../../core/auth/roles';
 import { AuthGuard } from './AuthGuard';
 import { Logger } from '../../utils/logger';
-import { AuthenticationService } from '../../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 import { PermissionManager } from '../../core/auth/PermissionManager';
 
 /**
@@ -18,14 +18,19 @@ export abstract class ProtectedPanel {
     // クラスが初期化されたときに一度だけ認証リスナーを設定
     if (!ProtectedPanel.authListenersInitialized) {
       try {
-        // 認証状態変更の監視を設定
-        const authService = AuthenticationService.getInstance();
-        const permissionManager = PermissionManager.getInstance();
-        
-        // 権限変更イベントをリッスン
-        permissionManager.onPermissionsChanged(() => {
-          Logger.debug('ProtectedPanel: 権限変更を検知しました。UIの更新が必要かもしれません。');
-        });
+        // SimpleAuthServiceインスタンスの取得
+        const context = (global as any).appgeniusContext;
+        if (context) {
+          const authService = SimpleAuthService.getInstance(context);
+          const permissionManager = PermissionManager.getInstance(authService);
+
+          // 権限変更イベントをリッスン
+          permissionManager.onPermissionsChanged(() => {
+            Logger.debug('ProtectedPanel: 権限変更を検知しました。UIの更新が必要かもしれません。');
+          });
+        } else {
+          Logger.warn('ProtectedPanel: コンテキストが見つからないため、認証リスナー初期化をスキップします');
+        }
         
         ProtectedPanel.authListenersInitialized = true;
         Logger.debug('ProtectedPanel: 認証リスナーを初期化しました');

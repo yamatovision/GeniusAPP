@@ -4,7 +4,7 @@ import * as path from 'path';
 import { ClaudeCodeIntegrationService } from '../services/ClaudeCodeIntegrationService';
 import { ClaudeCodeApiClient } from '../api/claudeCodeApiClient';
 import { Logger } from '../utils/logger';
-import { AuthenticationService } from '../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../core/auth/SimpleAuthService';
 
 /**
  * ClaudeCode連携関連のコマンド登録とハンドラー
@@ -13,7 +13,20 @@ export function registerClaudeCodeCommands(context: vscode.ExtensionContext): vo
   // サービスのインスタンス
   const integrationService = ClaudeCodeIntegrationService.getInstance();
   const apiClient = ClaudeCodeApiClient.getInstance();
-  const authService = AuthenticationService.getInstance();
+
+  // SimpleAuthServiceのインスタンスを取得
+  let authService: SimpleAuthService;
+  try {
+    const context = (global as any).appgeniusContext;
+    if (context) {
+      authService = SimpleAuthService.getInstance(context);
+    } else {
+      throw new Error('コンテキストが見つかりません');
+    }
+  } catch (error) {
+    Logger.error('SimpleAuthServiceの初期化に失敗しました', error as Error);
+    throw error;
+  }
 
   // コマンド登録
   context.subscriptions.push(

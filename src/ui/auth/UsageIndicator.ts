@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AuthenticationService } from '../../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 import axios from 'axios';
 
 /**
@@ -10,7 +10,7 @@ import axios from 'axios';
 export class UsageIndicator {
   private static instance: UsageIndicator;
   private _statusBarItem: vscode.StatusBarItem;
-  private _authService: AuthenticationService;
+  private _authService: SimpleAuthService;
   private _disposables: vscode.Disposable[] = [];
   private _usageCheckInterval: NodeJS.Timer | null = null;
   private _currentUsage: number = 0;
@@ -24,7 +24,17 @@ export class UsageIndicator {
    * コンストラクタ
    */
   private constructor() {
-    this._authService = AuthenticationService.getInstance();
+    try {
+      const context = (global as any).appgeniusContext;
+      if (context) {
+        this._authService = SimpleAuthService.getInstance(context);
+      } else {
+        throw new Error('コンテキストが見つかりません');
+      }
+    } catch (error) {
+      console.error('SimpleAuthServiceの初期化に失敗しました:', error);
+      throw error;
+    }
     
     // ステータスバーアイテムの作成
     this._statusBarItem = vscode.window.createStatusBarItem(
@@ -34,7 +44,9 @@ export class UsageIndicator {
     
     // 認証状態変更時のイベントリスナー
     this._disposables.push(
-      this._authService.onAuthStateChanged(this._handleAuthStateChange.bind(this))
+      this._authService.onStateChanged(state => {
+        this._handleAuthStateChange(state.isAuthenticated);
+      })
     );
     
     // 環境変数から警告閾値を設定

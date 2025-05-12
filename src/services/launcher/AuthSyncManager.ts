@@ -23,20 +23,21 @@ export class AuthSyncManager {
           .then(module => module.ClaudeCodeAuthSync.getInstance(context));
       }
       
-      // 認証サービスを取得
-      if (!this.authService) {
-        this.authService = await import('../../core/auth/AuthenticationService')
-          .then(module => module.AuthenticationService.getInstance());
-      }
+      // 認証サービスを取得 (AuthenticationServiceは削除されたため不要)
+      this.authService = null;
       
       // SimpleAuthServiceのインスタンスも取得（APIキー取得用）
       if (!this.simpleAuthService) {
         try {
-          this.simpleAuthService = await import('../../core/auth/SimpleAuthService')
-            .then(module => module.SimpleAuthService.getInstance());
-          Logger.info('SimpleAuthServiceのインスタンスを取得しました');
+          const SimpleAuthServiceModule = await import('../../core/auth/SimpleAuthService');
+          if ((global as any).appgeniusContext) {
+            this.simpleAuthService = SimpleAuthServiceModule.SimpleAuthService.getInstance((global as any).appgeniusContext);
+            Logger.info('SimpleAuthServiceのインスタンスを取得しました');
+          } else {
+            Logger.warn('appgeniusContextが見つかりません。SimpleAuthServiceの初期化をスキップします');
+          }
         } catch (error) {
-          Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました。レガシー認証を使用します', error as Error);
+          Logger.warn('SimpleAuthServiceのインスタンス取得に失敗しました', error as Error);
           // SimpleAuthService無しでも続行可能
         }
       }

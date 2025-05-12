@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { AuthenticationService } from './AuthenticationService';
 import { SimpleAuthService } from './SimpleAuthService';
 import { Role, Feature, RoleFeatureMap, FeatureDisplayNames } from './roles';
 import { Logger } from '../../utils/logger';
@@ -20,7 +19,7 @@ export interface AccessDeniedAction {
  */
 export class PermissionManager {
   private static instance: PermissionManager;
-  private _authService: AuthenticationService | SimpleAuthService;
+  private _authService: SimpleAuthService;
   private _onPermissionsChanged = new vscode.EventEmitter<void>();
   
   // 権限サービスへの参照（将来の拡張用）
@@ -32,7 +31,7 @@ export class PermissionManager {
   /**
    * コンストラクタ
    */
-  private constructor(authService: AuthenticationService | SimpleAuthService) {
+  private constructor(authService: SimpleAuthService) {
     this._authService = authService;
     
     // 認証状態変更イベントをリッスン
@@ -48,7 +47,7 @@ export class PermissionManager {
   /**
    * シングルトンインスタンスの取得
    */
-  public static getInstance(authService?: AuthenticationService | SimpleAuthService): PermissionManager {
+  public static getInstance(authService?: SimpleAuthService): PermissionManager {
     if (!PermissionManager.instance) {
       if (!authService) {
         throw new Error('PermissionManagerの初期化時には認証サービスが必要です');

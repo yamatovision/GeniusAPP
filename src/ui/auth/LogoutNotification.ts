@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AuthenticationService } from '../../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 
 /**
  * LogoutNotification - ログアウト関連の通知を管理するクラス
@@ -8,7 +8,7 @@ import { AuthenticationService } from '../../core/auth/AuthenticationService';
  */
 export class LogoutNotification {
   private static instance: LogoutNotification;
-  private _authService: AuthenticationService;
+  private _authService: SimpleAuthService;
   private _disposables: vscode.Disposable[] = [];
   
   // ログアウト理由の定義
@@ -27,12 +27,22 @@ export class LogoutNotification {
    * コンストラクタ
    */
   private constructor() {
-    this._authService = AuthenticationService.getInstance();
-    
-    // 認証状態変更イベントをリッスン
-    this._disposables.push(
-      this._authService.onAuthStateChanged(this._handleAuthStateChange.bind(this))
-    );
+    // SimpleAuthServiceの初期化
+    try {
+      const context = (global as any).appgeniusContext;
+      if (context) {
+        this._authService = SimpleAuthService.getInstance(context);
+
+        // 認証状態変更イベントをリッスン
+        this._disposables.push(
+          this._authService.onStateChanged(state => {
+            this._handleAuthStateChange(state.isAuthenticated);
+          })
+        );
+      }
+    } catch (error) {
+      console.error('SimpleAuthServiceの初期化に失敗しました', error);
+    }
   }
 
   /**

@@ -3,7 +3,7 @@ import * as http from 'http';
 import * as https from 'https';
 import axios from 'axios';
 import { URL } from 'url';
-import { AuthenticationService } from '../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../core/auth/SimpleAuthService';
 import { Logger } from './logger';
 
 /**
@@ -16,7 +16,7 @@ export class ProxyManager {
   private static instance: ProxyManager;
   private _server: http.Server | null = null;
   private _port: number = 0;
-  private _authService: AuthenticationService;
+  private _authService: SimpleAuthService;
   private _targetHosts: Map<string, string> = new Map();
   
   // プロキシサーバーの設定
@@ -27,7 +27,19 @@ export class ProxyManager {
    * コンストラクタ
    */
   private constructor() {
-    this._authService = AuthenticationService.getInstance();
+    // SimpleAuthServiceのインスタンスを取得
+    try {
+      const context = (global as any).appgeniusContext;
+      if (context) {
+        this._authService = SimpleAuthService.getInstance(context);
+      } else {
+        throw new Error('コンテキストが見つかりません');
+      }
+    } catch (error) {
+      Logger.error('SimpleAuthServiceの初期化に失敗しました', error as Error);
+      throw error;
+    }
+
     this._initializeTargetHosts();
   }
 

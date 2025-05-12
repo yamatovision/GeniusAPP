@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { AuthenticationService } from '../../core/auth/AuthenticationService';
 import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 import { Logger } from '../../utils/logger';
 
@@ -12,11 +11,10 @@ import { Logger } from '../../utils/logger';
  */
 export class LoginWebviewPanel {
   public static currentPanel: LoginWebviewPanel | undefined;
-  
+
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
-  private readonly _authService: AuthenticationService;
-  private readonly _simpleAuthService: SimpleAuthService; // SimpleAuthServiceを追加
+  private readonly _simpleAuthService: SimpleAuthService;
   private _disposables: vscode.Disposable[] = [];
 
   /**
@@ -57,8 +55,20 @@ export class LoginWebviewPanel {
   private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {
     this._panel = panel;
     this._extensionUri = extensionUri;
-    this._authService = AuthenticationService.getInstance();
-    this._simpleAuthService = SimpleAuthService.getInstance(); // SimpleAuthServiceを初期化
+
+    // SimpleAuthServiceを初期化
+    try {
+      const context = (global as any).appgeniusContext;
+      if (context) {
+        this._simpleAuthService = SimpleAuthService.getInstance(context);
+        Logger.debug('SimpleAuthServiceをLoginWebviewPanelに初期化しました');
+      } else {
+        throw new Error('コンテキストが見つかりません');
+      }
+    } catch (error) {
+      Logger.error('SimpleAuthServiceの初期化に失敗しました', error as Error);
+      throw error;
+    }
 
     // コンテンツの設定
     this._update();
@@ -509,114 +519,64 @@ export class LoginWebviewPanel {
   private async _handleLogin(email: string, password: string): Promise<void> {
     try {
       Logger.info('LoginWebviewPanel: SimpleAuthServiceを使用してログイン処理を開始します');
-      
+
       // SimpleAuthServiceでログイン処理を実行
       try {
         // ログイン処理を実行
         await this._simpleAuthService.login(email, password);
-        
+
         // 認証状態を確認
         const isAuthenticated = this._simpleAuthService.isAuthenticated();
-        
+
         if (isAuthenticated) {
           // ログイン成功メッセージ
           this._panel.webview.postMessage({
             type: 'login-result',
             success: true
           });
-          
+
           // 成功通知
           vscode.window.showInformationMessage('AppGeniusにログインしました');
-          
-          // APIキー表示は不要なので削除
-          // setTimeout(async () => {
-          //   await this._showApiKeyAfterLogin();
-          // }, 1000);
-          
+
           // 少し待ってからパネルを閉じる
           setTimeout(() => {
             this._panel.dispose();
           }, 1500);
-          
+
           return;
         }
       } catch (simpleAuthError) {
         Logger.error('SimpleAuthServiceログイン処理エラー:', simpleAuthError as Error);
-        // エラーが発生した場合は、後続の処理でメッセージを表示
-      }
-      
-      // SimpleAuthServiceが失敗した場合や成功しなかった場合、レガシーのAuthenticationServiceでのログインを試行
-      Logger.info('SimpleAuthServiceログイン失敗、レガシー認証を試行します');
-      const legacySuccess = await this._authService.login(email, password);
-      
-      if (legacySuccess) {
-        // ログイン成功メッセージ
-        this._panel.webview.postMessage({
-          type: 'login-result',
-          success: true
-        });
-        
-        // 成功通知
-        vscode.window.showInformationMessage('AppGeniusにログインしました（レガシー認証）');
-        
-        // APIキー表示は不要なので削除
-        // setTimeout(async () => {
-        //   await this._showApiKeyAfterLogin();
-        // }, 1000);
-        
-        // 少し待ってからパネルを閉じる
-        setTimeout(() => {
-          this._panel.dispose();
-        }, 1500);
-      } else {
-        // エラー情報を取得
-        const authError = this._authService.getLastError();
+
+        // エラー情報の取得
         let errorMessage = 'メールアドレスまたはパスワードが正しくありません';
-        
-        if (authError) {
-          // エラーコードに応じたメッセージ
-          switch (authError.code) {
-            case 'invalid_credentials':
-              errorMessage = 'メールアドレスまたはパスワードが正しくありません';
-              break;
-            case 'access_denied':
-              errorMessage = 'アクセスが拒否されました。権限をご確認ください';
-              break;
-            case 'rate_limited':
-              errorMessage = 'リクエスト回数が多すぎます。しばらく待ってから再試行してください';
-              break;
-            case 'missing_credentials':
-              errorMessage = 'クライアントID/シークレットが設定されていません。環境設定を確認してください';
-              break;
-            default:
-              // authErrorからメッセージを使用
-              errorMessage = authError.message || errorMessage;
-          }
+
+        // エラーオブジェクトからメッセージを取得
+        if (simpleAuthError instanceof Error) {
+          errorMessage = simpleAuthError.message;
         }
-        
+
         // ログイン失敗メッセージ
         this._panel.webview.postMessage({
           type: 'login-result',
           success: false,
           error: errorMessage
         });
-        
-        // 致命的なエラーの場合は通知も表示
-        if (authError && (authError.code === 'missing_credentials' || authError.code === 'server_error')) {
-          vscode.window.showErrorMessage(`ログインエラー: ${errorMessage}`);
-        }
+
+        // エラー通知表示
+        vscode.window.showErrorMessage(`ログインエラー: ${errorMessage}`);
       }
     } catch (error) {
       console.error('ログイン処理中にエラーが発生しました:', error);
       Logger.error('ログイン処理中にエラーが発生しました:', error as Error);
-      
+
       // エラーメッセージ
       this._panel.webview.postMessage({
         type: 'login-result',
         success: false,
         error: `ログイン処理中にエラーが発生しました: ${(error as Error).message}`
       });
-      
+
       // 通知も表示
       vscode.window.showErrorMessage(`ログイン処理中にエラーが発生しました: ${(error as Error).message}`);
     }

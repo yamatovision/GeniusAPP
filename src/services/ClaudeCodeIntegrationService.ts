@@ -6,7 +6,7 @@ import { Logger } from '../utils/logger';
 import { ClaudeCodeAuthSync } from './ClaudeCodeAuthSync';
 import { ClaudeCodeLauncherService } from './ClaudeCodeLauncherService';
 import { ProxyManager } from '../utils/ProxyManager';
-import { AuthenticationService } from '../core/auth/AuthenticationService';
+import { SimpleAuthService } from '../core/auth/SimpleAuthService';
 import { AppGeniusEventBus, AppGeniusEventType } from './AppGeniusEventBus';
 import { ClaudeCodeApiClient } from '../api/claudeCodeApiClient';
 
@@ -21,7 +21,7 @@ export class ClaudeCodeIntegrationService {
   private _launcher: ClaudeCodeLauncherService;
   private _proxyManager: ProxyManager;
   private _apiClient: ClaudeCodeApiClient;
-  private _authService: AuthenticationService;
+  private _authService: SimpleAuthService;
   private _eventBus: AppGeniusEventBus;
   private _disposables: vscode.Disposable[] = [];
 
@@ -42,7 +42,15 @@ export class ClaudeCodeIntegrationService {
       this._launcher = ClaudeCodeLauncherService.getInstance();
       this._proxyManager = ProxyManager.getInstance();
       this._apiClient = ClaudeCodeApiClient.getInstance();
-      this._authService = AuthenticationService.getInstance();
+
+      // SimpleAuthServiceのインスタンスを取得
+      const appContext = (global as any).appgeniusContext;
+      if (appContext) {
+        this._authService = SimpleAuthService.getInstance(appContext);
+      } else {
+        throw new Error('コンテキストが見つかりません');
+      }
+
       this._eventBus = AppGeniusEventBus.getInstance();
       
       this._initialize();
@@ -82,7 +90,9 @@ export class ClaudeCodeIntegrationService {
     try {
       // 認証状態変更のリスナー
       this._disposables.push(
-        this._authService.onAuthStateChanged(this._handleAuthStateChange.bind(this))
+        this._authService.onStateChanged(state => {
+          this._handleAuthStateChange(state.isAuthenticated);
+        })
       );
       
       // ClaudeCode起動/停止イベントのリスナー

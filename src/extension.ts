@@ -38,10 +38,8 @@ import { MessageBroker } from './utils/MessageBroker';
 import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
 import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
 // 環境変数アシスタントは不要になったため削除
-import { TokenManager } from './core/auth/TokenManager';
-import { AuthenticationService } from './core/auth/AuthenticationService';
-import { SimpleAuthManager } from './core/auth/SimpleAuthManager'; // 新しい認証マネージャー
-import { SimpleAuthService } from './core/auth/SimpleAuthService'; // 新しい認証サービス
+import { SimpleAuthManager } from './core/auth/SimpleAuthManager';
+import { SimpleAuthService } from './core/auth/SimpleAuthService';
 import { PermissionManager } from './core/auth/PermissionManager';
 import { registerAuthCommands } from './core/auth/authCommands';
 import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
@@ -517,14 +515,9 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		});
 		
-		// 従来の認証サービス初期化（後方互換性のために維持）
-		const tokenManager = TokenManager.getInstance(context);
-		Logger.info('Legacy TokenManager initialized successfully');
-		
-		const authService = AuthenticationService.getInstance(context);
-		Logger.info('Legacy AuthenticationService initialized successfully');
-		
-		// PermissionManagerの初期化（シンプル認証サービスを優先使用）
+		// 従来の認証サービスは不要になったため削除
+
+		// PermissionManagerの初期化（シンプル認証サービスを使用）
 		const permissionManager = PermissionManager.getInstance(simpleAuthService);
 		Logger.info('PermissionManager initialized with SimpleAuthService');
 		

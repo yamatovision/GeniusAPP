@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { AuthenticationService } from './AuthenticationService';
-import { SimpleAuthManager } from './SimpleAuthManager'; // 新しい認証マネージャーを追加
+import { SimpleAuthService } from './SimpleAuthService';
+import { SimpleAuthManager } from './SimpleAuthManager';
 import { LoginWebviewPanel } from '../../ui/auth/LoginWebviewPanel';
 import { AuthStatusBar } from '../../ui/auth/AuthStatusBar';
 import { UsageIndicator } from '../../ui/auth/UsageIndicator';
@@ -15,11 +15,17 @@ import { LogoutNotification } from '../../ui/auth/LogoutNotification';
  * @param context VSCode拡張のコンテキスト
  */
 export function registerAuthCommands(context: vscode.ExtensionContext): void {
-  const authService = AuthenticationService.getInstance();
-  
+  let authService: SimpleAuthService | undefined;
+
+  try {
+    authService = SimpleAuthService.getInstance(context);
+  } catch (error) {
+    console.error('SimpleAuthServiceの初期化に失敗しました', error);
+  }
+
   // ログインコマンドは別の場所で登録されているため、ここでは登録しない
-  
-  // 従来のログアウトコマンド
+
+  // ログアウトコマンド
   context.subscriptions.push(
     vscode.commands.registerCommand('appgenius.logout', async () => {
       const answer = await vscode.window.showWarningMessage(
@@ -28,7 +34,7 @@ export function registerAuthCommands(context: vscode.ExtensionContext): void {
         'キャンセル'
       );
 
-      if (answer === 'ログアウト') {
+      if (answer === 'ログアウト' && authService) {
         await authService.logout();
         vscode.window.showInformationMessage('AppGeniusからログアウトしました');
       }
