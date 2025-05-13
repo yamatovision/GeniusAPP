@@ -40,7 +40,7 @@ export class LoginWebviewPanel {
         enableScripts: true,
         retainContextWhenHidden: true,
         localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, 'webviews', 'auth')
+          vscode.Uri.joinPath(extensionUri, 'media', 'components', 'auth')
         ]
       }
     );
@@ -111,7 +111,8 @@ export class LoginWebviewPanel {
     // HTMlファイルパス
     const htmlFilePath = path.join(
       this._extensionUri.fsPath,
-      'webviews',
+      'media',
+      'components',
       'auth',
       'index.html'
     );
@@ -123,11 +124,11 @@ export class LoginWebviewPanel {
       
       // スクリプトとスタイルのURIを取得
       const styleUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(this._extensionUri, 'webviews', 'auth', 'style.css')
+        vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'auth', 'style.css')
       );
       
       const scriptUri = webview.asWebviewUri(
-        vscode.Uri.joinPath(this._extensionUri, 'webviews', 'auth', 'script.js')
+        vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'auth', 'script.js')
       );
       
       // APIエンドポイントなどの環境変数を挿入

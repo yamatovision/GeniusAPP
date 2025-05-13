@@ -1,0 +1,215 @@
+:root {
+  --vscode-background: #1e1e1e;
+  --vscode-foreground: #d4d4d4;
+  --vscode-input-background: #3c3c3c;
+  --vscode-input-foreground: #cccccc;
+  --vscode-button-background: #0e639c;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hover-background: #1177bb;
+  --vscode-link-color: #3794ff;
+  --vscode-focus-border: #007fd4;
+  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: var(--font-family);
+  font-size: 14px;
+  background-color: var(--vscode-background);
+  color: var(--vscode-foreground);
+}
+
+.auth-container {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+.logo {
+  width: 60px;
+  height: 60px;
+  margin-bottom: 15px;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  background-color: #4a6eff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 24px;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.auth-subtitle {
+  margin-top: 8px;
+  color: #a0a0a0;
+  font-size: 14px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #a0a0a0;
+}
+
+input {
+  width: 100%;
+  padding: 8px 10px;
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border: 1px solid transparent;
+  border-radius: 2px;
+  outline: none;
+  font-size: 14px;
+  font-family: var(--font-family);
+  box-sizing: border-box;
+}
+
+input:focus {
+  border-color: var(--vscode-focus-border);
+}
+
+.forgot-password {
+  text-align: right;
+  margin-bottom: 20px;
+  font-size: 12px;
+}
+
+.forgot-password a {
+  color: var(--vscode-link-color);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.auth-button {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 8px 12px;
+  border-radius: 2px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: var(--font-family);
+  transition: background-color 0.2s;
+}
+
+.auth-button:hover {
+  background-color: var(--vscode-button-hover-background);
+}
+
+.auth-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: #a0a0a0;
+}
+
+.auth-footer a {
+  color: var(--vscode-link-color);
+  text-decoration: none;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  font-size: 12px;
+  color: #a0a0a0;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.status-dot.connected {
+  background-color: #4CAF50;
+}
+
+.status-dot.disconnected {
+  background-color: #F44336;
+}
+
+.error-message {
+  color: #F44336;
+  font-size: 12px;
+  margin-top: 4px;
+  display: none;
+}
+
+/* 成功画面のスタイル */
+.success-message {
+  text-align: center;
+  margin: 30px 0;
+}
+
+.success-icon {
+  font-size: 48px;
+  color: #4CAF50;
+  margin-bottom: 16px;
+}
+
+.user-name {
+  margin: 0;
+  font-size: 16px;
+}
+
+.user-email {
+  margin: 4px 0 0;
+  color: #a0a0a0;
+  font-size: 14px;
+}
+
+/* アニメーション */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+/* ローディングスピナー */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+  margin: 0 auto;
+  display: none;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
