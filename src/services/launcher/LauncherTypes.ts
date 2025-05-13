@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ImplementationScope } from '../AppGeniusStateManager';
+import { IImplementationScope as ImplementationScope } from '../../types';
 
 /**
  * ClaudeCode実行状態

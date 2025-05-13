@@ -412,7 +412,16 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
           
           // 進捗ファイルをロード
           if (activeProject && activeProject.path && this._fileSystemService) {
-            const progressFilePath = path.join(activeProject.path, 'docs', 'SCOPE_PROGRESS.md');
+            // ProjectServiceからの情報を使用して進捗ファイルパスを取得
+            let progressFilePath;
+            try {
+              progressFilePath = this._projectService.getProgressFilePath();
+              Logger.info(`MessageDispatchServiceImpl: ProjectServiceから進捗ファイルパスを取得: ${progressFilePath}`);
+            } catch {
+              progressFilePath = path.join(activeProject.path, 'docs', 'SCOPE_PROGRESS.md');
+              Logger.info(`MessageDispatchServiceImpl: フォールバックとして進捗ファイルパスを構築: ${progressFilePath}`);
+            }
+
             try {
               if (fs.existsSync(progressFilePath)) {
                 const content = await this._fileSystemService.readMarkdownFile(progressFilePath);
@@ -421,6 +430,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
                   content: content,
                   timestamp: Date.now(),
                   priority: 'high',
+                  filePath: progressFilePath,
                   forScopeProgress: true
                 });
 
@@ -447,8 +457,17 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
             }
 
             // 要件定義ファイルもロード
-            const requirementsFilePath = path.join(activeProject.path, 'docs', 'requirements.md');
+            let requirementsFilePath;
             try {
+              // 要件定義ファイルパスをFileSystemServiceから取得
+              if (typeof this._fileSystemService.getRequirementsFilePath === 'function') {
+                requirementsFilePath = this._fileSystemService.getRequirementsFilePath(activeProject.path);
+                Logger.info(`MessageDispatchServiceImpl: FileSystemServiceから要件定義ファイルパスを取得: ${requirementsFilePath}`);
+              } else {
+                requirementsFilePath = path.join(activeProject.path, 'docs', 'requirements.md');
+                Logger.info(`MessageDispatchServiceImpl: 要件定義ファイルパスを構築: ${requirementsFilePath}`);
+              }
+
               if (fs.existsSync(requirementsFilePath)) {
                 const content = await this._fileSystemService.readMarkdownFile(requirementsFilePath);
                 this.sendMessage(panel, {
@@ -456,6 +475,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
                   content: content,
                   timestamp: Date.now(),
                   priority: 'high',
+                  filePath: requirementsFilePath,
                   forRequirements: true
                 });
 
@@ -466,7 +486,7 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
               }
             } catch (error) {
               // エラーをログに記録するのみ（UIにエラーは表示しない）
-              Logger.warn(`MessageDispatchServiceImpl: 要件定義ファイルのアクセスでエラーが発生: ${requirementsFilePath}`, error as Error);
+              Logger.warn(`MessageDispatchServiceImpl: 要件定義ファイルのアクセスでエラーが発生: ${requirementsFilePath || 'パス不明'}`, error as Error);
             }
           }
           
@@ -756,12 +776,46 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       try {
         Logger.info(`MessageDispatchServiceImpl: マークダウンコンテンツを取得します: ${message.filePath}`);
 
-        // FileSystemServiceを使用してファイルを読み込む
-        const content = await this._fileSystemService.readMarkdownFile(message.filePath);
+        // パスの検証と修正: undefined/docs/ のようなパスの場合、プロジェクトパスを取得
+        let filePath = message.filePath;
+        if (filePath.startsWith('undefined/') || !path.isAbsolute(filePath)) {
+          Logger.warn(`MessageDispatchServiceImpl: 無効なパス形式を検出: ${filePath}`);
+          
+          // プロジェクトパスを取得して修正
+          let projectPath = '';
+          
+          // 1. まずメッセージから取得
+          if (message.projectPath) {
+            projectPath = message.projectPath;
+            Logger.info(`MessageDispatchServiceImpl: メッセージからプロジェクトパスを取得: ${projectPath}`);
+          }
+          // 2. ProjectServiceから取得
+          else if (this._projectService) {
+            projectPath = this._projectService.getActiveProjectPath();
+            Logger.info(`MessageDispatchServiceImpl: ProjectServiceからプロジェクトパスを取得: ${projectPath}`);
+          }
+          // 3. VSCodeワークスペースから取得
+          else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+            Logger.info(`MessageDispatchServiceImpl: ワークスペースからプロジェクトパスを取得: ${projectPath}`);
+          }
+
+          if (projectPath) {
+            // パスの修正: undefined/docs/SCOPE_PROGRESS.md → プロジェクトパス/docs/SCOPE_PROGRESS.md
+            const relativePath = filePath.replace(/^undefined\//, '');
+            filePath = path.join(projectPath, relativePath);
+            Logger.info(`MessageDispatchServiceImpl: パスを修正しました: ${message.filePath} → ${filePath}`);
+          } else {
+            throw new Error(`有効なプロジェクトパスが取得できません: ${filePath}`);
+          }
+        }
+
+        // 修正したパスでFileSystemServiceを使用してファイルを読み込む
+        const content = await this._fileSystemService.readMarkdownFile(filePath);
 
         // SCOPE_PROGRESS.mdかrequirements.mdかを判定
-        const isScopeProgressFile = message.filePath.endsWith('SCOPE_PROGRESS.md');
-        const isRequirementsFile = message.filePath.endsWith('requirements.md') || message.forRequirements === true;
+        const isScopeProgressFile = filePath.endsWith('SCOPE_PROGRESS.md');
+        const isRequirementsFile = filePath.endsWith('requirements.md') || message.forRequirements === true;
 
         // Webviewにコンテンツを送信
         this.sendMessage(panel, {
@@ -769,13 +823,13 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
           content: content,
           timestamp: Date.now(),
           priority: 'high',
-          filePath: message.filePath,
+          filePath: filePath,
           forScopeProgress: isScopeProgressFile || message.forScopeProgress === true,
           forRequirements: isRequirementsFile || message.forRequirements === true,
           forceRefresh: message.forceRefresh === true
         });
 
-        Logger.info(`MessageDispatchServiceImpl: マークダウンコンテンツを送信しました: ${message.filePath} (scopeProgress=${isScopeProgressFile}, requirements=${isRequirementsFile})`);
+        Logger.info(`MessageDispatchServiceImpl: マークダウンコンテンツを送信しました: ${filePath} (scopeProgress=${isScopeProgressFile}, requirements=${isRequirementsFile})`);
       } catch (error) {
         Logger.error(`MessageDispatchServiceImpl: マークダウンコンテンツの取得に失敗しました: ${message.filePath}`, error as Error);
         this.showError(panel, `マークダウンファイルの読み込みに失敗しました: ${(error as Error).message}`);

@@ -221,22 +221,8 @@ export class CoreLauncherService {
         const errorMessage = result.error || 'Unknown error';
         Logger.error('プロンプトを使用したClaudeCodeの起動に失敗しました', new Error(errorMessage));
 
-        // UIにエラーメッセージを表示
-        const serviceName = 'UIStateService';
-        try {
-          // エラーメッセージを表示するためのサービスを使用
-          const uiStateService = require('../AppGeniusStateManager').AppGeniusStateManager.getInstance().getService(serviceName);
-          if (uiStateService && typeof uiStateService.showErrorMessage === 'function') {
-            uiStateService.showErrorMessage('ClaudeCodeの起動に失敗しました');
-          } else {
-            // 直接VSCodeのAPIを使用
-            vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${errorMessage}`);
-          }
-        } catch (uiError) {
-          // UIサービスが利用できない場合は直接VSCodeのAPIを使用
-          Logger.warn('UIStateServiceが利用できないためVSCodeのAPIを使用します', uiError as Error);
-          vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${errorMessage}`);
-        }
+        // エラーメッセージを表示
+        vscode.window.showErrorMessage(`ClaudeCodeの起動に失敗しました: ${errorMessage}`);
 
         return false;
       }

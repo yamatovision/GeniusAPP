@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as childProcess from 'child_process';
 import { Logger } from '../utils/logger';
 import { AppGeniusEventBus, AppGeniusEventType } from './AppGeniusEventBus';
-import { ImplementationScope } from './AppGeniusStateManager';
+import { IImplementationScope as ImplementationScope } from '../types';
 import { 
   ClaudeCodeExecutionStatus, 
   MockupAnalysisProcess,

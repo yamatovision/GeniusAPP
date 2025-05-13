@@ -2,11 +2,15 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { AIService } from '../../core/aiService';
 import { Logger } from '../../utils/logger';
 import { MockupStorageService, Mockup } from '../../services/mockupStorageService';
-import { RequirementsParser, PageInfo } from '../../core/requirementsParser';
-import { MockupQueueManager } from './MockupQueueManager';
+// PageInfo インターフェース定義（requirementsParser.ts から移行）
+interface PageInfo {
+  name: string;
+  path: string;
+  description?: string;
+  features?: string[];
+}
 import { ClaudeCodeLauncherService } from '../../services/ClaudeCodeLauncherService';
 import { ClaudeCodeIntegrationService } from '../../services/ClaudeCodeIntegrationService';
 import { ProtectedPanel } from '../auth/ProtectedPanel';
@@ -26,9 +30,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
-  private _aiService: AIService;
   private _storage: MockupStorageService;
-  private _queueManager: MockupQueueManager;
   
   // ファイル監視関連
   private _fileWatcher?: vscode.FileSystemWatcher; // モックアップファイル監視用
@@ -41,7 +43,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
    * 実際のパネル作成・表示ロジック
    * ProtectedPanelから呼び出される
    */
-  protected static _createOrShowPanel(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): MockupGalleryPanel {
+  protected static _createOrShowPanel(extensionUri: vscode.Uri, projectPath?: string): MockupGalleryPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
@@ -88,7 +90,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
       }
     );
 
-    MockupGalleryPanel.currentPanel = new MockupGalleryPanel(panel, extensionUri, aiService, projectPath);
+    MockupGalleryPanel.currentPanel = new MockupGalleryPanel(panel, extensionUri, projectPath);
     return MockupGalleryPanel.currentPanel;
   }
   
@@ -96,21 +98,21 @@ export class MockupGalleryPanel extends ProtectedPanel {
    * 外部向けのパネル作成・表示メソッド
    * 権限チェック付きで、パネルを表示する
    */
-  public static createOrShow(extensionUri: vscode.Uri, aiService: AIService, projectPath?: string): MockupGalleryPanel | undefined {
+  public static createOrShow(extensionUri: vscode.Uri, projectPath?: string): MockupGalleryPanel | undefined {
     // 権限チェック
     if (!this.checkPermissionForFeature(Feature.MOCKUP_GALLERY, 'MockupGalleryPanel')) {
       return undefined;
     }
     
     // 権限があれば表示
-    return this._createOrShowPanel(extensionUri, aiService, projectPath);
+    return this._createOrShowPanel(extensionUri, projectPath);
   }
 
   /**
    * 特定のモックアップを選択した状態で開く
    */
-  public static openWithMockup(extensionUri: vscode.Uri, aiService: AIService, mockupId: string, projectPath?: string): MockupGalleryPanel {
-    const panel = MockupGalleryPanel.createOrShow(extensionUri, aiService, projectPath);
+  public static openWithMockup(extensionUri: vscode.Uri, mockupId: string, projectPath?: string): MockupGalleryPanel {
+    const panel = MockupGalleryPanel.createOrShow(extensionUri, projectPath);
     
     // パネルが返された場合のみロード処理を実行
     if (panel) {
@@ -123,14 +125,12 @@ export class MockupGalleryPanel extends ProtectedPanel {
   /**
    * コンストラクタ
    */
-  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, aiService: AIService, projectPath?: string) {
+  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, projectPath?: string) {
     super(); // 親クラスのコンストラクタを呼び出し
     
     this._panel = panel;
     this._extensionUri = extensionUri;
-    this._aiService = aiService;
     this._storage = MockupStorageService.getInstance();
-    this._queueManager = new MockupQueueManager(aiService);
     
     // ClaudeCodeランチャーの初期化
     this._claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
@@ -188,9 +188,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
             break;
           case 'importMockup':
             await this._handleImportMockup();
-            break;
-          case 'analyzeWithAI':
-            await this._handleAnalyzeWithAI(message.mockupId);
             break;
         }
       },
@@ -280,39 +277,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
    */
   private _getDefaultProjectPath(): string {
     try {
-      // AppGeniusStateManagerからアクティブプロジェクトパスの取得を試みる
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { AppGeniusStateManager } = require('../../services/AppGeniusStateManager');
-        const stateManager = AppGeniusStateManager.getInstance();
-        const activeProjectId = stateManager.getActiveProjectId();
-        
-        if (activeProjectId) {
-          const projectPath = stateManager.getProjectPath(activeProjectId);
-          if (projectPath) {
-            // プロジェクトのmockupsフォルダにHTMLファイルがあるか確認
-            const mockupsPath = path.join(projectPath, 'mockups');
-            if (fs.existsSync(mockupsPath)) {
-              try {
-                const files = fs.readdirSync(mockupsPath);
-                const hasHtmlFiles = files.some(file => file.endsWith('.html'));
-                
-                if (hasHtmlFiles) {
-                  Logger.info(`プロジェクトのmockupsフォルダにHTMLファイルが見つかりました: ${mockupsPath}`);
-                }
-              } catch (fsError) {
-                Logger.debug(`mockupsフォルダの読み取りに失敗: ${(fsError as Error).message}`);
-              }
-            }
-            
-            Logger.info(`AppGeniusStateManagerからプロジェクトパスを取得: ${projectPath}`);
-            return projectPath;
-          }
-        }
-      } catch (stateError) {
-        // ステートマネージャーの取得に失敗した場合は警告を出して次の方法へ
-        Logger.debug(`StateManagerからのパス取得失敗: ${(stateError as Error).message}`);
-      }
       
       // VSCodeのアクティブなプロジェクトパスを取得（ワークスペースフォルダ）
       const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -368,42 +332,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
     }
   }
   
-  /**
-   * 要件定義・ディレクトリ構造からページ一覧を取得
-   */
-  private async _extractPagesFromRequirements(): Promise<PageInfo[]> {
-    try {
-      let pages: PageInfo[] = [];
-      
-      // 現在のプロジェクトパスを取得
-      const projectPath = this._getCurrentProjectPath();
-      const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
-      const structurePath = path.join(projectPath, 'docs', 'structure.md');
-      
-      // 要件定義からページを抽出
-      if (fs.existsSync(requirementsPath)) {
-        const reqPages = await RequirementsParser.extractPagesFromRequirements(requirementsPath);
-        pages = [...pages, ...reqPages];
-      }
-      
-      // ディレクトリ構造からページを抽出
-      if (fs.existsSync(structurePath)) {
-        const structPages = await RequirementsParser.extractPagesFromStructure(structurePath);
-        
-        // 重複を排除して追加
-        structPages.forEach(page => {
-          if (!pages.some(p => p.name === page.name)) {
-            pages.push(page);
-          }
-        });
-      }
-      
-      return pages;
-    } catch (error) {
-      Logger.error(`ページ抽出エラー: ${(error as Error).message}`);
-      return [];
-    }
-  }
 
   /**
    * モックアップの読み込み処理
@@ -444,48 +372,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
     }
   }
 
-  /**
-   * モックアップの更新処理
-   */
-  private async _handleUpdateMockup(mockupId: string, text: string): Promise<void> {
-    try {
-      const mockup = this._storage.getMockup(mockupId);
-      if (!mockup) {
-        throw new Error(`モックアップが見つかりません: ${mockupId}`);
-      }
-
-      // AIにフィードバックを送信してモックアップを更新
-      const updatedHtml = await this._aiService.updateMockupWithFeedback(mockup.html, text);
-      
-      if (!updatedHtml) {
-        throw new Error('更新用のHTMLコードが見つかりませんでした');
-      }
-      
-      // モックアップを更新
-      const updatedMockup = await this._storage.updateMockup(mockupId, {
-        html: updatedHtml
-      });
-      
-      if (!updatedMockup) {
-        throw new Error('モックアップの更新に失敗しました');
-      }
-      
-      // フィードバックを保存
-      await this._storage.addFeedback(mockupId, text);
-      
-      // 更新成功メッセージをWebViewに送信
-      this._panel.webview.postMessage({
-        command: 'mockupUpdated',
-        mockup: updatedMockup,
-        text: `モックアップを更新しました：${text}`
-      });
-      
-      Logger.info(`モックアップを更新しました: ${mockupId}`);
-    } catch (error) {
-      Logger.error(`モックアップ更新エラー: ${(error as Error).message}`);
-      this._showError(`モックアップの更新に失敗しました: ${(error as Error).message}`);
-    }
-  }
 
   /**
    * モックアップをブラウザで開く
@@ -698,300 +584,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
     });
   }
   
-  /**
-   * AIと詳細を詰める処理
-   */
-  private async _handleAnalyzeWithAI(mockupId: string): Promise<void> {
-    try {
-      // モックアップを取得
-      const mockup = this._storage.getMockup(mockupId);
-      if (!mockup) {
-        throw new Error(`モックアップが見つかりません: ${mockupId}`);
-      }
-      
-      // モックアップのHTMLファイルパスを取得
-      const mockupFileName = `${mockup.name}.html`;
-      const projectPath = this._getCurrentProjectPath();
-      const mockupDir = path.join(projectPath, 'mockups');
-      
-      // ディレクトリが存在しない場合は作成
-      if (!fs.existsSync(mockupDir)) {
-        fs.mkdirSync(mockupDir, { recursive: true });
-      }
-      
-      const mockupFilePath = path.join(mockupDir, mockupFileName);
-      
-      // スコープディレクトリが存在しない場合は作成
-      const scopesDir = path.join(projectPath, 'docs', 'scopes');
-      if (!fs.existsSync(scopesDir)) {
-        fs.mkdirSync(scopesDir, { recursive: true });
-      }
-      
-      // 要件定義ファイルの存在確認
-      const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
-      const requirementsExists = fs.existsSync(requirementsPath);
-      
-      // 追加情報を準備
-      let additionalContent = `# 追加情報\n\n## モックアップ情報\n\n`;
-      additionalContent += `- モックアップ名: ${mockup.name}\n`;
-      additionalContent += `- モックアップパス: ${mockupFilePath}\n`;
-      additionalContent += `- プロジェクトパス: ${projectPath}\n\n`;
-      
-      // 要件定義ファイルが存在する場合、その内容を追加
-      if (requirementsExists) {
-        const requirementsContent = fs.readFileSync(requirementsPath, 'utf8');
-        additionalContent += `## プロジェクト要件定義\n\n\`\`\`markdown\n${requirementsContent}\n\`\`\`\n`;
-        Logger.info(`要件定義ファイルの内容を追加しました: ${requirementsPath}`);
-      }
-      
-      // インテグレーションサービスを取得
-      const integrationService = ClaudeCodeIntegrationService.getInstance();
-      
-      // 中央ポータルURL
-      const portalUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
-      
-      try {
-        Logger.info(`公開URL経由でClaudeCodeを起動します: ${portalUrl}`);
-        // 公開URLから起動（追加情報も渡す）
-        await integrationService.launchWithPublicUrl(
-          portalUrl,
-          projectPath,
-          additionalContent
-        );
-        
-        Logger.info(`モックアップ「${mockup.name}」の分析のため中央ポータル経由でClaudeCodeを起動しました`);
-        vscode.window.showInformationMessage(
-          `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました。` +
-          `詳細な要件定義書は ${path.join(projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
-        );
-      } catch (error) {
-        Logger.error(`中央ポータル経由の起動に失敗: ${(error as Error).message}`);
-        
-        // ローカルファイルにフォールバック
-        Logger.warn(`ローカルプロンプトファイルにフォールバックします`);
-        
-        const templatePath = path.join(projectPath, 'docs', 'prompts', 'mockup_analyzer.md');
-        if (!fs.existsSync(templatePath)) {
-          throw new Error(`モックアップ解析テンプレートが見つかりません: ${templatePath}`);
-        }
-        
-        // ターミナルの作成
-        const terminal = vscode.window.createTerminal({
-          name: `ClaudeCode - ${mockup.name}の解析 (ローカル)`,
-          cwd: projectPath // プロジェクトのルートディレクトリで起動
-        });
-        
-        // ターミナルの表示
-        terminal.show(true);
-        
-        // ガイダンスメッセージを表示
-        terminal.sendText('echo "\n\n*** AIが自動的に処理を開始します。自動対応と日本語指示を行います ***\n"');
-        terminal.sendText('sleep 1'); // 1秒待機
-        
-        // macOSの場合は環境変数の設定（必要に応じて）
-        if (process.platform === 'darwin') {
-          terminal.sendText('source ~/.zshrc || source ~/.bash_profile || source ~/.profile || echo "" > /dev/null 2>&1');
-          terminal.sendText('export PATH="$PATH:$HOME/.nvm/versions/node/v18.20.6/bin:/usr/local/bin:/usr/bin"');
-        }
-        
-        // テンプレートファイルを一時的に修正してモックアップパスを埋め込む
-        const tempDir = os.tmpdir(); // 一時ディレクトリに保存（25秒後に自動削除）
-        
-        // 一時的なテンプレートファイルパス
-        const tempTemplatePath = path.join(tempDir, `combined_mockup_${Date.now()}.md`);
-        
-        // テンプレートファイルの内容を読み込む
-        let templateContent = fs.readFileSync(templatePath, 'utf8');
-        
-        // モックアップパスと変数を置換
-        templateContent = templateContent
-          .replace(/{{MOCKUP_PATH}}/g, mockupFilePath)
-          .replace(/{{PROJECT_PATH}}/g, projectPath)
-          .replace(/{{MOCKUP_NAME}}/g, mockup.name)
-          .replace(/{{SOURCE}}/g, 'mockupGallery');
-        
-        // 要件定義の内容も追加
-        if (requirementsExists) {
-          templateContent += additionalContent;
-        }
-        
-        // 一時的なテンプレートファイルを作成
-        fs.writeFileSync(tempTemplatePath, templateContent, 'utf8');
-        
-        // エスケープされたパス
-        const escapedTempTemplatePath = tempTemplatePath.replace(/ /g, '\\ ');
-        
-        // ClaudeCodeIntegrationServiceを使用
-        // 一時ファイルを閉じる
-        terminal.dispose();
-        
-        const integrationService = ClaudeCodeIntegrationService.getInstance();
-        
-        // セキュリティガイドライン付きで起動
-        Logger.info(`セキュリティガイドライン付きでClaudeCodeを起動します`);
-        const guidancePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/6640b55f692b15f4f4e3d6f5b1a5da6c';
-        const featurePromptUrl = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/prompts/public/8cdfe9875a5ab58ea5cdef0ba52ed8eb';
-        
-        // テンプレートの内容を追加コンテンツとして渡す
-        await integrationService.launchWithSecurityBoundary(
-          guidancePromptUrl,
-          featurePromptUrl,
-          projectPath,
-          templateContent
-        );
-        
-        // 一時ファイルの自動削除（25秒後）
-        setTimeout(() => {
-          try {
-            if (fs.existsSync(tempTemplatePath)) {
-              fs.unlinkSync(tempTemplatePath);
-              // 一時プロンプトファイル削除完了（ログを記録しない）
-            }
-          } catch (err) {
-            Logger.error(`一時ファイル削除エラー: ${(err as Error).message}`);
-          }
-        }, 25000);
-        
-        Logger.info(`モックアップ「${mockup.name}」の分析のためローカルプロンプトでClaudeCodeを起動しました`);
-        vscode.window.showInformationMessage(
-          `モックアップ「${mockup.name}」の分析のためClaudeCodeを起動しました（ローカルモード）。` +
-          `詳細な要件定義書は ${path.join(projectPath, 'docs/scopes', `${mockup.name}-requirements.md`)} に保存されます。`
-        );
-      }
-      
-    } catch (error) {
-      Logger.error(`モックアップAI分析エラー: ${(error as Error).message}`);
-      this._showError(`モックアップの分析に失敗しました: ${(error as Error).message}`);
-      vscode.window.showErrorMessage(`モックアップの分析に失敗しました: ${(error as Error).message}`);
-    }
-  }
-
-  /**
-   * 全モックアップ生成処理
-   */
-  private async _handleGenerateAllMockups(): Promise<void> {
-    try {
-      // 要件定義とディレクトリ構造からページを抽出
-      const pages = await this._extractPagesFromRequirements();
-      
-      if (pages.length === 0) {
-        this._showError('ページが見つかりませんでした。要件定義またはディレクトリ構造を確認してください。');
-        return;
-      }
-      
-      // 要件定義ファイルの内容を取得
-      let requirementsText = '';
-      const projectPath = this._getCurrentProjectPath();
-      const requirementsPath = path.join(projectPath, 'docs', 'requirements.md');
-      if (fs.existsSync(requirementsPath)) {
-        requirementsText = await fs.promises.readFile(requirementsPath, 'utf8');
-      } else {
-        this._showError('要件定義ファイルが見つかりません。');
-        return;
-      }
-      
-      // キューに追加
-      await this._queueManager.addMultipleToQueue(pages, requirementsText);
-      
-      this._panel.webview.postMessage({
-        command: 'addAssistantMessage',
-        text: `${pages.length}ページのモックアップ生成をキューに追加しました。`
-      });
-      
-      Logger.info(`${pages.length}ページのモックアップ生成をキューに追加しました`);
-    } catch (error) {
-      Logger.error(`モックアップ一括生成エラー: ${(error as Error).message}`);
-      this._showError(`モックアップの一括生成に失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  /**
-   * モックアップステータス更新処理
-   */
-  private async _handleUpdateMockupStatus(mockupId: string, status: string): Promise<void> {
-    try {
-      const updatedMockup = await this._storage.updateMockupStatus(mockupId, status);
-      
-      if (updatedMockup) {
-        // ステータス更新の通知
-        this._panel.webview.postMessage({
-          command: 'mockupUpdated',
-          mockup: updatedMockup,
-          text: `モックアップのステータスを「${this._getStatusLabel(status)}」に更新しました`
-        });
-        
-        Logger.info(`モックアップのステータスを更新しました: ${mockupId} -> ${status}`);
-      } else {
-        throw new Error(`モックアップが見つかりません: ${mockupId}`);
-      }
-    } catch (error) {
-      Logger.error(`モックアップステータス更新エラー: ${(error as Error).message}`);
-      this._showError(`モックアップのステータス更新に失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  /**
-   * 実装メモ保存処理
-   */
-  private async _handleSaveImplementationNotes(mockupId: string, notes: string): Promise<void> {
-    try {
-      const updatedMockup = await this._storage.saveImplementationNotes(mockupId, notes);
-      
-      if (updatedMockup) {
-        // 保存成功の通知
-        this._panel.webview.postMessage({
-          command: 'mockupUpdated',
-          mockup: updatedMockup,
-          text: `実装メモを保存しました`
-        });
-        
-        Logger.info(`実装メモを保存しました: ${mockupId}`);
-      } else {
-        throw new Error(`モックアップが見つかりません: ${mockupId}`);
-      }
-    } catch (error) {
-      Logger.error(`実装メモ保存エラー: ${(error as Error).message}`);
-      this._showError(`実装メモの保存に失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  /**
-   * フィードバック追加処理
-   */
-  private async _handleAddFeedback(mockupId: string, feedback: string): Promise<void> {
-    try {
-      const updatedMockup = await this._storage.addFeedback(mockupId, feedback);
-      
-      if (updatedMockup) {
-        // フィードバック追加の通知
-        this._panel.webview.postMessage({
-          command: 'mockupUpdated',
-          mockup: updatedMockup,
-          text: `フィードバックを追加しました`
-        });
-        
-        Logger.info(`フィードバックを追加しました: ${mockupId}`);
-      } else {
-        throw new Error(`モックアップが見つかりません: ${mockupId}`);
-      }
-    } catch (error) {
-      Logger.error(`フィードバック追加エラー: ${(error as Error).message}`);
-      this._showError(`フィードバックの追加に失敗しました: ${(error as Error).message}`);
-    }
-  }
-  
-  /**
-   * ステータスラベルの取得
-   */
-  private _getStatusLabel(status: string): string {
-    switch (status) {
-      case 'pending': return '未生成';
-      case 'generating': return '生成中';
-      case 'review': return 'レビュー中';
-      case 'approved': return '承認済み';
-      default: return status;
-    }
-  }
 
   /**
    * WebViewを更新
@@ -1069,7 +661,6 @@ export class MockupGalleryPanel extends ProtectedPanel {
         <div class="toolbar-right">
           <button id="delete-mockup-button" class="danger-button" title="このモックアップを削除">削除</button>
           <button id="open-in-browser-button" class="secondary-button">ブラウザで開く</button>
-          <button id="analyze-with-ai-button" class="action-button">AIと詳細を詰める</button>
         </div>
       </div>
       
