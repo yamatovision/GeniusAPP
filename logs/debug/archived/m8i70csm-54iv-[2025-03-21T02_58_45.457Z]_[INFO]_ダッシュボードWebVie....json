@@ -1,9 +1,0 @@
-{
-  "id": "m8i70csm-54iv",
-  "errorLog": "[2025-03-21T02:58:45.457Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=schedle\n[2025-03-21T02:58:45.563Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=schedle\n[2025-03-21T02:59:06.246Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました\n[2025-03-21T02:59:06.246Z] [INFO] ファイルパス: /Users/tatsuya/Desktop/システム開発/ProjectIssey/schedle/docs/CURRENT_STATUS.md, 存在確認: 存在します\n[2025-03-21T02:59:06.246Z] [DEBUG] Event emitted: current-status-updated from ScopeManagerPanel for project schedle\n[2025-03-21T02:59:06.246Z] [INFO] CURRENT_STATUS更新イベントを受信しました - ダッシュボードの更新を開始\n[2025-03-21T02:59:06.247Z] [INFO] 拡張されたCURRENT_STATUS.mdファイルの監視を設定しました\n[2025-03-21T02:59:06.247Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=schedle　となっているんですがこのプロジェクトのCURRENT_STATUSの情報が反映されておりません。具体的には、まず最初にAPPGENIUSのプロジェクトを開いていました。そしてプロジェクトを切り替えを押しましたが前のプロジェクトのCURRENT_STATUSの情報が開いています。スコープマネージャーの画面の話をしております",
-  "status": "archived",
-  "createdAt": "2025-03-21T03:00:33.862Z",
-  "errorType": "型定義エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-21T03:00:33.865Z"
-}

@@ -1,9 +1,0 @@
-{
-  "id": "m8hzew0u-s314",
-  "errorLog": "[2025-03-20T23:26:40.827Z] [INFO] CURRENT_STATUS.mdファイルの監視を設定しました\n[2025-03-20T23:26:40.827Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=AppGenius\n[2025-03-20T23:26:40.936Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=AppGenius\n[2025-03-20T23:26:41.149Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました\n[2025-03-20T23:26:41.149Z] [INFO] ファイルパス: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md, 存在確認: 存在します\n[2025-03-20T23:26:41.150Z] [INFO] 実装モードでCURRENT_STATUSが更新されました - リアルタイム更新を行います\n[2025-03-20T23:26:41.150Z] [INFO] CURRENT_STATUS.mdファイルを読み込みます。パス: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/CURRENT_STATUS.md\n[2025-03-20T23:26:41.150Z] [INFO] CURRENT_STATUS.mdファイルの変更を検出しました\n[2025-03-20T23:26:41.151Z] [INFO] CURRENT_STATUS.mdファイルの監視を設定しました\n[2025-03-20T23:26:41.151Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=AppGenius\n[2025-03-20T23:26:41.262Z] [INFO] ダッシュボードWebView更新: プロジェクト数=7, アクティブプロジェクト=AppGenius　とありますが実際には更新が反映されておらず再起動したら更新が反映されています",
-  "status": "archived",
-  "createdAt": "2025-03-20T23:27:55.038Z",
-  "errorType": "型定義エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-20T23:27:55.040Z"
-}

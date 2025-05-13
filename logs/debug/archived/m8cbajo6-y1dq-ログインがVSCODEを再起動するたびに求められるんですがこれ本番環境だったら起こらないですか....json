@@ -1,9 +1,0 @@
-{
-  "id": "m8cbajo6-y1dq",
-  "errorLog": "ログインがVSCODEを再起動するたびに求められるんですがこれ本番環境だったら起こらないですかね？つまりもっとトークン保持期間を長くしたいんですがこれはローカル環境で開発しているから起こっていることですか",
-  "status": "archived",
-  "createdAt": "2025-03-17T00:13:50.742Z",
-  "errorType": "不明なエラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-17T00:13:50.743Z"
-}

@@ -1,9 +1,0 @@
-{
-  "id": "m8cnjwbh-xmsr",
-  "errorLog": "[2025-03-17T05:56:07.404Z] [INFO] ユーザー情報を取得します\n[2025-03-17T05:56:07.405Z] [INFO] ユーザー情報の取得を開始します\n[2025-03-17T05:56:08.214Z] [ERROR] ユーザー情報取得中にエラーが発生しました\n[2025-03-17T05:56:08.215Z] [ERROR] Error details: Request failed with status code 500\n[2025-03-17T05:56:08.215Z] [ERROR] Stack trace: AxiosError: Request failed with status code 500\n\tat settle (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:4692:12)\n\tat IncomingMessage.handleStreamEnd (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:5809:11)\n\tat IncomingMessage.emit (node:events:530:35)\n\tat endReadableNT (node:internal/streams/readable:1698:12)\n\tat process.processTicksAndRejections (node:internal/process/task_queues:82:21)\n\tat Axios.request (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:6919:41)\n\tat process.processTicksAndRejections (node:internal/process/task_queues:95:5)\n\tat async AuthenticationService._fetchUserInfo (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:19144:30)\n\tat async AuthenticationService._initialize (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:18949:13)\n[2025-03-17T05:56:08.215Z] [INFO] 認証チェックインターバルを開始しました（300秒間隔）\n[2025-03-17T05:56:08.215Z] [INFO] 認証サービスの初期化が完了しました",
-  "status": "archived",
-  "createdAt": "2025-03-17T05:57:02.429Z",
-  "errorType": "認証エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-17T05:57:02.433Z"
-}

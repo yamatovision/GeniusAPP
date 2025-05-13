@@ -1,9 +1,0 @@
-{
-  "id": "m8ib1p8g-cqf6",
-  "errorLog": "現在の作成ボタン要素: null\ndashboard.js:58 プロジェクト一覧の更新をリクエストします\nlog.ts:456   ERR [Extension Host] 認証エラーが発生しました (Status: 401): Request failed with status code 401\nerror @ log.ts:456\nerror @ log.ts:561\nerror @ logService.ts:51\nvls @ remoteConsoleUtil.ts:58\n$logExtensionHostMessage @ mainThreadConsole.ts:38\nS @ rpcProtocol.ts:458\nQ @ rpcProtocol.ts:443\nM @ rpcProtocol.ts:373\nL @ rpcProtocol.ts:299\n(anonymous) @ rpcProtocol.ts:161\nB @ event.ts:1208\nfire @ event.ts:1239\nfire @ ipc.net.ts:652\nl.onmessage @ localProcessExtensionHost.ts:378\nconsole.ts:137 [Extension Host] 認証エラーが発生しました (Status: 401): Request failed with status code 401 (at console.<anonymous> (file:///Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/api/node/extensionHostProcess.js:174:27153))\nmls @ console.ts:137\n$logExtensionHostMessage @ mainThreadConsole.ts:39\nS @ rpcProtocol.ts:458\nQ @ rpcProtocol.ts:443\nM @ rpcProtocol.ts:373\nL @ rpcProtocol.ts:299\n(anonymous) @ rpcProtocol.ts:161\nB @ event.ts:1208\nfire @ event.ts:1239\nfire @ ipc.net.ts:652\nl.onmessage @ localProcessExtensionHost.ts:378\ndashboard.js:799 プロジェクトを開きます: ID=project_1742164692026, パス=/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius\ndashboard.js:809 スコープマネージャーを開きます: パス=/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius　認証エラーですがログインを求められずに次に行けるのはなぜでしょうか。",
-  "status": "archived",
-  "createdAt": "2025-03-21T04:53:35.105Z",
-  "errorType": "HTTPエラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-21T04:53:35.134Z"
-}

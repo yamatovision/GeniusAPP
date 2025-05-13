@@ -1,9 +1,0 @@
-{
-  "id": "m8ecilll-8bzd",
-  "errorLog": "log.ts:456   ERR za: ファイルが見つからなかったため、エディターを開くことができませんでした。\n    at C0e.gc (vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:2136:120286)\n    at async C0e.setInput (vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:2136:119444)\n    at async R5e.U (vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:684:21144)\n    at async R5e.M (vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:684:19695)\n    at async R5e.openEditor (vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:684:18777)\n    at async vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:796:23631\n    at async o (vscode-file://vscode-app/Applications/Visual%20Studio%20Code.app/Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js:688:45021)",
-  "status": "archived",
-  "createdAt": "2025-03-18T10:23:38.457Z",
-  "errorType": "型定義エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-18T10:23:38.467Z"
-}

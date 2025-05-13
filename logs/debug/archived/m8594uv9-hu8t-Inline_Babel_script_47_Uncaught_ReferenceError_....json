@@ -1,9 +1,0 @@
-{
-  "id": "m8594uv9-hu8t",
-  "errorLog": "Inline Babel script:47 Uncaught ReferenceError: MaterialIcons is not defined\n    at <anonymous>:76:22\n    at Fbe (transformScriptTags.ts:104:10)\n    at n (transformScriptTags.ts:176:9)\n    at Ube (transformScriptTags.ts:222:3)\n    at transformScriptTags.ts:258:3\n    at rve (index.ts:244:3)\n    at tve (index.ts:228:3)\n\n/Users/tatsuya/Desktop/システム開発/AppGeniusLP/mockups/モックアップ_2025-03-12_1033.html\nこのエラー",
-  "status": "archived",
-  "createdAt": "2025-03-12T01:39:02.853Z",
-  "errorType": "構文エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-12T01:39:02.863Z"
-}

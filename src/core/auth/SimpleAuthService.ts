@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Logger } from '../../utils/logger';
 import { Role } from './roles';
 import { AuthState, AuthStateBuilder } from './AuthState';
+import { AuthStorageManager } from '../../utils/AuthStorageManager';
 
 /**
  * SimpleAuthService - シンプルな認証サービス
@@ -41,13 +42,19 @@ export class SimpleAuthService {
   /**
    * シークレットストレージ
    */
-  private secretStorage: vscode.SecretStorage;
+  /**
+   * AuthStorageManager - トークン管理用
+   */
+  private storageManager: AuthStorageManager;
   
   /**
    * コンストラクタ
    */
   private constructor(context: vscode.ExtensionContext) {
-    this.secretStorage = context.secrets;
+    // StorageManagerの初期化
+    this.storageManager = AuthStorageManager.getInstance(context);
+    
+    // 初期状態の設定
     this._currentState = AuthStateBuilder.guest().build();
     
     // グローバル変数に保存（拡張機能全体で参照できるように）
@@ -123,22 +130,16 @@ export class SimpleAuthService {
     try {
       Logger.info('SimpleAuthService: トークンロード開始');
       
-      // アクセストークン取得 (詳細なデバッグ)
+      // アクセストークン取得
       try {
-        this._accessToken = await this.secretStorage.get(this.ACCESS_TOKEN_KEY) || undefined;
-        Logger.debug(`SimpleAuthService: アクセストークン取得 - キー=${this.ACCESS_TOKEN_KEY}, 結果=${this._accessToken ? 'あり' : 'なし'}`);
+        // AuthStorageManagerを使用
+        this._accessToken = await this.storageManager.getAccessToken() || undefined;
+        Logger.debug(`SimpleAuthService: アクセストークン取得結果=${this._accessToken ? 'あり' : 'なし'}`);
+        
         if (this._accessToken) {
           Logger.debug(`SimpleAuthService: トークンプレビュー = ${this._accessToken.substring(0, 10)}...`);
         } else {
-          // 古いキーでも試してみる (移行措置)
-          const legacyToken = await this.secretStorage.get('appgenius.accessToken');
-          if (legacyToken) {
-            Logger.warn('SimpleAuthService: 古いキー形式でトークンが見つかりました。移行を実施します');
-            this._accessToken = legacyToken;
-            // 新しいキーに保存
-            await this.secretStorage.store(this.ACCESS_TOKEN_KEY, legacyToken);
-            Logger.info('SimpleAuthService: トークンを新しいキー形式に移行しました');
-          }
+          Logger.warn('SimpleAuthService: アクセストークンが見つかりません');
         }
       } catch (tokenError) {
         Logger.error('SimpleAuthService: アクセストークン取得エラー', tokenError as Error);
@@ -146,19 +147,12 @@ export class SimpleAuthService {
       
       // リフレッシュトークン取得
       try {
-        this._refreshToken = await this.secretStorage.get(this.REFRESH_TOKEN_KEY) || undefined;
-        Logger.debug(`SimpleAuthService: リフレッシュトークン取得 - キー=${this.REFRESH_TOKEN_KEY}, 結果=${this._refreshToken ? 'あり' : 'なし'}`);
+        // AuthStorageManagerを使用
+        this._refreshToken = await this.storageManager.getRefreshToken() || undefined;
+        Logger.debug(`SimpleAuthService: リフレッシュトークン取得結果=${this._refreshToken ? 'あり' : 'なし'}`);
         
-        // 古いキーでも試してみる (移行措置)
         if (!this._refreshToken) {
-          const legacyRefreshToken = await this.secretStorage.get('appgenius.refreshToken');
-          if (legacyRefreshToken) {
-            Logger.warn('SimpleAuthService: 古いキー形式でリフレッシュトークンが見つかりました。移行を実施します');
-            this._refreshToken = legacyRefreshToken;
-            // 新しいキーに保存
-            await this.secretStorage.store(this.REFRESH_TOKEN_KEY, legacyRefreshToken);
-            Logger.info('SimpleAuthService: リフレッシュトークンを新しいキー形式に移行しました');
-          }
+          Logger.warn('SimpleAuthService: リフレッシュトークンが見つかりません');
         }
       } catch (refreshTokenError) {
         Logger.error('SimpleAuthService: リフレッシュトークン取得エラー', refreshTokenError as Error);
@@ -166,30 +160,20 @@ export class SimpleAuthService {
       
       // トークン有効期限取得
       try {
-        const expiryStr = await this.secretStorage.get(this.TOKEN_EXPIRY_KEY);
-        this._tokenExpiry = expiryStr ? parseInt(expiryStr, 10) : undefined;
-        Logger.debug(`SimpleAuthService: トークン有効期限取得 - キー=${this.TOKEN_EXPIRY_KEY}, 結果=${expiryStr || 'なし'}`);
-        if (this._tokenExpiry) {
+        // AuthStorageManagerを使用
+        const tokenExpiry = await this.storageManager.getTokenExpiry();
+        
+        // UNIXタイムスタンプをミリ秒に変換（UNIXタイムスタンプは秒単位）
+        if (tokenExpiry) {
+          this._tokenExpiry = tokenExpiry * 1000; // 秒からミリ秒に変換
           const expiry = new Date(this._tokenExpiry);
           Logger.debug(`SimpleAuthService: トークン有効期限 = ${expiry.toISOString()}`);
-        }
-        
-        // 古いキーでも試してみる (移行措置)
-        if (!this._tokenExpiry) {
-          const legacyExpiryStr = await this.secretStorage.get('appgenius.tokenExpiry');
-          if (legacyExpiryStr) {
-            Logger.warn('SimpleAuthService: 古いキー形式でトークン有効期限が見つかりました。移行を実施します');
-            this._tokenExpiry = parseInt(legacyExpiryStr, 10);
-            // 新しいキーに保存
-            await this.secretStorage.store(this.TOKEN_EXPIRY_KEY, legacyExpiryStr);
-            Logger.info('SimpleAuthService: トークン有効期限を新しいキー形式に移行しました');
-          }
+        } else {
+          Logger.warn('SimpleAuthService: トークン有効期限が見つかりません');
         }
       } catch (expiryError) {
         Logger.error('SimpleAuthService: トークン有効期限取得エラー', expiryError as Error);
       }
-      
-      // APIキー機能は廃止されました
       
       // 結果のまとめ
       if (this._accessToken) {
@@ -198,22 +182,21 @@ export class SimpleAuthService {
         Logger.warn('SimpleAuthService: 保存済みトークンなし - これは問題の原因かもしれません');
       }
       
-      // APIキー機能は廃止されました
-      
       // デバッグ対応: アクセストークンが存在しない場合でも認証状態を有効化
       if (!this._accessToken) {
         Logger.warn('SimpleAuthService: デバッグモードでダミートークンを設定');
         this._accessToken = 'DEBUG_DUMMY_TOKEN';
-        await this.secretStorage.store(this.ACCESS_TOKEN_KEY, this._accessToken);
+        await this.storageManager.setAccessToken(this._accessToken, 86400); // 24時間有効
         
         if (!this._refreshToken) {
           this._refreshToken = 'DEBUG_DUMMY_REFRESH_TOKEN';
-          await this.secretStorage.store(this.REFRESH_TOKEN_KEY, this._refreshToken);
+          await this.storageManager.setRefreshToken(this._refreshToken);
         }
         
         if (!this._tokenExpiry) {
           this._tokenExpiry = Date.now() + (24 * 60 * 60 * 1000); // 24時間後
-          await this.secretStorage.store(this.TOKEN_EXPIRY_KEY, this._tokenExpiry.toString());
+          // ミリ秒から秒に変換して保存
+          await this.storageManager.updateTokenExpiry(Math.floor(this._tokenExpiry / 1000));
         }
         
         // 認証状態を強制的に設定
@@ -254,10 +237,9 @@ export class SimpleAuthService {
       global._appgenius_auth_token = accessToken;
       Logger.debug('SimpleAuthService: アクセストークンをグローバル変数に保存しました');
       
-      // セキュアストレージに保存
-      await this.secretStorage.store(this.ACCESS_TOKEN_KEY, accessToken);
-      await this.secretStorage.store(this.REFRESH_TOKEN_KEY, refreshToken);
-      await this.secretStorage.store(this.TOKEN_EXPIRY_KEY, this._tokenExpiry.toString());
+      // AuthStorageManagerを使用してセキュアストレージに保存
+      await this.storageManager.setAccessToken(accessToken, expiryInSeconds);
+      await this.storageManager.setRefreshToken(refreshToken);
       
       Logger.info('SimpleAuthService: トークン保存完了');
     } catch (error) {
@@ -278,11 +260,14 @@ export class SimpleAuthService {
       this._refreshToken = undefined;
       this._tokenExpiry = undefined;
       
-      // セキュアストレージから削除
-      await this.secretStorage.delete(this.ACCESS_TOKEN_KEY);
-      await this.secretStorage.delete(this.REFRESH_TOKEN_KEY);
-      await this.secretStorage.delete(this.TOKEN_EXPIRY_KEY);
-      await this.secretStorage.delete(this.USER_DATA_KEY);
+      // AuthStorageManagerを使用してセキュアストレージから全データを削除
+      await this.storageManager.clearAll();
+      
+      // グローバル変数からも削除
+      if ('_appgenius_auth_token' in global) {
+        // @ts-ignore - グローバル変数の削除
+        delete global._appgenius_auth_token;
+      }
       
       Logger.info('SimpleAuthService: トークンクリア完了');
     } catch (error) {
@@ -340,15 +325,36 @@ export class SimpleAuthService {
       }
       
       // トークン有効期限チェック
-      if (this._tokenExpiry && this._tokenExpiry < Date.now()) {
-        Logger.info('SimpleAuthService: トークン期限切れ、リフレッシュ試行');
-        const refreshed = await this._refreshAccessToken();
-        if (!refreshed) {
-          Logger.info('SimpleAuthService: リフレッシュ失敗');
-          await this._clearTokens();
-          this._updateAuthState(AuthStateBuilder.guest().build());
-          return false;
+      if (this._tokenExpiry) {
+        const now = Date.now();
+        const timeUntilExpiry = this._tokenExpiry - now;
+        
+        // 期限が切れているか（または5分以内に切れる）場合、リフレッシュを試行
+        if (timeUntilExpiry <= 5 * 60 * 1000) { // 5分以内に期限切れの場合もリフレッシュ
+          Logger.info(`SimpleAuthService: トークン期限切れ（または期限間近）、リフレッシュ試行。残り時間: ${Math.floor(timeUntilExpiry / 1000)}秒`);
+          
+          try {
+            const refreshed = await this._refreshAccessToken();
+            if (!refreshed) {
+              Logger.info('SimpleAuthService: リフレッシュ失敗');
+              await this._clearTokens();
+              this._updateAuthState(AuthStateBuilder.guest().build());
+              return false;
+            }
+          } catch (refreshError) {
+            Logger.error('SimpleAuthService: リフレッシュ中にエラーが発生しました', refreshError as Error);
+            await this._clearTokens();
+            this._updateAuthState(AuthStateBuilder.guest().build());
+            return false;
+          }
+        } else {
+          // 有効期限がまだ十分ある場合、残り時間をログに出力
+          const hoursLeft = Math.floor(timeUntilExpiry / (1000 * 60 * 60));
+          const minutesLeft = Math.floor((timeUntilExpiry % (1000 * 60 * 60)) / (1000 * 60));
+          Logger.debug(`SimpleAuthService: トークン有効期限まで残り ${hoursLeft}時間 ${minutesLeft}分`);
         }
+      } else {
+        Logger.warn('SimpleAuthService: トークン有効期限が設定されていません');
       }
       
       // トークン検証と現在のユーザー情報取得
@@ -511,27 +517,63 @@ export class SimpleAuthService {
         return false;
       }
       
-      // APIリクエスト
-      const response = await axios.post(`${this.API_BASE_URL}/auth/refresh-token`, {
-        refreshToken: this._refreshToken
-      });
-      
-      if (response.data && response.data.success && response.data.data.accessToken) {
-        Logger.info('SimpleAuthService: トークンリフレッシュ成功');
-        
-        // 新しいトークンを保存
-        await this._saveTokens(
-          response.data.data.accessToken,
-          response.data.data.refreshToken || this._refreshToken,
-          // 有効期限の指定がなければ24時間（秒単位）
-          86400
-        );
-        
-        return true;
+      // リフレッシュトークンの検証 (空文字やnullでないか確認)
+      if (!this._refreshToken || this._refreshToken === 'null' || this._refreshToken === 'undefined') {
+        Logger.warn('SimpleAuthService: リフレッシュトークンが無効な形式です');
+        return false;
       }
       
-      Logger.info('SimpleAuthService: トークンリフレッシュ失敗', response.data);
-      return false;
+      Logger.info(`SimpleAuthService: リフレッシュトークン検証OK - トークン接頭辞: ${this._refreshToken.substring(0, 5)}...`);
+      
+      try {
+        // APIリクエスト
+        const response = await axios.post(`${this.API_BASE_URL}/auth/refresh-token`, {
+          refreshToken: this._refreshToken
+        }, {
+          timeout: 10000  // 10秒タイムアウト
+        });
+        
+        if (response.data && response.data.success && response.data.data.accessToken) {
+          Logger.info('SimpleAuthService: トークンリフレッシュ成功');
+          
+          // レスポンスの詳細をログ出力 (デバッグ用)
+          Logger.debug(`SimpleAuthService: アクセストークン更新: ${response.data.data.accessToken.substring(0, 10)}...`);
+          Logger.debug(`SimpleAuthService: リフレッシュトークン更新: ${(response.data.data.refreshToken || this._refreshToken).substring(0, 10)}...`);
+          
+          // 新しいトークンを保存
+          await this._saveTokens(
+            response.data.data.accessToken,
+            response.data.data.refreshToken || this._refreshToken,
+            // 有効期限の指定がなければ24時間（秒単位）
+            response.data.data.expiresIn || 86400
+          );
+          
+          return true;
+        }
+        
+        // 成功レスポンスでないがエラーでもない場合の詳細ログ
+        Logger.warn(`SimpleAuthService: トークンリフレッシュ失敗 - API応答: ${JSON.stringify(response.data)}`);
+        return false;
+        
+      } catch (apiError: any) {
+        // エラーレスポンス詳細をログ出力
+        if (apiError.response) {
+          Logger.error(`SimpleAuthService: リフレッシュAPIエラー - ステータス: ${apiError.response.status}`);
+          Logger.error(`SimpleAuthService: エラー詳細: ${JSON.stringify(apiError.response.data || {})}`);
+          
+          // 401エラーの場合、トークンを強制クリア
+          if (apiError.response.status === 401) {
+            Logger.warn('SimpleAuthService: リフレッシュトークンが無効です。認証情報をクリアします。');
+            await this._clearTokens();
+          }
+        } else if (apiError.request) {
+          Logger.error('SimpleAuthService: リフレッシュAPIレスポンスなし (接続タイムアウトの可能性)');
+        } else {
+          Logger.error(`SimpleAuthService: リフレッシュAPIリクエスト前エラー: ${apiError.message}`);
+        }
+        
+        throw apiError; // 上位へエラーを伝播
+      }
     } catch (error) {
       Logger.error('SimpleAuthService: トークンリフレッシュエラー', error as Error);
       return false;

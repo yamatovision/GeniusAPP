@@ -1,9 +1,0 @@
-{
-  "id": "m8cmllmw-6h5q",
-  "errorLog": "- ECサイト、SNS、情報サイト、管理ツール、予約システムなど\n\n2. **このプロジェクトのターゲットユーザーはどのような方々ですか？...\n[2025-03-17T05:29:45.095Z] [INFO] AI応答のストリーミングが完了しました\n[2025-03-17T05:29:47.771Z] [INFO] プロジェクトパスを使用: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius\n[2025-03-17T05:29:47.772Z] [INFO] 要件分析ファイルを作成しました: /var/folders/p8/n69m34cn4f58xb02tx3226y80000gn/T/requirements_analysis_1742189387771.md\n[2025-03-17T05:29:47.772Z] [INFO] 公開URL経由でClaudeCodeを起動します: http://geniemon-portal-backend-production.up.railway.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39\n[2025-03-17T05:29:47.772Z] [WARN] 公開URL経由の起動に失敗しました。ローカルファイルで試行します: TypeError: this._authService.onAuthStateChanged is not a function\n[2025-03-17T05:29:47.772Z] [INFO] 要件定義アドバイザーファイルを読み込みます: /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/docs/prompts/requirements_advisor.md\n[2025-03-17T05:29:47.772Z] [INFO] 調査用プロンプトを作成します: /var/folders/p8/n69m34cn4f58xb02tx3226y80000gn/T/combined_prompt_1742189387772.md\n[2025-03-17T05:29:47.773Z] [ERROR] AI起動エラー: docs/requirements.md\n[2025-03-17T05:29:47.773Z] [ERROR] Error details: this._authService.onAuthStateChanged is not a function\n[2025-03-17T05:29:47.773Z] [ERROR] Stack trace: TypeError: this._authService.onAuthStateChanged is not a function\n\tat ClaudeCodeAuthSync._initialize (/Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius/dist/extension.js:18676:50)",
-  "status": "archived",
-  "createdAt": "2025-03-17T05:30:22.280Z",
-  "errorType": "構文エラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-17T05:30:22.282Z"
-}

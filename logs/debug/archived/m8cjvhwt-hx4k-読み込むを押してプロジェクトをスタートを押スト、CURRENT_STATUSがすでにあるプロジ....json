@@ -1,9 +1,0 @@
-{
-  "id": "m8cjvhwt-hx4k",
-  "errorLog": "読み込むを押してプロジェクトをスタートを押スト、CURRENT_STATUSがすでにあるプロジェクトの場合強制的に消されて新しいまっさらなファイルになってしまっているみたいです。そのプロジェクトにCURRENT_STATUSがなければ作成でいいんですがなければ上書きしないでもらいたいんですけどまず現状を正確に把握してもらえますか",
-  "status": "archived",
-  "createdAt": "2025-03-17T04:14:05.165Z",
-  "errorType": "不明なエラー",
-  "relatedFiles": [],
-  "investigationStartTime": "2025-03-17T04:14:05.167Z"
-}
