@@ -141,8 +141,7 @@ export class SecurityAuditor {
       return results;
     } catch (error) {
       const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditAuthentication');
-      const errorObj = new Error(appError.message);
-      Logger.error('認証セキュリティ監査中にエラーが発生しました', errorObj);
+      Logger.error('認証セキュリティ監査中にエラーが発生しました', error instanceof Error ? error : new Error(String(error)));
       
       // エラー発生時も部分的な結果を返す
       this._processResults(results);
@@ -178,8 +177,7 @@ export class SecurityAuditor {
       return results;
     } catch (error) {
       const appError = this._errorHandler.handleError(error, 'SecurityAuditor.auditApiSecurity');
-      const apiErrorObj = new Error(appError.message);
-      Logger.error('API通信セキュリティ監査中にエラーが発生しました', apiErrorObj);
+      Logger.error('API通信セキュリティ監査中にエラーが発生しました', error as Error);
       
       // エラー発生時も部分的な結果を返す
       this._processResults(results);

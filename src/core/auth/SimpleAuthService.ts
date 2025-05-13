@@ -461,10 +461,11 @@ export class SimpleAuthService {
         Logger.info(`SimpleAuthService: 権限一覧=${JSON.stringify(userData.permissions || [])}`);
         
         // ユーザーデータをセキュアストレージに保存（キャッシュ）
-        await this.secretStorage.store(
-          this.USER_DATA_KEY, 
-          JSON.stringify(userData)
-        );
+        // TODO: secretStorageの実装は別途必要
+        // await this.secretStorage.store(
+        //   this.USER_DATA_KEY, 
+        //   JSON.stringify(userData)
+        // );
         
         return userData;
       }

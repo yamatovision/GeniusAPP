@@ -26,8 +26,8 @@ try {
   };
 }
 
-// markdownConverterをインポート
-import { convertMarkdownToHtml } from '../utils/markdownConverter.js';
+// simpleMarkdownConverterをインポート
+import { convertMarkdownToHtml } from '../utils/simpleMarkdownConverter.js';
 
 class StateManager {
   constructor() {

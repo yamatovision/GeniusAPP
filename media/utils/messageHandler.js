@@ -1,5 +1,5 @@
 // @ts-check
-import stateManager from '../state/stateManager.js';
+import stateManager from '../core/stateManager.js';
 import tabManager from '../components/tabManager/tabManager.js';
 import markdownViewer from '../components/markdownViewer/markdownViewer.js';
 import projectNavigation from '../components/projectNavigation/projectNavigation.js';

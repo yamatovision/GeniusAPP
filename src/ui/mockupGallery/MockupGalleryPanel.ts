@@ -1010,12 +1010,12 @@ export class MockupGalleryPanel extends ProtectedPanel {
   private _getHtmlForWebview(): string {
     const webview = this._panel.webview;
 
-    // WebView内でのリソースへのパスを取得
+    // WebView内でのリソースへのパスを取得（リファクタリング後のパス）
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'mockupGallery.js')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'mockupGallery', 'mockupGallery.js')
     );
     const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'mockupGallery.css')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'mockupGallery', 'mockupGallery.css')
     );
 
     // コードアイコンを使用する場合のパス
@@ -1032,6 +1032,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
   <title>モックアップギャラリー</title>
   <link href="${styleUri}" rel="stylesheet">
   <link href="${codiconsUri}" rel="stylesheet">
+  <link href="${webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'styles', 'design-system.css'))}" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">

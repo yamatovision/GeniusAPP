@@ -9,13 +9,13 @@ import { Message } from '../scopeManager/services/interfaces/common';
 import { IProjectDocument } from '../scopeManager/types/ScopeManagerTypes';
 
 /**
- * マークダウンビューワーパネルクラス
- * ファイルブラウザとマークダウン表示機能を提供する
+ * ファイルビューワーパネルクラス
+ * ファイルブラウザとファイル表示機能を提供する
  */
-export class MarkdownViewerPanel {
-  public static readonly viewType = 'appgenius.markdownViewer';
+export class FileViewerPanel {
+  public static readonly viewType = 'appgenius.fileViewer';
 
-  private static _currentPanel: MarkdownViewerPanel | undefined;
+  private static _currentPanel: FileViewerPanel | undefined;
   private readonly _panel: vscode.WebviewPanel;
   private readonly _extensionUri: vscode.Uri;
   private _disposables: vscode.Disposable[] = [];
@@ -38,11 +38,11 @@ export class MarkdownViewerPanel {
    */
   public setCurrentProjectPath(projectPath: string): void {
     if (!projectPath) {
-      Logger.warn('MarkdownViewerPanel: 無効なプロジェクトパスが設定されました');
+      Logger.warn('FileViewerPanel: 無効なプロジェクトパスが設定されました');
       return;
     }
 
-    Logger.info(`MarkdownViewerPanel: setCurrentProjectPathが呼び出されました: ${projectPath} (現在のパス: ${this._currentProjectPath})`);
+    Logger.info(`FileViewerPanel: setCurrentProjectPathが呼び出されました: ${projectPath} (現在のパス: ${this._currentProjectPath})`);
 
     if (projectPath !== this._currentProjectPath) {
       // ProjectServiceImplを更新（利用可能な場合）
@@ -56,16 +56,16 @@ export class MarkdownViewerPanel {
 
         // ProjectServiceImplを更新
         projectService.selectProject(projectName, projectPath);
-        Logger.info(`MarkdownViewerPanel: ProjectServiceImplを更新しました: ${projectName}, ${projectPath}`);
+        Logger.info(`FileViewerPanel: ProjectServiceImplを更新しました: ${projectName}, ${projectPath}`);
       } catch (error) {
-        Logger.warn(`MarkdownViewerPanel: ProjectServiceImplの更新に失敗しました: ${error}`);
+        Logger.warn(`FileViewerPanel: ProjectServiceImplの更新に失敗しました: ${error}`);
       }
 
       // 内部状態を更新
       this._currentProjectPath = projectPath;
 
       // パネルのタイトルを更新
-      this._panel.title = `マークダウンビューワー: ${path.basename(projectPath)}`;
+      this._panel.title = `ファイルビューワー: ${path.basename(projectPath)}`;
 
       // ファイルリストとウォッチャーを更新
       this._refreshFileList();
@@ -78,9 +78,9 @@ export class MarkdownViewerPanel {
         projectName: path.basename(projectPath)
       });
 
-      Logger.info(`MarkdownViewerPanel: プロジェクトパスを更新しました: ${projectPath}`);
+      Logger.info(`FileViewerPanel: プロジェクトパスを更新しました: ${projectPath}`);
     } else {
-      Logger.info(`MarkdownViewerPanel: 同じプロジェクトパスが指定されました: ${projectPath}`);
+      Logger.info(`FileViewerPanel: 同じプロジェクトパスが指定されました: ${projectPath}`);
     }
   }
 
@@ -89,55 +89,55 @@ export class MarkdownViewerPanel {
    * @param extensionUri 拡張機能のURI
    * @param messageDispatchService メッセージディスパッチサービス
    * @param initialProjectPath 初期プロジェクトパス（オプション）
-   * @returns MarkdownViewerPanelのインスタンス
+   * @returns FileViewerPanelのインスタンス
    */
   public static createOrShow(
     extensionUri: vscode.Uri,
     messageDispatchService?: IMessageDispatchService,
     initialProjectPath?: string
-  ): MarkdownViewerPanel {
+  ): FileViewerPanel {
     const column = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
       : undefined;
 
     try {
-      Logger.info(`MarkdownViewerPanel: createOrShow呼び出し (initialProjectPath=${initialProjectPath || 'なし'})`);
+      Logger.info(`FileViewerPanel: createOrShow呼び出し (initialProjectPath=${initialProjectPath || 'なし'})`);
 
       // パネルが既に存在する場合は、それを表示
-      if (MarkdownViewerPanel._currentPanel) {
-        Logger.info('MarkdownViewerPanel: 既存のパネルを表示します');
-        MarkdownViewerPanel._currentPanel._panel.reveal(column);
+      if (FileViewerPanel._currentPanel) {
+        Logger.info('FileViewerPanel: 既存のパネルを表示します');
+        FileViewerPanel._currentPanel._panel.reveal(column);
 
         // 初期プロジェクトパスが指定されている場合は、既存パネルのプロジェクトパスを更新
         if (initialProjectPath) {
           // 現在のパスと比較
-          if (initialProjectPath !== MarkdownViewerPanel._currentPanel._currentProjectPath) {
-            Logger.info(`MarkdownViewerPanel: プロジェクトパスを更新します: ${initialProjectPath} (現在のパス: ${MarkdownViewerPanel._currentPanel._currentProjectPath})`);
+          if (initialProjectPath !== FileViewerPanel._currentPanel._currentProjectPath) {
+            Logger.info(`FileViewerPanel: プロジェクトパスを更新します: ${initialProjectPath} (現在のパス: ${FileViewerPanel._currentPanel._currentProjectPath})`);
 
             // パネルのタイトルを更新
-            MarkdownViewerPanel._currentPanel._panel.title = `マークダウンビューワー: ${path.basename(initialProjectPath)}`;
+            FileViewerPanel._currentPanel._panel.title = `ファイルビューワー: ${path.basename(initialProjectPath)}`;
 
             // プロジェクトパスを更新
-            MarkdownViewerPanel._currentPanel.setCurrentProjectPath(initialProjectPath);
+            FileViewerPanel._currentPanel.setCurrentProjectPath(initialProjectPath);
           } else {
-            Logger.info(`MarkdownViewerPanel: 同じプロジェクトパスが指定されました: ${initialProjectPath}`);
+            Logger.info(`FileViewerPanel: 同じプロジェクトパスが指定されました: ${initialProjectPath}`);
           }
         } else {
-          Logger.info('MarkdownViewerPanel: 初期プロジェクトパスが指定されていません');
+          Logger.info('FileViewerPanel: 初期プロジェクトパスが指定されていません');
         }
 
-        return MarkdownViewerPanel._currentPanel;
+        return FileViewerPanel._currentPanel;
       }
 
-      Logger.info('MarkdownViewerPanel: 新しいパネルを作成します');
+      Logger.info('FileViewerPanel: 新しいパネルを作成します');
 
       // 新しいパネルを作成（パネルタイトルにプロジェクト名を含める）
       const panelTitle = initialProjectPath
-        ? `マークダウンビューワー: ${path.basename(initialProjectPath)}`
-        : 'マークダウンビューワー';
+        ? `ファイルビューワー: ${path.basename(initialProjectPath)}`
+        : 'ファイルビューワー';
 
       const panel = vscode.window.createWebviewPanel(
-        MarkdownViewerPanel.viewType,
+        FileViewerPanel.viewType,
         panelTitle,
         column || vscode.ViewColumn.One,
         {
@@ -151,11 +151,11 @@ export class MarkdownViewerPanel {
       );
 
       // 新しいインスタンスを作成
-      MarkdownViewerPanel._currentPanel = new MarkdownViewerPanel(panel, extensionUri, messageDispatchService, initialProjectPath);
-      Logger.info(`MarkdownViewerPanel: 新しいインスタンスを作成しました${initialProjectPath ? ` (初期プロジェクトパス: ${initialProjectPath})` : ''}`);
-      return MarkdownViewerPanel._currentPanel;
+      FileViewerPanel._currentPanel = new FileViewerPanel(panel, extensionUri, messageDispatchService, initialProjectPath);
+      Logger.info(`FileViewerPanel: 新しいインスタンスを作成しました${initialProjectPath ? ` (初期プロジェクトパス: ${initialProjectPath})` : ''}`);
+      return FileViewerPanel._currentPanel;
     } catch (error) {
-      Logger.error('MarkdownViewerPanel: createOrShowでエラーが発生しました', error as Error);
+      Logger.error('FileViewerPanel: createOrShowでエラーが発生しました', error as Error);
       throw error;
     }
   }
@@ -208,13 +208,13 @@ export class MarkdownViewerPanel {
     // 初期プロジェクトパスが指定されている場合は、それを使用
     if (initialProjectPath) {
       this._currentProjectPath = initialProjectPath;
-      Logger.info(`MarkdownViewerPanel: 初期プロジェクトパスを設定しました: ${initialProjectPath}`);
+      Logger.info(`FileViewerPanel: 初期プロジェクトパスを設定しました: ${initialProjectPath}`);
     }
 
     // 初期コンテンツの読み込み
     this._initializeContent();
 
-    Logger.info('MarkdownViewerPanel: パネルが作成されました');
+    Logger.info('FileViewerPanel: パネルが作成されました');
   }
 
   /**
@@ -233,10 +233,10 @@ export class MarkdownViewerPanel {
       // プロジェクトサービスのインスタンスを取得
       this._projectService = ProjectServiceImpl.getInstance(this._fileSystemService);
 
-      Logger.info('MarkdownViewerPanel: サービスが初期化されました');
+      Logger.info('FileViewerPanel: サービスが初期化されました');
     } catch (error) {
-      Logger.error('MarkdownViewerPanel: サービスの初期化に失敗しました', error as Error);
-      vscode.window.showErrorMessage('マークダウンビューワーの初期化に失敗しました');
+      Logger.error('FileViewerPanel: サービスの初期化に失敗しました', error as Error);
+      vscode.window.showErrorMessage('ファイルビューワーの初期化に失敗しました');
     }
   }
 
@@ -256,11 +256,11 @@ export class MarkdownViewerPanel {
   private _getHtmlForWebview(webview: vscode.Webview): string {
     // 各リソースのURIを取得
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'markdownViewer', 'markdownViewer.js')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'fileViewer', 'fileViewer.js')
     );
 
     const styleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'markdownViewer', 'markdownViewer.css')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'fileViewer', 'fileViewer.css')
     );
 
     const designSystemUri = webview.asWebviewUri(
@@ -283,7 +283,7 @@ export class MarkdownViewerPanel {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ファイルブラウザ＆マークダウンビューワー</title>
+        <title>ファイルブラウザ＆ファイルビューワー</title>
 
         <meta http-equiv="Content-Security-Policy" content="
           default-src 'none';
@@ -422,9 +422,9 @@ export class MarkdownViewerPanel {
         this._onProjectChanged(projectInfo.path);
       });
       
-      Logger.info('MarkdownViewerPanel: プロジェクトパスリスナーが設定されました');
+      Logger.info('FileViewerPanel: プロジェクトパスリスナーが設定されました');
     } catch (error) {
-      Logger.error('MarkdownViewerPanel: プロジェクトパスリスナーの設定に失敗しました', error as Error);
+      Logger.error('FileViewerPanel: プロジェクトパスリスナーの設定に失敗しました', error as Error);
     }
   }
 
@@ -455,27 +455,27 @@ export class MarkdownViewerPanel {
     if (this._isSplitView && (this._leftPaneFilePath || this._rightPaneFilePath)) {
       // 分割表示モードで、ファイルが選択されている場合は現在の表示を維持
       targetPath = this._leftPaneFilePath ? path.dirname(this._leftPaneFilePath) : path.dirname(this._rightPaneFilePath);
-      Logger.info(`MarkdownViewerPanel: 現在表示中のディレクトリを維持します: ${targetPath}`);
+      Logger.info(`FileViewerPanel: 現在表示中のディレクトリを維持します: ${targetPath}`);
     } else if (this._currentFilePath) {
       // 通常モードでファイルが選択されている場合
       targetPath = path.dirname(this._currentFilePath);
-      Logger.info(`MarkdownViewerPanel: 現在表示中のディレクトリを維持します: ${targetPath}`);
+      Logger.info(`FileViewerPanel: 現在表示中のディレクトリを維持します: ${targetPath}`);
     } else {
       // ファイル選択状態がない場合はdocsディレクトリを優先
       const docsPath = path.join(projectPath, 'docs');
       if (fs.existsSync(docsPath)) {
         targetPath = docsPath;
-        Logger.info(`MarkdownViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
+        Logger.info(`FileViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
       } else {
         targetPath = projectPath;
-        Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示: ${projectPath}`);
+        Logger.info(`FileViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示: ${projectPath}`);
       }
     }
 
     // ファイルリストを更新
     this._refreshFileList(targetPath);
 
-    Logger.info(`MarkdownViewerPanel: プロジェクトパスが変更されました: ${projectPath}`);
+    Logger.info(`FileViewerPanel: プロジェクトパスが変更されました: ${projectPath}`);
   }
 
   /**
@@ -518,9 +518,9 @@ export class MarkdownViewerPanel {
         }
       );
       
-      Logger.info(`MarkdownViewerPanel: ファイル監視が設定されました: ${this._currentProjectPath}`);
+      Logger.info(`FileViewerPanel: ファイル監視が設定されました: ${this._currentProjectPath}`);
     } catch (error) {
-      Logger.error('MarkdownViewerPanel: ファイル監視の設定に失敗しました', error as Error);
+      Logger.error('FileViewerPanel: ファイル監視の設定に失敗しました', error as Error);
     }
   }
 
@@ -543,7 +543,7 @@ export class MarkdownViewerPanel {
         }
       } else {
         // 既にプロジェクトパスが設定されている場合はログ出力
-        Logger.info(`MarkdownViewerPanel: 既に設定されているプロジェクトパスを使用します: ${this._currentProjectPath}`);
+        Logger.info(`FileViewerPanel: 既に設定されているプロジェクトパスを使用します: ${this._currentProjectPath}`);
       }
 
       if (this._currentProjectPath) {
@@ -556,11 +556,11 @@ export class MarkdownViewerPanel {
             if (exists) {
               // docsディレクトリが存在する場合はそこを表示
               this._refreshFileList(docsPath);
-              Logger.info(`MarkdownViewerPanel: docsディレクトリを初期表示します: ${docsPath}`);
+              Logger.info(`FileViewerPanel: docsディレクトリを初期表示します: ${docsPath}`);
             } else {
               // 存在しない場合はプロジェクトルートを表示
               this._refreshFileList(this._currentProjectPath);
-              Logger.info(`MarkdownViewerPanel: プロジェクトルートを初期表示します: ${this._currentProjectPath}`);
+              Logger.info(`FileViewerPanel: プロジェクトルートを初期表示します: ${this._currentProjectPath}`);
             }
 
             // ファイル監視を設定
@@ -570,17 +570,17 @@ export class MarkdownViewerPanel {
             // エラーが発生した場合はプロジェクトルートを表示
             this._refreshFileList(this._currentProjectPath);
             this._setupFileWatcher();
-            Logger.error('MarkdownViewerPanel: docsディレクトリの確認に失敗しました', error as Error);
+            Logger.error('FileViewerPanel: docsディレクトリの確認に失敗しました', error as Error);
           });
       } else {
         this._sendMessageToWebview({
           command: 'showError',
           message: 'プロジェクトが選択されていません'
         });
-        Logger.warn('MarkdownViewerPanel: プロジェクトが選択されていません');
+        Logger.warn('FileViewerPanel: プロジェクトが選択されていません');
       }
     } catch (error) {
-      Logger.error('MarkdownViewerPanel: 初期コンテンツの読み込みに失敗しました', error as Error);
+      Logger.error('FileViewerPanel: 初期コンテンツの読み込みに失敗しました', error as Error);
     }
   }
 
@@ -608,11 +608,11 @@ export class MarkdownViewerPanel {
           // 分割表示モードで、どちらかのペインにファイルが表示されている場合
           const filePath = this._leftPaneFilePath || this._rightPaneFilePath;
           pathToList = path.dirname(filePath);
-          Logger.info(`MarkdownViewerPanel: 現在表示中のファイルのディレクトリを維持します: ${pathToList}`);
+          Logger.info(`FileViewerPanel: 現在表示中のファイルのディレクトリを維持します: ${pathToList}`);
         } else if (this._currentFilePath) {
           // 通常モードでファイルが表示されている場合
           pathToList = path.dirname(this._currentFilePath);
-          Logger.info(`MarkdownViewerPanel: 現在表示中のファイルのディレクトリを維持します: ${pathToList}`);
+          Logger.info(`FileViewerPanel: 現在表示中のファイルのディレクトリを維持します: ${pathToList}`);
         } else {
           // ファイル選択状態がない場合のみ、docsディレクトリを優先
           const docsPath = path.join(this._currentProjectPath, 'docs');
@@ -620,10 +620,10 @@ export class MarkdownViewerPanel {
           // docsディレクトリの存在を同期的に確認
           if (fs.existsSync(docsPath)) {
             pathToList = docsPath;
-            Logger.info(`MarkdownViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
+            Logger.info(`FileViewerPanel: docsディレクトリを優先的に表示します: ${docsPath}`);
           } else {
             pathToList = this._currentProjectPath;
-            Logger.info(`MarkdownViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示します: ${this._currentProjectPath}`);
+            Logger.info(`FileViewerPanel: docsディレクトリが存在しないため、プロジェクトルートを表示します: ${this._currentProjectPath}`);
           }
         }
       }
@@ -638,12 +638,12 @@ export class MarkdownViewerPanel {
             currentPath: pathToList
           });
 
-          Logger.debug(`MarkdownViewerPanel: ファイルリストを更新しました (${files.length}件): ${pathToList}`);
+          Logger.debug(`FileViewerPanel: ファイルリストを更新しました (${files.length}件): ${pathToList}`);
         })
         .catch((error) => {
           // 指定されたパスにアクセスできない場合
           if (pathToList !== this._currentProjectPath) {
-            Logger.info(`MarkdownViewerPanel: ${pathToList}にアクセスできないため、プロジェクトルートを表示します`);
+            Logger.info(`FileViewerPanel: ${pathToList}にアクセスできないため、プロジェクトルートを表示します`);
             this._refreshFileList(this._currentProjectPath);
             return;
           }
@@ -653,10 +653,10 @@ export class MarkdownViewerPanel {
             message: `ファイルリストの取得に失敗しました: ${error.message}`
           });
 
-          Logger.error(`MarkdownViewerPanel: ファイルリストの取得に失敗しました: ${pathToList}`, error);
+          Logger.error(`FileViewerPanel: ファイルリストの取得に失敗しました: ${pathToList}`, error);
         });
     } catch (error) {
-      Logger.error('MarkdownViewerPanel: ファイルリスト更新中にエラーが発生しました', error as Error);
+      Logger.error('FileViewerPanel: ファイルリスト更新中にエラーが発生しました', error as Error);
     }
   }
 
@@ -698,7 +698,7 @@ export class MarkdownViewerPanel {
               // 現在のファイルパスを更新
               this._currentFilePath = filePath;
               
-              Logger.debug(`MarkdownViewerPanel: ファイル内容を読み込みました: ${filePath}`);
+              Logger.debug(`FileViewerPanel: ファイル内容を読み込みました: ${filePath}`);
             })
             .catch((error) => {
               this._sendMessageToWebview({
@@ -706,7 +706,7 @@ export class MarkdownViewerPanel {
                 message: `ファイルの読み込みに失敗しました: ${error.message}`
               });
               
-              Logger.error(`MarkdownViewerPanel: ファイルの読み込みに失敗しました: ${filePath}`, error);
+              Logger.error(`FileViewerPanel: ファイルの読み込みに失敗しました: ${filePath}`, error);
             });
         })
         .catch((error) => {
@@ -715,10 +715,10 @@ export class MarkdownViewerPanel {
             message: `ファイルの存在確認に失敗しました: ${error.message}`
           });
           
-          Logger.error(`MarkdownViewerPanel: ファイルの存在確認に失敗しました: ${filePath}`, error);
+          Logger.error(`FileViewerPanel: ファイルの存在確認に失敗しました: ${filePath}`, error);
         });
     } catch (error) {
-      Logger.error(`MarkdownViewerPanel: ファイル内容読み込み中にエラーが発生しました: ${filePath}`, error as Error);
+      Logger.error(`FileViewerPanel: ファイル内容読み込み中にエラーが発生しました: ${filePath}`, error as Error);
     }
   }
 
@@ -763,7 +763,7 @@ export class MarkdownViewerPanel {
                 this._rightPaneFilePath = filePath;
               }
 
-              Logger.debug(`MarkdownViewerPanel: ${pane}ペインにファイル内容を読み込みました: ${filePath}`);
+              Logger.debug(`FileViewerPanel: ${pane}ペインにファイル内容を読み込みました: ${filePath}`);
             })
             .catch((error) => {
               this._sendMessageToWebview({
@@ -776,7 +776,7 @@ export class MarkdownViewerPanel {
           // エラーハンドリング
         });
     } catch (error) {
-      Logger.error(`MarkdownViewerPanel: ペイン用ファイル内容読み込み中にエラーが発生しました: ${filePath}`, error as Error);
+      Logger.error(`FileViewerPanel: ペイン用ファイル内容読み込み中にエラーが発生しました: ${filePath}`, error as Error);
     }
   }
 
@@ -862,10 +862,10 @@ export class MarkdownViewerPanel {
           
           
         default:
-          Logger.warn(`MarkdownViewerPanel: 未知のコマンドを受信: ${message.command}`);
+          Logger.warn(`FileViewerPanel: 未知のコマンドを受信: ${message.command}`);
       }
     } catch (error) {
-      Logger.error(`MarkdownViewerPanel: メッセージ処理中にエラーが発生しました: ${message.command}`, error as Error);
+      Logger.error(`FileViewerPanel: メッセージ処理中にエラーが発生しました: ${message.command}`, error as Error);
     }
   }
 
@@ -877,7 +877,7 @@ export class MarkdownViewerPanel {
     try {
       this._panel.webview.postMessage(message);
     } catch (error) {
-      Logger.error(`MarkdownViewerPanel: WebViewへのメッセージ送信に失敗しました: ${message.command}`, error as Error);
+      Logger.error(`FileViewerPanel: WebViewへのメッセージ送信に失敗しました: ${message.command}`, error as Error);
     }
   }
 
@@ -886,7 +886,7 @@ export class MarkdownViewerPanel {
    */
   public dispose(): void {
     // パネルの参照を削除
-    MarkdownViewerPanel._currentPanel = undefined;
+    FileViewerPanel._currentPanel = undefined;
 
     // WebViewパネルを破棄
     this._panel.dispose();
@@ -905,7 +905,7 @@ export class MarkdownViewerPanel {
       }
     }
 
-    Logger.info('MarkdownViewerPanel: リソースを解放しました');
+    Logger.info('FileViewerPanel: リソースを解放しました');
   }
 }
 

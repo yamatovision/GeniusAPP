@@ -1,5 +1,5 @@
 // @ts-check
-import stateManager from '../../state/stateManager.js';
+import stateManager from '../../core/stateManager.js';
 import { convertMarkdownToHtml, enhanceSpecialElements, setupCheckboxes } from '../../utils/simpleMarkdownConverter.js';
 
 class MarkdownViewer {

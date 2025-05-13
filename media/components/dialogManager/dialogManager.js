@@ -1,5 +1,5 @@
 // @ts-check
-import stateManager from '../../state/stateManager.js';
+import stateManager from '../../core/stateManager.js';
 
 class DialogManager {
   constructor() {

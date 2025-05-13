@@ -26,10 +26,10 @@ export class ScopeManagerTemplate {
 
     // スタイルシートやスクリプトのURIを取得
     const styleResetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'reset.css')
+      vscode.Uri.joinPath(extensionUri, 'media', 'styles', 'reset.css')
     );
     const designSystemStyleUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'design-system.css')
+      vscode.Uri.joinPath(extensionUri, 'media', 'styles', 'design-system.css')
     );
     const styleMainUri = webview.asWebviewUri(
       vscode.Uri.joinPath(extensionUri, 'media', 'scopeManager.css')
@@ -47,7 +47,7 @@ export class ScopeManagerTemplate {
       vscode.Uri.joinPath(extensionUri, 'media', 'scopeManager.js')
     );
     const sharingPanelScriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(extensionUri, 'media', 'components', 'sharingPanel.js')
+      vscode.Uri.joinPath(extensionUri, 'media', 'components', 'sharingPanel', 'sharingPanel.js')
     );
 
     // Material Iconsの読み込み

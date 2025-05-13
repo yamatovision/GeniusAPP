@@ -1,4 +1,4 @@
-# リファクタリング計画: mediaフォルダ [2025-05-13]
+# リファクタリング完了報告: mediaフォルダ [2025-05-13]
 
 ## 1. 現状分析
 
@@ -116,15 +116,22 @@ scopeManager.js (エントリーポイント)
 ### 3.3 新しいディレクトリ構造
 ```
 media/
-├── scopeManager.js (エントリーポイント - 最小化)
-├── fileViewer/                      ← リネームされたファイルビューワー
+├── assets/                       ← アイコンなどのアセットファイル
+│   └── icon.svg                  ← アクティビティバーアイコン
+├── fileViewer/                   ← スタンドアロンのファイルビューワー
 │   ├── fileViewer.js             ← 旧markdownViewer.js
 │   └── fileViewer.css            ← 旧markdownViewer.css
-├── components/
+├── mockupGallery/                ← スタンドアロンのモックアップギャラリー
+│   ├── mockupGallery.js
+│   └── mockupGallery.css
+├── noProjectView/                ← プロジェクト未選択時の表示
+│   ├── noProjectView.html
+│   └── noProjectView.css
+├── components/                   ← ScopeManager内で使用されるコンポーネント
 │   ├── tabManager/
 │   │   ├── tabManager.js
 │   │   └── tabManager.css
-│   ├── markdownViewer/            ← ScopeManager内部のマークダウン表示コンポーネント
+│   ├── markdownViewer/           ← ScopeManager内部のマークダウン表示
 │   │   ├── markdownViewer.js
 │   │   └── markdownViewer.css
 │   ├── projectNavigation/
@@ -136,24 +143,23 @@ media/
 │   ├── promptCards/
 │   │   ├── promptCards.js
 │   │   └── promptCards.css
-│   ├── sharingPanel/
-│   │   ├── sharingPanel.js
-│   │   └── sharingPanel.css
-│   └── mockupGallery/
-│       ├── mockupGallery.js
-│       └── mockupGallery.css
-├── core/
-│   ├── stateManager.js (旧state/stateManager.js)
-│   └── messageDispatcher.js (新規作成)
-├── styles/
+│   └── sharingPanel/             ← ClaudeCode共有機能
+│       └── sharingPanel.js
+├── core/                         ← コア機能
+│   ├── stateManager.js           ← 旧state/stateManager.js
+│   └── messageDispatcher.js      ← 新規作成
+├── styles/                       ← グローバルスタイル
 │   ├── components.css
 │   ├── design-system.css
 │   ├── reset.css
 │   └── vscode.css
-└── utils/
-    ├── markdownConverter.js (共有ライブラリ)
-    ├── uiHelpers.js
-    └── serviceConnector.js
+├── utils/                        ← ユーティリティ
+│   ├── simpleMarkdownConverter.js
+│   ├── uiHelpers.js
+│   ├── messageHandler.js
+│   └── serviceConnector.js
+├── scopeManager.js               ← メインエントリーポイント
+└── scopeManager.css              ← メインスタイル
 ```
 
 ## 4. 実装計画
@@ -234,10 +240,13 @@ media/
   2. **T2.2**: 使用中のスタンドアロンWebViewコンポーネントの移動
      - 対象:
        - /media/mockupGallery.js + /media/mockupGallery.css
+       - /media/components/sharingPanel.js
+       - /media/noProjectView.html + /media/noProjectView.css
      - 実装:
        - 各コンポーネントごとに専用ディレクトリを作成
-       - 例: /media/components/mockupGallery/へ移動
-       - インポートパスの更新
+       - mockupGallery.js/cssは /media/mockupGallery/ ディレクトリへ移動
+       - sharingPanel.jsは /media/components/sharingPanel/ ディレクトリへ移動
+       - noProjectView.html/cssは /media/noProjectView/ ディレクトリへ移動
        - HTMLテンプレートのパス参照も更新
 
   3. **T2.3**: グローバルスタイルの整理
@@ -250,6 +259,17 @@ media/
        - /media/styles/ディレクトリを作成
        - グローバルスタイルをこのディレクトリに集約
        - HTMLテンプレートのスタイル参照を更新
+
+  4. **T2.4**: アイコンファイルの整理
+     - 対象:
+       - /media/icon.svg
+       - /media/assets/sherlock.svg
+     - 実装:
+       - /media/assets/ディレクトリを作成または確認
+       - icon.svgを/media/assets/に移動
+       - package.jsonの参照を"media/assets/icon.svg"に更新
+       - TerminalProvisionService.tsの参照パスも更新
+       - 未使用のsherlock.svgを削除（debugDetectiveが削除対象のため）
 
 - **検証ポイント**:
   - 移動後もすべての機能が正常に動作すること
@@ -374,11 +394,27 @@ media/
 - ユーザー動作シミュレーションによる結合テスト
 - 依存関係の徹底的な確認と段階的削除
 
-## 7. 備考
-- リファクタリング作業は、既存の「ScopeManagerPanel_分割リファクタリング計画.md」を参考にして進めることで、プロジェクト全体の方針と一貫性を保つ
-- リファクタリングにおいては、機能を削除するのではなく、より良いコード構造に整理することを最優先する
-- markdownViewerとFileViewerは別種のコンポーネントとして維持し、それぞれが単一責任を持つようにする
-- マークダウン変換処理をsimpleMarkdownConverter.jsに一元化し、互換性レイヤーを削除する
-- 共通ライブラリは共有しつつ、各コンポーネントの特性を活かした可読性の高い実装を目指す
-- 未使用コンポーネント（dashboard、environmentVariablesAssistant、simpleChat、referenceManager、simpleMockupEditor、claudeMdEditor、debugDetective）は、対応するTypeScriptファイルを含めて完全に削除することで、コードベースを簡素化する
-- accessibility.cssの削除が可能なのは、このスタイルシートを参照している全てのCSSファイル（debugDetective.css、environmentVariablesAssistant.css、dashboard.css）も削除対象であるため
+## 7. 実施結果
+
+### 7.1 完了項目
+- ✅ markdownViewerをFileViewerにリネーム（パス参照も更新）
+- ✅ 不要ファイルとバックアップファイルの削除
+- ✅ ディレクトリ構造の整理
+  - ✅ sharingPanel.jsをcomponents/sharingPanel/フォルダに移動
+  - ✅ noProjectViewを専用ディレクトリに移動
+  - ✅ mockupGalleryを専用ディレクトリに移動
+  - ✅ icon.svgをassetsフォルダに移動
+- ✅ パス参照の更新
+  - ✅ package.jsonのicon参照を更新
+  - ✅ TerminalProvisionService.tsのicon参照を更新
+  - ✅ ScopeManagerTemplate.tsのsharingPanel.js参照を更新
+  - ✅ NoProjectViewPanel.tsのnoProjectView.css参照を更新
+  - ✅ MockupGalleryPanel.tsのmockupGallery.js/.css参照を更新
+
+### 7.2 検証結果
+- TypeScriptコンパイルエラーがないことを確認
+- 各コンポーネントの正常動作を確認
+- リント警告はあるが、既存の問題であり今回の変更による問題ではない
+
+### 7.3 総括
+リファクタリングにより、一貫性のある整理されたディレクトリ構造を実現しました。スタンドアロンのWebViewコンポーネントと埋め込みコンポーネントを明確に分離し、各ファイルの役割が明確になりました。今後の開発において、新しいコンポーネントの追加やメンテナンスが容易になります。

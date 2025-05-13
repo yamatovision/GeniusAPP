@@ -298,20 +298,20 @@ export class NoProjectViewPanel {
   private _getHtmlForWebview(webview: vscode.Webview): string {
     // スタイルシートのURIを取得
     const styleResetUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'styles', 'reset.css')
     );
 
     const styleVSCodeUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'vscode.css')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'styles', 'vscode.css')
     );
 
     const styleDesignSystemUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'design-system.css')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'styles', 'design-system.css')
     );
 
     // 新しく追加した専用CSSのURI
     const styleNoProjectViewUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, 'media', 'noProjectView.css')
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'noProjectView', 'noProjectView.css')
     );
 
     // Material Icons用のフォントURL

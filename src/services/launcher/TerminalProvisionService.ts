@@ -218,7 +218,7 @@ export class TerminalProvisionService {
    * 規定のアイコンパスを取得
    */
   private getDefaultIconPath(): vscode.Uri | undefined {
-    const resource = this.platformManager.getResourceUri('media/icon.svg');
+    const resource = this.platformManager.getResourceUri('media/assets/icon.svg');
     // 文字列の場合はURIに変換しない
     if (typeof resource === 'string') {
       return undefined;

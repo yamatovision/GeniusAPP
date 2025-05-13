@@ -26,30 +26,25 @@ import { TerminalInterface } from './ui/TerminalInterface';
 import { CommandHandler } from './ui/CommandHandler';
 import { FileOperationManager } from './utils/fileOperationManager';
 import { MockupGalleryPanel } from './ui/mockupGallery/MockupGalleryPanel';
-import { SimpleChatPanel } from './ui/simpleChat';
-import { DashboardPanel } from './ui/dashboard/DashboardPanel';
 import { AppGeniusEventBus, AppGeniusEventType } from './services/AppGeniusEventBus';
 import { ClaudeCodeApiClient } from './api/claudeCodeApiClient';
-import { ClaudeMdEditorPanel } from './ui/claudeMd/ClaudeMdEditorPanel';
 import { ProjectManagementService } from './services/ProjectManagementService';
 import { PlatformManager } from './utils/PlatformManager';
 import { ScopeExporter } from './utils/ScopeExporter';
 import { MessageBroker } from './utils/MessageBroker';
 import { ScopeManagerPanel } from './ui/scopeManager/ScopeManagerPanel';
-import { DebugDetectivePanel } from './ui/debugDetective/DebugDetectivePanel';
-// 環境変数アシスタントは不要になったため削除
+// 未使用コンポーネントは削除済み
 import { SimpleAuthManager } from './core/auth/SimpleAuthManager';
 import { SimpleAuthService } from './core/auth/SimpleAuthService';
 import { PermissionManager } from './core/auth/PermissionManager';
 import { registerAuthCommands } from './core/auth/authCommands';
 import { registerPromptLibraryCommands } from './commands/promptLibraryCommands';
-import { registerEnvironmentCommands } from './commands/environmentCommands';
-import { registerMarkdownViewerCommands } from './commands/markdownViewerCommands'; // 追加: マークダウンビューワーコマンド
+import { registerFileViewerCommands } from './commands/fileViewerCommands'; // ファイルビューワーコマンド
 import { EnvVariablesPanel } from './ui/environmentVariables/EnvVariablesPanel';
 import { AuthGuard } from './ui/auth/AuthGuard';
 import { Feature } from './core/auth/roles';
 import { AuthStorageManager } from './utils/AuthStorageManager';
-import { MarkdownViewerPanel } from './ui/markdownViewer/MarkdownViewerPanel'; // 追加: マークダウンビューワーパネル
+import { FileViewerPanel } from './ui/fileViewer/FileViewerPanel'; // 追加: ファイルビューワーパネル
 import { ProjectStateService } from './services/projectState/ProjectStateService'; // 追加: プロジェクト状態管理サービス
 import { NoProjectViewPanel } from './ui/noProjectView/NoProjectViewPanel'; // 追加: プロジェクト選択画面
 // SimpleModelViewerPanel is removed - not needed anymore
@@ -110,17 +105,22 @@ export function activate(context: vscode.ExtensionContext) {
 	const config = vscode.workspace.getConfiguration('appgeniusAI');
 	const autoStartDashboard = config.get('autoStartTerminal', true);
 	
-	// openDevelopmentAssistantコマンドを登録
+	// openDevelopmentAssistantコマンドを登録（リファクタリングによりScopeManagerに置き換え）
 	context.subscriptions.push(
 		vscode.commands.registerCommand('appgenius-ai.openDevelopmentAssistant', (params?: any) => {
 			try {
-				Logger.info('開発アシスタントを開くコマンドが実行されました');
+				Logger.info('開発アシスタントを開くコマンドが実行されました（ScopeManagerに転送）');
 				
-				// DashboardPanelが実装されていることを確認
-				const { DashboardPanel } = require('./ui/dashboard/DashboardPanel');
-				DashboardPanel.createOrShow(context.extensionUri, aiService, params);
+				// DashboardPanel削除のため、代わりにScopeManagerを表示
+				let projectPath: string | undefined;
+				if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+					projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+				}
 				
-				Logger.info('DashboardPanelを表示しました');
+				// スコープマネージャーコマンドを実行
+				vscode.commands.executeCommand('appgenius-ai.openScopeManager', projectPath);
+				
+				Logger.info('ScopeManagerに転送しました');
 			} catch (error) {
 				Logger.error('開発アシスタントを開く際にエラーが発生しました', error as Error);
 				vscode.window.showErrorMessage(`開発アシスタントを開けませんでした: ${(error as Error).message}`);
@@ -275,11 +275,11 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 		);
 		
-		// マークダウンビューワーを開くコマンドの登録
+		// ファイルビューワーを開くコマンド（旧マークダウンビューワーの代替）
 		context.subscriptions.push(
-			vscode.commands.registerCommand('appgenius-ai.openMarkdownViewer', (projectPath?: string) => {
+			vscode.commands.registerCommand('appgenius-ai.openFileViewer', (projectPath?: string) => {
 				try {
-					Logger.info(`マークダウンビューワーを開くコマンドが実行されました: ${projectPath || 'パスなし'}`);
+					Logger.info(`ファイルビューワーを開くコマンドが実行されました: ${projectPath || 'パスなし'}`);
 					
 					// プロジェクトパスが指定されていない場合は、アクティブプロジェクトまたはワークスペースから取得
 					if (!projectPath) {
@@ -294,12 +294,26 @@ export function activate(context: vscode.ExtensionContext) {
 						}
 					}
 					
-					// マークダウンビューワーパネルを表示
-					MarkdownViewerPanel.createOrShow(context.extensionUri);
-					Logger.info('マークダウンビューワーパネルを表示しました');
+					// ファイルビューワーパネルを表示
+					FileViewerPanel.createOrShow(context.extensionUri);
+					Logger.info('ファイルビューワーパネルを表示しました');
 				} catch (error) {
-					Logger.error('マークダウンビューワーを開く際にエラーが発生しました', error as Error);
-					vscode.window.showErrorMessage(`マークダウンビューワーを開けませんでした: ${(error as Error).message}`);
+					Logger.error('ファイルビューワーを開く際にエラーが発生しました', error as Error);
+					vscode.window.showErrorMessage(`ファイルビューワーを開けませんでした: ${(error as Error).message}`);
+				}
+			})
+		);
+		
+		// マークダウンビューワーを開くコマンド（互換性のため）
+		context.subscriptions.push(
+			vscode.commands.registerCommand('appgenius-ai.openMarkdownViewer', (projectPath?: string) => {
+				try {
+					Logger.info(`マークダウンビューワーコマンドを受信 (FileViewerに転送): ${projectPath || 'パスなし'}`);
+					// 新しいファイルビューワーコマンドにリダイレクト
+					vscode.commands.executeCommand('appgenius-ai.openFileViewer', projectPath);
+				} catch (error) {
+					Logger.error('マークダウンビューワーリダイレクト中にエラーが発生しました', error as Error);
+					vscode.window.showErrorMessage(`ファイルビューワーを開けませんでした: ${(error as Error).message}`);
 				}
 			})
 		);
@@ -308,36 +322,22 @@ export function activate(context: vscode.ExtensionContext) {
 		
 		Logger.info('ScopeManager command registered successfully');
 		
-		// デバッグ探偵を開くコマンドの登録
+		// デバッグ探偵コマンド登録はリファクタリングで削除されました
 		context.subscriptions.push(
 			vscode.commands.registerCommand('appgenius-ai.openDebugDetective', (providedProjectPath?: string) => {
 				try {
-					// 引数から提供されたパスを優先
-					let projectPath = providedProjectPath;
+					Logger.info(`デバッグ探偵を開くコマンドが実行されましたが、このコンポーネントはリファクタリングで削除されました`);
+					vscode.window.showInformationMessage('デバッグ探偵機能は現在利用できません。代わりにファイルビューワーをご利用ください。');
 					
-					// パスが提供されていない場合はアクティブプロジェクトから取得
-					if (!projectPath) {
-						const { AppGeniusStateManager } = require('./services/AppGeniusStateManager');
-						const stateManager = AppGeniusStateManager.getInstance();
-						projectPath = stateManager.getCurrentProjectPath();
-						
-						// アクティブプロジェクトパスがない場合は警告
-						if (!projectPath) {
-							Logger.warn('アクティブプロジェクトがありません。プロジェクトを選択してください。');
-							vscode.window.showWarningMessage('プロジェクトが選択されていません。ダッシュボードからプロジェクトを選択してください。');
-							return;
-						}
-					}
-					
-					Logger.info(`デバッグ探偵を開くコマンドが実行されました: ${projectPath}`);
-					DebugDetectivePanel.createOrShow(context.extensionUri, projectPath);
+					// 代わりにファイルビューワーを開く
+					vscode.commands.executeCommand('appgenius-ai.openFileViewer', providedProjectPath);
 				} catch (error) {
-					Logger.error('デバッグ探偵を開く際にエラーが発生しました', error as Error);
-					vscode.window.showErrorMessage(`デバッグ探偵を開けませんでした: ${(error as Error).message}`);
+					Logger.error('代替機能への転送中にエラーが発生しました', error as Error);
+					vscode.window.showErrorMessage(`エラーが発生しました: ${(error as Error).message}`);
 				}
 			})
 		);
-		Logger.info('DebugDetective command registered successfully');
+		Logger.info('DebugDetective fallback command registered successfully');
 		
 		// モックアップギャラリーを開くコマンドの登録
 		context.subscriptions.push(
@@ -375,24 +375,22 @@ export function activate(context: vscode.ExtensionContext) {
 // 		Logger.info('SimpleModelViewer command registered successfully');
 		
 		// 要件定義ビジュアライザー（SimpleChatPanel）を開くコマンドの登録
+		// リファクタリングによりこの機能はFileViewerに移行しました
 		context.subscriptions.push(
 			vscode.commands.registerCommand('appgenius-ai.openSimpleChat', (projectPath?: string) => {
 				try {
-					Logger.info(`要件定義ビジュアライザーを開くコマンドが実行されました: ${projectPath || 'プロジェクトパスなし'}`);
-					const globalAiService = (global as any)._appgenius_ai_service;
-					if (globalAiService) {
-						SimpleChatPanel.createOrShow(context.extensionUri, globalAiService, projectPath);
-						Logger.info('要件定義ビジュアライザーを正常に開きました');
-					} else {
-						throw new Error('AIサービスが初期化されていません');
-					}
+					Logger.info(`要件定義ビジュアライザーコマンドが実行されましたが、リファクタリングにより削除されました`);
+					vscode.window.showInformationMessage('要件定義ビジュアライザー機能は現在利用できません。代わりにファイルビューワーをご利用ください。');
+					
+					// 代わりにファイルビューワーを開く
+					vscode.commands.executeCommand('appgenius-ai.openFileViewer', projectPath);
 				} catch (error) {
-					Logger.error('要件定義ビジュアライザーを開く際にエラーが発生しました', error as Error);
-					vscode.window.showErrorMessage(`要件定義ビジュアライザーを開けませんでした: ${(error as Error).message}`);
+					Logger.error('代替機能への転送中にエラーが発生しました', error as Error);
+					vscode.window.showErrorMessage(`エラーが発生しました: ${(error as Error).message}`);
 				}
 			})
 		);
-		Logger.info('SimpleChat command registered successfully');
+		Logger.info('SimpleChat fallback command registered successfully');
 		
 		
 		// 新しいシンプル認証マネージャーの初期化（優先使用）
@@ -537,12 +535,9 @@ export function activate(context: vscode.ExtensionContext) {
 		registerPromptLibraryCommands(context);
 		Logger.info('Prompt library commands registered successfully');
 		
-		// 環境変数管理コマンドの登録
-		registerEnvironmentCommands(context);
-		
-		// マークダウンビューワーコマンドの登録
-		registerMarkdownViewerCommands(context);
-		Logger.info('Markdown viewer commands registered successfully');
+		// ファイルビューワーコマンドの登録
+		registerFileViewerCommands(context);
+		Logger.info('File viewer commands registered successfully');
 		
 		// 環境変数アシスタントは不要なため、チェックと登録部分を削除
 		

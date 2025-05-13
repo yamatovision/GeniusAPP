@@ -215,14 +215,14 @@ export class UIStateService implements IUIStateService {
     const webview = this._panel.webview;
     
     // CSS, JSファイルへのパスを取得
-    const styleResetPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'reset.css'));
+    const styleResetPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles', 'reset.css'));
     const stylesPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'scopeManager.css'));
-    const designSystemPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'design-system.css'));
-    const componentsStylePath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components.css'));
+    const designSystemPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles', 'design-system.css'));
+    const componentsStylePath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'styles', 'components.css'));
     const scriptPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'scopeManager.js'));
     
     // 各コンポーネントのJSパス
-    const stateManagerPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'state', 'stateManager.js'));
+    const stateManagerPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'core', 'stateManager.js'));
     const tabManagerPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'tabManager', 'tabManager.js'));
     const markdownViewerPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'markdownViewer', 'markdownViewer.js'));
     const projectNavigationPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'projectNavigation', 'projectNavigation.js'));
