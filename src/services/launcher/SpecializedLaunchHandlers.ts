@@ -518,7 +518,7 @@ export class SpecializedLaunchHandlers {
               fs.unlinkSync(promptFilePath);
               Logger.info(`プロンプトファイルを削除しました: ${promptFilePath}`);
             }
-          }, 30000);
+          }, 45000);
         } catch (error) {
           Logger.error(`プロンプトファイルの削除に失敗しました: ${error}`);
         }
@@ -778,9 +778,9 @@ export class SpecializedLaunchHandlers {
           if (fs.existsSync(promptFilePath)) {
             fs.unlinkSync(promptFilePath);
             // プロンプトファイル削除完了（ログを記録）
-            Logger.debug(`プロンプトファイルを30秒後に削除しました: ${promptFilePath}`);
+            Logger.debug(`プロンプトファイルを45秒後に削除しました: ${promptFilePath}`);
           }
-        }, 30000); // ファイルが読み込まれる時間を考慮して30秒後に削除
+        }, 45000); // ファイルが読み込まれる時間を考慮して45秒後に削除
       }
 
       // ターミナル終了時のイベントリスナーを設定（全プラットフォーム対応）

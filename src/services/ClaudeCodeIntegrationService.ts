@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Logger } from '../utils/logger';
 import { ClaudeCodeLauncherService } from './ClaudeCodeLauncherService';
-import { ProxyManager } from '../utils/ProxyManager';
 import { SimpleAuthService } from '../core/auth/SimpleAuthService';
 import { AppGeniusEventBus, AppGeniusEventType } from './AppGeniusEventBus';
 import { ClaudeCodeApiClient } from '../api/claudeCodeApiClient';
@@ -17,7 +16,6 @@ import { ClaudeCodeApiClient } from '../api/claudeCodeApiClient';
 export class ClaudeCodeIntegrationService {
   private static instance: ClaudeCodeIntegrationService;
   private _launcher: ClaudeCodeLauncherService;
-  private _proxyManager: ProxyManager;
   private _apiClient: ClaudeCodeApiClient;
   private _authService: SimpleAuthService;
   private _eventBus: AppGeniusEventBus;
@@ -29,7 +27,6 @@ export class ClaudeCodeIntegrationService {
   private constructor() {
     try {
       this._launcher = ClaudeCodeLauncherService.getInstance();
-      this._proxyManager = ProxyManager.getInstance();
       this._apiClient = ClaudeCodeApiClient.getInstance();
 
       // SimpleAuthServiceのインスタンスを取得
@@ -110,11 +107,6 @@ export class ClaudeCodeIntegrationService {
    */
   private async _handleClaudeCodeStarted(data: any): Promise<void> {
     try {
-      // プロキシサーバーが起動していなければ起動
-      if (!this._proxyManager.getApiProxyEnvValue()) {
-        await this._proxyManager.startProxyServer();
-      }
-      
       Logger.info('ClaudeCode起動イベントを処理しました');
     } catch (error) {
       Logger.error('ClaudeCode起動イベントの処理中にエラーが発生しました', error as Error);
@@ -125,9 +117,6 @@ export class ClaudeCodeIntegrationService {
    * ClaudeCode停止イベントハンドラー
    */
   private async _handleClaudeCodeStopped(data: any): Promise<void> {
-    // ClaudeCodeの使用が終了した場合の処理
-    // 必要に応じてプロキシサーバーを停止するなどの処理を行う
-    // 現時点では特に処理は行わない（他の機能で使用している可能性があるため）
     Logger.info('ClaudeCode停止イベントを処理しました');
   }
 
@@ -136,9 +125,6 @@ export class ClaudeCodeIntegrationService {
    */
   private async _startIntegration(): Promise<void> {
     try {
-      // プロキシサーバーの起動
-      await this._proxyManager.startProxyServer();
-      
       Logger.info('ClaudeCode統合機能を開始しました');
     } catch (error) {
       Logger.error('ClaudeCode統合機能の開始に失敗しました', error as Error);
@@ -150,9 +136,6 @@ export class ClaudeCodeIntegrationService {
    */
   private async _stopIntegration(): Promise<void> {
     try {
-      // プロキシサーバーの停止（オプション）
-      // 現在は停止しない（他の機能で使用している可能性があるため）
-      
       Logger.info('ClaudeCode統合機能を停止しました');
     } catch (error) {
       Logger.error('ClaudeCode統合機能の停止に失敗しました', error as Error);
@@ -165,18 +148,6 @@ export class ClaudeCodeIntegrationService {
    */
   public getEnvironmentVariables(): { [key: string]: string } {
     const env: { [key: string]: string } = {};
-    
-    // プロキシURLの設定
-    const apiProxyUrl = this._proxyManager.getApiProxyEnvValue();
-    if (apiProxyUrl) {
-      env['PORTAL_API_PROXY_URL'] = apiProxyUrl;
-    }
-    
-    // ClaudeプロキシURLの設定（必要に応じて）
-    const claudeProxyUrl = this._proxyManager.getClaudeProxyEnvValue();
-    if (claudeProxyUrl) {
-      env['CLAUDE_API_PROXY_URL'] = claudeProxyUrl;
-    }
     
     // 統合モードが有効であることを示す設定
     env['CLAUDE_INTEGRATION_ENABLED'] = 'true';
@@ -589,8 +560,6 @@ export class ClaudeCodeIntegrationService {
    * リソースの解放
    */
   public dispose(): void {
-    // プロキシサーバーは停止しない（他の機能で使用している可能性があるため）
-    
     for (const disposable of this._disposables) {
       disposable.dispose();
     }
