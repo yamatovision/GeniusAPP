@@ -15,7 +15,6 @@ import {
   MockupAnalysisOptions
 } from './LauncherTypes';
 import { TerminalProvisionService } from './TerminalProvisionService';
-import { AuthSyncManager } from './AuthSyncManager';
 import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 
 /**
@@ -23,18 +22,15 @@ import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
  */
 export class SpecializedLaunchHandlers {
   private terminalService: TerminalProvisionService;
-  private authManager: AuthSyncManager;
   private eventBus: AppGeniusEventBus;
   private platformManager: PlatformManager;
   private scopeExporter: ScopeExporter;
 
   constructor(
     terminalService: TerminalProvisionService,
-    authManager: AuthSyncManager,
     eventBus: AppGeniusEventBus
   ) {
     this.terminalService = terminalService;
-    this.authManager = authManager;
     this.eventBus = eventBus;
     this.platformManager = PlatformManager.getInstance();
     this.scopeExporter = ScopeExporter.getInstance();
@@ -179,49 +175,11 @@ export class SpecializedLaunchHandlers {
       
       Logger.info(`スコープ情報を保存しました: ${scopeFilePath}`);
       
-      // 認証サービスの初期化（グローバルからExtensionContextを取得して渡す）
-      const context = (global as any).__extensionContext;
-      await this.authManager.initAuthServices(context);
-      
-      // APIキー検証をスキップ
-      Logger.info('APIキーの検証をスキップします（開発モード）');
-      
       // ターミナルの作成
       const terminal = await this.terminalService.createConfiguredTerminal({
         title: 'ClaudeCode',
         cwd: scope.projectPath
       });
-      
-      // AppGenius専用の認証情報を保存・同期
-      try {
-        await this.authManager.syncTokensToAppGeniusAuth();
-      } catch (syncError) {
-        // 同期エラーの情報を詳細に表示
-        Logger.error('認証情報の同期に失敗しました', syncError as Error);
-        
-        // ターミナルを閉じる（nullチェック追加）
-        if (terminal) {
-          terminal.dispose();
-        }
-        
-        // ユーザーに通知
-        await vscode.window.showErrorMessage(
-          `ClaudeCode起動エラー: 認証情報の同期に失敗しました`,
-          { modal: true, detail: (syncError as Error).message }
-        );
-        
-        throw new Error(`認証情報の同期に失敗しました: ${(syncError as Error).message}`);
-      }
-      
-      // AppGenius専用の認証ファイルパスを取得
-      const appGeniusAuthFilePath = this.authManager.getAppGeniusAuthFilePath();
-      
-      // AppGeniusの認証情報を使用するよう環境変数を設定（nullチェック追加）
-      if (terminal) {
-        this.terminalService.setupAuthEnvironment(terminal, appGeniusAuthFilePath);
-      } else {
-        Logger.warn('ターミナルオブジェクトがnullのため認証環境変数を設定できません');
-      }
       
       // コマンド設定
       let baseCommand = 'claude';
@@ -468,13 +426,6 @@ export class SpecializedLaunchHandlers {
         throw new Error(`プロンプトファイルが見つかりません: ${promptFilePath}`);
       }
       
-      // 認証サービスの初期化（グローバルからExtensionContextを取得して渡す）
-      const context = (global as any).__extensionContext;
-      await this.authManager.initAuthServices(context);
-      
-      // APIキー検証をスキップ
-      Logger.info('APIキーの検証をスキップします（開発モード）');
-      
       // デバッグ: 全オプションを出力
       Logger.debug(`launchWithPrompt全オプション: ${JSON.stringify(options)}`);
       
@@ -505,30 +456,6 @@ export class SpecializedLaunchHandlers {
       // 作成後のターミナル情報を確認（nullチェック追加）
       Logger.debug(`作成されたターミナル: ${terminal && terminal.name ? terminal.name : 'name未設定'}`);
       
-      // AppGenius専用の認証情報を保存・同期
-      try {
-        await this.authManager.syncTokensToAppGeniusAuth();
-      } catch (syncError) {
-        // 同期エラーの情報を詳細に表示
-        Logger.error('認証情報の同期に失敗しました', syncError as Error);
-        
-        // ターミナルを閉じる（nullチェック追加）
-        if (terminal) {
-          terminal.dispose();
-        }
-        
-        // ユーザーに通知
-        await vscode.window.showErrorMessage(
-          `プロンプト実行エラー: 認証情報の同期に失敗しました`,
-          { modal: true, detail: (syncError as Error).message }
-        );
-        
-        throw new Error(`認証情報の同期に失敗しました: ${(syncError as Error).message}`);
-      }
-      
-      // AppGenius専用の認証ファイルパスを取得し、環境変数に設定
-      const appGeniusAuthFilePath = this.authManager.getAppGeniusAuthFilePath();
-      this.terminalService.setupAuthEnvironment(terminal, appGeniusAuthFilePath);
       
       // コマンド設定
       let baseCommand = 'claude';
@@ -732,13 +659,6 @@ export class SpecializedLaunchHandlers {
     error?: string;
   }> {
     try {
-      // 認証サービスの初期化（グローバルからExtensionContextを取得して渡す）
-      const context = (global as any).__extensionContext;
-      await this.authManager.initAuthServices(context);
-      
-      // APIキー検証をスキップ
-      Logger.info('APIキーの検証をスキップします（開発モード）');
-      
       // ProjectServiceImplから最新のプロジェクトパスを取得
       let projectPath = processInfo.projectPath;
       try {
@@ -770,31 +690,6 @@ export class SpecializedLaunchHandlers {
         title: `ClaudeCode - ${processInfo.mockupName}の解析`,
         cwd: projectPath
       });
-      
-      // AppGenius専用の認証情報を保存・同期
-      try {
-        await this.authManager.syncTokensToAppGeniusAuth();
-      } catch (syncError) {
-        // 同期エラーの情報を詳細に表示
-        Logger.error('認証情報の同期に失敗しました', syncError as Error);
-        
-        // ターミナルを閉じる（nullチェック追加）
-        if (terminal) {
-          terminal.dispose();
-        }
-        
-        // ユーザーに通知
-        await vscode.window.showErrorMessage(
-          `モックアップ解析エラー: 認証情報の同期に失敗しました`,
-          { modal: true, detail: (syncError as Error).message }
-        );
-        
-        throw new Error(`認証情報の同期に失敗しました: ${(syncError as Error).message}`);
-      }
-      
-      // AppGenius専用の認証ファイルパスを取得し、環境変数に設定
-      const appGeniusAuthFilePath = this.authManager.getAppGeniusAuthFilePath();
-      this.terminalService.setupAuthEnvironment(terminal, appGeniusAuthFilePath);
       
       // コマンド設定
       const baseCommand = 'claude';

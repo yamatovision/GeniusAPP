@@ -12,7 +12,6 @@ import {
   MockupAnalysisOptions 
 } from './LauncherTypes';
 import { TerminalProvisionService } from './TerminalProvisionService';
-import { AuthSyncManager } from './AuthSyncManager';
 import { SpecializedLaunchHandlers } from './SpecializedLaunchHandlers';
 
 /**
@@ -38,16 +37,13 @@ export class CoreLauncherService {
   
   // 依存サービスとハンドラ
   private terminalService: TerminalProvisionService;
-  private authManager: AuthSyncManager;
   private specializedHandlers: SpecializedLaunchHandlers;
   
   private constructor() {
     this.eventBus = AppGeniusEventBus.getInstance();
     this.terminalService = new TerminalProvisionService();
-    this.authManager = new AuthSyncManager();
     this.specializedHandlers = new SpecializedLaunchHandlers(
-      this.terminalService, 
-      this.authManager,
+      this.terminalService,
       this.eventBus
     );
     

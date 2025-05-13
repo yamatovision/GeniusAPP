@@ -178,15 +178,7 @@ export class TerminalProvisionService {
     }
   }
   
-  /**
-   * 認証情報を使用するための環境変数を設定
-   * @param terminal ターミナルインスタンス
-   * @param authFilePath 認証情報ファイルパス
-   */
-  public setupAuthEnvironment(terminal: vscode.Terminal, authFilePath: string): void {
-    terminal.sendText(`export CLAUDE_AUTH_FILE="${authFilePath}"`);
-    Logger.info(`AppGenius認証情報を使用するよう環境変数を設定: export CLAUDE_AUTH_FILE="${authFilePath}"`);
-  }
+  // 認証情報を使用するための環境変数設定メソッド（削除）
   
   /**
    * ファイルパスをコマンドライン用にエスケープ

@@ -2,5 +2,4 @@
 export * from './LauncherTypes';
 export * from './CoreLauncherService';
 export * from './TerminalProvisionService';
-export * from './AuthSyncManager';
 export * from './SpecializedLaunchHandlers';

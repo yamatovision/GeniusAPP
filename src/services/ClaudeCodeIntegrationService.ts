@@ -3,7 +3,6 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { Logger } from '../utils/logger';
-import { ClaudeCodeAuthSync } from './ClaudeCodeAuthSync';
 import { ClaudeCodeLauncherService } from './ClaudeCodeLauncherService';
 import { ProxyManager } from '../utils/ProxyManager';
 import { SimpleAuthService } from '../core/auth/SimpleAuthService';
@@ -17,7 +16,6 @@ import { ClaudeCodeApiClient } from '../api/claudeCodeApiClient';
  */
 export class ClaudeCodeIntegrationService {
   private static instance: ClaudeCodeIntegrationService;
-  private _authSync: ClaudeCodeAuthSync;
   private _launcher: ClaudeCodeLauncherService;
   private _proxyManager: ProxyManager;
   private _apiClient: ClaudeCodeApiClient;
@@ -30,15 +28,6 @@ export class ClaudeCodeIntegrationService {
    */
   private constructor() {
     try {
-      // extentionContextの参照を確保
-      const context = (global as any).extensionContext;
-      if (context) {
-        this._authSync = ClaudeCodeAuthSync.getInstance(context);
-      } else {
-        // コンテキストがない場合はログと警告
-        Logger.warn('ExtensionContextが見つかりません。ClaudeCodeAuthSyncは後で初期化されます。');
-        this._authSync = null as any; // 後で適切に初期化
-      }
       this._launcher = ClaudeCodeLauncherService.getInstance();
       this._proxyManager = ProxyManager.getInstance();
       this._apiClient = ClaudeCodeApiClient.getInstance();
@@ -64,20 +53,6 @@ export class ClaudeCodeIntegrationService {
    */
   public static getInstance(): ClaudeCodeIntegrationService {
     if (!ClaudeCodeIntegrationService.instance) {
-      // インスタンス生成前にClaudeCodeAuthSyncの初期化を試行
-      try {
-        const context = (global as any).extensionContext || (global as any).__extensionContext;
-        if (context) {
-          // ClaudeCodeAuthSyncを先に初期化
-          const { ClaudeCodeAuthSync } = require('./ClaudeCodeAuthSync');
-          ClaudeCodeAuthSync.getInstance(context);
-          Logger.info('ClaudeCodeIntegrationService: ClaudeCodeAuthSyncを初期化しました');
-        }
-      } catch (error) {
-        Logger.warn('ClaudeCodeAuthSyncの事前初期化に失敗しました', error as Error);
-        // エラーでも続行（コンストラクタでも初期化を試みる）
-      }
-      
       ClaudeCodeIntegrationService.instance = new ClaudeCodeIntegrationService();
     }
     return ClaudeCodeIntegrationService.instance;
@@ -301,7 +276,16 @@ export class ClaudeCodeIntegrationService {
       }
       
       // ClaudeCodeが実際にインストールされているかチェック
-      return await this._authSync.isClaudeCodeAvailable();
+      return new Promise<boolean>((resolve) => {
+        const childProcess = require('child_process');
+        childProcess.exec('claude --version', (error: any) => {
+          if (error) {
+            resolve(false);
+          } else {
+            resolve(true);
+          }
+        });
+      });
     } catch (error) {
       Logger.error('ClaudeCode利用可否チェック中にエラーが発生しました', error as Error);
       return false;
