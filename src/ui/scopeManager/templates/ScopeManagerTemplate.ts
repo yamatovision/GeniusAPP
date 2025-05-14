@@ -71,7 +71,7 @@ export class ScopeManagerTemplate {
       <link href="${promptCardsStyleUri}" rel="stylesheet">
       <!-- ファイルブラウザのスタイルシートは削除済み -->
       <link href="${materialIconsUrl}" rel="stylesheet">
-      <title>AppGenius スコープマネージャー</title>
+      <title>ブルーランプ</title>
       <style>
         /* VSCodeのネイティブドラッグ&ドロップメッセージを非表示にする */
         .monaco-editor .dnd-overlay, 

@@ -322,6 +322,33 @@ export class ClaudeCodeApiClient {
     }
   }
   
+  /**
+   * プロンプトの同期情報を取得
+   * @returns 同期情報（新しいプロンプト、更新されたプロンプトなど）
+   */
+  public async getSyncUpdates(): Promise<{ prompts: any[] }> {
+    try {
+      const config = await this._getApiConfig();
+      
+      return await this._retryWithExponentialBackoff(async () => {
+        Logger.info('【API連携】プロンプト同期情報の取得を開始');
+        const response = await axios.get(`${this._baseUrl}/sdk/prompts/sync`, config);
+        
+        if (response.status === 200 && response.data) {
+          Logger.info(`【API連携】プロンプト同期情報の取得が成功しました: ${response.data.prompts?.length || 0}件のプロンプト`);
+          return {
+            prompts: response.data.prompts || []
+          };
+        }
+        
+        return { prompts: [] };
+      }, 3, [429, 500, 502, 503, 504], 'プロンプト同期情報取得');
+    } catch (error) {
+      Logger.error('【API連携】プロンプト同期情報の取得に失敗しました', error as Error);
+      this._handleApiError(error);
+      return { prompts: [] };
+    }
+  }
 
 
   /**

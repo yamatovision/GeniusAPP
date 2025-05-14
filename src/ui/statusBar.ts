@@ -10,12 +10,12 @@ export class StatusBar implements vscode.Disposable {
       vscode.StatusBarAlignment.Right,
       100
     );
-    this.statusBarItem.text = '$(robot) AppGenius AI';
-    this.statusBarItem.tooltip = 'AppGenius AI: 準備完了';
+    this.statusBarItem.text = '$(robot) ブルーランプ';
+    this.statusBarItem.tooltip = 'ブルーランプ: 準備完了';
     this.statusBarItem.command = 'appgenius-ai.showMainMenu';
     this.statusBarItem.show();
     
-    Logger.debug('ステータスバーにAppGenius AIアイコンを表示しました');
+    Logger.debug('ステータスバーにブルーランプアイコンを表示しました');
   }
 
   /**
@@ -24,23 +24,23 @@ export class StatusBar implements vscode.Disposable {
   public update(state: string): void {
     switch (state) {
       case 'Active':
-        this.statusBarItem.text = '$(radio-tower) AppGenius AI';
-        this.statusBarItem.tooltip = 'AppGenius AI: アクティブ';
+        this.statusBarItem.text = '$(radio-tower) ブルーランプ';
+        this.statusBarItem.tooltip = 'ブルーランプ: アクティブ';
         this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         break;
       case 'Busy':
-        this.statusBarItem.text = '$(sync~spin) AppGenius AI';
-        this.statusBarItem.tooltip = 'AppGenius AI: 処理中...';
+        this.statusBarItem.text = '$(sync~spin) ブルーランプ';
+        this.statusBarItem.tooltip = 'ブルーランプ: 処理中...';
         this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         break;
       case 'Ready':
-        this.statusBarItem.text = '$(robot) AppGenius AI';
-        this.statusBarItem.tooltip = 'AppGenius AI: 準備完了';
+        this.statusBarItem.text = '$(robot) ブルーランプ';
+        this.statusBarItem.tooltip = 'ブルーランプ: 準備完了';
         this.statusBarItem.backgroundColor = undefined;
         break;
       default:
-        this.statusBarItem.text = '$(robot) AppGenius AI';
-        this.statusBarItem.tooltip = 'AppGenius AI: 準備完了';
+        this.statusBarItem.text = '$(robot) ブルーランプ';
+        this.statusBarItem.tooltip = 'ブルーランプ: 準備完了';
         this.statusBarItem.backgroundColor = undefined;
     }
   }

@@ -150,7 +150,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     // WebViewパネル作成
     const panel = vscode.window.createWebviewPanel(
       ScopeManagerPanel.viewType,
-      'AppGenius スコープマネージャー',
+      'ブルーランプ',
       column || vscode.ViewColumn.One,
       webviewOptions
     );

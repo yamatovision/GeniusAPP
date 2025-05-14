@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { Logger } from './logger';
-import { TerminalInterface } from '../ui/TerminalInterface';
 
 /**
  * ファイル操作を管理するクラス
@@ -10,7 +9,6 @@ import { TerminalInterface } from '../ui/TerminalInterface';
  */
 export class FileOperationManager {
   private static instance: FileOperationManager;
-  private terminal: TerminalInterface | undefined;
 
   private constructor() {
     // シングルトンインスタンス
@@ -45,13 +43,6 @@ export class FileOperationManager {
       Logger.error(`ファイル書き込みエラー: ${(error as Error).message}`);
       throw error;
     }
-  }
-
-  /**
-   * ターミナルインターフェースを設定
-   */
-  public setTerminalInterface(terminal: TerminalInterface): void {
-    this.terminal = terminal;
   }
 
   /**
@@ -177,18 +168,16 @@ export class FileOperationManager {
    * ファイル操作の開始を通知
    */
   private notifyFileOperation(filePath: string, operation: 'create' | 'modify' | 'delete'): void {
-    if (this.terminal) {
-      this.terminal.notifyFileOperation(filePath, operation);
-    }
+    // ファイル操作開始のログ
+    Logger.debug(`ファイル操作開始: ${operation} ${filePath}`);
   }
 
   /**
    * ファイル操作の完了を通知
    */
   private notifyFileOperationComplete(filePath: string, operation: 'create' | 'modify' | 'delete'): void {
-    if (this.terminal) {
-      this.terminal.notifyFileOperationComplete(filePath, operation);
-    }
+    // ファイル操作完了のログ
+    Logger.debug(`ファイル操作完了: ${operation} ${filePath}`);
   }
 
   /**

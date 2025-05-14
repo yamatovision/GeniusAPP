@@ -34,7 +34,7 @@ export class LoginWebviewPanel {
     // 新しいパネルを作成
     const panel = vscode.window.createWebviewPanel(
       'appgeniusLogin',
-      'AppGenius ログイン',
+      'ブルーランプ ログイン',
       column || vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -100,7 +100,7 @@ export class LoginWebviewPanel {
    */
   private _update() {
     const webview = this._panel.webview;
-    this._panel.title = 'AppGenius ログイン';
+    this._panel.title = 'ブルーランプ ログイン';
     this._panel.webview.html = this._getHtmlForWebview(webview);
   }
 
@@ -166,7 +166,7 @@ export class LoginWebviewPanel {
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
       <link href="${styleUri}" rel="stylesheet">
-      <title>AppGenius ログイン</title>
+      <title>ブルーランプ ログイン</title>
       <style>
         :root {
           --vscode-background: #1e1e1e;
@@ -339,8 +339,8 @@ export class LoginWebviewPanel {
     <body>
       <div class="auth-container">
         <div class="auth-header">
-          <div class="logo">AG</div>
-          <h1 class="auth-title">AppGenius</h1>
+          <div class="logo">BL</div>
+          <h1 class="auth-title">ブルーランプ</h1>
           <p class="auth-subtitle">VSCode拡張機能認証</p>
         </div>
         
@@ -368,7 +368,7 @@ export class LoginWebviewPanel {
         </div>
         
         <div class="auth-footer">
-          <p>ログインすることで、AppGenius APIへのアクセスが許可されます</p>
+          <p>ログインすることで、ブルーランプ APIへのアクセスが許可されます</p>
         </div>
       </div>
       
@@ -537,7 +537,7 @@ export class LoginWebviewPanel {
           });
 
           // 成功通知
-          vscode.window.showInformationMessage('AppGeniusにログインしました');
+          vscode.window.showInformationMessage('ブルーランプにログインしました');
 
           // 少し待ってからパネルを閉じる
           setTimeout(() => {

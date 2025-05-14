@@ -5,10 +5,16 @@
 const path = require('path');
 
 /**@type {import('webpack').Configuration}*/
-module.exports = (env) => {
+module.exports = (env, argv) => {
   const skipTypeCheck = env && env.skipTypeCheck;
+  const isProduction = argv && argv.mode === 'production';
+  
+  if (isProduction) {
+    process.env.NODE_ENV = 'production';
+  }
   
   console.log(`TypeScript型チェック: ${skipTypeCheck ? '無効' : '有効'}`);
+  console.log(`ビルドモード: ${isProduction ? '本番' : '開発'}`);
   
   const config = {
     target: 'node', // vscode拡張はNodeJS環境で実行されるので
@@ -21,7 +27,7 @@ module.exports = (env) => {
       filename: 'extension.js',
       libraryTarget: 'commonjs2'
     },
-    devtool: 'nosources-source-map',
+    devtool: process.env.NODE_ENV === 'production' ? 'hidden-source-map' : 'nosources-source-map',
     externals: {
       vscode: 'commonjs vscode' // モジュールとしてのvscodeはバンドルせずに残す
     },

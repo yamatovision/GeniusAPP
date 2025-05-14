@@ -1,6 +1,6 @@
 {
   "name": "appgenius-ai",
-  "displayName": "AppGenius AI",
+  "displayName": "ブルーランプ",
   "description": "AI駆動の完全自動開発環境をVSCodeで提供",
   "version": "1.0.22",
   "publisher": "mikoto",
@@ -394,8 +394,8 @@
     "compile": "webpack",
     "compile:force": "webpack --mode development --no-stats --env skipTypeCheck=true",
     "watch": "webpack --watch",
-    "package": "webpack --mode production --devtool hidden-source-map",
-    "package:force": "webpack --mode production --devtool hidden-source-map --env skipTypeCheck=true",
+    "package": "NODE_ENV=production webpack --mode production",
+    "package:force": "NODE_ENV=production webpack --mode production --env skipTypeCheck=true",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",

@@ -63,8 +63,8 @@ function setupGlobalContext(context: vscode.ExtensionContext): void {
  */
 function initializeLogger(): void {
   // ロガーの初期化（自動表示をオンにする）
-  Logger.initialize('AppGenius AI', LogLevel.DEBUG, true);
-  Logger.info('AppGenius AI が起動しました');
+  Logger.initialize('ブルーランプ', LogLevel.DEBUG, true);
+  Logger.info('ブルーランプが起動しました');
 }
 
 /**
@@ -73,8 +73,8 @@ function initializeLogger(): void {
 function setupStatusBar(context: vscode.ExtensionContext): vscode.StatusBarItem {
   // AppGenius AI クイックアクセスステータスバーアイテムを追加
   const appGeniusStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  appGeniusStatusBarItem.text = "$(rocket) AppGenius";
-  appGeniusStatusBarItem.tooltip = "AppGenius AIスコープマネージャーを開く";
+  appGeniusStatusBarItem.text = "$(rocket) ブルーランプ";
+  appGeniusStatusBarItem.tooltip = "ブルーランプ スコープマネージャーを開く";
   appGeniusStatusBarItem.command = "appgenius-ai.openScopeManager";
   appGeniusStatusBarItem.show();
   context.subscriptions.push(appGeniusStatusBarItem);

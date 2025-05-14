@@ -17,7 +17,10 @@ export class Logger {
 
   public static initialize(extensionName: string, level: LogLevel = LogLevel.INFO, autoShow: boolean = false): void {
     this.outputChannel = vscode.window.createOutputChannel(extensionName);
-    this.logLevel = level;
+    
+    // 本番環境では警告とエラーのみログ出力する
+    const isProduction = process.env.NODE_ENV === 'production';
+    this.logLevel = isProduction ? LogLevel.WARN : level;
     
     // ログファイルのパスを設定
     const homeDir = os.homedir();
@@ -35,7 +38,7 @@ export class Logger {
     const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
     this.logFilePath = path.join(logDir, `appgenius-ai-${timestamp}.log`);
     
-    this.info(`Logger initialized with level: ${LogLevel[level]}`);
+    this.info(`Logger initialized with level: ${LogLevel[this.logLevel]} (Production mode: ${isProduction})`);
     this.info(`ログファイル: ${this.logFilePath}`);
     
     // 設定がtrueの場合のみログウィンドウを表示

@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { Logger } from '../utils/logger';
-import { ConfigManager } from '../utils/configManager';
 
 /**
  * プロジェクト情報インターフェース

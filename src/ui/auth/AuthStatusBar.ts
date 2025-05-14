@@ -125,7 +125,7 @@ export class AuthStatusBar {
 
     // ツールチップにAPIキー情報を追加
     const apiKeyInfo = 'トークン認証'; // APIキー機能は廃止されました
-    this._statusBarItem.tooltip = `AppGenius: ${displayName} としてログイン中 (${apiKeyInfo})\nクリックしてログアウト`;
+    this._statusBarItem.tooltip = `ブルーランプ: ${displayName} としてログイン中 (${apiKeyInfo})\nクリックしてログアウト`;
 
     this._statusBarItem.command = 'appgenius.logout';
     this._statusBarItem.backgroundColor = undefined;
@@ -137,7 +137,7 @@ export class AuthStatusBar {
    */
   private _updateStatusBarForLoggedOut(): void {
     this._statusBarItem.text = `${this.ICON_LOGGED_OUT} 未ログイン`;
-    this._statusBarItem.tooltip = 'AppGenius: クリックしてログイン';
+    this._statusBarItem.tooltip = 'ブルーランプ: クリックしてログイン';
     this._statusBarItem.command = 'appgenius.login';
     this._statusBarItem.backgroundColor = undefined;
   }
@@ -147,7 +147,7 @@ export class AuthStatusBar {
    */
   private _showErrorStatus(errorMessage?: string): void {
     this._statusBarItem.text = `${this.ICON_ERROR} 認証エラー`;
-    this._statusBarItem.tooltip = `AppGenius: 認証エラー\n${errorMessage || '認証中にエラーが発生しました'}`;
+    this._statusBarItem.tooltip = `ブルーランプ: 認証エラー\n${errorMessage || '認証中にエラーが発生しました'}`;
     this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
   }
   
@@ -159,7 +159,7 @@ export class AuthStatusBar {
     
     if (isUpdating) {
       this._statusBarItem.text = `${this.ICON_UPDATING} 認証更新中...`;
-      this._statusBarItem.tooltip = 'AppGenius: 認証情報を更新中...';
+      this._statusBarItem.tooltip = 'ブルーランプ: 認証情報を更新中...';
     } else {
       this._updateAuthStatus();
     }
