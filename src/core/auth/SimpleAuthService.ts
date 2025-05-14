@@ -4,6 +4,7 @@ import { Logger } from '../../utils/logger';
 import { Role } from './roles';
 import { AuthState, AuthStateBuilder } from './AuthState';
 import { AuthStorageManager } from '../../utils/AuthStorageManager';
+import { API_CONFIG } from '../../config/apiConfig';
 
 /**
  * SimpleAuthService - シンプルな認証サービス
@@ -19,7 +20,7 @@ export class SimpleAuthService {
   private _tokenExpiry: number | undefined;
   
   // APIベースURL
-  private readonly API_BASE_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/simple';
+  private readonly API_BASE_URL = API_CONFIG.getApiUrl('simple');
   
   // ストレージキー
   private readonly ACCESS_TOKEN_KEY = 'appgenius.simple.accessToken';

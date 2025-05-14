@@ -1,5 +1,26 @@
 # デプロイ履歴
 
+## 2025-05-14: バックエンドURL移行リファクタリングの実施
+
+### 1. リファクタリング内容と変更点
+- 対象コンポーネント: VSCode拡張とバックエンド連携
+- 主な変更点:
+  - バックエンドURL参照を中央設定ファイル（src/config/apiConfig.ts）で一元管理
+  - SimpleAuthService.tsをapiConfig.tsを使用するよう変更
+  - ClaudeCodeApiClientもapiConfig.tsを使用するよう修正
+  - フロントエンド用共通設定ファイル（portal/frontend/src/config/apiConfig.js）の導入
+  - デプロイ関連ドキュメントの更新
+  - 標準バックエンドURLとして「https://bluelamp-235426778039.asia-northeast1.run.app」を使用
+
+### 2. 実施内容
+- 新規設定ファイルの作成:
+  - src/config/apiConfig.ts
+  - portal/frontend/src/config/apiConfig.js
+- 既存ファイルの修正:
+  - SimpleAuthService.ts - バックエンドURL参照の変更
+  - ClaudeCodeApiClient.ts - バックエンドURL参照の変更
+  - deploy.mdとdeploy-history.md - 最新情報へ更新
+
 ## 2025-05-14: バックエンドのブルーランプリブランディングと新サービスデプロイ
 
 ### 1. デプロイ内容と変更点

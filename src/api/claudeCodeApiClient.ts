@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { SimpleAuthService } from '../core/auth/SimpleAuthService';
 import { Logger } from '../utils/logger';
 import { ErrorHandler, ErrorCategory, ErrorSeverity } from '../utils/ErrorHandler';
+import { API_CONFIG } from '../config/apiConfig';
 
 /**
  * ClaudeCodeApiClient - ClaudeCode CLIと連携するためのAPIクライアント
@@ -39,7 +40,7 @@ export class ClaudeCodeApiClient {
 
     this._errorHandler = ErrorHandler.getInstance();
     // API URLを環境変数から取得、またはデフォルト値を使用
-    this._baseUrl = process.env.PORTAL_API_URL || 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
+    this._baseUrl = process.env.PORTAL_API_URL || API_CONFIG.API_URL;
     Logger.info('ClaudeCodeApiClient initialized with baseUrl: ' + this._baseUrl);
   }
 

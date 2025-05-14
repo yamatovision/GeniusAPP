@@ -122,10 +122,10 @@ CMD [ "npm", "start" ]
 フロントエンドのデプロイでは、**必ず正しいバックエンドURLを使用してください**:
 
 ```
-https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+https://bluelamp-235426778039.asia-northeast1.run.app
 ```
 
-古いURL (`https://appgenius-portal-backend-235426778039.asia-northeast1.run.app`) や別名のURLを使用すると、CORS問題が発生し、認証などの機能が正常に動作しなくなる可能性があります。
+旧URL (`https://appgenius-portal-test-235426778039.asia-northeast1.run.app` や `https://appgenius-portal-backend-235426778039.asia-northeast1.run.app`) を使用すると、CORS問題が発生し、認証などの機能が正常に動作しなくなる可能性があります。
 
 #### 標準デプロイ手順
 
@@ -137,7 +137,7 @@ https://appgenius-portal-test-235426778039.asia-northeast1.run.app
    - 「Settings」→「Environment Variables」を開く
    - `REACT_APP_API_URL`が正しいバックエンドURLを指していることを確認:
      ```
-     REACT_APP_API_URL=https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api
+     REACT_APP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api
      ```
 
 3. **vercel.jsonの確認**
@@ -148,11 +148,11 @@ https://appgenius-portal-test-235426778039.asia-northeast1.run.app
      "rewrites": [
        {
          "source": "/api/:path*",
-         "destination": "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api/:path*"
+         "destination": "https://bluelamp-235426778039.asia-northeast1.run.app/api/:path*"
        }
      ],
      "env": {
-       "REACT_APP_API_URL": "https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api"
+       "REACT_APP_API_URL": "https://bluelamp-235426778039.asia-northeast1.run.app/api"
      },
      "github": {
        "enabled": true
@@ -566,18 +566,18 @@ VSCode拡張を使用するには以下の設定が必要です:
 |--------|------|-----|
 | NODE_ENV | 環境設定 | production |
 | PORT | サーバーポート | 5000 |
-| API_HOST | プロンプト共有URL用ホスト名 | appgenius-portal-backend-235426778039.asia-northeast1.run.app |
+| API_HOST | プロンプト共有URL用ホスト名 | bluelamp-235426778039.asia-northeast1.run.app |
 | MONGODB_URI | MongoDB接続文字列 | mongodb+srv://... |
-| JWT_SECRET | JWT署名用シークレット | appgenius_jwt_secret_key |
+| JWT_SECRET | JWT署名用シークレット | bluelamp_jwt_secret_key |
 | JWT_EXPIRY | JWTトークン有効期限 | 1h |
-| REFRESH_TOKEN_SECRET | リフレッシュトークン署名用シークレット | appgenius_refresh_token_secret |
+| REFRESH_TOKEN_SECRET | リフレッシュトークン署名用シークレット | bluelamp_refresh_token_secret |
 | REFRESH_TOKEN_EXPIRY | リフレッシュトークン有効期限 | 14d |
 | CORS_ORIGIN | CORSで許可するオリジン | https://geniemon.vercel.app |
 
 ### フロントエンド環境変数
 | 変数名 | 説明 | 例 |
 |--------|------|-----|
-| REACT_APP_API_URL | バックエンドAPI URL | https://appgenius-portal-backend-235426778039.asia-northeast1.run.app/api |
+| REACT_APP_API_URL | バックエンドAPI URL | https://bluelamp-235426778039.asia-northeast1.run.app/api |
 | REACT_APP_VERSION | アプリバージョン | 1.0.0 |
 
 ## 6. デプロイ前の検証手順

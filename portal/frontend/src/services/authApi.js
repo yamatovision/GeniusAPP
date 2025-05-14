@@ -1,15 +1,13 @@
 import axios from 'axios';
+import { API_URL, getApiUrl } from '../config/apiConfig';
 
 /**
  * シンプル化された認証API
  * 認証関連のすべてのAPI操作を集約したクライアント
  */
 
-// 新しいバックエンドURL（テスト環境）
-const TEST_API_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
-
-// API基本URL - フォールバックパスは/simple
-const API_BASE_URL = TEST_API_URL + '/simple';
+// API基本URL - 共通設定ファイルから取得
+const API_BASE_URL = getApiUrl('simple');
 
 // APIクライアントインスタンス
 export const authApi = axios.create({

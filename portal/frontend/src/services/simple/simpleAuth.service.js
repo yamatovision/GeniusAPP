@@ -4,13 +4,11 @@
  */
 import axios from 'axios';
 import simpleAuthHeader from '../../utils/simple-auth-header';
-
-// 新しいバックエンドURL（テスト環境）- 直接指定
-const TEST_API_URL = 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api';
+import { API_URL, getApiUrl } from '../../config/apiConfig';
 
 // API基本URL 
-// テスト環境用の完全なURLを使用
-const SIMPLE_API_URL = TEST_API_URL + '/simple';
+// 共通設定ファイルから取得
+const SIMPLE_API_URL = getApiUrl('simple');
 
 // リフレッシュ中かどうかのフラグ（重複防止）
 let isRefreshing = false;

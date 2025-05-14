@@ -96,11 +96,9 @@ src/
   │    └── claudeCodeApiClient.ts (修正)
   │
 media/
-  ├── config/
-  │    └── promptConfig.js  (新規追加 - プロンプトURL設定の一元管理)
   └── components/
        └── promptCards/
-            └── promptCards.js (修正 - 設定ファイルからURLを参照)
+            └── promptCards.js (修正 - 新しいURLへの更新)
 ```
 
 ## 4. 実装計画
@@ -126,48 +124,33 @@ media/
          }
        };
        ```
-  2. **T1.2**: プロンプトURL設定ファイルの作成
-     - 対象: `/media/config/promptConfig.js`（新規）
+  2. **T1.2**: promptCards.js内のURLを直接更新
+     - 対象: `/media/components/promptCards/promptCards.js`
      - 実装:
        ```javascript
-       /**
-        * プロンプト設定ファイル - プロンプトURL参照の一元管理
-        */
-       
-       // APIベースURL
-       export const API_BASE_URL = 'https://bluelamp-235426778039.asia-northeast1.run.app/api';
-       
-       // プロンプトの詳細情報
-       export const PROMPT_INFO = [
-         { id: 0, name: "要件定義", icon: "description", category: "計画", description: "ビジネス要件を要件定義書に変換" },
-         { id: 1, name: "システムアーキテクチャ", icon: "architecture", category: "設計", description: "システム全体の設計と開発基盤の確立" },
-         // 残りの項目は既存のpromptInfoと同じ
-       ];
-       
-       // プロンプトURLリスト（新URL）
-       export const PROMPT_URLS = [
-         `${API_BASE_URL}/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39`, // 要件定義
-         `${API_BASE_URL}/prompts/public/9575d0837e6b7700ab2f8887a5c4faec`, // システムアーキテクチャ
+       // プロンプトURLリスト - 新しいバックエンドURLに基づいて更新
+       const promptUrls = [
+         "https://bluelamp-235426778039.asia-northeast1.run.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39", // 要件定義
+         "https://bluelamp-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700ab2f8887a5c4faec", // システムアーキテクチャ
          // 残りのURLも同様に更新
        ];
        
-       // URLゲッター
-       export function getPromptUrl(index) {
-         if (index < 0 || index >= PROMPT_URLS.length) {
-           return null;
-         }
-         return PROMPT_URLS[index];
-       }
+       // 既存のpromptInfoは変更なし
        ```
   3. **T1.3**: package.jsonに環境変数を追加
      - 対象: `/package.json`
-     - 実装: scripts セクションに環境変数を追加
+     - 実装: scripts セクションでBLUELAMP_API_URLを指定
        ```json
        "scripts": {
-         "dev": "BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api webpack --mode development --watch",
-         "compile": "BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api webpack --mode production",
-         "package": "NODE_ENV=production BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api webpack --mode production"
+         "dev": "webpack --mode development --watch",
+         "compile": "webpack --mode production",
+         "package": "NODE_ENV=production webpack --mode production"
        }
+       ```
+     - 代わりに、.envファイルや設定ファイルで直接指定する
+       ```
+       # .env または同等のファイル
+       BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api
        ```
 - **検証ポイント**:
   - 設定ファイルが正しく作成されていること
@@ -324,8 +307,8 @@ media/
   - 設定変更が適切に反映されていること
 
 ### フェーズ4: プロンプトカード機能の修正
-- **目標**: プロンプトカード機能を修正して重複を排除する
-- **影響範囲**: `/media/components/promptCards/promptCards.js`, `/media/components/promptManager/promptManager.js`
+- **目標**: プロンプトカード機能のURLを更新する
+- **影響範囲**: `/media/components/promptCards/promptCards.js`
 - **タスク**:
   1. **T4.1**: promptCards.jsの修正
      - 対象: `/media/components/promptCards/promptCards.js`
@@ -333,39 +316,16 @@ media/
        ```javascript
        // @ts-check
        
-       import { 
-         PROMPT_INFO, 
-         PROMPT_URLS, 
-         getPromptUrl 
-       } from '../../config/promptConfig.js';
-       import dialogManager from '../dialogManager/dialogManager.js';
+       // VSCode API取得（既存コード）
        
-       // プロンプトURLリストと情報を外部ファイルから取得するように変更
-       // const promptUrls = [...] - 削除
-       // const promptInfo = [...] - 削除
+       // プロンプトURLリスト - 新URLへの更新
+       const promptUrls = [
+         "https://bluelamp-235426778039.asia-northeast1.run.app/api/prompts/public/cdc2b284c05ebaae2bc9eb1f3047aa39", // 要件定義
+         "https://bluelamp-235426778039.asia-northeast1.run.app/api/prompts/public/9575d0837e6b7700ab2f8887a5c4faec", // システムアーキテクチャ
+         // 残りのURLも同様に新URLパターンに更新...
+       ];
        
-       class PromptCardsManager {
-         // 既存の実装をそのまま活用...
-         
-         // URLを取得するメソッドを修正
-         getPromptUrl(index) {
-           return getPromptUrl(index);
-         }
-         
-         // 情報を取得するメソッドは既存のものを使用
-         getPromptInfo(index) {
-           return PROMPT_INFO[index] || null;
-         }
-         
-         // すべての情報を取得するメソッドも修正
-         getAllPromptInfo() {
-           return PROMPT_INFO;
-         }
-       }
-       
-       // シングルトンインスタンスの作成とエクスポート
-       const promptCards = new PromptCardsManager();
-       export default promptCards;
+       // 他の既存コードはそのまま維持
        ```
        
   2. **T4.2**: promptManager.jsの削除 ✓ 完了
