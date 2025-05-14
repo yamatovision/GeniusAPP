@@ -16,7 +16,8 @@
 
 **本番環境**
 - バックエンド:
-  - **テスト環境（最新・推奨）**: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+  - **最新環境（推奨・標準）**: https://bluelamp-235426778039.asia-northeast1.run.app
+  - 旧テスト環境（2025-05-21まで並行稼働）: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
   - 旧環境（非推奨）: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
 - フロントエンド: https://geniemon.vercel.app
 - データベース: MongoDB Atlas
@@ -791,7 +792,7 @@ MongoDB Atlasで自動バックアップを設定:
 ### 使用するバックエンドURL
 プロジェクト全体で以下のURLを標準として使用します：
 ```
-https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+https://bluelamp-235426778039.asia-northeast1.run.app
 ```
 
 ### 標準化の対象ファイル
@@ -802,10 +803,30 @@ https://appgenius-portal-test-235426778039.asia-northeast1.run.app
 - `src/ui/debugDetective/DebugDetectivePanel.ts`
 - テストスクリプト（`test_counter_fixed_url.js`など）
 
+### 旧URLの廃止スケジュール
+以下の旧URLは2025-05-21をもって廃止されます：
+
+1. **appgenius-portal-test** (テスト環境)
+   ```
+   https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+   ```
+
+2. **appgenius-portal-backend** (旧本番環境)
+   ```
+   https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
+   ```
+
+3. **alternate URL** (短縮URL)
+   ```
+   https://appgenius-portal-test-6clpzmy5pa-an.a.run.app
+   ```
+
+2025-05-14～2025-05-21の移行期間中は新旧両方のURLが利用可能ですが、新規開発および更新では必ず新URLを使用してください。移行期間後は旧URLへのリクエストは失敗するようになります。
+
 ### 注意事項
-- 新しいURLが生成されても、元のURLを標準として使用します
+- 新しいURLが生成されても、https://bluelamp-235426778039.asia-northeast1.run.app を標準として使用します
 - デプロイ時に必ずすべてのURL参照をチェックして標準化してください
-- `https://appgenius-portal-test-6clpzmy5pa-an.a.run.app` や `https://appgenius-portal-backend-235426778039.asia-northeast1.run.app` は使用しないでください
+- `https://appgenius-portal-test-235426778039.asia-northeast1.run.app`、`https://appgenius-portal-test-6clpzmy5pa-an.a.run.app` や `https://appgenius-portal-backend-235426778039.asia-northeast1.run.app` など、旧URLは使用しないでください
 
 ## 9. 今後の改善点
 

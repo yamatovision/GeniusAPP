@@ -1,5 +1,42 @@
 # デプロイ履歴
 
+## 2025-05-14: バックエンドのブルーランプリブランディングと新サービスデプロイ
+
+### 1. デプロイ内容と変更点
+- デプロイコンポーネント: バックエンド（Google Cloud Run）
+- 主な変更点: 
+  - 「AppGenius」から「ブルーランプ」へのリブランディングの一環としてバックエンドサービス名も更新
+  - 新サービス名「bluelamp」でGoogle Cloud Runにデプロイ
+  - 標準バックエンドURLを「https://bluelamp-235426778039.asia-northeast1.run.app」に変更
+
+### 2. 実施内容
+- 新しいサービス「bluelamp」のデプロイ：
+  - 既存の「appgenius-portal-test」の設定（メモリ、CPU、環境変数）を引き継ぎ
+  - API_HOSTを新サービス名に更新
+  - 同じDockerイメージを使用（gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest）
+
+### 3. デプロイコマンドと結果
+```bash
+# 新サービスのデプロイ
+gcloud run deploy bluelamp \
+  --image gcr.io/yamatovision-blue-lamp/appgenius-portal-backend:latest \
+  --platform managed \
+  --region asia-northeast1 \
+  --allow-unauthenticated \
+  --memory 512Mi \
+  --cpu 1000m \
+  --port 5000 \
+  --set-env-vars="NODE_ENV=production,API_HOST=bluelamp-235426778039.asia-northeast1.run.app" \
+  --timeout 300s
+```
+- URL: https://bluelamp-235426778039.asia-northeast1.run.app
+- 確認した機能: APIエンドポイント（/api）の応答確認
+
+### 4. 移行計画
+- 2025-05-14から2025-05-21まで両方のサービスを並行運用
+- 2025-05-21以降は新サービス（bluelamp）のみを標準とする
+- 各クライアントアプリケーションの設定を段階的に新URLに更新
+
 ## 2025-05-14: VSCode拡張機能の名称変更とリブランディング
 
 ### 1. デプロイ内容と変更点

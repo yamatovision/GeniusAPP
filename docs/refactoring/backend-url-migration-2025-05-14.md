@@ -7,6 +7,7 @@
 
 ### 1.2 問題点と課題
 - 現在のバックエンドURL `https://appgenius-portal-test-235426778039.asia-northeast1.run.app` が複数のファイルでハードコードされている
+- 新しいバックエンドURL `https://bluelamp-235426778039.asia-northeast1.run.app` へ移行が必要
 - 旧アプリ「AppGenius」名を含むURLは、ブランド変更後も継続使用中
 - 一部のユーザーは古いバージョンのクライアントを使用しており、急な変更はこれらのユーザーの接続を切断する
 - 複数の環境変数やデフォルト値が散在しており、一元管理されていない
@@ -60,20 +61,20 @@ VSCode拡張（ブルーランプ）
 - 環境変数による一元管理：
   ```typescript
   // 単一の環境変数または設定ファイルからURLを取得
-  const API_BASE_URL = getConfigValue('API_BASE_URL', 'https://bluelamp-portal-235426778039.asia-northeast1.run.app/api');
+  const API_BASE_URL = getConfigValue('API_BASE_URL', 'https://bluelamp-235426778039.asia-northeast1.run.app/api');
   ```
 
 - 新URLへの完全移行：
   ```typescript
   // 新URLのみを使用
-  const API_BASE_URL = 'https://bluelamp-portal-235426778039.asia-northeast1.run.app/api';
+  const API_BASE_URL = 'https://bluelamp-235426778039.asia-northeast1.run.app/api';
   ```
 
 - プロンプトURL設定の一元化：
   ```javascript
   // media/config/promptConfig.js
   export const PROMPT_URLS = [
-    "https://bluelamp-portal-235426778039.asia-northeast1.run.app/api/prompts/public/...",
+    "https://bluelamp-235426778039.asia-northeast1.run.app/api/prompts/public/...",
     // 残りのプロンプトURLリスト
   ];
   ```
@@ -116,31 +117,12 @@ media/
         * API設定ファイル - バックエンドURL参照の一元管理
         */
        export const API_CONFIG = {
-         // 現在のバックエンドURL（新URL）
-         CURRENT_API_URL: process.env.BLUELAMP_API_URL || 'https://bluelamp-portal-235426778039.asia-northeast1.run.app/api',
+         // バックエンドURL
+         API_URL: process.env.BLUELAMP_API_URL || 'https://bluelamp-235426778039.asia-northeast1.run.app/api',
          
-         // 互換性のための旧URL
-         LEGACY_API_URL: 'https://appgenius-portal-test-235426778039.asia-northeast1.run.app/api',
-         
-         // 移行期間中は両方のURLを使用するかどうかのフラグ
-         USE_DUAL_ENDPOINTS: true,
-         
-         // 移行終了日時（この日時以降は旧URLを使用しない）
-         MIGRATION_END_DATE: new Date('2025-05-21T23:59:59Z'), // 1週間後
-         
-         // ヘルパー関数: 現在のモードに基づいてAPIエンドポイントを取得
+         // ヘルパー関数: APIエンドポイントを取得
          getApiUrl: function(endpoint: string = ''): string {
-           return this.CURRENT_API_URL + (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
-         },
-         
-         // ヘルパー関数: レガシーモードのエンドポイントを取得
-         getLegacyApiUrl: function(endpoint: string = ''): string {
-           return this.LEGACY_API_URL + (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
-         },
-         
-         // ヘルパー関数: 移行期間中かどうかを判定
-         isInMigrationPeriod: function(): boolean {
-           return new Date() < this.MIGRATION_END_DATE;
+           return this.API_URL + (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
          }
        };
        ```
@@ -153,7 +135,7 @@ media/
         */
        
        // APIベースURL
-       export const API_BASE_URL = 'https://bluelamp-portal-235426778039.asia-northeast1.run.app/api';
+       export const API_BASE_URL = 'https://bluelamp-235426778039.asia-northeast1.run.app/api';
        
        // プロンプトの詳細情報
        export const PROMPT_INFO = [
@@ -182,9 +164,9 @@ media/
      - 実装: scripts セクションに環境変数を追加
        ```json
        "scripts": {
-         "dev": "BLUELAMP_API_URL=https://bluelamp-portal-235426778039.asia-northeast1.run.app/api webpack --mode development --watch",
-         "compile": "BLUELAMP_API_URL=https://bluelamp-portal-235426778039.asia-northeast1.run.app/api webpack --mode production",
-         "package": "NODE_ENV=production BLUELAMP_API_URL=https://bluelamp-portal-235426778039.asia-northeast1.run.app/api webpack --mode production"
+         "dev": "BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api webpack --mode development --watch",
+         "compile": "BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api webpack --mode production",
+         "package": "NODE_ENV=production BLUELAMP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api webpack --mode production"
        }
        ```
 - **検証ポイント**:
@@ -301,7 +283,7 @@ media/
         */
        
        // 新しいバックエンドURL
-       export const API_URL = process.env.REACT_APP_API_URL || 'https://bluelamp-portal-235426778039.asia-northeast1.run.app/api';
+       export const API_URL = process.env.REACT_APP_API_URL || 'https://bluelamp-235426778039.asia-northeast1.run.app/api';
        
        // API URLの取得
        export function getApiUrl(endpoint = '') {
@@ -314,13 +296,12 @@ media/
      - 実装:
        ```javascript
        import { 
-         CURRENT_API_URL, 
-         LEGACY_API_URL, 
-         isInMigrationPeriod 
+         API_URL, 
+         getApiUrl 
        } from '../../config/apiConfig';
        
        // 9-10行目: APIベースURLの設定を変更
-       const TEST_API_URL = CURRENT_API_URL;
+       const TEST_API_URL = API_URL;
        const SIMPLE_API_URL = TEST_API_URL + '/simple';
        ```
        
@@ -329,13 +310,12 @@ media/
      - 実装:
        ```javascript
        import { 
-         CURRENT_API_URL, 
-         LEGACY_API_URL, 
-         isInMigrationPeriod 
+         API_URL, 
+         getApiUrl 
        } from '../config/apiConfig';
        
        // 9-10行目: APIベースURLの設定を変更
-       const TEST_API_URL = CURRENT_API_URL;
+       const TEST_API_URL = API_URL;
        const API_BASE_URL = TEST_API_URL + '/simple';
        ```
        
@@ -434,7 +414,7 @@ media/
 
 ### 6.1 潜在的リスク
 - 既存ユーザーの接続性の中断
-- フォールバックによるレイテンシの増加
+- 新URLへの移行に伴う一時的な不安定性
 - 移行期間後の互換性問題
 - 環境変数が正しく設定されない場合のデフォルト値の問題
 - ~promptManager.js を参照している他のコードへの影響~ (影響なし、ファイル削除済み)

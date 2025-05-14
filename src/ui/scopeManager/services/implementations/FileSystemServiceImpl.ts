@@ -587,6 +587,120 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
   }
   
   /**
+   * docsディレクトリの監視を設定
+   * ディレクトリ内のすべてのファイル（サブディレクトリ含む）の変更を監視
+   * @param projectPath プロジェクトのパス
+   * @param outputCallback ファイル変更時のコールバック
+   * @param options 追加オプション（遅延読み込み時間など）
+   */
+  public setupDocsDirectoryWatcher(
+    projectPath: string,
+    outputCallback: (filePath: string) => void,
+    options?: { delayedReadTime?: number }
+  ): vscode.Disposable {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+      
+      // docsディレクトリのパスを構築
+      const docsDir = path.join(projectPath, 'docs');
+      
+      // ディレクトリの存在を確認
+      if (!fs.existsSync(docsDir)) {
+        Logger.warn(`FileSystemService: docsディレクトリが存在しません: ${docsDir}`);
+        return { dispose: () => {} };
+      }
+      
+      Logger.info(`FileSystemService: docsディレクトリの監視を開始します: ${docsDir}`);
+      
+      // 遅延読み込み時間（デフォルトは500ms）
+      const delayedReadTime = options?.delayedReadTime || 500;
+      
+      // 最後の更新からのデバウンスタイマー
+      let debounceTimer: NodeJS.Timeout | null = null;
+      
+      // 更新保留中のファイルパスのセット（重複防止）
+      const pendingUpdates = new Set<string>();
+      
+      // VSCodeのファイルシステムウォッチャーを使用
+      // docs/**/* パターンでサブディレクトリを含むすべてのファイルを監視
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(
+          vscode.Uri.file(docsDir),
+          '**/*'
+        )
+      );
+      
+      // 変更イベントハンドラー
+      const handleFileChange = (filePath: string) => {
+        // ファイルパスを追跡対象に追加
+        pendingUpdates.add(filePath);
+        
+        // 既存のタイマーがあればクリア
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+        }
+        
+        // 新しいタイマーを設定
+        debounceTimer = setTimeout(() => {
+          Logger.info(`FileSystemService: docsディレクトリ内の${pendingUpdates.size}ファイルの変更をバッチ処理します`);
+          
+          // 保留中のすべてのファイルに対してコールバックを実行
+          for (const path of pendingUpdates) {
+            try {
+              outputCallback(path);
+            } catch (callbackError) {
+              Logger.error(`FileSystemService: ファイル変更コールバック実行エラー: ${path}`, callbackError as Error);
+            }
+          }
+          
+          // 保留セットをクリア
+          pendingUpdates.clear();
+          debounceTimer = null;
+        }, delayedReadTime);
+      };
+      
+      // ファイル変更イベントを処理
+      watcher.onDidChange((uri) => {
+        Logger.info(`FileSystemService: ファイル変更を検出: ${uri.fsPath}`);
+        handleFileChange(uri.fsPath);
+      });
+      
+      // ファイル作成イベントを処理
+      watcher.onDidCreate((uri) => {
+        Logger.info(`FileSystemService: ファイル作成を検出: ${uri.fsPath}`);
+        handleFileChange(uri.fsPath);
+      });
+      
+      // ファイル削除イベントを処理
+      watcher.onDidDelete((uri) => {
+        Logger.info(`FileSystemService: ファイル削除を検出: ${uri.fsPath}`);
+        handleFileChange(uri.fsPath);
+      });
+      
+      Logger.info(`FileSystemService: docsディレクトリの監視を設定しました: ${docsDir}`);
+      
+      // 複合Disposableを返す（タイマーとウォッチャーを適切に解放）
+      return {
+        dispose: () => {
+          watcher.dispose();
+          if (debounceTimer) {
+            clearTimeout(debounceTimer);
+            debounceTimer = null;
+          }
+          pendingUpdates.clear();
+          Logger.info(`FileSystemService: docsディレクトリの監視を終了しました: ${docsDir}`);
+        }
+      };
+    } catch (error) {
+      Logger.error(`FileSystemService: docsディレクトリ監視の設定中にエラーが発生しました: ${projectPath}`, error as Error);
+      // エラー時は空のDisposableを返す
+      return { dispose: () => {} };
+    }
+  }
+  
+  /**
    * ディレクトリ内のファイルとフォルダを一覧取得する
    * @param directoryPath ディレクトリパス
    * @param recursive 再帰的に取得するかどうか（デフォルトはfalse）

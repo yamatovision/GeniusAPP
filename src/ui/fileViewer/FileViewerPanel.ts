@@ -518,9 +518,115 @@ export class FileViewerPanel {
         }
       );
       
+      // docs ディレクトリの監視設定を追加
+      this._setupDocsFileWatcher();
+      
       Logger.info(`FileViewerPanel: ファイル監視が設定されました: ${this._currentProjectPath}`);
     } catch (error) {
       Logger.error('FileViewerPanel: ファイル監視の設定に失敗しました', error as Error);
+    }
+  }
+  
+  /**
+   * docsディレクトリの監視を設定
+   * ファイルビューワーが開いている時のみdocsディレクトリの変更を監視する
+   */
+  private _setupDocsFileWatcher(): void {
+    try {
+      if (!this._currentProjectPath) {
+        return;
+      }
+      
+      // FileWatcherServiceImplのインスタンスを取得
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { FileWatcherServiceImpl } = require('../scopeManager/services/implementations/FileWatcherServiceImpl');
+      const fileWatcherService = FileWatcherServiceImpl.getInstance();
+      
+      // docs ディレクトリを監視
+      const docsWatcher = fileWatcherService.setupDocsDirectoryWatcher(
+        this._currentProjectPath,
+        this._fileSystemService,
+        (filePath: string) => {
+          Logger.info(`FileViewerPanel: docsディレクトリのファイル変更を検出: ${filePath}`);
+          
+          // 現在表示中のディレクトリに関係するファイルの変更か確認
+          const currentDir = this._getCurrentDisplayedDirectory();
+          if (currentDir && filePath.startsWith(currentDir)) {
+            // ファイルリストを更新
+            this._refreshFileList();
+            
+            // 現在表示中のファイルの変更を監視
+            if (this._isSplitView) {
+              // 分割表示モードの場合
+              if (filePath === this._leftPaneFilePath) {
+                this._loadFileContentForPane(filePath, 'left');
+              }
+              if (filePath === this._rightPaneFilePath) {
+                this._loadFileContentForPane(filePath, 'right');
+              }
+            } else {
+              // 通常モードの場合
+              if (filePath === this._currentFilePath) {
+                this._loadFileContent(filePath);
+              }
+            }
+          }
+        },
+        { delayedReadTime: 500 } // 500msのデバウンス時間
+      );
+      
+      // _fileWatcherを複合Disposableにする
+      const oldWatcher = this._fileWatcher;
+      this._fileWatcher = {
+        dispose: () => {
+          if (oldWatcher) {
+            oldWatcher.dispose();
+          }
+          if (docsWatcher) {
+            docsWatcher.dispose();
+          }
+        }
+      };
+      
+      Logger.info(`FileViewerPanel: docsディレクトリの監視が設定されました: ${this._currentProjectPath}`);
+    } catch (error) {
+      Logger.error('FileViewerPanel: docsディレクトリ監視の設定に失敗しました', error as Error);
+    }
+  }
+  
+  /**
+   * 現在表示中のディレクトリパスを取得するヘルパーメソッド
+   * @returns 現在表示されているディレクトリパス、または null
+   */
+  private _getCurrentDisplayedDirectory(): string | null {
+    try {
+      if (this._isSplitView) {
+        // 分割表示モードの場合は左右のペインのうち、どちらかが設定されているパスの親ディレクトリを返す
+        if (this._leftPaneFilePath) {
+          return path.dirname(this._leftPaneFilePath);
+        }
+        if (this._rightPaneFilePath) {
+          return path.dirname(this._rightPaneFilePath);
+        }
+      } else if (this._currentFilePath) {
+        // 通常モードの場合は現在のファイルパスの親ディレクトリを返す
+        return path.dirname(this._currentFilePath);
+      }
+      
+      // プロジェクトパスがあれば、デフォルトで docs ディレクトリを返す
+      if (this._currentProjectPath) {
+        const docsDir = path.join(this._currentProjectPath, 'docs');
+        if (fs.existsSync(docsDir)) {
+          return docsDir;
+        }
+        // docs ディレクトリが存在しない場合はプロジェクトルートを返す
+        return this._currentProjectPath;
+      }
+      
+      return null;
+    } catch (error) {
+      Logger.error('FileViewerPanel: 現在のディレクトリパス取得に失敗しました', error as Error);
+      return null;
     }
   }
 
@@ -906,6 +1012,25 @@ export class FileViewerPanel {
     }
 
     Logger.info('FileViewerPanel: リソースを解放しました');
+  }
+  
+  /**
+   * パネルが閉じられていないかを確認
+   * ファイル更新の前に自動チェックするための補助メソッド
+   * @returns パネルがまだ表示されていればtrue、破棄されていればfalse
+   */
+  private _isPanelAlive(): boolean {
+    try {
+      if (!this._panel) {
+        return false;
+      }
+      
+      // 以下の操作でエラーが出なければパネルは生きている
+      const title = this._panel.title;
+      return true;
+    } catch (error) {
+      return false;
+    }
   }
 }
 

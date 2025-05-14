@@ -97,6 +97,80 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
       };
     }
   }
+  
+  /**
+   * docsディレクトリの監視を設定
+   * ファイルビューワー用にdocsディレクトリ全体（サブディレクトリを含む）の変更を監視する
+   * 
+   * @param projectPath プロジェクトパス
+   * @param fileSystemService FileSystemServiceのインスタンス
+   * @param onFileChanged ファイル変更時のコールバック
+   * @param options 追加オプション（delayedReadTime等）
+   * @returns ディスポーザブルオブジェクト
+   */
+  public setupDocsDirectoryWatcher(
+    projectPath: string,
+    fileSystemService: any,
+    onFileChanged: (filePath: string) => void,
+    options?: { delayedReadTime?: number }
+  ): vscode.Disposable {
+    try {
+      if (!projectPath) {
+        throw new Error('プロジェクトパスが指定されていません');
+      }
+      
+      if (!fileSystemService) {
+        throw new Error('fileSystemServiceが提供されていません');
+      }
+
+      Logger.info(`FileWatcherService: docsディレクトリの監視を設定します: ${projectPath}`);
+      
+      // docsディレクトリのパスを取得
+      const docsDir = path.join(projectPath, 'docs');
+      
+      // ディレクトリの存在を確認
+      if (!fs.existsSync(docsDir)) {
+        Logger.warn(`FileWatcherService: docsディレクトリが存在しません: ${docsDir}`);
+        return { dispose: () => {} };
+      }
+      
+      // FileSystemServiceImpl.setupDocsDirectoryWatcherを使って監視を設定
+      const docsWatcher = fileSystemService.setupDocsDirectoryWatcher(
+        projectPath,
+        (filePath: string) => {
+          Logger.info(`FileWatcherService: docsディレクトリ内のファイル変更を検出: ${filePath}`);
+          
+          try {
+            // ファイル変更イベントをコールバックに通知
+            onFileChanged(filePath);
+            
+            // イベントバスにも通知
+            const eventBus = AppGeniusEventBus.getInstance();
+            eventBus.emit(
+              AppGeniusEventType.DOCS_FILE_CHANGED,
+              {
+                path: filePath,
+                timestamp: Date.now()
+              }, 
+              'FileWatcherService', 
+              this._getProjectIdFromPath(projectPath)
+            );
+            
+            Logger.info(`FileWatcherService: ファイル変更イベントを送信しました: ${filePath}`);
+          } catch (error) {
+            Logger.error(`FileWatcherService: ファイル変更イベント処理中にエラーが発生しました: ${filePath}`, error as Error);
+          }
+        },
+        { delayedReadTime: options?.delayedReadTime || 500 }
+      );
+      
+      Logger.info(`FileWatcherService: docsディレクトリの監視を設定しました: ${docsDir}`);
+      return docsWatcher;
+    } catch (error) {
+      Logger.error('FileWatcherService: docsディレクトリ監視の設定中にエラーが発生しました', error as Error);
+      return { dispose: () => {} };
+    }
+  }
 
   /**
    * 初期ファイル内容の読み込み（要件定義タブ対応）

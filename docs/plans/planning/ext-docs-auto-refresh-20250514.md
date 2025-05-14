@@ -35,6 +35,8 @@ src/
  │           └── implementations/
  │               ├── FileSystemServiceImpl.ts  # 変更: ディレクトリ監視機能を拡張
  │               └── FileWatcherServiceImpl.ts # 変更: ディレクトリ監視の連携機能を追加
+ └── services/
+     └── AppGeniusEventBus.ts      # 変更: ファイル変更イベントタイプを追加
 ```
 
 ## 4. 技術的影響分析
@@ -52,29 +54,33 @@ src/
 - src/ui/fileViewer/FileViewerPanel.ts: docsディレクトリ監視機能の追加・変更検知時の更新処理の実装
 - src/ui/scopeManager/services/implementations/FileSystemServiceImpl.ts: ディレクトリワイド監視機能の拡張または新規追加
 - src/ui/scopeManager/services/implementations/FileWatcherServiceImpl.ts: ディレクトリ監視イベントの連携処理の最適化
+- src/services/AppGeniusEventBus.ts: ファイル変更イベントタイプの追加
 ```
 
 ## 5. タスクリスト
 
 ```
-- [ ] **T1**: FileSystemServiceImplに`setupDocsDirectoryWatcher`メソッドを追加
+- [x] **T1**: FileSystemServiceImplに`setupDocsDirectoryWatcher`メソッドを追加
   - docs全体とサブディレクトリを監視する機能を実装
   - ファイル変更イベントの取得と配信機能を追加
+  - 連続変更検知時のデバウンス処理の実装
 
-- [ ] **T2**: FileWatcherServiceImplに`setupDocsDirectoryWatcher`メソッドを実装
+- [x] **T2**: FileWatcherServiceImplに`setupDocsDirectoryWatcher`メソッドを実装
   - ファイルビューワー用の監視設定と設定解除機能を実装
   - 変更イベントを適切にハンドリングする仕組みを追加
+  - AppGeniusEventBusを使った変更通知機能の実装
 
-- [ ] **T3**: FileViewerPanelに監視機能と自動更新処理を実装
+- [x] **T3**: FileViewerPanelに監視機能と自動更新処理を実装
   - `_setupDocsFileWatcher`メソッドを追加
   - ファイルビューワーの初期化時に監視を開始する処理を実装
   - 監視終了時の適切なリソース解放処理を実装
   - 変更イベント受信時のファイルリスト更新処理を実装
   - 表示中ファイルの変更検知時の内容更新処理を実装
 
-- [ ] **T4**: 変更検知時の適切なデバウンス処理の実装
+- [x] **T4**: 変更検知時の適切なデバウンス処理の実装
   - 多数のファイル変更が連続して発生した場合の処理最適化
   - 500msのデバウンスタイマーを実装
+  - 変更ファイルの重複登録防止（Setによる管理）
 
 - [ ] **T5**: テストとデバッグ
   - 機能動作確認
@@ -82,7 +88,77 @@ src/
   - エッジケース（大量ファイル変更など）の動作確認
 ```
 
-### 6 テスト計画
+## 6. 実装詳細
+
+### 6.1 FileSystemServiceImpl.ts の変更点
+
+`setupDocsDirectoryWatcher` メソッドを追加し、以下の機能を実装しました：
+
+1. VSCodeの`FileSystemWatcher`を使用してdocsディレクトリ全体を監視
+2. ファイル変更・作成・削除イベントを捕捉し、共通ハンドラに送信
+3. 複数のファイル変更を一括処理するためのデバウンス機能
+   - 500msの待機時間を設け、その間に発生した変更をまとめて処理
+   - 重複ファイルパスの排除のため`Set`で管理
+4. リソース解放のための適切なDispose処理
+
+```typescript
+public setupDocsDirectoryWatcher(
+  projectPath: string,
+  outputCallback: (filePath: string) => void,
+  options?: { delayedReadTime?: number }
+): vscode.Disposable {
+  // ... 実装省略 ...
+}
+```
+
+### 6.2 FileWatcherServiceImpl.ts の変更点
+
+`setupDocsDirectoryWatcher` メソッドを実装し、以下の機能を追加しました：
+
+1. FileSystemServiceImplの監視機能をラップ
+2. ファイル変更イベントをコールバックに通知
+3. AppGeniusEventBusを使用してシステム全体に変更を通知
+4. DOCS_FILE_CHANGEDイベントタイプによる明示的な通知
+5. エラーハンドリングとロギング機能
+
+```typescript
+public setupDocsDirectoryWatcher(
+  projectPath: string,
+  fileSystemService: any,
+  onFileChanged: (filePath: string) => void,
+  options?: { delayedReadTime?: number }
+): vscode.Disposable {
+  // ... 実装省略 ...
+}
+```
+
+### 6.3 FileViewerPanel.ts の変更点
+
+1. `_setupDocsFileWatcher` メソッドを追加
+   - パネルが表示されている間だけdocsディレクトリの監視を行う
+   - 既存の監視システムと干渉しないよう設計
+
+2. `_getCurrentDisplayedDirectory` ヘルパーメソッドを追加
+   - 現在表示中のディレクトリを特定
+   - 分割表示モードでの左右ペイン対応
+
+3. `_isPanelAlive` ヘルパーメソッドを追加
+   - パネルが既に閉じられていないかを確認
+   - 無効なメッセージ送信によるエラー防止
+
+4. 監視リソースの解放処理を追加
+   - パネル破棄時に全ての監視リソースを適切に解放
+
+### 6.4 AppGeniusEventBus.ts の変更点
+
+```typescript
+export enum AppGeniusEventType {
+  // ... 既存のイベントタイプ ...
+  DOCS_FILE_CHANGED = 'docs-file-changed' // 追加: docsディレクトリ内のファイル変更イベント
+}
+```
+
+## 7. テスト計画
 
 1. **機能テスト**
    - `/docs` ディレクトリ内でファイルを新規作成し、ファイルリストに自動反映されることを確認
@@ -100,7 +176,7 @@ src/
    - 再度開いたときにファイルリストが最新状態で表示されることの確認
    - ファイルビューワー操作中にファイル変更が発生した場合の挙動を検証
 
-## 7. SCOPE_PROGRESSへの統合
+## 8. SCOPE_PROGRESSへの統合
 
 [SCOPE_PROGRESS.md](/docs/SCOPE_PROGRESS.md)に以下の単体タスクとして追加します：
 
@@ -111,7 +187,7 @@ src/
   - 内容: ファイルビューワーに/docsディレクトリの自動監視・更新機能を追加
 ```
 
-## 8. 備考
+## 9. 備考
 
 - ファイルシステム監視はリソースを消費するため、監視対象はファイルビューワーが表示されている間のみとし、パネルが閉じられる際には適切にDispose処理を行う必要があります。
 - VSCodeのFileSystemWatcherは変更イベントをリアルタイムで提供しますが、大量の変更が発生した場合にデバウンス処理が必要となるため、500msの遅延時間を設けることで安定性を確保します。

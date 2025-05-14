@@ -36,7 +36,10 @@ export enum AppGeniusEventType {
 
   // タブ関連イベント
   PROJECT_CHANGED = 'project-changed', // 追加: プロジェクト変更イベント
-  TAB_CONTENT_UPDATED = 'tab-content-updated' // 追加: タブ内容更新イベント
+  TAB_CONTENT_UPDATED = 'tab-content-updated', // 追加: タブ内容更新イベント
+  
+  // ファイルビューワー関連イベント
+  DOCS_FILE_CHANGED = 'docs-file-changed' // 追加: docsディレクトリ内のファイル変更イベント
 }
 
 /**
