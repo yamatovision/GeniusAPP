@@ -1,5 +1,40 @@
 # デプロイ履歴
 
+## 2025-05-14: VSCode拡張機能の名称変更とリブランディング
+
+### 1. デプロイ内容と変更点
+- デプロイコンポーネント: VSCode拡張機能
+- 主な変更点: 
+  - 「AppGenius」から「ブルーランプ」へのリブランディング
+  - VS Marketplaceへの新アプリケーションとしての公開
+  - ブルーランプロゴの追加と表示名の変更
+
+### 2. 修正内容
+- `package.json`ファイルの変更：
+  ```json
+  {
+    "name": "bluelamp",             // 内部名称を変更（新アプリとして公開）
+    "displayName": "ブルーランプ",   // 表示名の変更
+    "version": "1.0.1",            // バージョンリセットと更新
+    "icon": "media/assets/logos/bluelamp-logo.png" // ロゴ追加
+  }
+  ```
+- `CHANGELOG.md`の更新：リブランディングの履歴を追加
+- ドキュメント更新：deploy.mdをブルーランプ名称に更新
+
+### 3. デプロイコマンドと結果
+```bash
+# ビルドとパッケージング
+cd /Users/tatsuya/Desktop/システム開発/AppGenius2/AppGenius
+npm run compile
+npx vsce package
+
+# VSCode Marketplaceへの公開
+vsce publish -p <personal-access-token>
+```
+- URL: https://marketplace.visualstudio.com/items?itemName=mikoto.bluelamp
+- 確認した機能: インストール、UI表示、ロゴ表示
+
 ## 2025-05-12: Vercelデプロイ設定の修正（追加修正）
 
 ### 1. デプロイ内容と発見した環境差異

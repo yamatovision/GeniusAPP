@@ -1,8 +1,8 @@
-# AppGenius デプロイ情報（2025/05/12更新）
+# ブルーランプ デプロイ情報（2025/05/14更新）
 
 ## プロンプト管理システムのデプロイ構成
 
-AppGeniusのプロンプト管理システムは以下の3つの主要コンポーネントから構成されています：
+ブルーランプのプロンプト管理システムは以下の3つの主要コンポーネントから構成されています：
 
 1. **中央プロンプト管理Webポータル** - Node.js/Expressバックエンド + Reactフロントエンド
 2. **VSCode拡張機能** - TypeScriptで実装された拡張機能
@@ -264,11 +264,12 @@ npm start
    以下のフィールドが正しく設定されていることを確認:
    ```json
    {
-     "name": "appgenius-ai",              // 一意の識別子
-     "displayName": "AppGenius AI",        // マーケットプレイスでの表示名
+     "name": "bluelamp",              // 一意の識別子（新アプリとして公開）
+     "displayName": "ブルーランプ",        // マーケットプレイスでの表示名
      "description": "AI駆動の完全自動開発環境をVSCodeで提供",  // 説明文
-     "version": "1.0.0",                  // セマンティックバージョニング
+     "version": "1.0.1",                  // セマンティックバージョニング
      "publisher": "mikoto",               // パブリッシャーID（重要）
+     "icon": "media/assets/logos/bluelamp-logo.png", // アイコンファイルのパス
      "repository": {                       // GitHubリポジトリ情報
        "type": "git",
        "url": "https://github.com/yamatovision/GeniusAPP.git"
@@ -422,7 +423,8 @@ npm start
    - `patch`: 1.0.0 → 1.0.1（バグ修正）
 
 4. **公開確認**:
-   - 表示されたURL（例: https://marketplace.visualstudio.com/items?itemName=mikoto.appgenius-ai）にアクセス
+   - 表示されたURL（例: https://marketplace.visualstudio.com/items?itemName=mikoto.bluelamp）にアクセス
+   - 注: 新しい内部識別子「bluelamp」で公開されるため、完全に新しいアプリケーションとして表示されます
    - 注: 反映まで数分から1時間かかることがあります
 
 #### 5. 拡張機能の更新手順
@@ -439,17 +441,19 @@ npm start
 
 3. **CHANGELOGの更新**:
    ```markdown
-   ## [1.0.1] - 2025-03-20
+   ## [1.0.1] - 2025-05-14
 
    ### 追加
-   - 新機能Aを追加
-   - 新機能Bを追加
+   - ブルーランプロゴの追加
+   - アイコンファイルの設定（VS Marketplace用）
 
    ### 変更
-   - 機能Cの動作を改善
+   - AppGeniusからブルーランプへの名称変更
+   - 内部識別子の変更（appgenius-ai → bluelamp）
+   - ログインおよびUI部分の表示名をブルーランプに統一
 
    ### 修正
-   - バグDを修正
+   - 認証周りの安定性向上
    ```
 
 4. **ビルドと公開**:

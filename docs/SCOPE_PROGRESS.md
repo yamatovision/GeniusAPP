@@ -1,4 +1,4 @@
-# AppGenius 理想的ドキュメント構造と開発フロー整備計画あ
+# AppGenius 理想的ドキュメント構造と開発フロー整備計画ああ
 ## 1. 基本情報
 
 - **進捗状況**: 進行中 (79% 完了)
@@ -232,6 +232,11 @@ AppGeniusの開発プロセスを効率化するため、最適化されたド�
     - SCOPE_PROGRESS_TEMPLATE.mdの更新
     - エージェント名と番号の一貫性確保
     - すべての参照ドキュメントでの用語統一
+    
+- [ ] **UI-1**: ファイルビューワー自動更新機能の実装
+  - 目標: 2025-05-17
+  - 参照: [/docs/plans/planning/ext-docs-auto-refresh-20250514.md](/docs/plans/planning/ext-docs-auto-refresh-20250514.md)
+  - 内容: ファイルビューワーに/docsディレクトリの自動監視・更新機能を追加
 
 - [x] **F-1**: FileSystemServiceの拡張実装
   - 完了日: 2025-05-19

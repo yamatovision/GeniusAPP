@@ -20,6 +20,7 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  min-height: 140px;
 }
 
 .prompt-card:hover {
@@ -42,6 +43,7 @@
 .prompt-description {
   font-size: var(--app-font-size-xs);
   color: var(--app-text-secondary);
+  flex-grow: 1;
 }
 
 .category-tag {
@@ -52,4 +54,53 @@
   font-size: var(--app-font-size-xs);
   margin-bottom: var(--app-spacing-xs);
   display: inline-block;
+}
+
+/* モーダル内のプロンプトグリッド */
+.claude-code-share-area .prompt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* モーダル内のプロンプトカード */
+.claude-code-share-area .prompt-card {
+  padding: 12px;
+  min-height: 120px;
+}
+
+.claude-code-share-area .prompt-title {
+  font-size: 14px;
+  margin: 6px 0;
+}
+
+.claude-code-share-area .prompt-description {
+  font-size: 11px;
+}
+
+/* ターミナルモード選択ダイアログ */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#terminal-mode-dialog,
+#modal-terminal-mode-dialog {
+  background-color: var(--app-bg, #fff);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 400px;
+  max-width: 90%;
 }

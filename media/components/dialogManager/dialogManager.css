@@ -92,13 +92,20 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  animation: fadeIn 0.2s ease;
-  backdrop-filter: blur(2px);
+  animation: fadeIn 0.3s ease;
+  backdrop-filter: blur(3px);
+}
+
+/* ターミナルモードのオーバーレイには特別なスタイル */
+#terminal-mode-overlay,
+#modal-terminal-mode-overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(3px);
 }
 
 @keyframes fadeIn {
@@ -252,8 +259,53 @@
 #terminal-mode-dialog,
 #modal-terminal-mode-dialog {
   max-width: 500px;
+  background-color: #ffffff;
+  box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
+/* ダイアログヘッダー - MUI スタイル */
+#terminal-mode-dialog .dialog-header,
+#modal-terminal-mode-dialog .dialog-header {
+  background-color: #3f51b5;
+  color: white;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: none;
+}
+
+#terminal-mode-dialog .dialog-title,
+#modal-terminal-mode-dialog .dialog-title {
+  color: white;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+#terminal-mode-dialog .dialog-close,
+#modal-terminal-mode-dialog .dialog-close {
+  color: white;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background-color 0.2s;
+}
+
+#terminal-mode-dialog .dialog-close:hover,
+#modal-terminal-mode-dialog .dialog-close:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ダイアログコンテンツ - MUI スタイル */
 #terminal-mode-dialog .dialog-content,
 #modal-terminal-mode-dialog .dialog-content {
   text-align: center;
@@ -261,54 +313,84 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 24px;
+  color: #333333;
 }
 
+#terminal-mode-dialog .dialog-content p,
+#modal-terminal-mode-dialog .dialog-content p {
+  margin-top: 0;
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+
+/* プロジェクト情報表示 - MUI スタイル */
+#terminal-mode-dialog .project-info,
+#modal-terminal-mode-dialog .project-info {
+  margin: 8px 0 16px;
+  padding: 10px 16px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: center;
+  width: 100%;
+  border-left: 4px solid #3f51b5;
+}
+
+#terminal-mode-dialog .current-project-name,
+#modal-terminal-mode-dialog .current-project-name {
+  font-weight: bold;
+  color: #3f51b5;
+}
+
+/* ダイアログフッター - MUI スタイル */
 #terminal-mode-dialog .dialog-footer,
 #modal-terminal-mode-dialog .dialog-footer {
   justify-content: center;
+  padding: 16px 24px 24px;
+  border-top: none;
+  background-color: #ffffff;
+  display: flex;
+  gap: 16px;
 }
 
+/* ボタン - MUI スタイル */
 #terminal-mode-dialog .dialog-button,
 #modal-terminal-mode-dialog .dialog-button {
   min-width: 180px;
-  padding: 10px 16px;
+  padding: 10px 24px;
   font-weight: 500;
+  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.3s ease;
-  border-radius: 8px;
+  transition: all 0.2s ease;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  border: none;
+  background-color: #f5f5f5;
+  color: #333333;
 }
 
 #terminal-mode-dialog .dialog-button:hover,
 #modal-terminal-mode-dialog .dialog-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.16);
+  background-color: #e0e0e0;
 }
 
 #terminal-mode-dialog .dialog-button:active,
 #modal-terminal-mode-dialog .dialog-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-#terminal-mode-dialog .dialog-button,
-#modal-terminal-mode-dialog .dialog-button {
-  min-width: 180px;
-  padding: 10px 16px;
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 #terminal-mode-dialog .dialog-button.primary-button,
 #modal-terminal-mode-dialog .dialog-button.primary-button {
-  background-color: var(--vscode-button-background, #0078d4);
-  color: var(--vscode-button-foreground, #fff);
-  border: none;
+  background-color: #3f51b5;
+  color: #ffffff;
 }
 
 @keyframes pulse {

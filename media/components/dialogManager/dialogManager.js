@@ -306,6 +306,7 @@ class DialogManager {
     dialog.id = 'terminal-mode-dialog';
     dialog.className = 'dialog';
     
+    // ブルーランプテーマカラーに合わせたアイコンを追加
     dialog.innerHTML = `
       <div class="dialog-header">
         <div class="dialog-title">ターミナル表示モードを選択</div>
@@ -316,8 +317,14 @@ class DialogManager {
         <div class="project-info">現在のプロジェクト：<span class="current-project-name">${currentProject}</span></div>
       </div>
       <div class="dialog-footer">
-        <button id="split-terminal-btn" class="dialog-button primary-button">分割ターミナルで表示</button>
-        <button id="new-tab-terminal-btn" class="dialog-button">新しいタブで表示</button>
+        <button id="split-terminal-btn" class="dialog-button primary-button">
+          <span class="material-icons" style="font-size: 18px; margin-right: 8px;">vertical_split</span>
+          分割ターミナルで表示
+        </button>
+        <button id="new-tab-terminal-btn" class="dialog-button">
+          <span class="material-icons" style="font-size: 18px; margin-right: 8px;">tab</span>
+          新しいタブで表示
+        </button>
       </div>
     `;
     
@@ -333,11 +340,6 @@ class DialogManager {
     // ボタンのイベントリスナーを設定
     document.getElementById('split-terminal-btn').addEventListener('click', () => {
       // 分割ターミナルモードを選択（true）
-      console.log('【デバッグ】分割ターミナルボタンがクリックされました - splitTerminal=true を送信します');
-      
-      // デバッグメッセージを表示（開発者がダイアログの選択を確認できるように）
-      this.showDebugMessage('分割ターミナルモードを選択しました (splitTerminal=true)');
-      
       this.vscode.postMessage({
         command: 'launchPromptFromURL',
         url: url,
@@ -402,8 +404,14 @@ class DialogManager {
         <div class="project-info">現在のプロジェクト：<span class="current-project-name">${currentProject}</span></div>
       </div>
       <div class="dialog-footer">
-        <button id="modal-split-terminal-btn" class="dialog-button primary-button">分割ターミナルで表示</button>
-        <button id="modal-new-tab-terminal-btn" class="dialog-button">新しいタブで表示</button>
+        <button id="modal-split-terminal-btn" class="dialog-button primary-button">
+          <span class="material-icons" style="font-size: 18px; margin-right: 8px;">vertical_split</span>
+          分割ターミナルで表示
+        </button>
+        <button id="modal-new-tab-terminal-btn" class="dialog-button">
+          <span class="material-icons" style="font-size: 18px; margin-right: 8px;">tab</span>
+          新しいタブで表示
+        </button>
       </div>
     `;
     
@@ -419,11 +427,6 @@ class DialogManager {
     // ボタンのイベントリスナーを設定
     document.getElementById('modal-split-terminal-btn').addEventListener('click', () => {
       // 分割ターミナルモードを選択（true）
-      console.log('【デバッグ】モーダル内の分割ターミナルボタンがクリックされました - splitTerminal=true を送信します');
-      
-      // デバッグメッセージを表示
-      this.showDebugMessage('モーダル: 分割ターミナルモードを選択しました (splitTerminal=true)');
-      
       this.vscode.postMessage({
         command: 'launchPromptFromURL',
         url: url,

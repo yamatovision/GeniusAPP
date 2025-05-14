@@ -1,9 +1,10 @@
 {
-  "name": "appgenius-ai",
+  "name": "bluelamp",
   "displayName": "ブルーランプ",
   "description": "AI駆動の完全自動開発環境をVSCodeで提供",
-  "version": "1.0.22",
+  "version": "1.0.1",
   "publisher": "mikoto",
+  "icon": "media/assets/logos/bluelamp-logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/yamatovision/GeniusAPP.git"
@@ -176,7 +177,7 @@
       "activitybar": [
         {
           "id": "appgenius-explorer",
-          "title": "AppGenius AI",
+          "title": "ブルーランプ",
           "icon": "media/assets/icon.svg"
         }
       ]
