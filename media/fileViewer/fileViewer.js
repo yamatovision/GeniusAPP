@@ -356,6 +356,29 @@
   // ファイルリストを描画
   function renderFileList(files) {
     if (!files || files.length === 0) {
+      // ファイルが空の場合でも親ディレクトリへのナビゲーションボタンを表示
+      if (currentPath) {
+        const parentPath = getParentPath(currentPath);
+        if (parentPath !== currentPath) {
+          fileList.innerHTML = '';
+          const parentItem = document.createElement('li');
+          parentItem.className = 'file-item';
+          parentItem.innerHTML = `
+            <span class="material-icons file-item-icon">arrow_upward</span>
+            <span class="file-item-text">..</span>
+          `;
+          parentItem.addEventListener('click', () => {
+            navigateToDirectory(parentPath);
+          });
+          fileList.appendChild(parentItem);
+          // 「ファイルがありません」メッセージを追加
+          const noFilesMessage = document.createElement('div');
+          noFilesMessage.className = 'no-files';
+          noFilesMessage.textContent = 'ファイルがありません';
+          fileList.appendChild(noFilesMessage);
+          return;
+        }
+      }
       fileList.innerHTML = '<div class="no-files">ファイルがありません</div>';
       return;
     }
