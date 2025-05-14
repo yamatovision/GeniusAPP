@@ -226,36 +226,24 @@ export class ProjectServiceImpl implements IProjectService {
       await this._fileSystemService.ensureDirectoryExists(mockupsDir);
       
       // CLAUDE.mdファイルを作成
-      const claudeMdPath = path.join(projectDir, 'CLAUDE.md');
-      
-      // CLAUDETEMPLATEからCLAUDE.mdのコンテンツを作成
-      let claudeMdContent = '';
-      // 拡張機能のパスを使用して正確なテンプレートファイルを参照
-      const claudeTemplatePath = path.join(this._extensionPath, 'docs', 'CLAUDETEMPLATE.md');
       try {
-        if (fs.existsSync(claudeTemplatePath)) {
-          // テンプレートファイルを読み込む
-          claudeMdContent = fs.readFileSync(claudeTemplatePath, 'utf8');
-          // プロジェクト名とプロジェクト説明を置換
-          claudeMdContent = claudeMdContent
-            .replace(/# プロジェクト名/, `# ${name}`)
-            .replace(/\[プロジェクトの概要と目的を簡潔に記述してください。1-2段落程度が理想的です。\]/, description || `${name}プロジェクトの説明をここに記述します。`)
-            .replace(/\[コマンド\]/g, 'npm start'); // 開発コマンドの例を追加
-          
-          Logger.info(`ProjectService: CLAUDETEMPLATEを読み込みました: ${claudeTemplatePath}`);
-        } else {
-          // テンプレートが見つからない場合はデフォルトテンプレートを使用
-          claudeMdContent = this._getDefaultClaudeTemplate(name, description);
-          Logger.warn(`ProjectService: CLAUDETEMPLATEが見つかりませんでした。デフォルトテンプレートを使用します。検索パス: ${claudeTemplatePath}`);
-        }
+        // ClaudeMdServiceをインポートして使用
+        const { ClaudeMdService } = await import('../../../../utils/ClaudeMdService');
+        const claudeMdService = ClaudeMdService.getInstance();
+        
+        // ClaudeMdServiceを使用してCLAUDE.mdを生成
+        await claudeMdService.generateClaudeMd(projectDir, {
+          name: name,
+          description: description || ""
+        });
+        
+        Logger.info(`ProjectService: CLAUDE.mdを生成しました: ${path.join(projectDir, 'CLAUDE.md')}`);
       } catch (error) {
-        // エラーが発生した場合はデフォルトテンプレートを使用
-        claudeMdContent = this._getDefaultClaudeTemplate(name, description);
-        Logger.error(`ProjectService: CLAUDETEMPLATEの読み込みに失敗しました: ${claudeTemplatePath}`, error as Error);
+        Logger.error(`ProjectService: CLAUDE.md生成エラー: ${error}`, error as Error);
+        
+        // エラーが発生した場合は処理を続行（プロジェクト作成自体は失敗させない）
+        Logger.info(`ProjectService: プロジェクト作成は続行します`);
       }
-      
-      // ファイルに書き込み
-      fs.writeFileSync(claudeMdPath, claudeMdContent, 'utf8');
       
       // SCOPE_PROGRESS.mdファイルを作成
       await this._fileSystemService.createProgressFile(projectDir, name);
@@ -879,26 +867,7 @@ export class ProjectServiceImpl implements IProjectService {
     }
   }
   
-  /**
-   * デフォルトのCLAUDE.mdテンプレートを取得
-   */
-  private _getDefaultClaudeTemplate(projectName: string, description?: string): string {
-    return `# ${projectName}
-
-## プロジェクト概要
-
-${description || `${projectName}プロジェクトの説明をここに記述します。`}
-
-## 参考リンク
-
-- [要件定義](./docs/requirements.md)
-- [進捗状況](./docs/SCOPE_PROGRESS.md)
-
-## プロジェクト情報
-- 作成日: ${new Date().toISOString().split('T')[0]}
-- ステータス: 計画中
-`;
-  }
+  // _getDefaultClaudeTemplateメソッドは削除（ClaudeMdServiceに一元化）
   
   /**
    * プロジェクト一覧を更新して取得

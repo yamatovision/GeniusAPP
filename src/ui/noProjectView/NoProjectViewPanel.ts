@@ -342,7 +342,7 @@ export class NoProjectViewPanel {
           </div>
           <h2 class="no-project-title">新しい可能性を創造しましょう！</h2>
           <p class="no-project-text">
-            AppGenius AIがあなたの創造力を拡張します。新しいプロジェクトを始めて、AIと一緒に理想のアプリケーションを形にしましょう。
+            ブルーランプがあなたの創造力を拡張します。新しいプロジェクトを始めて、AIと一緒に理想のアプリケーションを形にしましょう。
             アイデアをコードに、ビジョンを現実に。すべての素晴らしい開発は、最初の一歩から始まります。
           </p>
           <div class="project-actions">

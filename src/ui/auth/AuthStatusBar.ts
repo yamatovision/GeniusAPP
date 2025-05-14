@@ -17,7 +17,7 @@ export class AuthStatusBar {
   private _isUpdating: boolean = false;
   
   // アイコン設定
-  private readonly ICON_LOGGED_IN = '$(person-filled)';
+  private readonly ICON_LOGGED_IN = '$(account)'; // ユーザーアイコンに変更
   private readonly ICON_LOGGED_OUT = '$(person)';
   private readonly ICON_ERROR = '$(warning)';
   private readonly ICON_UPDATING = '$(sync~spin)';
@@ -116,18 +116,19 @@ export class AuthStatusBar {
     }
 
     const state = this._simpleAuthService.getCurrentState();
-
-    // APIキー機能は廃止されたため、常に通常のログインアイコンを表示
-    const icon = this.ICON_LOGGED_IN;
     const displayName = state.username || 'ユーザー';
 
-    this._statusBarItem.text = `${icon} ${displayName}`;
+    // ユーザーアイコンとユーザー名を表示（コマンドの実行を示すようにスタイル変更）
+    this._statusBarItem.text = `${this.ICON_LOGGED_IN} ${displayName} $(chevron-down)`;
 
-    // ツールチップにAPIキー情報を追加
-    const apiKeyInfo = 'トークン認証'; // APIキー機能は廃止されました
-    this._statusBarItem.tooltip = `ブルーランプ: ${displayName} としてログイン中 (${apiKeyInfo})\nクリックしてログアウト`;
+    // ツールチップにクリック可能な要素についての説明を追加
+    this._statusBarItem.tooltip = `ブルーランプ: ${displayName} としてログイン中\nクリックしてログアウト`;
 
-    this._statusBarItem.command = 'appgenius.logout';
+    // コマンドをオブジェクト形式で設定（VSCode API 形式に準拠）
+    this._statusBarItem.command = {
+      title: 'ログアウト',
+      command: 'appgenius.logout'
+    };
     this._statusBarItem.backgroundColor = undefined;
   }
 
@@ -136,9 +137,12 @@ export class AuthStatusBar {
    * 未ログイン状態の表示更新
    */
   private _updateStatusBarForLoggedOut(): void {
-    this._statusBarItem.text = `${this.ICON_LOGGED_OUT} 未ログイン`;
+    this._statusBarItem.text = `${this.ICON_LOGGED_OUT} 未ログイン $(chevron-down)`;
     this._statusBarItem.tooltip = 'ブルーランプ: クリックしてログイン';
-    this._statusBarItem.command = 'appgenius.login';
+    this._statusBarItem.command = {
+      title: 'ログイン',
+      command: 'appgenius-ai.login'
+    };
     this._statusBarItem.backgroundColor = undefined;
   }
   

@@ -40,7 +40,8 @@ export class LoginWebviewPanel {
         enableScripts: true,
         retainContextWhenHidden: true,
         localResourceRoots: [
-          vscode.Uri.joinPath(extensionUri, 'media', 'components', 'auth')
+          vscode.Uri.joinPath(extensionUri, 'media', 'components', 'auth'),
+          vscode.Uri.joinPath(extensionUri, 'media', 'assets', 'logos')
         ]
       }
     );
@@ -131,6 +132,11 @@ export class LoginWebviewPanel {
         vscode.Uri.joinPath(this._extensionUri, 'media', 'components', 'auth', 'script.js')
       );
       
+      // ロゴ画像のURIを取得
+      const logoUri = webview.asWebviewUri(
+        vscode.Uri.joinPath(this._extensionUri, 'media', 'assets', 'logos', 'bluelamp-logo.png')
+      );
+      
       // APIエンドポイントなどの環境変数を挿入
       const portalApiUrl = process.env.PORTAL_API_URL || 'http://localhost:3000/api';
       
@@ -138,6 +144,7 @@ export class LoginWebviewPanel {
       html = html
         .replace('${styleUri}', styleUri.toString())
         .replace('${scriptUri}', scriptUri.toString())
+        .replace('${logoUri}', logoUri.toString())
         .replace('${apiBaseUrl}', portalApiUrl);
       
       return html;
@@ -155,6 +162,11 @@ export class LoginWebviewPanel {
     const styleUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, 'media', 'reset.css')
     );
+    
+    // ロゴ画像のURIを取得
+    const logoUri = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, 'media', 'assets', 'logos', 'bluelamp-logo.png')
+    );
 
     // ノンスの生成（CSP用）
     const nonce = this._getNonce();
@@ -164,7 +176,7 @@ export class LoginWebviewPanel {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
       <link href="${styleUri}" rel="stylesheet">
       <title>ブルーランプ ログイン</title>
       <style>
@@ -201,21 +213,12 @@ export class LoginWebviewPanel {
           margin-bottom: 25px;
         }
         
-        .logo {
-          width: 60px;
-          height: 60px;
+        .logo-image {
+          width: 200px;
           margin-bottom: 15px;
           display: block;
           margin-left: auto;
           margin-right: auto;
-          background-color: #4a6eff;
-          border-radius: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          font-weight: bold;
-          font-size: 24px;
         }
         
         .auth-title {
@@ -339,8 +342,7 @@ export class LoginWebviewPanel {
     <body>
       <div class="auth-container">
         <div class="auth-header">
-          <div class="logo">BL</div>
-          <h1 class="auth-title">ブルーランプ</h1>
+          <img src="${logoUri}" alt="ブルーランプ" class="logo-image">
           <p class="auth-subtitle">VSCode拡張機能認証</p>
         </div>
         
