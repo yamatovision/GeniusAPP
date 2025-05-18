@@ -20,7 +20,7 @@ const PromptSchema = new Schema({
   content: {
     type: String,
     required: [true, 'プロンプト内容は必須です'],
-    maxlength: [10000, 'プロンプト内容は10000文字以内で指定してください']
+    maxlength: [30000, 'プロンプト内容は30000文字以内で指定してください']
   },
   tags: [{
     type: String,
@@ -92,7 +92,7 @@ PromptSchema.statics.findPrompts = async function(filters = {}, options = {}) {
     // ページネーション
     if (options.page && options.limit) {
       const page = parseInt(options.page, 10) || 1;
-      const limit = parseInt(options.limit, 10) || 10;
+      const limit = parseInt(options.limit, 10) || 25;
       const skip = (page - 1) * limit;
       
       query.skip(skip).limit(limit);

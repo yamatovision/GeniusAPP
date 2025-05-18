@@ -25,11 +25,6 @@ import {
   Alert,
   Tooltip,
   Divider,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
   Snackbar
 } from '@mui/material';
 import { 
@@ -52,31 +47,28 @@ const PromptList = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareUrl, setShareUrl] = useState('');
-  const [claudeCodeUrl, setClaudeCodeUrl] = useState('');
   // カテゴリーフィルターを削除
   const [tags, setTags] = useState([]);
   const [selectedTags, setSelectedTags] = useState([]);
-  const [sortOrder, setSortOrder] = useState('updatedAt:desc');
+  const [sortOrder, setSortOrder] = useState('title:asc');
   const navigate = useNavigate();
 
   // タグデータの取得
   useEffect(() => {
-    const fetchMetadata = async () => {
+    const fetchTags = async () => {
       try {
         const data = await promptService.getCategoriesAndTags();
-        // カテゴリー取得を削除
         setTags(data.tags || []);
       } catch (err) {
-        console.error('メタデータ取得エラー:', err);
+        console.error('タグ取得エラー:', err);
       }
     };
 
-    fetchMetadata();
+    fetchTags();
   }, []);
 
   // プロンプト一覧取得
@@ -191,7 +183,7 @@ const PromptList = () => {
     }
   };
   
-  // プロンプト共有ハンドラ
+  // プロンプト共有ハンドラ - 直接URLをコピー
   const handleSharePrompt = async (id) => {
     try {
       if (!id) {
@@ -201,30 +193,26 @@ const PromptList = () => {
       
       const result = await promptService.createShareLink(id);
       
-      // 共有URLを設定
+      // 共有URLを設定してすぐにコピー
       setShareUrl(result.shareUrl);
-      setClaudeCodeUrl(result.claudeCodeUrl);
       
-      // ダイアログを開く
-      setShareDialogOpen(true);
+      // クリップボードにコピー
+      navigator.clipboard.writeText(result.shareUrl)
+        .then(() => {
+          setSuccess('公開APIのURLをクリップボードにコピーしました');
+          setTimeout(() => setSuccess(''), 3000);
+        })
+        .catch(err => {
+          console.error('コピーエラー:', err);
+          setError('URLのコピーに失敗しました');
+        });
     } catch (err) {
       setError('プロンプトの共有リンク生成に失敗しました');
       console.error('プロンプト共有エラー:', err);
     }
   };
   
-  // URLコピーハンドラ
-  const handleCopyUrl = (url) => {
-    navigator.clipboard.writeText(url)
-      .then(() => {
-        setSuccess('URLをクリップボードにコピーしました');
-        setTimeout(() => setSuccess(''), 3000);
-      })
-      .catch(err => {
-        console.error('コピーエラー:', err);
-        setError('URLのコピーに失敗しました');
-      });
-  };
+  // URLコピーハンドラは不要になりました - 共有ボタンクリック時に直接コピーするため
 
   // 新規プロンプト作成ページへ遷移
   const handleCreatePrompt = () => {
@@ -265,74 +253,7 @@ const PromptList = () => {
     );
   }
 
-  // 共有URLダイアログのレンダリング
-  const renderShareDialog = () => (
-    <Dialog 
-      open={shareDialogOpen} 
-      onClose={() => setShareDialogOpen(false)}
-      maxWidth="md"
-      fullWidth
-    >
-      <DialogTitle>プロンプト共有リンク</DialogTitle>
-      <DialogContent>
-        <DialogContentText sx={{ mb: 2 }}>
-          以下のリンクを使用して、このプロンプトを共有できます：
-        </DialogContentText>
-        
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" gutterBottom>公開API URL:</Typography>
-          <TextField
-            fullWidth
-            variant="outlined"
-            value={shareUrl}
-            InputProps={{
-              readOnly: true,
-              endAdornment: (
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  onClick={() => handleCopyUrl(shareUrl)}
-                  sx={{ ml: 1 }}
-                >
-                  コピー
-                </Button>
-              )
-            }}
-          />
-        </Box>
-        
-        <Box>
-          <Typography variant="subtitle1" gutterBottom>VSCode拡張用URL:</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            このURLをクリックすると、VSCode拡張のClaudeCodeがこのプロンプトを使用して起動します。
-          </Typography>
-          <TextField
-            fullWidth
-            variant="outlined"
-            value={claudeCodeUrl}
-            InputProps={{
-              readOnly: true,
-              endAdornment: (
-                <Button 
-                  variant="contained" 
-                  size="small" 
-                  onClick={() => handleCopyUrl(claudeCodeUrl)}
-                  sx={{ ml: 1 }}
-                >
-                  コピー
-                </Button>
-              )
-            }}
-          />
-        </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={() => setShareDialogOpen(false)} color="primary">
-          閉じる
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
+  // 共有ダイアログはリファクタリングにより削除されました
 
   return (
     <Container maxWidth="lg">
@@ -403,12 +324,12 @@ const PromptList = () => {
                   onChange={(e) => setSortOrder(e.target.value)}
                   label="並び替え"
                 >
+                  <MenuItem value="title:asc">タイトル (A-Z)</MenuItem>
+                  <MenuItem value="title:desc">タイトル (Z-A)</MenuItem>
                   <MenuItem value="updatedAt:desc">更新日時 (新しい順)</MenuItem>
                   <MenuItem value="updatedAt:asc">更新日時 (古い順)</MenuItem>
                   <MenuItem value="createdAt:desc">作成日時 (新しい順)</MenuItem>
                   <MenuItem value="createdAt:asc">作成日時 (古い順)</MenuItem>
-                  <MenuItem value="title:asc">タイトル (A-Z)</MenuItem>
-                  <MenuItem value="title:desc">タイトル (Z-A)</MenuItem>
                 </Select>
               </FormControl>
             </Grid>
@@ -451,7 +372,6 @@ const PromptList = () => {
               <TableHead>
                 <TableRow>
                   <TableCell>タイトル</TableCell>
-                  <TableCell>カテゴリー</TableCell>
                   <TableCell>タグ</TableCell>
                   <TableCell>最終更新日</TableCell>
                   <TableCell align="center">操作</TableCell>
@@ -462,7 +382,6 @@ const PromptList = () => {
                   // ローディング中の表示
                   Array.from(new Array(rowsPerPage)).map((_, index) => (
                     <TableRow key={`skeleton-${index}`}>
-                      <TableCell><Skeleton variant="text" /></TableCell>
                       <TableCell><Skeleton variant="text" /></TableCell>
                       <TableCell><Skeleton variant="text" /></TableCell>
                       <TableCell><Skeleton variant="text" /></TableCell>
@@ -488,15 +407,6 @@ const PromptList = () => {
                           {prompt.type === 'system' ? 'システムプロンプト' : 'ユーザープロンプト'}
                           {prompt.isPublic ? ' ・ 公開' : ' ・ 非公開'}
                         </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {prompt.category ? (
-                          <Chip size="small" label={prompt.category} />
-                        ) : (
-                          <Typography variant="caption" color="textSecondary">
-                            未設定
-                          </Typography>
-                        )}
                       </TableCell>
                       <TableCell>
                         <Box display="flex" flexWrap="wrap" gap={0.5}>
@@ -599,9 +509,6 @@ const PromptList = () => {
             }
           />
         </Paper>
-        
-        {/* 共有ダイアログ */}
-        {renderShareDialog()}
       </Box>
     </Container>
   );

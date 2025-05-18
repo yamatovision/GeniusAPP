@@ -187,17 +187,10 @@ const promptService = {
   },
   
   /**
-   * カテゴリーとタグの集計
-   * @returns {Promise<Object>} - カテゴリーとタグの使用頻度
+   * タグの集計
+   * @returns {Promise<Object>} - タグの使用頻度
    */
-  async getCategoriesAndTags() {
-    // カテゴリー集計
-    const categories = await Prompt.aggregate([
-      { $match: { isArchived: { $ne: true } } },
-      { $group: { _id: '$category', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]);
-    
+  async getTags() {
     // タグ集計
     const tags = await Prompt.aggregate([
       { $match: { isArchived: { $ne: true } } },
@@ -208,7 +201,6 @@ const promptService = {
     ]);
     
     return {
-      categories: categories.map(c => ({ name: c._id, count: c.count })),
       tags: tags.map(t => ({ name: t._id, count: t.count }))
     };
   }

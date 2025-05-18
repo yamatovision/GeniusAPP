@@ -11,17 +11,17 @@ const projectController = require('./project.controller');
  */
 const promptController = {
   /**
-   * カテゴリーとタグの集計を取得
+   * タグの集計を取得
    * @param {Object} req - リクエストオブジェクト
    * @param {Object} res - レスポンスオブジェクト
    */
   async getCategoriesAndTags(req, res) {
     try {
-      const metadata = await promptService.getCategoriesAndTags();
+      const metadata = await promptService.getTags();
       res.json(metadata);
     } catch (error) {
-      console.error('カテゴリーとタグの集計取得エラー:', error);
-      res.status(500).json({ message: 'カテゴリーとタグの集計取得中にエラーが発生しました' });
+      console.error('タグの集計取得エラー:', error);
+      res.status(500).json({ message: 'タグの集計取得中にエラーが発生しました' });
     }
   },
   
@@ -65,7 +65,7 @@ const promptController = {
    */
   async getAllPrompts(req, res) {
     try {
-      const { page = 1, limit = 10, sort, search, category, tags, project } = req.query;
+      const { page = 1, limit = 25, sort, search, tags, project } = req.query;
       
       // 検索フィルターの構築
       const filters = {};
@@ -106,10 +106,7 @@ const promptController = {
         );
       }
       
-      // カテゴリーフィルター
-      if (category) {
-        filters.category = category;
-      }
+      // カテゴリーフィルターは削除
       
       // タグフィルター
       if (tags) {
