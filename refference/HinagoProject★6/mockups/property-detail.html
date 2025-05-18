@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>物件詳細 | 土地購入意思決定支援システム</title>
+  <!-- Material UI -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mui/material@5.14.5/dist/material-ui.min.css">
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f5f5;
+      color: #333;
+    }
+    
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    header {
+      background-color: #1976d2;
+      color: white;
+      padding: 0 16px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 500;
+      text-decoration: none;
+      color: white;
+      display: flex;
+      align-items: center;
+    }
+    
+    .logo .material-icons {
+      margin-right: 8px;
+    }
+    
+    nav {
+      display: flex;
+      align-items: center;
+    }
+    
+    .nav-link {
+      color: white;
+      text-decoration: none;
+      padding: 0 16px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      transition: background-color 0.3s;
+    }
+    
+    .nav-link:hover, .nav-link.active {
+      background-color: rgba(255,255,255,0.1);
+    }
+    
+    .user-menu {
+      display: flex;
+      align-items: center;
+    }
+    
+    main {
+      flex: 1;
+      padding: 24px;
+      max-width: 1280px;
+      margin: 0 auto;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+    }
+    
+    .page-title {
+      font-size: 1.5rem;
+      font-weight: 500;
+      margin: 0;
+    }
+    
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    
+    .card-header {
+      padding: 16px;
+      border-bottom: 1px solid #eeeeee;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .card-title {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 500;
+    }
+    
+    .card-content {
+      padding: 24px;
+    }
+    
+    .tabs {
+      display: flex;
+      background-color: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .tab {
+      padding: 16px 24px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #666;
+      transition: all 0.3s;
+      border-bottom: 2px solid transparent;
+    }
+    
+    .tab.active {
+      color: #1976d2;
+      border-bottom-color: #1976d2;
+      background-color: white;
+    }
+    
+    .tab-content {
+      display: none;
+      padding: 24px 0;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .form-section {
+      margin-bottom: 32px;
+    }
+    
+    .section-title {
+      font-size: 1.1rem;
+      font-weight: 500;
+      margin: 0 0 16px 0;
+      color: #1976d2;
+      display: flex;
+      align-items: center;
+    }
+    
+    .section-title .material-icons {
+      font-size: 20px;
+      margin-right: 8px;
+    }
+    
+    .section-description {
+      font-size: 0.9rem;
+      color: #666;
+      margin-top: 4px;
+      margin-bottom: 16px;
+    }
+    
+    .two-column {
+      display: flex;
+      gap: 24px;
+    }
+    
+    .column {
+      flex: 1;
+    }
+    
+    .form-row {
+      margin-bottom: 24px;
+    }
+    
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      box-sizing: border-box;
+      transition: border-color 0.3s;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: #1976d2;
+      box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+    }
+    
+    .form-input[readonly] {
+      background-color: #f9f9f9;
+      cursor: not-allowed;
+    }
+    
+    .form-select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+      background-color: white;
+      box-sizing: border-box;
+      appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23333'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 20px;
+    }
+    
+    .form-helper {
+      font-size: 0.8rem;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .form-error {
+      font-size: 0.8rem;
+      color: #d32f2f;
+      margin-top: 4px;
+    }
+    
+    .button {
+      background-color: #1976d2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      padding: 12px 24px;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .button:hover {
+      background-color: #1565c0;
+    }
+    
+    .button.secondary {
+      background-color: #f5f5f5;
+      color: #333;
+      border: 1px solid #ddd;
+    }
+    
+    .button.secondary:hover {
+      background-color: #e0e0e0;
+    }
+    
+    .button.danger {
+      background-color: #f44336;
+      color: white;
+    }
+    
+    .button.danger:hover {
+      background-color: #d32f2f;
+    }
+    
+    .button .material-icons {
+      font-size: 18px;
+      margin-right: 8px;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #eee;
+    }
+    
+    .info-tooltip {
+      color: #1976d2;
+      font-size: 16px;
+      vertical-align: middle;
+      margin-left: 4px;
+      cursor: help;
+    }
+    
+    .required-label::after {
+      content: "*";
+      color: #d32f2f;
+      margin-left: 4px;
+    }
+    
+    .sub-fields {
+      background-color: #f9f9f9;
+      border-radius: 4px;
+      padding: 16px;
+      margin-top: 8px;
+    }
+    
+    .input-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .input-group .form-input {
+      flex: 1;
+    }
+    
+    .input-group .unit {
+      flex-shrink: 0;
+      color: #666;
+    }
+
+    .map-placeholder {
+      width: 100%;
+      height: 300px;
+      background-color: #e9e9e9;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      margin-top: 8px;
+      border: 1px solid #ccc;
+    }
+    
+    .toggle-section {
+      margin-top: 16px;
+    }
+    
+    .toggle-link {
+      color: #1976d2;
+      text-decoration: none;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+    }
+    
+    .toggle-link .material-icons {
+      font-size: 16px;
+      margin-right: 4px;
+      transition: transform 0.3s;
+    }
+    
+    .toggle-link.open .material-icons {
+      transform: rotate(90deg);
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      margin-left: 8px;
+    }
+    
+    .status-badge.active {
+      background-color: #e8f5e9;
+      color: #2e7d32;
+    }
+    
+    .status-badge.pending {
+      background-color: #fff8e1;
+      color: #f57f17;
+    }
+    
+    .status-badge.completed {
+      background-color: #e3f2fd;
+      color: #0d47a1;
+    }
+    
+    .history-card {
+      border-left: 2px solid #ddd;
+      padding-left: 16px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    
+    .history-card::before {
+      content: "";
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #1976d2;
+      left: -7px;
+      top: 4px;
+    }
+    
+    .history-date {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    
+    .history-title {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+    
+    .history-description {
+      font-size: 0.9rem;
+      color: #333;
+    }
+    
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .tag {
+      background-color: #e3f2fd;
+      color: #1976d2;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+    
+    .file-upload-area {
+      border: 2px dashed #ddd;
+      padding: 24px;
+      text-align: center;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+      margin-top: 8px;
+    }
+    
+    .file-list {
+      margin-top: 16px;
+    }
+    
+    .file-item {
+      display: flex;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      background-color: white;
+    }
+    
+    .file-icon {
+      margin-right: 8px;
+      color: #1976d2;
+    }
+    
+    .file-name {
+      flex: 1;
+      font-size: 0.9rem;
+    }
+    
+    .file-size {
+      font-size: 0.8rem;
+      color: #666;
+      margin-right: 16px;
+    }
+    
+    .file-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .file-button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #666;
+      transition: color 0.3s;
+    }
+    
+    .file-button:hover {
+      color: #1976d2;
+    }
+    
+    .file-button.delete:hover {
+      color: #f44336;
+    }
+    
+    @media (max-width: 768px) {
+      .two-column {
+        flex-direction: column;
+      }
+      
+      .actions {
+        flex-direction: column-reverse;
+        gap: 16px;
+      }
+      
+      .button {
+        width: 100%;
+      }
+      
+      .button-group {
+        width: 100%;
+      }
+      
+      .button-group .button {
+        flex: 1;
+      }
+      
+      .tabs {
+        flex-wrap: wrap;
+      }
+      
+      .tab {
+        padding: 12px 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <header>
+      <a href="#" class="logo">
+        <span class="material-icons">business</span>
+        Hinago
+      </a>
+      <nav>
+        <a href="#" class="nav-link">ダッシュボード</a>
+        <a href="#" class="nav-link active">物件管理</a>
+        <a href="#" class="nav-link">ボリュームチェック</a>
+        <a href="#" class="nav-link">収益性試算</a>
+      </nav>
+      <div class="user-menu">
+        <a href="#" class="nav-link">
+          <span class="material-icons">account_circle</span>
+        </a>
+      </div>
+    </header>
+    
+    <main>
+      <div class="page-header">
+        <h1 class="page-title">東区山鹿A区画
+          <span class="status-badge active">進行中</span>
+        </h1>
+        <div class="button-group">
+          <button class="button secondary">
+            <span class="material-icons">visibility</span>
+            印刷用表示
+          </button>
+          <button class="button">
+            <span class="material-icons">view_in_ar</span>
+            ボリュームチェックへ
+          </button>
+        </div>
+      </div>
+      
+      <div class="tabs">
+        <div class="tab active" data-tab="details">基本情報</div>
+        <div class="tab" data-tab="shape">敷地形状</div>
+        <div class="tab" data-tab="documents">図面・資料</div>
+        <div class="tab" data-tab="history">更新履歴</div>
+      </div>
+      
+      <div id="details-tab" class="tab-content active">
+        <form id="property-form">
+          <div class="card">
+            <div class="card-content">
+              <div class="form-section">
+                <h3 class="section-title">
+                  <span class="material-icons">apartment</span>
+                  物件情報
+                </h3>
+                <div class="two-column">
+                  <div class="column">
+                    <div class="form-row">
+                      <label class="form-label required-label" for="property-name">物件名</label>
+                      <input class="form-input" type="text" id="property-name" value="東区山鹿A区画">
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label required-label" for="property-address">住所</label>
+                      <input class="form-input" type="text" id="property-address" value="福岡市東区山鹿2-3-4">
+                      <div class="map-placeholder">
+                        <div>
+                          <img src="https://via.placeholder.com/600x300?text=地図" alt="物件地図" style="max-width: 100%; max-height: 300px;">
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="column">
+                    <div class="form-row">
+                      <label class="form-label required-label" for="property-area">敷地面積</label>
+                      <div class="input-group">
+                        <input class="form-input" type="number" id="property-area" value="330">
+                        <span class="unit">㎡</span>
+                      </div>
+                      <div class="form-helper">約 100 坪</div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="property-price">想定取得価格</label>
+                      <div class="input-group">
+                        <input class="form-input" type="number" id="property-price" value="50000000">
+                        <span class="unit">円</span>
+                      </div>
+                      <div class="form-helper">1坪あたり約 <span id="price-per-tsubo">500,000</span> 円</div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label" for="property-status">ステータス</label>
+                      <select class="form-select" id="property-status">
+                        <option value="new">新規</option>
+                        <option value="negotiating">交渉中</option>
+                        <option value="contracted">契約済み</option>
+                        <option value="completed">完了</option>
+                        <option value="active" selected>進行中</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="form-section">
+                <h3 class="section-title">
+                  <span class="material-icons">gavel</span>
+                  法規制情報
+                </h3>
+                <div class="section-description">
+                  建築基準法に基づく規制情報です。この情報はボリュームチェックの精度に直結します。
+                </div>
+                
+                <div class="two-column">
+                  <div class="column">
+                    <div class="form-row">
+                      <label class="form-label required-label" for="zone-type">用途地域</label>
+                      <select class="form-select" id="zone-type">
+                        <option value="">選択してください</option>
+                        <option value="category1">第一種低層住居専用地域</option>
+                        <option value="category2">第二種低層住居専用地域</option>
+                        <option value="category3">第一種中高層住居専用地域</option>
+                        <option value="category4">第二種中高層住居専用地域</option>
+                        <option value="category5">第一種住居地域</option>
+                        <option value="category6">第二種住居地域</option>
+                        <option value="category7">準住居地域</option>
+                        <option value="category8">近隣商業地域</option>
+                        <option value="category9" selected>商業地域</option>
+                        <option value="category10">準工業地域</option>
+                        <option value="category11">工業地域</option>
+                        <option value="category12">工業専用地域</option>
+                      </select>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label required-label" for="fire-zone">防火地域区分</label>
+                      <select class="form-select" id="fire-zone">
+                        <option value="">選択してください</option>
+                        <option value="fire" selected>防火地域</option>
+                        <option value="semi-fire">準防火地域</option>
+                        <option value="none">指定なし</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="column">
+                    <div class="form-row">
+                      <label class="form-label required-label" for="building-coverage">建蔽率</label>
+                      <div class="input-group">
+                        <input class="form-input" type="number" id="building-coverage" value="80">
+                        <span class="unit">%</span>
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label required-label" for="floor-area-ratio">容積率</label>
+                      <div class="input-group">
+                        <input class="form-input" type="number" id="floor-area-ratio" value="400">
+                        <span class="unit">%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div id="advanced-section">
+                  <div class="two-column">
+                    <div class="column">
+                      <div class="form-row">
+                        <label class="form-label" for="shadow-regulation">日影規制</label>
+                        <select class="form-select" id="shadow-regulation">
+                          <option value="">選択してください</option>
+                          <option value="type1">規制タイプ1（4時間/2.5時間）</option>
+                          <option value="type2" selected>規制タイプ2（5時間/3時間）</option>
+                          <option value="none">規制なし</option>
+                        </select>
+                      </div>
+                      <div class="form-row">
+                        <label class="form-label" for="height-limit">高さ制限</label>
+                        <div class="input-group">
+                          <input class="form-input" type="number" id="height-limit" value="31">
+                          <span class="unit">m</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="column">
+                      <div class="form-row">
+                        <label class="form-label" for="road-width">前面道路幅員</label>
+                        <div class="input-group">
+                          <input class="form-input" type="number" step="0.1" id="road-width" value="6.0">
+                          <span class="unit">m</span>
+                        </div>
+                      </div>
+                      <div class="form-row">
+                        <label class="form-label" for="allowed-building-area">許容建築面積</label>
+                        <div class="input-group">
+                          <input class="form-input" type="number" id="allowed-building-area" value="264.0" readonly>
+                          <span class="unit">㎡</span>
+                        </div>
+                        <div class="form-helper">敷地面積 × 建蔽率に基づく理論値</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="form-section">
+                <h3 class="section-title">
+                  <span class="material-icons">label</span>
+                  タグ
+                </h3>
+                <div class="tag-container">
+                  <div class="tag">商業地域</div>
+                  <div class="tag">東区</div>
+                  <div class="tag">収益物件</div>
+                  <div class="tag">角地</div>
+                  <div class="tag">+</div>
+                </div>
+              </div>
+              
+              <div class="form-section">
+                <h3 class="section-title">
+                  <span class="material-icons">description</span>
+                  備考・メモ
+                </h3>
+                <div class="form-row">
+                  <label class="form-label" for="property-notes">特記事項</label>
+                  <textarea class="form-input" id="property-notes" rows="4">東側に公園があり眺望良好。北側道路は交通量少なめ。近隣に商業施設多数。</textarea>
+                </div>
+              </div>
+              
+              <div class="actions">
+                <div class="button-group">
+                  <button type="button" class="button secondary">
+                    <span class="material-icons">arrow_back</span>
+                    物件一覧へ戻る
+                  </button>
+                  <button type="button" class="button danger">
+                    <span class="material-icons">delete</span>
+                    削除
+                  </button>
+                </div>
+                <div class="button-group">
+                  <button type="button" class="button secondary">
+                    <span class="material-icons">content_copy</span>
+                    複製
+                  </button>
+                  <button type="submit" class="button">
+                    <span class="material-icons">save</span>
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <div id="shape-tab" class="tab-content">
+        <div class="card">
+          <div class="card-content">
+            <div class="form-section">
+              <h3 class="section-title">
+                <span class="material-icons">map</span>
+                敷地形状
+              </h3>
+              <div class="section-description">
+                測量図から抽出した敷地形状データです。境界点の座標を編集したり、敷地形状を手動で調整できます。
+              </div>
+              
+              <div style="border: 2px solid #ddd; padding: 24px; text-align: center; border-radius: 4px; background-color: #f9f9f9; margin-bottom: 24px;">
+                <div style="margin-bottom: 16px; min-height: 300px; display: flex; align-items: center; justify-content: center; background-color: #f0f0f0; border-radius: 4px;">
+                  <img src="https://via.placeholder.com/800x400?text=敷地形状エディタ" alt="敷地形状エディタ" style="max-width: 100%; max-height: 300px;">
+                </div>
+              </div>
+              
+              <div class="two-column">
+                <div class="column">
+                  <div class="form-row">
+                    <label class="form-label" for="site-width">敷地間口 (m)</label>
+                    <input class="form-input" type="number" step="0.1" id="site-width" value="18.2">
+                  </div>
+                </div>
+                <div class="column">
+                  <div class="form-row">
+                    <label class="form-label" for="site-depth">敷地奥行 (m)</label>
+                    <input class="form-input" type="number" step="0.1" id="site-depth" value="18.1">
+                  </div>
+                </div>
+              </div>
+              
+              <div class="form-row">
+                <label class="form-label">境界点座標</label>
+                <div id="boundary-points" style="margin-bottom: 8px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; padding: 8px; border-radius: 4px; background-color: #fff;">
+                  <div class="boundary-point">
+                    <span>点1: X=0.0, Y=0.0</span>
+                  </div>
+                  <div class="boundary-point">
+                    <span>点2: X=18.2, Y=0.0</span>
+                  </div>
+                  <div class="boundary-point">
+                    <span>点3: X=18.2, Y=18.1</span>
+                  </div>
+                  <div class="boundary-point">
+                    <span>点4: X=0.0, Y=18.1</span>
+                  </div>
+                </div>
+                <div class="button-group">
+                  <button type="button" class="button secondary">
+                    <span class="material-icons">add</span>
+                    境界点を追加
+                  </button>
+                  <button type="button" class="button secondary">
+                    <span class="material-icons">edit</span>
+                    編集
+                  </button>
+                </div>
+              </div>
+              
+              <div class="actions">
+                <div class="button-group">
+                  <button type="button" class="button secondary">
+                    <span class="material-icons">refresh</span>
+                    リセット
+                  </button>
+                </div>
+                <div class="button-group">
+                  <button type="button" class="button">
+                    <span class="material-icons">save</span>
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="documents-tab" class="tab-content">
+        <div class="card">
+          <div class="card-content">
+            <div class="form-section">
+              <h3 class="section-title">
+                <span class="material-icons">folder</span>
+                図面・資料
+              </h3>
+              <div class="section-description">
+                測量図、公図、重要事項説明書など、物件に関連する図面や資料を管理できます。
+              </div>
+              
+              <div class="file-upload-area">
+                <span class="material-icons" style="font-size: 48px; margin-bottom: 8px; color: #1976d2;">cloud_upload</span>
+                <div style="margin-bottom: 16px;">
+                  ファイルをドラッグ＆ドロップするか、ファイルを選択してください
+                </div>
+                <input type="file" id="document-upload" style="display: none;">
+                <button type="button" class="button" onclick="document.getElementById('document-upload').click()">
+                  <span class="material-icons">file_upload</span>
+                  ファイルを選択
+                </button>
+                <div style="margin-top: 8px; font-size: 0.75rem; color: #666;">
+                  対応形式: PDF, DWG, DXF, JPG, PNG（最大20MB）
+                </div>
+              </div>
+              
+              <div class="file-list">
+                <div class="file-item">
+                  <span class="material-icons file-icon">picture_as_pdf</span>
+                  <div class="file-name">測量図.pdf</div>
+                  <div class="file-size">2.4 MB</div>
+                  <div class="file-actions">
+                    <button class="file-button">
+                      <span class="material-icons">visibility</span>
+                    </button>
+                    <button class="file-button">
+                      <span class="material-icons">download</span>
+                    </button>
+                    <button class="file-button delete">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="file-item">
+                  <span class="material-icons file-icon">image</span>
+                  <div class="file-name">公図写し.jpg</div>
+                  <div class="file-size">1.8 MB</div>
+                  <div class="file-actions">
+                    <button class="file-button">
+                      <span class="material-icons">visibility</span>
+                    </button>
+                    <button class="file-button">
+                      <span class="material-icons">download</span>
+                    </button>
+                    <button class="file-button delete">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </div>
+                </div>
+                
+                <div class="file-item">
+                  <span class="material-icons file-icon">picture_as_pdf</span>
+                  <div class="file-name">重要事項説明書.pdf</div>
+                  <div class="file-size">3.2 MB</div>
+                  <div class="file-actions">
+                    <button class="file-button">
+                      <span class="material-icons">visibility</span>
+                    </button>
+                    <button class="file-button">
+                      <span class="material-icons">download</span>
+                    </button>
+                    <button class="file-button delete">
+                      <span class="material-icons">delete</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="history-tab" class="tab-content">
+        <div class="card">
+          <div class="card-content">
+            <div class="form-section">
+              <h3 class="section-title">
+                <span class="material-icons">history</span>
+                更新履歴
+              </h3>
+              <div class="section-description">
+                物件情報の変更履歴を確認できます。
+              </div>
+              
+              <div style="margin-top: 24px;">
+                <div class="history-card">
+                  <div class="history-date">2025-05-14 15:30</div>
+                  <div class="history-title">物件情報を更新</div>
+                  <div class="history-description">建蔽率と容積率を更新しました。</div>
+                </div>
+                
+                <div class="history-card">
+                  <div class="history-date">2025-05-12 10:45</div>
+                  <div class="history-title">測量図をアップロード</div>
+                  <div class="history-description">測量図.pdfをアップロードし、敷地形状を更新しました。</div>
+                </div>
+                
+                <div class="history-card">
+                  <div class="history-date">2025-05-10 09:15</div>
+                  <div class="history-title">物件ステータスを変更</div>
+                  <div class="history-description">ステータスを「新規」から「進行中」に変更しました。</div>
+                </div>
+                
+                <div class="history-card">
+                  <div class="history-date">2025-05-08 14:20</div>
+                  <div class="history-title">物件を登録</div>
+                  <div class="history-description">新規物件「東区山鹿A区画」を登録しました。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  
+  <script>
+    // タブ切り替え
+    const tabs = document.querySelectorAll('.tab');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabId = tab.dataset.tab;
+        
+        tabs.forEach(t => t.classList.remove('active'));
+        tabContents.forEach(content => content.style.display = 'none');
+        
+        tab.classList.add('active');
+        document.getElementById(`${tabId}-tab`).style.display = 'block';
+      });
+    });
+    
+    // 敷地面積と建蔽率から許容建築面積を自動計算
+    const propertyAreaInput = document.getElementById('property-area');
+    const buildingCoverageInput = document.getElementById('building-coverage');
+    const allowedBuildingAreaInput = document.getElementById('allowed-building-area');
+    
+    function calculateAllowedBuildingArea() {
+      const area = parseFloat(propertyAreaInput.value) || 0;
+      const coverage = parseFloat(buildingCoverageInput.value) || 0;
+      
+      if (area > 0 && coverage > 0) {
+        const allowedArea = area * (coverage / 100);
+        allowedBuildingAreaInput.value = allowedArea.toFixed(2);
+      } else {
+        allowedBuildingAreaInput.value = '';
+      }
+    }
+    
+    propertyAreaInput.addEventListener('input', calculateAllowedBuildingArea);
+    buildingCoverageInput.addEventListener('input', calculateAllowedBuildingArea);
+    
+    // 坪単価の自動計算
+    const propertyPriceInput = document.getElementById('property-price');
+    const pricePerTsuboSpan = document.getElementById('price-per-tsubo');
+    
+    function calculatePricePerTsubo() {
+      const area = parseFloat(propertyAreaInput.value) || 0;
+      const price = parseFloat(propertyPriceInput.value) || 0;
+      
+      if (area > 0 && price > 0) {
+        // 1坪 = 3.30578 m²
+        const areaInTsubo = area / 3.30578;
+        const pricePerTsubo = price / areaInTsubo;
+        pricePerTsuboSpan.textContent = pricePerTsubo.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      } else {
+        pricePerTsuboSpan.textContent = '0';
+      }
+    }
+    
+    propertyAreaInput.addEventListener('input', calculatePricePerTsubo);
+    propertyPriceInput.addEventListener('input', calculatePricePerTsubo);
+    
+    // フォーム送信処理
+    const propertyForm = document.getElementById('property-form');
+    
+    if (propertyForm) {
+      propertyForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        // 実際のAPIリクエストをシミュレート
+        setTimeout(() => {
+          alert('物件情報が更新されました。');
+        }, 500);
+      });
+    }
+    
+    // 初期表示時に計算を実行
+    calculateAllowedBuildingArea();
+    calculatePricePerTsubo();
+  </script>
+</body>
+</html>

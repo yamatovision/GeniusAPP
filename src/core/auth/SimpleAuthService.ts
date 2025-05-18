@@ -95,22 +95,31 @@ export class SimpleAuthService {
       await this._loadTokens();
       
       // 認証状態復元
-      if (this._accessToken) {
-        const restored = await this._verifyAndRestoreSession();
-        // 認証情報の不整合対策: トークンがあるのにセッション復元に失敗した場合
-        if (!restored && this._accessToken) {
-          Logger.warn('SimpleAuthService: トークンは存在するがセッション復元に失敗。暫定対応として認証済み状態に設定');
-          // 認証状態を最低限の情報で強制的に有効に設定
-          const newState = new AuthStateBuilder()
-            .setAuthenticated(true)
-            .setUserId('unknown')
-            .setUsername('不明なユーザー')
-            .setRole(this._mapStringToRole('user'))
-            .setExpiresAt(this._tokenExpiry)
-            .build();
-          
-          this._updateAuthState(newState);
+      try {
+        if (this._accessToken) {
+          const restored = await this._verifyAndRestoreSession();
+          // 認証情報の不整合対策: トークンがあるのにセッション復元に失敗した場合
+          if (!restored && this._accessToken) {
+            Logger.warn('SimpleAuthService: トークンは存在するがセッション復元に失敗。暫定対応として認証済み状態に設定');
+            // 認証状態を最低限の情報で強制的に有効に設定
+            const newState = new AuthStateBuilder()
+              .setAuthenticated(true)
+              .setUserId('unknown')
+              .setUsername('不明なユーザー')
+              .setRole(this._mapStringToRole('user'))
+              .setExpiresAt(this._tokenExpiry)
+              .build();
+            
+            this._updateAuthState(newState);
+          }
         }
+      } catch (restoreError) {
+        // セッション復元に失敗した場合でも初期化プロセスは継続
+        Logger.error('SimpleAuthService: セッション復元中にエラーが発生しました。トークンをクリアします', restoreError as Error);
+        await this._clearTokens();
+        
+        // 認証状態をゲストに設定
+        this._updateAuthState(AuthStateBuilder.guest().build());
       }
       
       // 初期化後、認証状態をログに記録（デバッグ用）
@@ -522,6 +531,8 @@ export class SimpleAuthService {
       // リフレッシュトークンの検証 (空文字やnullでないか確認)
       if (!this._refreshToken || this._refreshToken === 'null' || this._refreshToken === 'undefined') {
         Logger.warn('SimpleAuthService: リフレッシュトークンが無効な形式です');
+        // トークンをクリア
+        await this._clearTokens();
         return false;
       }
       
@@ -529,11 +540,37 @@ export class SimpleAuthService {
       
       try {
         // APIリクエスト
-        const response = await axios.post(`${this.API_BASE_URL}/auth/refresh-token`, {
-          refreshToken: this._refreshToken
-        }, {
-          timeout: 10000  // 10秒タイムアウト
-        });
+        let response;
+        try {
+          response = await axios.post(`${this.API_BASE_URL}/auth/refresh-token`, {
+            refreshToken: this._refreshToken
+          }, {
+            timeout: 10000  // 10秒タイムアウト
+          });
+        } catch (requestError: any) {
+          // エラーレスポンス詳細をログ出力
+          if (requestError.response) {
+            Logger.error(`SimpleAuthService: リフレッシュAPIエラー - ステータス: ${requestError.response.status}`);
+            Logger.error(`SimpleAuthService: エラー詳細: ${JSON.stringify(requestError.response.data || {})}`);
+            
+            // 401エラーの場合、トークンを強制クリア
+            if (requestError.response.status === 401) {
+              Logger.warn('SimpleAuthService: リフレッシュトークンが無効です。認証情報をクリアします。');
+              await this._clearTokens();
+              // 認証状態をゲストに設定
+              this._updateAuthState(AuthStateBuilder.guest().build());
+              // ログアウトイベントを発行
+              this._onLogout.fire();
+            }
+          } else if (requestError.request) {
+            Logger.error('SimpleAuthService: リフレッシュAPIレスポンスなし (接続タイムアウトの可能性)');
+          } else {
+            Logger.error(`SimpleAuthService: リフレッシュAPIリクエスト前エラー: ${requestError.message}`);
+          }
+          
+          // エラーを返す（リフレッシュ失敗）
+          return false;
+        }
         
         if (response.data && response.data.success && response.data.data.accessToken) {
           Logger.info('SimpleAuthService: トークンリフレッシュ成功');
@@ -556,28 +593,20 @@ export class SimpleAuthService {
         // 成功レスポンスでないがエラーでもない場合の詳細ログ
         Logger.warn(`SimpleAuthService: トークンリフレッシュ失敗 - API応答: ${JSON.stringify(response.data)}`);
         return false;
-        
-      } catch (apiError: any) {
-        // エラーレスポンス詳細をログ出力
-        if (apiError.response) {
-          Logger.error(`SimpleAuthService: リフレッシュAPIエラー - ステータス: ${apiError.response.status}`);
-          Logger.error(`SimpleAuthService: エラー詳細: ${JSON.stringify(apiError.response.data || {})}`);
-          
-          // 401エラーの場合、トークンを強制クリア
-          if (apiError.response.status === 401) {
-            Logger.warn('SimpleAuthService: リフレッシュトークンが無効です。認証情報をクリアします。');
-            await this._clearTokens();
-          }
-        } else if (apiError.request) {
-          Logger.error('SimpleAuthService: リフレッシュAPIレスポンスなし (接続タイムアウトの可能性)');
-        } else {
-          Logger.error(`SimpleAuthService: リフレッシュAPIリクエスト前エラー: ${apiError.message}`);
-        }
-        
-        throw apiError; // 上位へエラーを伝播
+      } catch (error) {
+        Logger.error('SimpleAuthService: トークンリフレッシュ処理中のエラー', error as Error);
+        // 認証情報をクリア
+        await this._clearTokens();
+        // 認証状態をゲストに設定
+        this._updateAuthState(AuthStateBuilder.guest().build());
+        return false;
       }
     } catch (error) {
       Logger.error('SimpleAuthService: トークンリフレッシュエラー', error as Error);
+      // 認証情報をクリア
+      await this._clearTokens();
+      // 認証状態をゲストに設定
+      this._updateAuthState(AuthStateBuilder.guest().build());
       return false;
     }
   }

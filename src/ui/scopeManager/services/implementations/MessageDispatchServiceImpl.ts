@@ -32,6 +32,18 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   // イベントバス
   private _eventBus: AppGeniusEventBus;
   
+  // 特殊コマンドリスト（警告を表示しないコマンド）
+  private _specialCommands: string[] = [
+    'getHistory',
+    'refreshFileBrowser',
+    'deleteFromHistory',
+    'copyCommand',
+    'copyToClipboard',
+    'selectProject',
+    'launchPromptFromURL',
+    'openMarkdownViewer'
+  ];
+  
   // シングルトンインスタンス
   private static _instance: MessageDispatchServiceImpl;
   
@@ -175,6 +187,19 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
   }
   
   /**
+   * 特殊コマンドを登録（警告を表示しないコマンド）
+   * @param commands 特殊コマンドの配列
+   */
+  public registerSpecialCommands(commands: string[]): void {
+    commands.forEach(command => {
+      if (!this._specialCommands.includes(command)) {
+        this._specialCommands.push(command);
+      }
+    });
+    Logger.info(`MessageDispatchServiceImpl: ${commands.length}個の特殊コマンドを登録しました`);
+  }
+  
+  /**
    * WebViewからのメッセージを処理
    * @param message 受信したメッセージ
    * @param panel VSCodeのWebViewパネル
@@ -184,17 +209,8 @@ export class MessageDispatchServiceImpl implements IMessageDispatchService {
       // コマンド名のみログ出力
       Logger.debug(`MessageDispatchServiceImpl: 受信: ${message.command}`);
 
-      // ScopeManagerPanelで直接処理される特殊なコマンドのリスト
-      const specialCommands = [
-        'getHistory',
-        'refreshFileBrowser',
-        'deleteFromHistory',
-        'copyCommand',
-        'copyToClipboard'
-      ];
-
       // 特殊コマンドの場合は警告を出さずに無視
-      if (specialCommands.includes(message.command)) {
+      if (this._specialCommands.includes(message.command)) {
         // ScopeManagerPanelで直接処理されるコマンドなので何もしない
         return;
       }

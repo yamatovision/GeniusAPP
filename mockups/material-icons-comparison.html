@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Material Icons候補比較 - AppGenius</title>
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Material UI -->
+    <link rel="stylesheet" href="https://unpkg.com/@material-ui/core@4.12.4/umd/material-ui.development.js">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #3f51b5;
+            --secondary-color: #f50057;
+            --background-color: #f5f5f5;
+            --card-color: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #e0e0e0;
+            --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-color);
+            color: var(--text-primary);
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-weight: 500;
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-weight: 300;
+            margin-bottom: 20px;
+        }
+        
+        .icon-category {
+            background-color: var(--card-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        .category-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        
+        .category-header h2 {
+            margin: 0;
+            font-weight: 500;
+            color: var(--primary-color);
+        }
+        
+        .category-header .current-icon {
+            margin-left: 10px;
+            display: flex;
+            align-items: center;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .category-header .material-icons {
+            margin-left: 5px;
+            font-size: 20px;
+        }
+        
+        .icon-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .icon-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            width: 140px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .icon-option:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        
+        .icon-option.selected {
+            background-color: rgba(63, 81, 181, 0.1);
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(63, 81, 181, 0.3);
+        }
+        
+        .icon-large {
+            font-size: 40px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .icon-name {
+            font-size: 14px;
+            text-align: center;
+            color: var(--text-primary);
+        }
+        
+        .icon-description {
+            font-size: 12px;
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 5px;
+        }
+        
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-family: 'Roboto', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            margin-left: 10px;
+            transition: background-color 0.2s;
+        }
+        
+        .btn:hover {
+            background-color: #303f9f;
+        }
+        
+        .btn-secondary {
+            background-color: #f5f5f5;
+            color: var(--text-primary);
+            border: 1px solid #cccccc;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #eeeeee;
+        }
+        
+        .preview-section {
+            background-color: var(--card-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+            box-shadow: var(--shadow);
+        }
+        
+        .preview-title {
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .prompt-cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .prompt-card {
+            width: 180px;
+            border-radius: 8px;
+            padding: 15px;
+            background-color: white;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        
+        .category-tag {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: var(--secondary-color);
+            color: white;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        
+        .prompt-icon {
+            font-size: 28px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .prompt-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin: 8px 0;
+        }
+        
+        .prompt-description {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Material Icons 候補比較</h1>
+            <p class="subtitle">プロンプトカードのアイコン選択ガイド</p>
+        </header>
+        
+        <main>
+            <div class="icon-category">
+                <div class="category-header">
+                    <h2>★2 モックアップ作成</h2>
+                    <div class="current-icon">現在: <span class="material-icons">design_services</span> (design_services)</div>
+                </div>
+                <div class="icon-options">
+                    <div class="icon-option" data-icon="design_services" onclick="selectIcon(this, '★2')">
+                        <span class="material-icons icon-large">design_services</span>
+                        <span class="icon-name">design_services</span>
+                        <span class="icon-description">現在のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="brush" onclick="selectIcon(this, '★2')">
+                        <span class="material-icons icon-large">brush</span>
+                        <span class="icon-name">brush</span>
+                        <span class="icon-description">ペイントブラシのアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="palette" onclick="selectIcon(this, '★2')">
+                        <span class="material-icons icon-large">palette</span>
+                        <span class="icon-name">palette</span>
+                        <span class="icon-description">アーティストのパレット</span>
+                    </div>
+                    <div class="icon-option" data-icon="dashboard_customize" onclick="selectIcon(this, '★2')">
+                        <span class="material-icons icon-large">dashboard_customize</span>
+                        <span class="icon-name">dashboard_customize</span>
+                        <span class="icon-description">カスタマイズ可能なダッシュボード</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="icon-category">
+                <div class="category-header">
+                    <h2>★4 認証システム構造設計</h2>
+                    <div class="current-icon">現在: <span class="material-icons">architecture</span> (architecture)</div>
+                </div>
+                <div class="icon-options">
+                    <div class="icon-option" data-icon="architecture" onclick="selectIcon(this, '★4')">
+                        <span class="material-icons icon-large">architecture</span>
+                        <span class="icon-name">architecture</span>
+                        <span class="icon-description">現在のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="security" onclick="selectIcon(this, '★4')">
+                        <span class="material-icons icon-large">security</span>
+                        <span class="icon-name">security</span>
+                        <span class="icon-description">セキュリティ盾のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="schema" onclick="selectIcon(this, '★4')">
+                        <span class="material-icons icon-large">schema</span>
+                        <span class="icon-name">schema</span>
+                        <span class="icon-description">スキーマ/構造</span>
+                    </div>
+                    <div class="icon-option" data-icon="account_tree" onclick="selectIcon(this, '★4')">
+                        <span class="material-icons icon-large">account_tree</span>
+                        <span class="icon-name">account_tree</span>
+                        <span class="icon-description">ツリー構造</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="icon-category">
+                <div class="category-header">
+                    <h2>★5 API設計</h2>
+                    <div class="current-icon">現在: <span class="material-icons">api</span> (api)</div>
+                </div>
+                <div class="icon-options">
+                    <div class="icon-option" data-icon="api" onclick="selectIcon(this, '★5')">
+                        <span class="material-icons icon-large">api</span>
+                        <span class="icon-name">api</span>
+                        <span class="icon-description">現在のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="integration_instructions" onclick="selectIcon(this, '★5')">
+                        <span class="material-icons icon-large">integration_instructions</span>
+                        <span class="icon-name">integration_instructions</span>
+                        <span class="icon-description">統合指示</span>
+                    </div>
+                    <div class="icon-option" data-icon="developer_board" onclick="selectIcon(this, '★5')">
+                        <span class="material-icons icon-large">developer_board</span>
+                        <span class="icon-name">developer_board</span>
+                        <span class="icon-description">開発ボード</span>
+                    </div>
+                    <div class="icon-option" data-icon="settings_ethernet" onclick="selectIcon(this, '★5')">
+                        <span class="material-icons icon-large">settings_ethernet</span>
+                        <span class="icon-name">settings_ethernet</span>
+                        <span class="icon-description">イーサネット設定/接続</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="icon-category">
+                <div class="category-header">
+                    <h2>★7 バックエンド実装</h2>
+                    <div class="current-icon">現在: <span class="material-icons">database</span> (database)</div>
+                </div>
+                <div class="icon-options">
+                    <div class="icon-option" data-icon="database" onclick="selectIcon(this, '★7')">
+                        <span class="material-icons icon-large">database</span>
+                        <span class="icon-name">database</span>
+                        <span class="icon-description">現在のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="storage" onclick="selectIcon(this, '★7')">
+                        <span class="material-icons icon-large">storage</span>
+                        <span class="icon-name">storage</span>
+                        <span class="icon-description">ストレージ（より中央寄り）</span>
+                    </div>
+                    <div class="icon-option" data-icon="dns" onclick="selectIcon(this, '★7')">
+                        <span class="material-icons icon-large">dns</span>
+                        <span class="icon-name">dns</span>
+                        <span class="icon-description">DNSサーバー/バックエンド</span>
+                    </div>
+                    <div class="icon-option" data-icon="memory" onclick="selectIcon(this, '★7')">
+                        <span class="material-icons icon-large">memory</span>
+                        <span class="icon-name">memory</span>
+                        <span class="icon-description">メモリ/チップ表現</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="icon-category">
+                <div class="category-header">
+                    <h2>★11 GitHub</h2>
+                    <div class="current-icon">現在: <span class="material-icons">code</span> (code)</div>
+                </div>
+                <div class="icon-options">
+                    <div class="icon-option" data-icon="code" onclick="selectIcon(this, '★11')">
+                        <span class="material-icons icon-large">code</span>
+                        <span class="icon-name">code</span>
+                        <span class="icon-description">現在のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="source" onclick="selectIcon(this, '★11')">
+                        <span class="material-icons icon-large">source</span>
+                        <span class="icon-name">source</span>
+                        <span class="icon-description">ソースコード</span>
+                    </div>
+                    <div class="icon-option" data-icon="history" onclick="selectIcon(this, '★11')">
+                        <span class="material-icons icon-large">history</span>
+                        <span class="icon-name">history</span>
+                        <span class="icon-description">履歴/バージョン管理</span>
+                    </div>
+                    <div class="icon-option" data-icon="commit" onclick="selectIcon(this, '★11')">
+                        <span class="material-icons icon-large">commit</span>
+                        <span class="icon-name">commit</span>
+                        <span class="icon-description">コミット操作</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="icon-category">
+                <div class="category-header">
+                    <h2>★12 型エラー解決</h2>
+                    <div class="current-icon">現在: <span class="material-icons">code</span> (code)</div>
+                </div>
+                <div class="icon-options">
+                    <div class="icon-option" data-icon="code" onclick="selectIcon(this, '★12')">
+                        <span class="material-icons icon-large">code</span>
+                        <span class="icon-name">code</span>
+                        <span class="icon-description">現在のアイコン</span>
+                    </div>
+                    <div class="icon-option" data-icon="rule" onclick="selectIcon(this, '★12')">
+                        <span class="material-icons icon-large">rule</span>
+                        <span class="icon-name">rule</span>
+                        <span class="icon-description">ルール/型</span>
+                    </div>
+                    <div class="icon-option" data-icon="grading" onclick="selectIcon(this, '★12')">
+                        <span class="material-icons icon-large">grading</span>
+                        <span class="icon-name">grading</span>
+                        <span class="icon-description">グレーディング/チェック</span>
+                    </div>
+                    <div class="icon-option" data-icon="build" onclick="selectIcon(this, '★12')">
+                        <span class="material-icons icon-large">build</span>
+                        <span class="icon-name">build</span>
+                        <span class="icon-description">ビルド/構築ツール</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="preview-section">
+                <h3 class="preview-title">プレビュー</h3>
+                <div class="prompt-cards">
+                    <div class="prompt-card">
+                        <span class="material-icons prompt-icon" id="preview-★2">design_services</span>
+                        <div class="category-tag">★2</div>
+                        <h3 class="prompt-title">モックアップ作成</h3>
+                        <p class="prompt-description">要件に基づくUI/UX設計と画面実装</p>
+                    </div>
+                    
+                    <div class="prompt-card">
+                        <span class="material-icons prompt-icon" id="preview-★4">architecture</span>
+                        <div class="category-tag">★4</div>
+                        <h3 class="prompt-title">認証システム構造設計</h3>
+                        <p class="prompt-description">全体アーキテクチャと認証基盤の構築</p>
+                    </div>
+                    
+                    <div class="prompt-card">
+                        <span class="material-icons prompt-icon" id="preview-★5">api</span>
+                        <div class="category-tag">★5</div>
+                        <h3 class="prompt-title">API設計</h3>
+                        <p class="prompt-description">RESTful API仕様の定義と文書化</p>
+                    </div>
+                    
+                    <div class="prompt-card">
+                        <span class="material-icons prompt-icon" id="preview-★7">database</span>
+                        <div class="category-tag">★7</div>
+                        <h3 class="prompt-title">バックエンド実装</h3>
+                        <p class="prompt-description">データベースからAPIエンドポイントの構築</p>
+                    </div>
+                    
+                    <div class="prompt-card">
+                        <span class="material-icons prompt-icon" id="preview-★11">code</span>
+                        <div class="category-tag">★11</div>
+                        <h3 class="prompt-title">GitHub</h3>
+                        <p class="prompt-description">Gitを活用した安全なコード管理</p>
+                    </div>
+                    
+                    <div class="prompt-card">
+                        <span class="material-icons prompt-icon" id="preview-★12">code</span>
+                        <div class="category-tag">★12</div>
+                        <h3 class="prompt-title">型エラー解決</h3>
+                        <p class="prompt-description">TypeScript型整合性の確保と最適化</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="resetSelections()">リセット</button>
+                <button class="btn" onclick="generateCode()">コード生成</button>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        // 選択されたアイコンを追跡するオブジェクト
+        const selectedIcons = {
+            '★2': 'design_services',
+            '★4': 'architecture',
+            '★5': 'api',
+            '★7': 'database',
+            '★11': 'code',
+            '★12': 'code'
+        };
+        
+        // アイコン選択処理
+        function selectIcon(element, category) {
+            // 同じカテゴリーの選択をすべて解除
+            const options = document.querySelectorAll(`.icon-option[onclick*="${category}"]`);
+            options.forEach(opt => opt.classList.remove('selected'));
+            
+            // 選択したアイコンをハイライト
+            element.classList.add('selected');
+            
+            // 選択したアイコンを記録
+            const iconName = element.getAttribute('data-icon');
+            selectedIcons[category] = iconName;
+            
+            // プレビューを更新
+            updatePreview(category, iconName);
+        }
+        
+        // プレビュー更新
+        function updatePreview(category, iconName) {
+            const previewIcon = document.getElementById(`preview-${category}`);
+            if (previewIcon) {
+                previewIcon.textContent = iconName;
+            }
+        }
+        
+        // 全選択をリセット
+        function resetSelections() {
+            // デフォルト値に戻す
+            selectedIcons['★2'] = 'design_services';
+            selectedIcons['★4'] = 'architecture';
+            selectedIcons['★5'] = 'api';
+            selectedIcons['★7'] = 'database';
+            selectedIcons['★11'] = 'code';
+            selectedIcons['★12'] = 'code';
+            
+            // ハイライトをすべて解除
+            document.querySelectorAll('.icon-option').forEach(opt => opt.classList.remove('selected'));
+            
+            // 現在のアイコンをハイライト
+            document.querySelectorAll('[data-icon="design_services"][onclick*="★2"]')[0].classList.add('selected');
+            document.querySelectorAll('[data-icon="architecture"][onclick*="★4"]')[0].classList.add('selected');
+            document.querySelectorAll('[data-icon="api"][onclick*="★5"]')[0].classList.add('selected');
+            document.querySelectorAll('[data-icon="database"][onclick*="★7"]')[0].classList.add('selected');
+            document.querySelectorAll('[data-icon="code"][onclick*="★11"]')[0].classList.add('selected');
+            document.querySelectorAll('[data-icon="code"][onclick*="★12"]')[0].classList.add('selected');
+            
+            // プレビューを更新
+            Object.keys(selectedIcons).forEach(category => {
+                updatePreview(category, selectedIcons[category]);
+            });
+        }
+        
+        // promptInfo配列のコード生成
+        function generateCode() {
+            const codeSnippet = `// プロンプト情報マッピング - 更新版
+const promptInfo = [
+  { id: 0, name: "要件定義", icon: "description", category: "★1", description: "ビジネス要件を技術仕様に変換" },
+  { id: 1, name: "モックアップ作成", icon: "${selectedIcons['★2']}", category: "★2", description: "要件に基づくUI/UX設計と画面実装" },
+  { id: 2, name: "データモデル設計", icon: "storage", category: "★3", description: "エンティティ関係と型定義の構築" },
+  { id: 3, name: "認証システム構造設計", icon: "${selectedIcons['★4']}", category: "★4", description: "全体アーキテクチャと認証基盤の構築" },
+  { id: 4, name: "API設計", icon: "${selectedIcons['★5']}", category: "★5", description: "RESTful API仕様の定義と文書化" },
+  { id: 5, name: "実装計画書作成", icon: "assignment", category: "★6", description: "データフロー中心の実装戦略策定" },
+  { id: 6, name: "環境構築", icon: "settings", category: "★7", description: "開発/本番環境と認証情報の設定" },
+  { id: 7, name: "バックエンド実装", icon: "${selectedIcons['★7']}", category: "★8", description: "データベースからAPIエンドポイントの構築" },
+  { id: 8, name: "フロントエンド実装", icon: "web", category: "★9", description: "UIコンポーネントとAPI連携の実装" },
+  { id: 9, name: "デプロイ設定", icon: "cloud_upload", category: "★10", description: "クラウドサービスへの安定" },
+  { id: 10, name: "GitHub", icon: "${selectedIcons['★11']}", category: "★11", description: "Gitを活用した安全なコード管理" },
+  { id: 11, name: "型エラー解決", icon: "${selectedIcons['★12']}", category: "★12", description: "TypeScript型整合性の確保と最適化" },
+  { id: 12, name: "デバッグ探偵", icon: "bug_report", category: "★13", description: "エラーの問題の特定と修正" },
+  { id: 13, name: "機能追加計画", icon: "add_circle", category: "★14", description: "新機能の設計と既存システムへの統合" },
+  { id: 14, name: "リファクタリング", icon: "tune", category: "★15", description: "技術的負債の解消と保守性向上" }
+];`;
+            
+            // コードをクリップボードにコピー
+            navigator.clipboard.writeText(codeSnippet)
+                .then(() => {
+                    alert('コードをクリップボードにコピーしました！\n\npromptCards.jsの該当箇所を更新してください。');
+                })
+                .catch((error) => {
+                    alert('コードのコピーに失敗しました。手動でコピーしてください。');
+                    console.error('クリップボードへのコピーに失敗:', error);
+                    
+                    // コードを表示するモーダルを作成
+                    const modal = document.createElement('div');
+                    modal.style.position = 'fixed';
+                    modal.style.top = '0';
+                    modal.style.left = '0';
+                    modal.style.width = '100%';
+                    modal.style.height = '100%';
+                    modal.style.backgroundColor = 'rgba(0,0,0,0.7)';
+                    modal.style.zIndex = '1000';
+                    modal.style.display = 'flex';
+                    modal.style.justifyContent = 'center';
+                    modal.style.alignItems = 'center';
+                    
+                    const content = document.createElement('div');
+                    content.style.backgroundColor = 'white';
+                    content.style.padding = '20px';
+                    content.style.borderRadius = '5px';
+                    content.style.maxWidth = '80%';
+                    content.style.maxHeight = '80%';
+                    content.style.overflow = 'auto';
+                    
+                    const pre = document.createElement('pre');
+                    pre.style.whiteSpace = 'pre-wrap';
+                    pre.style.fontSize = '14px';
+                    pre.textContent = codeSnippet;
+                    
+                    const closeButton = document.createElement('button');
+                    closeButton.textContent = '閉じる';
+                    closeButton.style.marginTop = '20px';
+                    closeButton.style.padding = '10px 20px';
+                    closeButton.style.backgroundColor = '#3f51b5';
+                    closeButton.style.color = 'white';
+                    closeButton.style.border = 'none';
+                    closeButton.style.borderRadius = '4px';
+                    closeButton.style.cursor = 'pointer';
+                    closeButton.addEventListener('click', () => {
+                        document.body.removeChild(modal);
+                    });
+                    
+                    content.appendChild(pre);
+                    content.appendChild(closeButton);
+                    modal.appendChild(content);
+                    document.body.appendChild(modal);
+                });
+        }
+        
+        // ページ読み込み時に現在のアイコンをハイライト
+        document.addEventListener('DOMContentLoaded', function() {
+            resetSelections();
+        });
+    </script>
+</body>
+</html>

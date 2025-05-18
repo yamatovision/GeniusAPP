@@ -354,6 +354,22 @@ export class ServiceFactory {
       messageService.registerFileHandlers();
       messageService.registerSharingHandlers();
       
+      // 特殊コマンドを登録（警告を表示しないコマンド）
+      if (typeof messageService.registerSpecialCommands === 'function') {
+        const specialCommands = [
+          'selectProject',         // プロジェクト選択コマンド
+          'launchPromptFromURL',   // プロンプトURL起動コマンド
+          'openMarkdownViewer',    // マークダウンビューワー起動コマンド
+          'getHistory',            // 履歴取得コマンド
+          'deleteFromHistory',     // 履歴削除コマンド
+          'copyCommand',           // コマンドコピーコマンド
+          'copyToClipboard',       // クリップボードコピーコマンド
+          'refreshFileBrowser'     // ファイルブラウザ更新コマンド
+        ];
+        messageService.registerSpecialCommands(specialCommands);
+        Logger.info(`ServiceFactory: ${specialCommands.length}個の特殊コマンドを登録しました`);
+      }
+      
       // タブ状態サービスのメッセージハンドラーを登録
       tabStateService.registerMessageHandlers(messageService);
       

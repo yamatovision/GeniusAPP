@@ -1,4 +1,4 @@
-# ブルーランプ デプロイ情報（2025/05/14更新）
+# ブルーランプ デプロイ情報（2025/05/15更新）
 
 ## プロンプト管理システムのデプロイ構成
 
@@ -26,7 +26,11 @@
 
 #### 【重要】標準デプロイ手順（推奨）
 
-ポータルディレクトリに既に標準化されたデプロイスクリプト(`deploy.sh`)が用意されています。これを使用することで、環境差異を気にせず、一貫したデプロイが可能です。
+以下の2つのデプロイ方法があります：
+
+##### 方法1: デプロイスクリプトを使用（既存イメージを再利用）
+
+ポータルディレクトリに標準化されたデプロイスクリプト(`deploy.sh`)が用意されています。これを使用することで、環境差異を気にせず、一貫したデプロイが可能です。
 
 ```bash
 # ポータルディレクトリに移動
@@ -38,9 +42,32 @@ cd /path/to/AppGenius/portal
 
 このスクリプトは以下の処理を行います：
 1. 最新の検証済みイメージを使用
-2. 適切なサービス名（appgenius-portal-test）とリージョン設定
+2. 正しいサービス名（bluelamp）とリージョン設定
 3. 最適なリソース設定（メモリ、CPU、インスタンス数など）
 4. デプロイ完了後のURL表示
+
+##### 方法2: ソースコードから直接デプロイ（コード変更がある場合に推奨）
+
+ソースコードに変更がある場合（例：モデル定義やバリデーション変更）は、用意されているスクリプトでソースから直接デプロイできます：
+
+```bash
+# ポータルディレクトリに移動
+cd /path/to/AppGenius/portal
+
+# ソースコードからデプロイするスクリプトを実行
+./deploy-source.sh
+```
+
+このコマンドは以下の処理を行います：
+1. ソースコードをGoogle Cloudにアップロード
+2. Dockerfileに基づいてコンテナをビルド
+3. 新しいリビジョンをデプロイ
+4. トラフィックを新しいリビジョンにルーティング
+
+注意点：
+- このコマンドにはgcloudコマンドラインツールとGoogle Cloud SDKが必要です
+- ビルドはクラウド上で行われるため、ローカルにDockerが不要です
+- モデルやバリデーション変更などコード変更を含む場合はこの方法を使用してください
 
 スクリプトの実行には、Google Cloud SDKとgcloudコマンドラインツールのインストールおよび認証が必要です。
 
@@ -129,20 +156,19 @@ https://bluelamp-235426778039.asia-northeast1.run.app
 
 #### 標準デプロイ手順
 
-1. **Vercelアカウント設定**
-   - [Vercel](https://vercel.com/)にログイン（既にプロジェクトは作成済み）
+1. **環境設定の準備**
+   - フロントエンドディレクトリに移動:
+   ```bash
+   cd /path/to/AppGenius/portal/frontend
+   ```
 
-2. **環境変数の確認**
-   - Vercelダッシュボードでプロジェクトを選択
-   - 「Settings」→「Environment Variables」を開く
-   - `REACT_APP_API_URL`が正しいバックエンドURLを指していることを確認:
-     ```
-     REACT_APP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api
-     ```
+   - `.env.production`ファイルを確認/更新:
+   ```
+   REACT_APP_API_URL=https://bluelamp-235426778039.asia-northeast1.run.app/api
+   GENERATE_SOURCEMAP=false
+   ```
 
-3. **vercel.jsonの確認**
-   - `portal/frontend/vercel.json`ファイルを確認
-   - 以下のような設定になっていることを確認:
+   - `vercel.json`ファイルを確認/更新:
    ```json
    {
      "rewrites": [
@@ -155,23 +181,46 @@ https://bluelamp-235426778039.asia-northeast1.run.app
        "REACT_APP_API_URL": "https://bluelamp-235426778039.asia-northeast1.run.app/api"
      },
      "github": {
-       "enabled": true
+       "enabled": true,
+       "silent": false
      },
      "alias": ["geniemon.vercel.app"]
    }
    ```
 
-4. **デプロイコマンド**
-   - フロントエンドディレクトリに移動し、ビルドとデプロイを実行:
+2. **ビルドとデプロイ**
+   - フロントエンドをビルド:
    ```bash
-   cd portal/frontend
    npm run build
+   ```
+
+   - Vercelにデプロイ:
+   ```bash
    vercel --prod
    ```
 
-5. **デプロイURL**
-   - デプロイ後のURL: https://geniemon.vercel.app
-   - エイリアスURLも同じく: https://geniemon.vercel.app
+   - デプロイが完了すると、一時的なURLが生成されます（例: https://frontend-42k8ilulu-yamatovisions-projects.vercel.app）
+
+3. **エイリアス設定（重要）**
+   - デプロイ後、必ず標準URL（geniemon.vercel.app）へのエイリアスを設定:
+   ```bash
+   vercel alias set <デプロイURL> geniemon.vercel.app
+   ```
+   
+   - 例:
+   ```bash
+   vercel alias set frontend-42k8ilulu-yamatovisions-projects.vercel.app geniemon.vercel.app
+   ```
+
+4. **デプロイ確認**
+   - 最終的なURL: https://geniemon.vercel.app にアクセスして動作確認
+   - ブラウザのキャッシュをクリアして、確実に新しいバージョンを読み込むようにする
+   - ネットワークタブでAPIリクエストが正しいバックエンドURLに送信されていることを確認
+
+5. **継続的デプロイと自動エイリアス設定**
+   - Vercelダッシュボードでプロジェクトを選択
+   - 「Settings」→「Domains」で geniemon.vercel.app がデフォルトドメインになっていることを確認
+   - プロジェクト設定で「Git Integration」が有効になっていれば、GitHub変更時に自動デプロイされる
 
 ## 2. 開発環境構築
 

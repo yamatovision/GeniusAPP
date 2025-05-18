@@ -14,7 +14,7 @@ const PromptVersionSchema = new Schema({
   content: {
     type: String,
     required: [true, 'バージョン内容は必須です'],
-    maxlength: [10000, 'バージョン内容は10000文字以内で指定してください']
+    maxlength: [30000, 'バージョン内容は30000文字以内で指定してください']
   },
   description: {
     type: String,

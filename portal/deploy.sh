@@ -2,7 +2,7 @@
 set -e
 
 # 変数設定
-SERVICE_NAME=appgenius-portal-test
+SERVICE_NAME=bluelamp
 REGION=asia-northeast1
 
 # 既存のイメージを再利用したデプロイ（Dockerが必要ない方法）
@@ -17,7 +17,8 @@ gcloud run deploy $SERVICE_NAME \
   --port 5000 \
   --max-instances 100 \
   --concurrency 80 \
-  --timeout 5m
+  --timeout 5m \
+  --set-env-vars="NODE_ENV=production,API_HOST=bluelamp-235426778039.asia-northeast1.run.app"
 
 echo "デプロイが完了しました。"
-echo "サービスURL: https://appgenius-portal-test-235426778039.asia-northeast1.run.app"
+echo "サービスURL: https://bluelamp-235426778039.asia-northeast1.run.app"
