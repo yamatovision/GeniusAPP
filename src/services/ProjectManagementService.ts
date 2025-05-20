@@ -168,13 +168,15 @@ export class ProjectManagementService {
       // mockups/ディレクトリの作成
       this.ensureDirectoryExists(path.join(projectPath, 'mockups'));
       
-      // デバッグディレクトリの作成は不要なため削除
+      // バックエンド型定義ディレクトリの作成
+      this.ensureDirectoryExists(path.join(projectPath, 'backend', 'src', 'types'));
+      
+      // フロントエンド型定義ディレクトリの作成
+      this.ensureDirectoryExists(path.join(projectPath, 'frontend', 'src', 'types'));
       
       // ClaudeCode データ共有ディレクトリの作成
       this.ensureDirectoryExists(path.join(projectPath, '.claude_data'));
       this.ensureDirectoryExists(path.join(projectPath, '.claude_data', 'screenshots'));
-      
-      // 一時ファイル用ディレクトリの作成は不要なため削除
       
       // .gitignoreに.claude_data/を追加
       const gitignorePath = path.join(projectPath, '.gitignore');
@@ -193,8 +195,6 @@ export class ProjectManagementService {
           fs.writeFileSync(gitignorePath, updatedContent, 'utf8');
         }
       }
-      
-      // CURRENT_STATUSTEMPLATE.mdの作成は不要なため削除
     } catch (error) {
       Logger.error(`Failed to create initial documents: ${(error as Error).message}`);
     }
