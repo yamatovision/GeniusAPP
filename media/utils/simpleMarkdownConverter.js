@@ -124,6 +124,27 @@ class SimpleMarkdownConverter {
   }
   
   /**
+   * テーブルセル内のマークダウン記法をHTMLに変換する
+   * @param {string} cellContent セルのコンテンツ
+   * @returns {string} 変換後のHTML
+   */
+  _processCellMarkdown(cellContent) {
+    // 太字処理
+    let processed = cellContent.replace(/\*\*(.*?)\*\*/g, 
+      '<span style="font-weight:700; color:#003366;">$1</span>');
+    
+    // チェックボックス処理
+    processed = processed.replace(/\[x\]/g, '<input type="checkbox" checked>');
+    processed = processed.replace(/\[ \]/g, '<input type="checkbox">');
+    
+    // インラインコード処理
+    processed = processed.replace(/`([^`]+)`/g, 
+      '<code style="font-family:var(--vscode-editor-font-family,monospace); background-color:#1E1E1E; color:#FFFFFF; padding:0.2em 0.4em; border-radius:3px; font-size:0.85em; border:1px solid #3E3E3E;">$1</code>');
+    
+    return processed;
+  }
+
+  /**
    * マークダウンテーブルをHTMLに変換
    */
   _renderTable(tableText) {
@@ -155,10 +176,12 @@ class SimpleMarkdownConverter {
       // テーブル構築 - 直接HTMLタグとして処理して段落処理を回避
       let html = '<div class="table-container">\n<table class="md-table">\n<thead>\n<tr>\n';
 
-      // ヘッダー行
+      // ヘッダー行 - セル内のマークダウン記法を処理
       headers.forEach((header, i) => {
         const align = alignments[i] || 'left';
-        html += `<th style="text-align: ${align}">${header}</th>\n`;
+        // ヘッダーセル内のマークダウン記法を変換
+        const processedHeader = this._processCellMarkdown(header);
+        html += `<th style="text-align: ${align}">${processedHeader}</th>\n`;
       });
 
       html += '</tr>\n</thead>\n<tbody>\n';
@@ -174,7 +197,9 @@ class SimpleMarkdownConverter {
         html += '<tr>\n';
         cells.forEach((cell, j) => {
           const align = alignments[j] || 'left';
-          html += `<td style="text-align: ${align}">${cell}</td>\n`;
+          // セル内のマークダウン記法を変換
+          const processedCell = this._processCellMarkdown(cell);
+          html += `<td style="text-align: ${align}">${processedCell}</td>\n`;
         });
         html += '</tr>\n';
       }

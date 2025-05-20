@@ -613,6 +613,16 @@ project/
   - 参照: [/docs/plans/planning/ext-prompt-cards-update-20250520.md](/docs/plans/planning/ext-prompt-cards-update-20250520.md)
   - 内容: バックエンド実装とフロントエンド実装の間にテスト品質エンジニアプロンプトを追加し、後続のプロンプト番号を調整する
     
+- [ ] **T-PROMPT-1**: プロンプトカードの順序と名称変更
+  - 目標: 2025-05-21
+  - 参照: [/docs/plans/planning/ext-prompt-cards-update-20250520.md](/docs/plans/planning/ext-prompt-cards-update-20250520.md)
+  - 内容: プロンプトカードの順序を変更し（★11: デバッグ探偵、★12: デプロイ、★13: GitHub、★14: 型エラー解決、★15: 機能追加、★16: リファクタリング）、一部の名称をより簡潔にする
+    
+- [ ] **T-TEMPLATE-1**: テンプレートファイル自動更新機能の実装
+  - 目標: 2025-05-22
+  - 参照: [/docs/plans/planning/ext-template-update-20250520.md](/docs/plans/planning/ext-template-update-20250520.md)
+  - 内容: プロジェクト新規作成・読み込み時に最新のSCOPE_PROGRESS_TEMPLATEとCLAUDETEMPLATEに基づいてファイルを更新する機能を実装
+    
 - [ ] **UI-1**: ファイルビューワー自動更新機能の実装
   - 目標: 2025-05-17
   - 参照: [/docs/plans/planning/ext-docs-auto-refresh-20250514.md](/docs/plans/planning/ext-docs-auto-refresh-20250514.md)

@@ -23,3 +23,13 @@ AI/**
 参考/**
 .env
 *.vsix
+
+# 大きすぎるフォルダを除外
+refference/**
+.appgenius_temp/**
+.claude/**
+.claude_data/**
+.claude_ui_data/**
+.railway/**
+.github/**
+scripts/**

@@ -62,9 +62,24 @@ function setupGlobalContext(context: vscode.ExtensionContext): void {
  * ロガーを初期化する
  */
 function initializeLogger(): void {
-  // ロガーの初期化（自動表示をオンにする）
-  Logger.initialize('ブルーランプ', LogLevel.DEBUG, true);
-  Logger.info('ブルーランプが起動しました');
+  // 開発環境と本番環境で分ける
+  const isProduction = process.env.NODE_ENV === 'production';
+  const logLevel = isProduction ? LogLevel.WARN : LogLevel.DEBUG;
+  const autoShow = !isProduction; // 開発環境でのみ自動表示
+  
+  // ロガーの初期化
+  Logger.initialize('ブルーランプ', logLevel, autoShow);
+  
+  // 環境情報をログに出力
+  Logger.info(`ブルーランプが起動しました [環境: ${isProduction ? '本番' : '開発'}, ログレベル: ${LogLevel[logLevel]}]`);
+  
+  // 開発環境では明示的にログを表示
+  if (!isProduction) {
+    setTimeout(() => {
+      Logger.show();
+      Logger.info('=== デバッグモード: 詳細ログを表示しています ===');
+    }, 1000); // 1秒後に表示（起動処理完了後）
+  }
 }
 
 /**

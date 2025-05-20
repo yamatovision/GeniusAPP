@@ -180,6 +180,13 @@ export class ProjectServiceImpl implements IProjectService {
    */
   public async createProject(name: string, description: string): Promise<string> {
     try {
+      // 開発環境では目立つログマーカーを表示
+      if (process.env.NODE_ENV !== 'production') {
+        Logger.info('================================================');
+        Logger.info(`===== プロジェクト作成開始: ${name} =====`);
+        Logger.info('================================================');
+      }
+      
       Logger.info(`ProjectService: 新規プロジェクト作成: ${name}`);
       
       // フォルダ選択ダイアログを表示

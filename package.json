@@ -2,7 +2,7 @@
   "name": "bluelamp",
   "displayName": "ブルーランプ",
   "description": "AI駆動の完全自動開発環境をVSCodeで提供",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "publisher": "mikoto",
   "icon": "media/assets/logos/bluelamp-logo.png",
   "repository": {
