@@ -42,13 +42,23 @@ export interface PaginationParams {
 }
 
 /**
- * レスポンス共通構造
+ * 共通レスポンス形式
  */
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
-  error?: string;
-  meta?: Record<string, any>;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  meta?: {
+    total?: number;
+    page?: number;
+    limit?: number;
+    totalPages?: number;
+    [key: string]: any;
+  };
 }
 
 // ==========================================================
@@ -59,8 +69,6 @@ export interface ApiResponse<T> {
  * ユーザーロール
  */
 export enum UserRole {
-  ADMIN = 'admin',
-  MANAGER = 'manager',
   USER = 'user',
 }
 
@@ -89,6 +97,7 @@ export interface LoginData {
  */
 export interface AuthToken {
   token: string;
+  refreshToken: string;
   expiresAt: string;
 }
 
@@ -98,6 +107,31 @@ export interface AuthToken {
 export interface AuthResponse {
   user: User;
   token: AuthToken;
+}
+
+/**
+ * パスワードリセット要求
+ */
+export interface PasswordResetRequest {
+  email: string;
+}
+
+/**
+ * パスワードリセット確認
+ */
+export interface PasswordResetConfirm {
+  token: string;
+  password: string;
+}
+
+/**
+ * ユーザー登録データ
+ */
+export interface RegisterData {
+  email: string;
+  password: string;
+  name: string;
+  organizationName: string;
 }
 
 // ==========================================================
@@ -320,7 +354,10 @@ export interface VolumeCheckResult {
   consumptionRate: number;   // 容積消化率（%）
   floors: Floor[];           // 階別情報
   createdAt: Date;
-  model3dData?: any;         // 3Dモデルデータ（型は実装に依存）
+  model3dData?: {
+    url: string;
+    format: string;
+  };
 }
 
 // ==========================================================
@@ -468,17 +505,21 @@ export interface HistoryEntry extends Timestamps {
 export const API_PATHS = {
   // 認証関連
   AUTH: {
+    BASE: '/api/auth',
     LOGIN: '/api/auth/login',
     LOGOUT: '/api/auth/logout',
     REGISTER: '/api/auth/register',
     REFRESH: '/api/auth/refresh',
+    PASSWORD_RESET_REQUEST: '/api/auth/password-reset/request',
+    PASSWORD_RESET_CONFIRM: '/api/auth/password-reset/confirm',
+    ME: '/api/auth/me'
   },
   
   // ユーザー関連
   USERS: {
     BASE: '/api/users',
     DETAIL: (userId: string) => `/api/users/${userId}`,
-    PROFILE: (userId: string) => `/api/users/${userId}/profile`,
+    PROFILE: '/api/users/profile',
   },
   
   // 組織関連
@@ -495,17 +536,62 @@ export const API_PATHS = {
     HISTORY: (propertyId: string) => `/api/properties/${propertyId}/history`,
     UPLOAD_SURVEY: '/api/properties/upload-survey',
     SHAPE: (propertyId: string) => `/api/properties/${propertyId}/shape`,
+    VOLUME_CHECKS: (propertyId: string) => `/api/properties/${propertyId}/volume-checks`,
+  },
+  
+  // 文書関連
+  DOCUMENTS: {
+    DETAIL: (documentId: string) => `/api/documents/${documentId}`,
+    DOWNLOAD: (documentId: string) => `/api/documents/${documentId}/download`,
   },
   
   // 分析関連
   ANALYSIS: {
-    VOLUME_CHECK: '/api/analysis/volume-check',
-    PROFITABILITY: '/api/analysis/profitability',
-    SCENARIOS: '/api/analysis/scenarios',
+    // ボリュームチェック
+    VOLUME_CHECK: {
+      BASE: '/api/analysis/volume-check',
+      DETAIL: (id: string) => `/api/analysis/volume-check/${id}`,
+      EXPORT: (id: string) => `/api/analysis/volume-check/${id}/export`,
+      MODEL: (id: string) => `/api/analysis/volume-check/${id}/model`,
+    },
+    // 収益性試算
+    PROFITABILITY: {
+      BASE: '/api/analysis/profitability',
+      DETAIL: (id: string) => `/api/analysis/profitability/${id}`,
+      EXPORT: (id: string) => `/api/analysis/profitability/${id}/export`,
+      COMPARE: '/api/analysis/profitability/compare',
+    },
+    // シナリオ
+    SCENARIOS: {
+      BASE: '/api/analysis/scenarios',
+      DETAIL: (id: string) => `/api/analysis/scenarios/${id}`,
+    },
   },
   
   // ジオコーディング関連
   GEO: {
     GEOCODE: '/api/geocode',
+  }
+};
+
+// ==========================================================
+// 認証設定
+// ==========================================================
+
+export const API_AUTH_CONFIG = {
+  // 認証が不要なパブリックエンドポイント
+  PUBLIC_ENDPOINTS: [
+    API_PATHS.AUTH.LOGIN,
+    API_PATHS.AUTH.REGISTER,
+    API_PATHS.AUTH.REFRESH,
+    API_PATHS.AUTH.PASSWORD_RESET_REQUEST,
+    API_PATHS.AUTH.PASSWORD_RESET_CONFIRM,
+  ],
+  
+  // アクセストークン設定
+  TOKEN_CONFIG: {
+    ACCESS_TOKEN_EXPIRY: 15 * 60, // 15分（秒単位）
+    REFRESH_TOKEN_EXPIRY: 7 * 24 * 60 * 60, // 7日（秒単位）
+    REFRESH_TOKEN_EXPIRY_REMEMBER: 30 * 24 * 60 * 60, // 30日（秒単位）
   }
 };

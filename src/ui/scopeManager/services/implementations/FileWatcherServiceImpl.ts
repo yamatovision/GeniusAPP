@@ -100,8 +100,8 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
   }
   
   /**
-   * docsディレクトリの監視を設定
-   * ファイルビューワー用にdocsディレクトリ全体（サブディレクトリを含む）の変更を監視する
+   * プロジェクトディレクトリの監視を設定
+   * ファイルビューワー用にプロジェクト全体（サブディレクトリを含む）の変更を監視する
    * 
    * @param projectPath プロジェクトパス
    * @param fileSystemService FileSystemServiceのインスタンス
@@ -124,22 +124,19 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
         throw new Error('fileSystemServiceが提供されていません');
       }
 
-      Logger.info(`FileWatcherService: docsディレクトリの監視を設定します: ${projectPath}`);
+      Logger.info(`FileWatcherService: プロジェクト全体の監視を設定します: ${projectPath}`);
       
-      // docsディレクトリのパスを取得
-      const docsDir = path.join(projectPath, 'docs');
-      
-      // ディレクトリの存在を確認
-      if (!fs.existsSync(docsDir)) {
-        Logger.warn(`FileWatcherService: docsディレクトリが存在しません: ${docsDir}`);
+      // プロジェクトディレクトリの存在を確認
+      if (!fs.existsSync(projectPath)) {
+        Logger.warn(`FileWatcherService: プロジェクトディレクトリが存在しません: ${projectPath}`);
         return { dispose: () => {} };
       }
       
       // FileSystemServiceImpl.setupDocsDirectoryWatcherを使って監視を設定
-      const docsWatcher = fileSystemService.setupDocsDirectoryWatcher(
+      const projectWatcher = fileSystemService.setupDocsDirectoryWatcher(
         projectPath,
         (filePath: string) => {
-          Logger.info(`FileWatcherService: docsディレクトリ内のファイル変更を検出: ${filePath}`);
+          Logger.info(`FileWatcherService: プロジェクト内のファイル変更を検出: ${filePath}`);
           
           try {
             // ファイル変更イベントをコールバックに通知
@@ -165,10 +162,10 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
         { delayedReadTime: options?.delayedReadTime || 500 }
       );
       
-      Logger.info(`FileWatcherService: docsディレクトリの監視を設定しました: ${docsDir}`);
-      return docsWatcher;
+      Logger.info(`FileWatcherService: プロジェクト全体の監視を設定しました: ${projectPath}`);
+      return projectWatcher;
     } catch (error) {
-      Logger.error('FileWatcherService: docsディレクトリ監視の設定中にエラーが発生しました', error as Error);
+      Logger.error('FileWatcherService: プロジェクト監視の設定中にエラーが発生しました', error as Error);
       return { dispose: () => {} };
     }
   }

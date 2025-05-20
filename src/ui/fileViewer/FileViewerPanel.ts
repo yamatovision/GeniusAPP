@@ -518,8 +518,8 @@ export class FileViewerPanel {
         }
       );
       
-      // docs ディレクトリの監視設定を追加
-      this._setupDocsFileWatcher();
+      // プロジェクト全体の監視設定を追加
+      this._setupProjectFileWatcher();
       
       Logger.info(`FileViewerPanel: ファイル監視が設定されました: ${this._currentProjectPath}`);
     } catch (error) {
@@ -528,10 +528,10 @@ export class FileViewerPanel {
   }
   
   /**
-   * docsディレクトリの監視を設定
-   * ファイルビューワーが開いている時のみdocsディレクトリの変更を監視する
+   * プロジェクト全体の監視を設定
+   * ファイルビューワーが開いている時にプロジェクト全体の変更を監視する
    */
-  private _setupDocsFileWatcher(): void {
+  private _setupProjectFileWatcher(): void {
     try {
       if (!this._currentProjectPath) {
         return;
@@ -542,12 +542,12 @@ export class FileViewerPanel {
       const { FileWatcherServiceImpl } = require('../scopeManager/services/implementations/FileWatcherServiceImpl');
       const fileWatcherService = FileWatcherServiceImpl.getInstance();
       
-      // docs ディレクトリを監視
-      const docsWatcher = fileWatcherService.setupDocsDirectoryWatcher(
+      // プロジェクト全体を監視
+      const projectWatcher = fileWatcherService.setupDocsDirectoryWatcher(
         this._currentProjectPath,
         this._fileSystemService,
         (filePath: string) => {
-          Logger.info(`FileViewerPanel: docsディレクトリのファイル変更を検出: ${filePath}`);
+          Logger.info(`FileViewerPanel: プロジェクト内のファイル変更を検出: ${filePath}`);
           
           // 現在表示中のディレクトリに関係するファイルの変更か確認
           const currentDir = this._getCurrentDisplayedDirectory();
@@ -582,15 +582,15 @@ export class FileViewerPanel {
           if (oldWatcher) {
             oldWatcher.dispose();
           }
-          if (docsWatcher) {
-            docsWatcher.dispose();
+          if (projectWatcher) {
+            projectWatcher.dispose();
           }
         }
       };
       
-      Logger.info(`FileViewerPanel: docsディレクトリの監視が設定されました: ${this._currentProjectPath}`);
+      Logger.info(`FileViewerPanel: プロジェクト全体の監視が設定されました: ${this._currentProjectPath}`);
     } catch (error) {
-      Logger.error('FileViewerPanel: docsディレクトリ監視の設定に失敗しました', error as Error);
+      Logger.error('FileViewerPanel: プロジェクト監視の設定に失敗しました', error as Error);
     }
   }
   

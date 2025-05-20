@@ -1,1 +1,45 @@
-.claude_data/
+# 環境変数ファイル
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+backend/.env.*
+backend/update_password.js
+frontend/.env.*
+
+# 依存関係ディレクトリ
+node_modules/
+dist/
+build/
+coverage/
+
+# ログファイル
+*.log
+logs/
+
+# OSが生成する一時ファイル
+.DS_Store
+Thumbs.db
+
+# エディタ固有のファイル
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 機密情報を含む可能性のあるファイル
+**/config/secrets.js
+**/credentials.json
+**/deployment/secrets/
+
+# テストとスクリプトフォルダ
+/test/
+/tests/
+/script/
+/scripts/
+/__tests__/
+
+# デプロイ関連の機密ファイル
+docs/deployment/secrets/

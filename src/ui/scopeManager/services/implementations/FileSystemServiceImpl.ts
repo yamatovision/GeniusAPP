@@ -587,8 +587,8 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
   }
   
   /**
-   * docsディレクトリの監視を設定
-   * ディレクトリ内のすべてのファイル（サブディレクトリ含む）の変更を監視
+   * プロジェクト全体の監視を設定
+   * プロジェクト内のすべてのファイル（サブディレクトリ含む）の変更を監視
    * @param projectPath プロジェクトのパス
    * @param outputCallback ファイル変更時のコールバック
    * @param options 追加オプション（遅延読み込み時間など）
@@ -603,16 +603,13 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         throw new Error('プロジェクトパスが指定されていません');
       }
       
-      // docsディレクトリのパスを構築
-      const docsDir = path.join(projectPath, 'docs');
-      
       // ディレクトリの存在を確認
-      if (!fs.existsSync(docsDir)) {
-        Logger.warn(`FileSystemService: docsディレクトリが存在しません: ${docsDir}`);
+      if (!fs.existsSync(projectPath)) {
+        Logger.warn(`FileSystemService: プロジェクトディレクトリが存在しません: ${projectPath}`);
         return { dispose: () => {} };
       }
       
-      Logger.info(`FileSystemService: docsディレクトリの監視を開始します: ${docsDir}`);
+      Logger.info(`FileSystemService: プロジェクト全体の監視を開始します: ${projectPath}`);
       
       // 遅延読み込み時間（デフォルトは500ms）
       const delayedReadTime = options?.delayedReadTime || 500;
@@ -624,16 +621,22 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
       const pendingUpdates = new Set<string>();
       
       // VSCodeのファイルシステムウォッチャーを使用
-      // docs/**/* パターンでサブディレクトリを含むすべてのファイルを監視
+      // projectPath/**/* パターンでサブディレクトリを含むすべてのファイルを監視
       const watcher = vscode.workspace.createFileSystemWatcher(
         new vscode.RelativePattern(
-          vscode.Uri.file(docsDir),
+          vscode.Uri.file(projectPath),
           '**/*'
         )
       );
       
       // 変更イベントハンドラー
       const handleFileChange = (filePath: string) => {
+        // node_modules、.git などの監視対象外のディレクトリやファイルはスキップ
+        if (filePath.includes('node_modules') || filePath.includes('.git') || 
+            filePath.includes('.DS_Store') || filePath.includes('.vscode')) {
+          return;
+        }
+        
         // ファイルパスを追跡対象に追加
         pendingUpdates.add(filePath);
         
@@ -644,7 +647,7 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         
         // 新しいタイマーを設定
         debounceTimer = setTimeout(() => {
-          Logger.info(`FileSystemService: docsディレクトリ内の${pendingUpdates.size}ファイルの変更をバッチ処理します`);
+          Logger.info(`FileSystemService: プロジェクト内の${pendingUpdates.size}ファイルの変更をバッチ処理します`);
           
           // 保留中のすべてのファイルに対してコールバックを実行
           for (const path of pendingUpdates) {
@@ -679,7 +682,7 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
         handleFileChange(uri.fsPath);
       });
       
-      Logger.info(`FileSystemService: docsディレクトリの監視を設定しました: ${docsDir}`);
+      Logger.info(`FileSystemService: プロジェクト全体の監視を設定しました: ${projectPath}`);
       
       // 複合Disposableを返す（タイマーとウォッチャーを適切に解放）
       return {
@@ -690,11 +693,11 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
             debounceTimer = null;
           }
           pendingUpdates.clear();
-          Logger.info(`FileSystemService: docsディレクトリの監視を終了しました: ${docsDir}`);
+          Logger.info(`FileSystemService: プロジェクト全体の監視を終了しました: ${projectPath}`);
         }
       };
     } catch (error) {
-      Logger.error(`FileSystemService: docsディレクトリ監視の設定中にエラーが発生しました: ${projectPath}`, error as Error);
+      Logger.error(`FileSystemService: プロジェクト監視の設定中にエラーが発生しました: ${projectPath}`, error as Error);
       // エラー時は空のDisposableを返す
       return { dispose: () => {} };
     }

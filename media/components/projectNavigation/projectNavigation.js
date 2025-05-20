@@ -135,7 +135,7 @@ class ProjectNavigation {
         <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
           <div>
             <span class="project-name" ${isActive ? 'style="font-weight: 600;"' : ''}>${displayName}</span>
-            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: block; margin-top: 2px;">${project.path || 'パスなし'}</span>
+            <span class="project-path" style="font-size: 10px; color: var(--app-text-secondary); display: none;">${project.path || 'パスなし'}</span>
           </div>
           <button class="remove-project-btn" title="プロジェクトの登録を解除" style="background: none; border: none; cursor: pointer; color: var(--app-text-secondary); opacity: 0.5; font-size: 16px;">
             <span class="material-icons" style="font-size: 16px;">close</span>

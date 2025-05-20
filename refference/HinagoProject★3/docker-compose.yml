@@ -1,0 +1,89 @@
+version: '3.8'
+
+services:
+  # MongoDBサービス
+  mongodb:
+    image: mongo:5.0
+    container_name: hinago-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_USER:-hinago}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_PASSWORD:-password}
+      - MONGO_INITDB_DATABASE=hinago-project
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - hinago-network
+
+  # バックエンドサービス
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    container_name: hinago-backend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - MONGODB_URI=mongodb://${MONGODB_USER:-hinago}:${MONGODB_PASSWORD:-password}@mongodb:27017/hinago-project?authSource=admin
+      - JWT_SECRET=${JWT_SECRET:-dev-jwt-secret}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-dev-jwt-refresh-secret}
+      - CORS_ORIGIN=http://localhost:3001
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+      - ./shared:/shared
+    depends_on:
+      - mongodb
+    networks:
+      - hinago-network
+
+  # フロントエンドサービス
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: hinago-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - REACT_APP_API_URL=http://localhost:3000/api
+      - REACT_APP_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - ./shared:/shared
+    depends_on:
+      - backend
+    networks:
+      - hinago-network
+
+  # LocalStack (AWS S3エミュレータ)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: hinago-localstack
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - ./localstack:/docker-entrypoint-initaws.d
+      - localstack_data:/tmp/localstack
+    networks:
+      - hinago-network
+
+volumes:
+  mongodb_data:
+  localstack_data:
+
+networks:
+  hinago-network:
+    driver: bridge

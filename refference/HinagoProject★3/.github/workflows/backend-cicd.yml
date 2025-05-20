@@ -1,0 +1,34 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: yamatovision-blue-lamp
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        export_default_credentials: true
+
+    - name: Build and push Docker image
+      run: |
+        cd backend
+        gcloud builds submit --tag gcr.io/yamatovision-blue-lamp/hinago-backend:${{ github.sha }}
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy hinago-backend-service \
+          --image gcr.io/yamatovision-blue-lamp/hinago-backend:${{ github.sha }} \
+          --platform managed \
+          --region asia-northeast1 \
+          --allow-unauthenticated \
+          --set-env-vars="MONGODB_URI=${{ secrets.MONGODB_URI }},NODE_ENV=production,JWT_SECRET=${{ secrets.JWT_SECRET }},JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }},CORS_ORIGIN=https://hinago-project.web.app"

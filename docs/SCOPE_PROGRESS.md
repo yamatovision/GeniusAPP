@@ -607,6 +607,11 @@ project/
   - 目標: 2025-05-20
   - 参照: [/docs/refactoring/prompt-cards-update-20250518.md](/docs/refactoring/prompt-cards-update-20250518.md)
   - 内容: プロンプトカードの表示テキストとURLを最新情報に更新
+
+- [ ] **T-TEST-1**: テスト品質エンジニアプロンプトの追加と番号の整理
+  - 目標: 2025-05-21
+  - 参照: [/docs/plans/planning/ext-prompt-cards-update-20250520.md](/docs/plans/planning/ext-prompt-cards-update-20250520.md)
+  - 内容: バックエンド実装とフロントエンド実装の間にテスト品質エンジニアプロンプトを追加し、後続のプロンプト番号を調整する
     
 - [ ] **UI-1**: ファイルビューワー自動更新機能の実装
   - 目標: 2025-05-17
