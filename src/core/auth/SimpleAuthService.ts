@@ -519,6 +519,49 @@ export class SimpleAuthService {
   /**
    * アクセストークンをリフレッシュ
    */
+  /**
+   * リトライ可能なAPI呼び出し
+   * 一時的なネットワークエラーに対応するためのヘルパーメソッド
+   */
+  private async _retryApiCall<T>(apiCall: () => Promise<T>, retries: number = 3, delay: number = 1000): Promise<T | null> {
+    let lastError: Error | null = null;
+    
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        // API呼び出しを試行
+        return await apiCall();
+      } catch (error: any) {
+        lastError = error;
+        Logger.warn(`SimpleAuthService: API呼び出し失敗 (${attempt}/${retries}回目): ${error.message}`);
+        
+        // これが最終試行の場合は、再試行せずに失敗として処理
+        if (attempt >= retries) {
+          break;
+        }
+        
+        // 接続タイムアウトやネットワークエラーの場合のみ再試行
+        const isTimeout = error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'));
+        const isNetworkError = !error.response && error.request;
+        
+        if (!isTimeout && !isNetworkError) {
+          Logger.warn('SimpleAuthService: このエラーは再試行できないタイプのエラーです。中断します');
+          break;
+        }
+        
+        // 再試行前に遅延を入れる（指数バックオフ）
+        const waitTime = delay * Math.pow(2, attempt - 1);
+        Logger.info(`SimpleAuthService: ${waitTime}ms後に再試行します...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
+    }
+    
+    // すべての試行が失敗した場合
+    if (lastError) {
+      Logger.error(`SimpleAuthService: API呼び出しが${retries}回失敗しました: ${lastError.message}`);
+    }
+    return null;
+  }
+
   private async _refreshAccessToken(): Promise<boolean> {
     try {
       Logger.info('SimpleAuthService: トークンリフレッシュ開始');
@@ -539,36 +582,44 @@ export class SimpleAuthService {
       Logger.info(`SimpleAuthService: リフレッシュトークン検証OK - トークン接頭辞: ${this._refreshToken.substring(0, 5)}...`);
       
       try {
-        // APIリクエスト
-        let response;
-        try {
-          response = await axios.post(`${this.API_BASE_URL}/auth/refresh-token`, {
+        // APIリクエスト（リトライロジック付き）
+        const apiCall = async () => {
+          return await axios.post(`${this.API_BASE_URL}/auth/refresh-token`, {
             refreshToken: this._refreshToken
           }, {
-            timeout: 10000  // 10秒タイムアウト
+            timeout: 20000  // 20秒タイムアウト（延長）
           });
-        } catch (requestError: any) {
-          // エラーレスポンス詳細をログ出力
-          if (requestError.response) {
-            Logger.error(`SimpleAuthService: リフレッシュAPIエラー - ステータス: ${requestError.response.status}`);
-            Logger.error(`SimpleAuthService: エラー詳細: ${JSON.stringify(requestError.response.data || {})}`);
-            
-            // 401エラーの場合、トークンを強制クリア
-            if (requestError.response.status === 401) {
-              Logger.warn('SimpleAuthService: リフレッシュトークンが無効です。認証情報をクリアします。');
-              await this._clearTokens();
-              // 認証状態をゲストに設定
-              this._updateAuthState(AuthStateBuilder.guest().build());
-              // ログアウトイベントを発行
-              this._onLogout.fire();
-            }
-          } else if (requestError.request) {
-            Logger.error('SimpleAuthService: リフレッシュAPIレスポンスなし (接続タイムアウトの可能性)');
-          } else {
-            Logger.error(`SimpleAuthService: リフレッシュAPIリクエスト前エラー: ${requestError.message}`);
-          }
+        };
+        
+        // 最大3回、1秒間隔でリトライ
+        const response = await this._retryApiCall(apiCall, 3, 1000);
+        
+        // すべてのリトライが失敗した場合
+        if (!response) {
+          Logger.error('SimpleAuthService: リフレッシュトークンリクエストが複数回失敗しました');
           
-          // エラーを返す（リフレッシュ失敗）
+          // 一時的なネットワークエラーによる認証切断を防ぐために、
+          // トークンが有効期限内であれば認証状態を維持
+          if (this._tokenExpiry && this._tokenExpiry > Date.now()) {
+            Logger.warn('SimpleAuthService: 一時的なネットワークエラーと判断。認証状態を維持します');
+            return true; // 認証状態を維持
+          } else {
+            // トークンが期限切れの場合は認証状態をクリア
+            Logger.warn('SimpleAuthService: トークンが期限切れか、致命的なエラー。認証状態をクリアします');
+            await this._clearTokens();
+            this._updateAuthState(AuthStateBuilder.guest().build());
+            return false;
+          }
+        }
+        
+        // レスポンスエラーの処理
+        if (response.status === 401) {
+          Logger.warn('SimpleAuthService: リフレッシュトークンが無効です。認証情報をクリアします。');
+          await this._clearTokens();
+          // 認証状態をゲストに設定
+          this._updateAuthState(AuthStateBuilder.guest().build());
+          // ログアウトイベントを発行
+          this._onLogout.fire();
           return false;
         }
         
@@ -877,15 +928,37 @@ export class SimpleAuthService {
 
       Logger.info(`SimpleAuthService: アクセストークン存在 - トークン接頭辞=${this._accessToken.substring(0, 5)}...`);
 
-      // トークン有効期限チェック
-      if (this._tokenExpiry && this._tokenExpiry < Date.now()) {
-        Logger.info('SimpleAuthService: トークン期限切れ、リフレッシュ試行');
-        console.log('SimpleAuthService: トークン期限切れ、リフレッシュ試行');
+      // トークン有効期限チェック - 期限切れまたは30分以内に期限切れになる場合は事前にリフレッシュ
+      const now = Date.now();
+      const isExpired = this._tokenExpiry && this._tokenExpiry < now;
+      const isExpiringShortly = this._tokenExpiry && (this._tokenExpiry - now < 30 * 60 * 1000); // 30分以内
+      
+      if (isExpired || isExpiringShortly) {
+        const reason = isExpired ? '期限切れ' : '期限が近い';
+        Logger.info(`SimpleAuthService: トークン${reason}、リフレッシュ試行`);
+        console.log(`SimpleAuthService: トークン${reason}、リフレッシュ試行`);
+        
         const refreshed = await this._refreshAccessToken();
         if (!refreshed) {
-          Logger.info('SimpleAuthService: リフレッシュ失敗');
-          console.log('SimpleAuthService: リフレッシュ失敗');
-          return false;
+          // リフレッシュ失敗時の処理を改善
+          // 期限切れの場合のみエラーとし、まだ有効ならそのまま継続
+          if (isExpired) {
+            Logger.info('SimpleAuthService: 期限切れトークンのリフレッシュ失敗');
+            console.log('SimpleAuthService: 期限切れトークンのリフレッシュ失敗');
+            return false;
+          } else {
+            Logger.warn('SimpleAuthService: 事前リフレッシュは失敗しましたが、トークンはまだ有効です');
+            console.log('SimpleAuthService: 事前リフレッシュは失敗しましたが、トークンはまだ有効です');
+            // トークンがまだ有効なら、少し待ってから再度リフレッシュを試みる非同期タスクを開始
+            setTimeout(async () => {
+              try {
+                Logger.info('SimpleAuthService: バックグラウンドでリフレッシュを再試行');
+                await this._refreshAccessToken();
+              } catch (retryError) {
+                Logger.error('SimpleAuthService: バックグラウンドリフレッシュ再試行エラー', retryError as Error);
+              }
+            }, 60000); // 1分後に再試行
+          }
         }
       }
 
@@ -925,13 +998,32 @@ export class SimpleAuthService {
       console.log(`SimpleAuthService: リクエスト送信 URL=${requestUrl}`);
       console.log(`SimpleAuthService: トークン接頭辞=${this._accessToken.substring(0, 8)}...`);
 
-      // APIリクエスト
-      const response = await axios.get(requestUrl, {
-        headers: {
-          'Authorization': `Bearer ${this._accessToken}`,
-          'Content-Type': 'application/json'
+      // APIリクエスト（リトライロジック付き）
+      const apiCall = async () => {
+        return await axios.get(requestUrl, {
+          headers: {
+            'Authorization': `Bearer ${this._accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000 // 15秒タイムアウト
+        });
+      };
+      
+      // 最大2回、1秒間隔でリトライ
+      const response = await this._retryApiCall(apiCall, 2, 1000);
+      
+      // すべてのリトライが失敗した場合
+      if (!response) {
+        Logger.error('SimpleAuthService: サーバートークン検証リクエストが複数回失敗しました');
+        
+        // 一時的なネットワークエラーの場合は、トークンが有効期限内であれば認証状態を維持
+        if (this._tokenExpiry && this._tokenExpiry > Date.now()) {
+          Logger.warn('SimpleAuthService: 一時的なネットワークエラーと判断。認証状態を維持します');
+          return true; // 認証状態を維持
         }
-      });
+        
+        return false;
+      }
 
       // レスポンスをログに記録
       Logger.info(`SimpleAuthService: レスポンス受信 status=${response.status}`);
