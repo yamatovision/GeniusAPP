@@ -522,42 +522,76 @@ export class SimpleAuthService {
   /**
    * リトライ可能なAPI呼び出し
    * 一時的なネットワークエラーに対応するためのヘルパーメソッド
+   * ETIMEDOUTエラーを含む一時的な接続障害に対する堅牢性を向上
    */
   private async _retryApiCall<T>(apiCall: () => Promise<T>, retries: number = 3, delay: number = 1000): Promise<T | null> {
     let lastError: Error | null = null;
     
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
+        Logger.info(`SimpleAuthService: API呼び出し試行 (${attempt}/${retries}回目)`);
         // API呼び出しを試行
-        return await apiCall();
+        const result = await apiCall();
+        
+        // 成功した場合のログ
+        if (attempt > 1) {
+          Logger.info(`SimpleAuthService: API呼び出し成功 (${attempt}回目で成功)`);
+        }
+        
+        return result;
       } catch (error: any) {
         lastError = error;
         Logger.warn(`SimpleAuthService: API呼び出し失敗 (${attempt}/${retries}回目): ${error.message}`);
         
+        // エラーの詳細情報をログ出力（デバッグ用）
+        if (error.code) {
+          Logger.debug(`SimpleAuthService: エラーコード: ${error.code}`);
+        }
+        if (error.response) {
+          Logger.debug(`SimpleAuthService: レスポンスステータス: ${error.response.status}`);
+        }
+        
         // これが最終試行の場合は、再試行せずに失敗として処理
         if (attempt >= retries) {
+          Logger.error(`SimpleAuthService: 最大試行回数に到達。最終エラー: ${error.message}`);
           break;
         }
         
-        // 接続タイムアウトやネットワークエラーの場合のみ再試行
-        const isTimeout = error.code === 'ECONNABORTED' || (error.message && error.message.includes('timeout'));
+        // 再試行可能なエラーかを判定
+        const isTimeout = error.code === 'ECONNABORTED' || 
+                          error.code === 'ETIMEDOUT' || 
+                          (error.message && (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')));
         const isNetworkError = !error.response && error.request;
+        const isConnectionError = error.code === 'ECONNRESET' || 
+                                  error.code === 'ENOTFOUND' || 
+                                  error.code === 'ECONNREFUSED';
+        const isServerError = error.response && error.response.status >= 500;
         
-        if (!isTimeout && !isNetworkError) {
-          Logger.warn('SimpleAuthService: このエラーは再試行できないタイプのエラーです。中断します');
+        const shouldRetry = isTimeout || isNetworkError || isConnectionError || isServerError;
+        
+        if (!shouldRetry) {
+          Logger.warn(`SimpleAuthService: このエラーは再試行できないタイプのエラーです (${error.code || 'UNKNOWN'}): ${error.message}`);
           break;
         }
         
-        // 再試行前に遅延を入れる（指数バックオフ）
-        const waitTime = delay * Math.pow(2, attempt - 1);
-        Logger.info(`SimpleAuthService: ${waitTime}ms後に再試行します...`);
+        // 再試行前に遅延を入れる（指数バックオフ + ジッター）
+        const baseWaitTime = delay * Math.pow(2, attempt - 1);
+        const jitter = Math.random() * 0.3 * baseWaitTime; // 30%のジッター
+        const waitTime = Math.floor(baseWaitTime + jitter);
+        
+        Logger.info(`SimpleAuthService: ${waitTime}ms後に再試行します... (エラータイプ: ${error.code || 'NETWORK'})`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     
     // すべての試行が失敗した場合
     if (lastError) {
-      Logger.error(`SimpleAuthService: API呼び出しが${retries}回失敗しました: ${lastError.message}`);
+      Logger.error(`SimpleAuthService: API呼び出しが${retries}回失敗しました: ${lastError.message}`, lastError);
+      Logger.error('SimpleAuthService: Error details:', {
+        code: lastError.code,
+        message: lastError.message,
+        stack: lastError.stack
+      });
     }
     return null;
   }
@@ -591,8 +625,8 @@ export class SimpleAuthService {
           });
         };
         
-        // 最大3回、1秒間隔でリトライ
-        const response = await this._retryApiCall(apiCall, 3, 1000);
+        // 最大4回、1秒間隔でリトライ（リフレッシュ時はより多くリトライ）
+        const response = await this._retryApiCall(apiCall, 4, 1000);
         
         // すべてのリトライが失敗した場合
         if (!response) {
@@ -998,19 +1032,57 @@ export class SimpleAuthService {
       console.log(`SimpleAuthService: リクエスト送信 URL=${requestUrl}`);
       console.log(`SimpleAuthService: トークン接頭辞=${this._accessToken.substring(0, 8)}...`);
 
+      // 開始時刻を記録（タイムアウト解析用）
+      const startTime = Date.now();
+      Logger.info(`SimpleAuthService: リクエスト開始時刻=${new Date(startTime).toISOString()}`);
+
       // APIリクエスト（リトライロジック付き）
       const apiCall = async () => {
-        return await axios.get(requestUrl, {
-          headers: {
-            'Authorization': `Bearer ${this._accessToken}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 15000 // 15秒タイムアウト
-        });
+        const requestStartTime = Date.now();
+        Logger.debug(`SimpleAuthService: 個別リクエスト開始時刻=${new Date(requestStartTime).toISOString()}`);
+        
+        try {
+          const response = await axios.get(requestUrl, {
+            headers: {
+              'Authorization': `Bearer ${this._accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            timeout: 20000, // 20秒タイムアウト（ETIMEDOUT対策で延長）
+            // 接続関連の設定を追加
+            maxRedirects: 5,
+            validateStatus: function (status) {
+              return status < 500; // 500番台エラー以外は正常レスポンスとして扱う
+            }
+          });
+          
+          const requestEndTime = Date.now();
+          const duration = requestEndTime - requestStartTime;
+          Logger.info(`SimpleAuthService: リクエスト完了 (所要時間: ${duration}ms)`);
+          
+          return response;
+        } catch (error) {
+          const requestEndTime = Date.now();
+          const duration = requestEndTime - requestStartTime;
+          Logger.error(`SimpleAuthService: リクエスト失敗 (所要時間: ${duration}ms)`, error);
+          
+          // ETIMEDOUTエラーの詳細解析
+          if (error.code === 'ETIMEDOUT' || (error.message && error.message.includes('ETIMEDOUT'))) {
+            Logger.error(`SimpleAuthService: ETIMEDOUT詳細解析:`, {
+              errorCode: error.code,
+              errorMessage: error.message,
+              requestDuration: duration,
+              configuredTimeout: 20000,
+              timestamp: new Date().toISOString(),
+              targetUrl: requestUrl
+            });
+          }
+          
+          throw error;
+        }
       };
       
-      // 最大2回、1秒間隔でリトライ
-      const response = await this._retryApiCall(apiCall, 2, 1000);
+      // 最大3回、1秒間隔でリトライ（ETIMEDOUT対策で回数増加）
+      const response = await this._retryApiCall(apiCall, 3, 1000);
       
       // すべてのリトライが失敗した場合
       if (!response) {
@@ -1040,7 +1112,30 @@ export class SimpleAuthService {
       console.log('SimpleAuthService: サーバー検証失敗', response.data);
       return false;
     } catch (error: any) {
-      console.error('SimpleAuthService: サーバー検証エラー', error);
+      console.error('SimpleAuthService: サーバー検証エラー');
+      
+      // ETIMEDOUT専用の詳細ログ
+      if (error.code === 'ETIMEDOUT' || (error.message && error.message.includes('ETIMEDOUT'))) {
+        const endTime = Date.now();
+        const totalDuration = endTime - startTime;
+        Logger.error('SimpleAuthService: ETIMEDOUT詳細解析:', {
+          errorCode: error.code,
+          errorMessage: error.message,
+          totalDuration: totalDuration,
+          configuredTimeout: 20000,
+          timestamp: new Date().toISOString(),
+          targetUrl: requestUrl,
+          stack: error.stack
+        });
+        console.error('SimpleAuthService: ETIMEDOUT詳細解析:', {
+          errorCode: error.code,
+          errorMessage: error.message,
+          totalDuration: totalDuration,
+          configuredTimeout: 20000,
+          timestamp: new Date().toISOString(),
+          targetUrl: requestUrl
+        });
+      }
 
       // エラーレスポンスの詳細情報をログに記録
       if (error?.response) {
