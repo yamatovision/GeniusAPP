@@ -579,7 +579,7 @@ export class SimpleAuthService {
         const jitter = Math.random() * 0.3 * baseWaitTime; // 30%のジッター
         const waitTime = Math.floor(baseWaitTime + jitter);
         
-        Logger.info(`SimpleAuthService: ${waitTime}ms後に再試行します... (エラータイプ: ${error.code || 'NETWORK'})`);
+        Logger.info(`SimpleAuthService: ${waitTime}ms後に再試行します... (エラータイプ: ${(error as any).code || 'NETWORK'})`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
@@ -587,11 +587,12 @@ export class SimpleAuthService {
     // すべての試行が失敗した場合
     if (lastError) {
       Logger.error(`SimpleAuthService: API呼び出しが${retries}回失敗しました: ${lastError.message}`, lastError);
-      Logger.error('SimpleAuthService: Error details:', {
-        code: lastError.code,
+      const errorDetails: any = {
+        code: (lastError as any).code,
         message: lastError.message,
         stack: lastError.stack
-      });
+      };
+      Logger.error('SimpleAuthService: Error details:', errorDetails);
     }
     return null;
   }
@@ -1066,15 +1067,16 @@ export class SimpleAuthService {
           Logger.error(`SimpleAuthService: リクエスト失敗 (所要時間: ${duration}ms)`, error);
           
           // ETIMEDOUTエラーの詳細解析
-          if (error.code === 'ETIMEDOUT' || (error.message && error.message.includes('ETIMEDOUT'))) {
-            Logger.error(`SimpleAuthService: ETIMEDOUT詳細解析:`, {
-              errorCode: error.code,
+          if ((error as any).code === 'ETIMEDOUT' || (error.message && error.message.includes('ETIMEDOUT'))) {
+            const timeoutDetails: any = {
+              errorCode: (error as any).code,
               errorMessage: error.message,
               requestDuration: duration,
               configuredTimeout: 20000,
               timestamp: new Date().toISOString(),
-              targetUrl: requestUrl
-            });
+              targetUrl: this.API_BASE_URL
+            };
+            Logger.error(`SimpleAuthService: ETIMEDOUT詳細解析:`, timeoutDetails);
           }
           
           throw error;
@@ -1115,26 +1117,30 @@ export class SimpleAuthService {
       console.error('SimpleAuthService: サーバー検証エラー');
       
       // ETIMEDOUT専用の詳細ログ
-      if (error.code === 'ETIMEDOUT' || (error.message && error.message.includes('ETIMEDOUT'))) {
+      if ((error as any).code === 'ETIMEDOUT' || (error.message && error.message.includes('ETIMEDOUT'))) {
         const endTime = Date.now();
+        const startTime = Date.now();
         const totalDuration = endTime - startTime;
-        Logger.error('SimpleAuthService: ETIMEDOUT詳細解析:', {
-          errorCode: error.code,
+        const timeoutAnalysis: any = {
+          errorCode: (error as any).code,
           errorMessage: error.message,
           totalDuration: totalDuration,
           configuredTimeout: 20000,
           timestamp: new Date().toISOString(),
-          targetUrl: requestUrl,
+          targetUrl: this.API_BASE_URL,
           stack: error.stack
-        });
-        console.error('SimpleAuthService: ETIMEDOUT詳細解析:', {
-          errorCode: error.code,
+        };
+        Logger.error('SimpleAuthService: ETIMEDOUT詳細解析:', timeoutAnalysis);
+        
+        const consoleTimeoutAnalysis: any = {
+          errorCode: (error as any).code,
           errorMessage: error.message,
           totalDuration: totalDuration,
           configuredTimeout: 20000,
           timestamp: new Date().toISOString(),
-          targetUrl: requestUrl
-        });
+          targetUrl: this.API_BASE_URL
+        };
+        console.error('SimpleAuthService: ETIMEDOUT詳細解析:', consoleTimeoutAnalysis);
       }
 
       // エラーレスポンスの詳細情報をログに記録
