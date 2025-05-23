@@ -566,8 +566,10 @@ export class SimpleAuthService {
                                   error.code === 'ENOTFOUND' || 
                                   error.code === 'ECONNREFUSED';
         const isServerError = error.response && error.response.status >= 500;
+        const isAuthError = error.response && (error.response.status === 401 || error.response.status === 403);
         
-        const shouldRetry = isTimeout || isNetworkError || isConnectionError || isServerError;
+        // 認証エラー（401、403）の場合は再試行しない
+        const shouldRetry = !isAuthError && (isTimeout || isNetworkError || isConnectionError || isServerError);
         
         if (!shouldRetry) {
           Logger.warn(`SimpleAuthService: このエラーは再試行できないタイプのエラーです (${error.code || 'UNKNOWN'}): ${error.message}`);
@@ -740,6 +742,10 @@ export class SimpleAuthService {
   public async login(email: string, password: string): Promise<boolean> {
     try {
       Logger.info('SimpleAuthService: ログイン開始');
+      
+      // ログイン前に既存の認証情報をクリア（古いトークンが残らないようにする）
+      Logger.info('SimpleAuthService: 既存の認証情報をクリア');
+      await this.clearAuth();
       
       const response = await axios.post(`${this.API_BASE_URL}/auth/login`, {
         email,
