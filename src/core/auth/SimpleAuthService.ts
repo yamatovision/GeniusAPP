@@ -745,7 +745,7 @@ export class SimpleAuthService {
       
       // ログイン前に既存の認証情報をクリア（古いトークンが残らないようにする）
       Logger.info('SimpleAuthService: 既存の認証情報をクリア');
-      await this.clearAuth();
+      await this._clearTokens();
       
       const response = await axios.post(`${this.API_BASE_URL}/auth/login`, {
         email,
