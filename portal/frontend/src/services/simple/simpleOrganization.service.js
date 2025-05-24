@@ -1,5 +1,5 @@
 import axios from 'axios';
-import simpleAuthHeader from '../../utils/simple-auth-header';
+import authHeader from '../../utils/auth-header';
 
 // APIのベースURL
 // API URLガイドラインに従い、/apiプレフィックスは省略
@@ -14,7 +14,7 @@ export const getSimpleOrganizations = async () => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/organizations`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -30,7 +30,7 @@ export const getSimpleOrganization = async (organizationId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/organizations/${organizationId}`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -47,7 +47,7 @@ export const createSimpleOrganization = async (name, description, workspaceName)
     const response = await axios.post(
       `${API_SIMPLE_URL}/organizations`, 
       { name, description, workspaceName }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -64,7 +64,7 @@ export const updateSimpleOrganization = async (organizationId, name, description
     const response = await axios.put(
       `${API_SIMPLE_URL}/organizations/${organizationId}`, 
       { name, description, workspaceName }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -80,7 +80,7 @@ export const deleteSimpleOrganization = async (organizationId) => {
   try {
     const response = await axios.delete(
       `${API_SIMPLE_URL}/organizations/${organizationId}`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -97,7 +97,7 @@ export const createSimpleWorkspace = async (organizationId) => {
     const response = await axios.post(
       `${API_SIMPLE_URL}/organizations/${organizationId}/create-workspace`, 
       {}, // リクエストボディは空でOK
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {

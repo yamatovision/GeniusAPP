@@ -9,17 +9,24 @@
  * @returns {Object} 認証情報を含むヘッダーオブジェクト
  */
 export default function authHeader(includeContentType = true) {
-  const token = localStorage.getItem('accessToken');
-  
-  const headers = {};
-  
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  try {
+    // simpleUser方式でトークンを取得
+    const user = JSON.parse(localStorage.getItem('simpleUser') || '{}');
+    const token = user.accessToken;
+    
+    const headers = {};
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    if (includeContentType) {
+      headers['Content-Type'] = 'application/json';
+    }
+    
+    return headers;
+  } catch (error) {
+    console.error('authHeader: ヘッダー生成エラー', error);
+    return includeContentType ? { 'Content-Type': 'application/json' } : {};
   }
-  
-  if (includeContentType) {
-    headers['Content-Type'] = 'application/json';
-  }
-  
-  return headers;
 }

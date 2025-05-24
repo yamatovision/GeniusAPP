@@ -1,5 +1,5 @@
 import axios from 'axios';
-import simpleAuthHeader from '../../utils/simple-auth-header';
+import authHeader from '../../utils/auth-header';
 
 // APIのベースURL
 // API URLガイドラインに従い、/apiプレフィックスは省略
@@ -14,7 +14,7 @@ export const getSimpleOrganizationApiKeys = async (organizationId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/organizations/${organizationId}/apikeys`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -31,7 +31,7 @@ export const createSimpleApiKey = async (organizationId, keyValue) => {
     const response = await axios.post(
       `${API_SIMPLE_URL}/organizations/${organizationId}/apikeys`, 
       { keyValue }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -47,7 +47,7 @@ export const deleteSimpleApiKey = async (organizationId, apiKeyId) => {
   try {
     const response = await axios.delete(
       `${API_SIMPLE_URL}/organizations/${organizationId}/apikeys/${apiKeyId}`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -63,7 +63,7 @@ export const getSimpleApiKey = async (organizationId, apiKeyId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/organizations/${organizationId}/apikeys/${apiKeyId}`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {

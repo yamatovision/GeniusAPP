@@ -47,7 +47,7 @@ const PromptList = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
   const [totalCount, setTotalCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [shareUrl, setShareUrl] = useState('');

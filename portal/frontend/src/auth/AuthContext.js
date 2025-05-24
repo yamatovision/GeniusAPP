@@ -1,65 +1,87 @@
 /**
  * AuthContext.js - 認証関連のReactコンテキスト
  * 
- * AuthServiceのシンプルなラッパーとして機能し、
+ * simpleAuthServiceのラッパーとして機能し、
  * Reactコンポーネントに認証状態と機能を提供します。
  */
 
 import React, { createContext, useState, useEffect, useContext } from 'react';
-import AuthService from './AuthService';
+import * as simpleAuthService from '../services/simple/simpleAuth.service';
 
 // 認証コンテキストの作成
 const AuthContext = createContext(null);
 
 // 認証プロバイダーコンポーネント
 export const AuthProvider = ({ children }) => {
-  // AuthServiceのシングルトンインスタンス
-  const authService = AuthService.getInstance();
-  
-  // 認証状態 
-  const [authState, setAuthState] = useState(authService.getAuthState());
-  
-  // 認証状態変更イベントのリスナー
+  // 認証状態の初期化
+  const [authState, setAuthState] = useState({
+    isAuthenticated: false,
+    user: null,
+    loading: true
+  });
+
+  // 認証状態の更新
+  const updateAuthState = () => {
+    const user = simpleAuthService.getCurrentStoredUser();
+    setAuthState({
+      isAuthenticated: !!user,
+      user: user,
+      loading: false
+    });
+  };
+
+  // 初期化時とストレージ変更時の処理
   useEffect(() => {
-    console.log('AuthContext: イベントリスナー登録');
+    console.log('AuthContext: 初期化');
     
-    // 認証状態変更時の処理
-    const handleAuthChange = (event) => {
-      console.log('AuthContext: 認証状態変更イベント検出', event.type);
-      setAuthState(authService.getAuthState());
+    // 初期認証状態をチェック
+    updateAuthState();
+    
+    // ストレージイベントのリスナー（他のタブでの変更を検知）
+    const handleStorageChange = (e) => {
+      if (e.key === 'simpleUser') {
+        console.log('AuthContext: 認証情報の変更を検出');
+        updateAuthState();
+      }
     };
     
     // タブがアクティブになった時の処理
-    const handleFocus = () => {
-      console.log('AuthContext: タブがアクティブになりました、認証状態を再確認');
-      authService.checkAuth();
+    const handleFocus = async () => {
+      console.log('AuthContext: タブがアクティブになりました');
+      try {
+        await simpleAuthService.getCurrentUser();
+        updateAuthState();
+      } catch (error) {
+        console.error('AuthContext: 認証チェックエラー:', error);
+      }
     };
     
-    // イベントリスナーを登録
-    window.addEventListener('auth:stateChanged', handleAuthChange);
-    window.addEventListener('auth:logout', handleAuthChange);
-    window.addEventListener('auth:login', handleAuthChange);
+    window.addEventListener('storage', handleStorageChange);
     window.addEventListener('focus', handleFocus);
     
     // クリーンアップ
     return () => {
-      console.log('AuthContext: イベントリスナー削除');
-      window.removeEventListener('auth:stateChanged', handleAuthChange);
-      window.removeEventListener('auth:logout', handleAuthChange);
-      window.removeEventListener('auth:login', handleAuthChange);
+      console.log('AuthContext: クリーンアップ');
+      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
-  
-  // 最小限の認証API
+
+  // コンテキスト値
   const contextValue = {
     // 状態
-    ...authState,
+    isAuthenticated: authState.isAuthenticated,
+    user: authState.user,
+    loading: authState.loading,
     
     // メソッド
     login: async (email, password) => {
       try {
-        return await authService.login(email, password);
+        const result = await simpleAuthService.login(email, password);
+        if (result.success) {
+          updateAuthState();
+        }
+        return result;
       } catch (error) {
         console.error('AuthContext: ログインエラー:', error);
         throw error;
@@ -68,16 +90,33 @@ export const AuthProvider = ({ children }) => {
     
     logout: async () => {
       try {
-        return await authService.logout();
+        const result = await simpleAuthService.logout();
+        updateAuthState();
+        return result;
       } catch (error) {
         console.error('AuthContext: ログアウトエラー:', error);
         throw error;
       }
     },
     
-    getAuthHeader: () => authService.getAuthHeader()
+    getCurrentUser: async () => {
+      try {
+        const result = await simpleAuthService.getCurrentUser();
+        updateAuthState();
+        return result;
+      } catch (error) {
+        console.error('AuthContext: ユーザー情報取得エラー:', error);
+        throw error;
+      }
+    },
+    
+    // 後方互換性のため
+    getAuthHeader: () => {
+      const user = simpleAuthService.getCurrentStoredUser();
+      return user?.accessToken ? { Authorization: `Bearer ${user.accessToken}` } : {};
+    }
   };
-  
+
   return (
     <AuthContext.Provider value={contextValue}>
       {children}
@@ -85,7 +124,7 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// シンプルなカスタムフック
+// カスタムフック
 export const useAuth = () => {
   const context = useContext(AuthContext);
   

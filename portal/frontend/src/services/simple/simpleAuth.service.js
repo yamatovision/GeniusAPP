@@ -3,12 +3,12 @@
  * ログイン、ログアウト、ユーザー情報取得、トークンリフレッシュなどの機能を提供します
  */
 import axios from 'axios';
-import simpleAuthHeader from '../../utils/simple-auth-header';
-import { API_URL, getApiUrl } from '../../config/apiConfig';
+import authHeader from '../../utils/auth-header';
+// apiConfig.jsは削除予定のため、使用しない
 
 // API基本URL 
-// 共通設定ファイルから取得
-const SIMPLE_API_URL = getApiUrl('simple');
+// axios.defaults.baseURLが自動的に/apiを付加するため、相対パスのみ指定
+const SIMPLE_API_URL = '/simple';
 
 // リフレッシュ中かどうかのフラグ（重複防止）
 let isRefreshing = false;
@@ -499,3 +499,17 @@ const setupAxiosInterceptors = () => {
 
 // インターセプターを設定
 setupAxiosInterceptors();
+
+/**
+ * ローカルストレージに保存されているユーザー情報を取得
+ * （AuthContext用のヘルパー関数）
+ */
+export const getCurrentStoredUser = () => {
+  try {
+    const user = localStorage.getItem('simpleUser');
+    return user ? JSON.parse(user) : null;
+  } catch (error) {
+    console.error('simpleAuth.getCurrentStoredUser: エラー', error);
+    return null;
+  }
+};

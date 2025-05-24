@@ -1,5 +1,5 @@
 import axios from 'axios';
-import simpleAuthHeader from '../../utils/simple-auth-header';
+import authHeader from '../../utils/auth-header';
 
 // APIのベースURL
 // API URLガイドラインに従い、/apiプレフィックスは省略
@@ -14,7 +14,7 @@ export const getUsers = async () => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/users`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -30,7 +30,7 @@ export const getSimpleOrganizationUsers = async (organizationId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -47,7 +47,7 @@ export const createUser = async (name, email, password, role, organizationId = n
     const response = await axios.post(
       `${API_SIMPLE_URL}/users`, 
       { name, email, password, role, organizationId }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -64,7 +64,7 @@ export const addSimpleOrganizationUser = async (organizationId, name, email, pas
     const response = await axios.post(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users`, 
       { name, email, password, role, apiKeyId }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -84,7 +84,7 @@ export const deleteUser = async (userId) => {
     const response = await axios.delete(
       `${API_SIMPLE_URL}/users/${userId}`,
       {
-        headers: simpleAuthHeader(),
+        headers: authHeader(),
         timeout: 10000 // 10秒のタイムアウト
       }
     );
@@ -116,7 +116,7 @@ export const removeSimpleOrganizationUser = async (organizationId, userId) => {
   try {
     const response = await axios.delete(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users/${userId}`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -132,7 +132,7 @@ export const getSimpleUser = async (userId) => {
   try {
     const response = await axios.get(
       `${API_SIMPLE_URL}/users/${userId}`, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -161,7 +161,7 @@ export const updateUser = async (userId, name, email, password = null, apiKeyId 
     const response = await axios.put(
       `${API_SIMPLE_URL}/users/${userId}`, 
       data, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -181,7 +181,7 @@ export const changeSimpleUserPassword = async (userId, currentPassword, newPassw
     const response = await axios.put(
       `${API_SIMPLE_URL}/users/${userId}/password`, 
       { currentPassword, newPassword }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -198,7 +198,7 @@ export const updateUserRole = async (organizationId, userId, role) => {
     const response = await axios.put(
       `${API_SIMPLE_URL}/organizations/${organizationId}/users/${userId}/role`, 
       { role }, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
@@ -218,7 +218,7 @@ export const incrementClaudeCodeLaunchCount = async (userId) => {
     const response = await axios.post(
       `${API_SIMPLE_URL}/users/${userId}/increment-claude-code-launch`, 
       {}, 
-      { headers: simpleAuthHeader() }
+      { headers: authHeader() }
     );
     return response.data;
   } catch (error) {
