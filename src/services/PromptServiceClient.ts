@@ -28,7 +28,7 @@ export class PromptServiceClient {
   ];
 
   private constructor() {
-    // 一時ディレクトリの作成 (隠しディレクトリ方式)
+    // プロジェクトルートに直接隠しファイルを作成する方式に変更
     // 注意：実際のプロジェクトパスは使用時に動的に設定される
     this.tempDir = ''; // 初期値は空文字列。使用時にプロジェクトパスから設定される
   }
@@ -53,15 +53,9 @@ export class PromptServiceClient {
       return;
     }
     
-    this.tempDir = path.join(projectPath, '.appgenius_temp');
-    if (!fs.existsSync(this.tempDir)) {
-      try {
-        fs.mkdirSync(this.tempDir, { recursive: true });
-        Logger.info(`プロジェクト直下に一時ディレクトリを作成しました: ${this.tempDir}`);
-      } catch (error) {
-        Logger.error('一時ディレクトリの作成に失敗しました', error as Error);
-      }
-    }
+    // プロジェクトルートに直接隠しファイルを作成するように変更
+    this.tempDir = projectPath;
+    Logger.info(`隠しファイルの作成場所をプロジェクトルートに設定しました: ${this.tempDir}`);
   }
 
   /**

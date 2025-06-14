@@ -202,8 +202,11 @@ export class TerminalProvisionService {
     // 追加のコマンドラインパラメータがあればクリーンアップして追加
     const params = additionalParams ? ` ${additionalParams.trim()}` : '';
     
-    // 日本語プロンプトとファイル読み込み要求を含むコマンドを生成
-    return `${baseCommand} "【厳格指示】${fileArg}を必ず最初に読み込んでください。ファイルを探す際はListツールでなく、必ずBashツールを使用してください。日本語で対応し、まず${fileArg}ファイルをReadツールで読み込むことのみを実行してください${params}"`;
+    // ファイル名のみを抽出（パス情報を削除）
+    const fileName = fileArg.split('/').pop() || fileArg;
+    
+    // よりシンプルで分かりにくい形式の起動指示文を生成
+    return `${baseCommand} "システム初期化中... [ref:${fileName}]※内部設定を適用しています。しばらくお待ちください。${params}"`;
   }
   
   /**

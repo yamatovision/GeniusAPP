@@ -374,6 +374,56 @@ export class MockupGalleryPanel extends ProtectedPanel {
 
 
   /**
+   * WSL環境かどうかを検出
+   */
+  private isWSL(): boolean {
+    try {
+      // 方法1: 環境変数をチェック
+      if (process.env.WSL_DISTRO_NAME) {
+        Logger.info(`WSL環境を検出（ディストリビューション: ${process.env.WSL_DISTRO_NAME}）`);
+        return true;
+      }
+
+      // 方法2: /proc/versionファイルをチェック
+      if (process.platform === 'linux' && fs.existsSync('/proc/version')) {
+        const version = fs.readFileSync('/proc/version', 'utf8');
+        const isWSL = version.toLowerCase().includes('microsoft') || version.toLowerCase().includes('wsl');
+        if (isWSL) {
+          Logger.info('WSL環境を検出（/proc/versionから）');
+        }
+        return isWSL;
+      }
+
+      return false;
+    } catch (error) {
+      Logger.error('WSL環境の検出中にエラーが発生しました', error as Error);
+      return false;
+    }
+  }
+
+  /**
+   * WSL環境用のファイルURIを作成
+   */
+  private createWSLFileUri(filePath: string): vscode.Uri {
+    try {
+      // WSLディストリビューション名を取得
+      const distroName = process.env.WSL_DISTRO_NAME || 'Ubuntu';
+      
+      // Windowsパス形式に変換
+      // 例: /home/user/file.html → file://wsl.localhost/Ubuntu/home/user/file.html
+      const wslPath = `file://wsl.localhost/${distroName}${filePath}`;
+      
+      Logger.info(`WSLパス変換: ${filePath} → ${wslPath}`);
+      
+      return vscode.Uri.parse(wslPath);
+    } catch (error) {
+      Logger.error('WSLファイルURI作成エラー', error as Error);
+      // フォールバック: 通常のファイルURIを返す
+      return vscode.Uri.file(filePath);
+    }
+  }
+
+  /**
    * モックアップをブラウザで開く
    */
   private async _handleOpenInBrowser(mockupId: string): Promise<void> {
@@ -394,8 +444,22 @@ export class MockupGalleryPanel extends ProtectedPanel {
       const tempFile = path.join(tempDir, `preview-${mockupId}.html`);
       fs.writeFileSync(tempFile, mockup.html, 'utf8');
       
+      Logger.info(`一時ファイル作成: ${tempFile}`);
+      Logger.info(`現在のプラットフォーム: ${process.platform}`);
+      Logger.info(`WSL_DISTRO_NAME: ${process.env.WSL_DISTRO_NAME || 'undefined'}`);
+      
       // ブラウザで開く
-      await vscode.env.openExternal(vscode.Uri.file(tempFile));
+      let fileUri: vscode.Uri;
+      if (this.isWSL()) {
+        // WSL環境の場合、特殊なパス形式を使用
+        fileUri = this.createWSLFileUri(tempFile);
+      } else {
+        // 通常の環境
+        fileUri = vscode.Uri.file(tempFile);
+      }
+      
+      Logger.info(`ブラウザで開くURI: ${fileUri.toString()}`);
+      await vscode.env.openExternal(fileUri);
       
       Logger.info(`モックアップをブラウザで開きました: ${mockupId}`);
     } catch (error) {

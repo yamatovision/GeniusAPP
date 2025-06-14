@@ -415,7 +415,10 @@
     "test:security": "node test/verification/security_tests.js",
     "test:verify": "node test_script/comprehensive_verification.js",
     "check:api": "node test_script/check_api_health.js",
-    "project:summary": "node test_script/summarize_project.js"
+    "project:summary": "node test_script/summarize_project.js",
+    "ts:check": "node scripts/ts-error/analyzer.js",
+    "ts:fix": "node scripts/ts-error/auto-fixer.js",
+    "ts:report": "node scripts/ts-error/report-generator.js"
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",

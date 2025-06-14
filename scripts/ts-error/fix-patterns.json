@@ -1,0 +1,48 @@
+{
+  "material-ui-grid-v7": {
+    "pattern": "TS2769.*Grid.*item|xs|md|lg|spacing|direction",
+    "description": "Material-UI v7 Grid破壊的変更 - itemプロパティとブレークポイントプロパティの廃止",
+    "fixRule": "itemプロパティとブレークポイントプロパティをsizeプロパティに統合",
+    "examples": {
+      "item_only": {
+        "before": "<Grid item>",
+        "after": "<Grid>"
+      },
+      "item_with_breakpoints": {
+        "before": "<Grid item xs={12} md={6}>",
+        "after": "<Grid size={{ xs: 12, md: 6 }}>"
+      },
+      "container_unchanged": {
+        "before": "<Grid container spacing={2}>",
+        "after": "<Grid container spacing={2}>"
+      }
+    },
+    "automationLevel": "high",
+    "riskLevel": "low",
+    "lastUpdated": "2025-05-24",
+    "confidence": "very_high",
+    "affectedVersions": "v7+",
+    "migrationNotes": [
+      "containerプロパティは変更なし",
+      "spacingプロパティは変更なし", 
+      "itemプロパティは完全に削除",
+      "xs, sm, md, lg, xlプロパティはsizeオブジェクトに統合"
+    ]
+  },
+  "ts2322-type-mismatch": {
+    "pattern": "TS2322.*Type '.*' is not assignable to type",
+    "description": "型の不一致エラー",
+    "fixRule": "適切な型キャストまたは型定義の修正",
+    "automationLevel": "medium",
+    "riskLevel": "medium",
+    "confidence": "medium"
+  },
+  "ts2339-property-not-exist": {
+    "pattern": "TS2339.*Property '.*' does not exist on type",
+    "description": "プロパティが存在しないエラー",
+    "fixRule": "型定義にプロパティを追加またはオプショナルチェーンを使用",
+    "automationLevel": "low",
+    "riskLevel": "high",
+    "confidence": "medium"
+  }
+}

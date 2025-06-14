@@ -1,0 +1,9 @@
+{
+  "lockInfo": {
+    "version": "1.0.0",
+    "description": "TypeScriptエラー修正の重複を防ぐためのロックファイル",
+    "lastUpdated": "2025-05-24T00:00:00Z"
+  },
+  "activeFixes": {},
+  "completedFixes": {}
+}
