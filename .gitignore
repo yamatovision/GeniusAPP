@@ -25,6 +25,8 @@ logs/debug/archived/*.json
 
 # 機密情報を含むファイル
 docs/deployment/deploy.md
+.vqc8x9d3gsb4j
+.vqqst6288n0o
 
 # macOS system files
 .DS_Store

@@ -1,4 +1,35 @@
-# ブルーランプ デプロイ情報（2025/05/15更新）
+# ブルーランプ デプロイ情報（2025/06/17更新）
+
+## ✅ サービス復旧完了（2025/06/17）
+
+2025/06/17 16:10頃に一時的に停止していたサービスを復旧しました：
+
+1. **bluelamp** - ✅ 稼働中（https://bluelamp-235426778039.asia-northeast1.run.app）
+2. **appgenius-portal-test** - ✅ 稼働中（https://appgenius-portal-test-235426778039.asia-northeast1.run.app）  
+3. **appgenius-portal-backend** - ❌ 停止中（元々問題があるため未復旧）
+
+### サービス復旧方法
+
+以下のコマンドでサービスを復旧できます：
+
+```bash
+# bluelampサービスの復旧（最新・標準環境）
+gcloud run services update-traffic bluelamp --to-latest --platform managed --region asia-northeast1
+
+# appgenius-portal-testサービスの復旧（旧テスト環境）
+gcloud run services update-traffic appgenius-portal-test --to-latest --platform managed --region asia-northeast1
+
+# appgenius-portal-backendサービスの復旧（旧環境）
+# 注意：このサービスは既に問題があるため、復旧前に修正が必要な可能性があります
+gcloud run services update-traffic appgenius-portal-backend --to-latest --platform managed --region asia-northeast1
+```
+
+または、特定のトラフィック割合を指定する場合：
+
+```bash
+# 100%のトラフィックを復旧
+gcloud run services update bluelamp --platform managed --region asia-northeast1 --traffic 100
+```
 
 ## プロンプト管理システムのデプロイ構成
 

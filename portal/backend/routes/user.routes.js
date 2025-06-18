@@ -47,4 +47,7 @@ router.delete('/:id', authMiddleware.isAdmin, userController.deleteUser);
 // ユーザーのAPIアクセス設定を更新（管理者のみ）
 router.put('/:id/api-access', authMiddleware.isAdmin, userController.toggleApiAccess);
 
+// ユーザーを一時停止/復旧（管理者のみ）
+router.put('/:id/suspend', authMiddleware.isAdmin, userController.suspendUser);
+
 module.exports = router;

@@ -50,6 +50,55 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
+  // セッション無効化イベントのリスナー設定
+  useEffect(() => {
+    // カスタムイベントのリスナー
+    const handleSessionTerminated = (event) => {
+      console.log('セッション終了イベント検出:', event.detail);
+      
+      // エラーメッセージを設定
+      setError('別の場所からログインされたため、セッションが終了しました');
+      
+      // ログアウト処理
+      handleLogout();
+      
+      // ログインページへリダイレクト
+      setTimeout(() => {
+        window.location.href = '/simple/login?error=session_terminated';
+      }, 1000);
+    };
+    
+    // auth:logoutイベントのリスナー
+    const handleAuthLogout = (event) => {
+      console.log('認証ログアウトイベント検出:', event.detail);
+      
+      // エラーメッセージを設定
+      if (event.detail?.message) {
+        setError(event.detail.message);
+      }
+      
+      // ログアウト処理
+      handleLogout();
+      
+      // ログインページへリダイレクト
+      if (event.detail?.requireRelogin) {
+        setTimeout(() => {
+          window.location.href = '/simple/login?error=' + (event.detail.reason || 'session_expired');
+        }, 1000);
+      }
+    };
+    
+    // イベントリスナーを登録
+    window.addEventListener('session:terminated', handleSessionTerminated);
+    window.addEventListener('auth:logout', handleAuthLogout);
+    
+    // クリーンアップ
+    return () => {
+      window.removeEventListener('session:terminated', handleSessionTerminated);
+      window.removeEventListener('auth:logout', handleAuthLogout);
+    };
+  }, []);
+
   // 定期的なユーザー情報の更新（オプショナル）
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -90,6 +139,18 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       // エラー時はサイレントに失敗（既存の認証情報を維持）
       console.warn('静かな認証チェック失敗:', err);
+      
+      // セッション終了エラーの場合
+      if (err.response?.data?.error?.code === 'SESSION_TERMINATED') {
+        // セッション終了イベントを発行
+        window.dispatchEvent(new CustomEvent('session:terminated', {
+          detail: { 
+            reason: 'session_terminated',
+            message: '別の場所からログインされたため、セッションが終了しました'
+          }
+        }));
+        return;
+      }
       
       // 401エラーの場合はログアウト
       if (err.response?.status === 401) {

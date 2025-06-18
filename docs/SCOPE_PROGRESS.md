@@ -628,6 +628,16 @@ project/
   - 参照: [/docs/plans/planning/ext-docs-auto-refresh-20250514.md](/docs/plans/planning/ext-docs-auto-refresh-20250514.md)
   - 内容: ファイルビューワーに/docsディレクトリの自動監視・更新機能を追加
 
+- [ ] **BLAUTH-001**: BlueLamp同時ログイン制限機能の実装
+  - 目標: 2025-01-26
+  - 参照: [/docs/plans/planning/ext-concurrent-login-restriction-2025-01-19.md](/docs/plans/planning/ext-concurrent-login-restriction-2025-01-19.md)
+  - 内容: 1つのBlueLamp IDで同時に複数箇所からログインすることを制限し、新規ログイン時には既存セッションの強制終了オプションを提供
+
+- [ ] **AUTH-002**: NoProjectViewログイン制限機能の実装
+  - 目標: 2025-01-26
+  - 参照: [/docs/plans/planning/ext-noproject-view-auth-2025-01-19.md](/docs/plans/planning/ext-noproject-view-auth-2025-01-19.md)
+  - 内容: NoProjectView（プロジェクト未選択画面）へのアクセスをログイン必須にし、全体的なセキュリティを強化
+
 - [x] **F-1**: FileSystemServiceの拡張実装
   - 完了日: 2025-05-19
   - 成果:
@@ -683,6 +693,19 @@ project/
     - UIのラベルとメッセージの用語統一（「ステータス」→「進捗」）
     - CURRENT_STATUSTEMPLATEの完全削除
     - 完全移行後の動作検証とリグレッションテスト
+
+- [x] **BLAUTH-001**: BlueLamp同時ログイン制限機能の実装
+  - 目標: 2025-01-26
+  - 完了日: 2025-01-19
+  - 参照: [/docs/plans/planning/ext-concurrent-login-restriction-2025-01-19.md]
+  - 内容: 1つのBlueLamp IDで同時に複数箇所からログインすることを制限し、新規ログイン時には既存セッションの強制終了オプションを提供
+  - 成果:
+    - ユーザーモデルへのactiveSessionフィールド追加
+    - セッション管理サービスの実装
+    - 強制ログインAPIエンドポイントの追加
+    - ミドルウェアでのセッション検証機能
+    - フロントエンドの確認ダイアログ実装
+    - AuthContextでのセッション終了検知機能
 
 ## 7. 実装上の注意点
 

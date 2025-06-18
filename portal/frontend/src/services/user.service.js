@@ -139,6 +139,25 @@ class UserService {
   }
   
   /**
+   * ユーザーを一時停止/復旧（管理者用）
+   * @param {string} userId - ユーザーID
+   * @param {boolean} suspend - true: 一時停止, false: 復旧
+   * @returns {Promise} 更新結果
+   */
+  async suspendUser(userId, suspend) {
+    try {
+      const response = await axios.put(
+        `${USERS_API_URL}/${userId}/suspend`,
+        { suspend },
+        { headers: authHeader() }
+      );
+      return response.data;
+    } catch (error) {
+      throw this._handleError(error);
+    }
+  }
+  
+  /**
    * ユーザーを削除（管理者用）
    */
   async deleteUser(userId) {

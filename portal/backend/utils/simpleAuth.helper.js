@@ -9,11 +9,18 @@ const config = require('../config/simple-auth.config');
  * シンプル認証用のアクセストークンを生成する
  * @param {string} userId - ユーザーID
  * @param {string} userRole - ユーザーロール
+ * @param {string} accountStatus - アカウントステータス（オプション）
+ * @param {string} sessionId - セッションID（オプション）
  * @returns {string} 生成されたJWTトークン
  */
-exports.generateAccessToken = (userId, userRole) => {
+exports.generateAccessToken = (userId, userRole, accountStatus = 'active', sessionId = null) => {
+  const payload = { id: userId, role: userRole, accountStatus };
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
+  
   return jwt.sign(
-    { id: userId, role: userRole },
+    payload,
     config.jwtSecret,
     { 
       expiresIn: config.jwtExpiration,

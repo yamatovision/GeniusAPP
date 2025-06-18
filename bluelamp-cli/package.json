@@ -1,0 +1,36 @@
+{
+  "name": "bluelamp-cli",
+  "version": "1.0.0",
+  "description": "BlueLamp CLI - AI-powered development assistant",
+  "main": "dist/index.js",
+  "bin": {
+    "bluelamp": "dist/index.js",
+    "bluelamp-mockup": "dist/mockup-analyzer.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "cli",
+    "ai",
+    "development",
+    "assistant"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.24.3",
+    "chalk": "^5.4.1",
+    "dotenv": "^16.4.5",
+    "inquirer": "^12.6.3"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.8",
+    "@types/node": "^20.14.9",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.3"
+  }
+}

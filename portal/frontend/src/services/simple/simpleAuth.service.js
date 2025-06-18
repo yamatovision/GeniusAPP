@@ -57,6 +57,82 @@ export const isLoggedIn = () => {
 };
 
 /**
+ * 強制ログイン処理
+ * @param {string} email - メールアドレス
+ * @param {string} password - パスワード
+ * @returns {Promise<Object>} レスポンスデータ
+ */
+export const forceLogin = async (email, password) => {
+  console.log('simpleAuth.forceLogin: 強制ログイン開始');
+  
+  try {
+    // リクエスト設定
+    const config = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    };
+    
+    // ログイン前にローカルストレージをクリア
+    localStorage.removeItem('simpleUser');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('user');
+    
+    console.log('simpleAuth.forceLogin: 古い認証情報をクリア');
+    
+    // キャッシュもクリア
+    lastAuthCheckTime = 0;
+    cachedAuthResponse = null;
+    
+    // 強制ログイン実行
+    const response = await axios.post(`${SIMPLE_API_URL}/auth/force-login`, {
+      email,
+      password,
+      forceLogin: true
+    }, config);
+    
+    console.log('simpleAuth.forceLogin: レスポンス受信', response.status);
+    
+    // 成功時の処理
+    if (response.data.success && response.data.data.accessToken) {
+      try {
+        // ローカルストレージに保存
+        localStorage.setItem('simpleUser', JSON.stringify(response.data.data));
+        
+        // 冗長性のため主要な認証情報のみ別途保存
+        if (response.data.data.accessToken) {
+          localStorage.setItem('accessToken', response.data.data.accessToken);
+        }
+        if (response.data.data.refreshToken) {
+          localStorage.setItem('refreshToken', response.data.data.refreshToken);
+        }
+        if (response.data.data.user) {
+          localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        }
+        
+        console.log('simpleAuth.forceLogin: ストレージ保存完了');
+      } catch (storageError) {
+        console.error('simpleAuth.forceLogin: ストレージ保存エラー', storageError);
+      }
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('simpleAuth.forceLogin: エラー発生', error);
+    
+    // APIエラーレスポンスを返す
+    if (error.response) {
+      throw error.response.data;
+    }
+    
+    // ネットワークエラーなど
+    throw { success: false, message: '接続エラーが発生しました' };
+  }
+};
+
+/**
  * ログイン処理（安定性向上版）
  * @param {string} email - メールアドレス
  * @param {string} password - パスワード
@@ -464,6 +540,27 @@ const setupAxiosInterceptors = () => {
     response => response,
     async error => {
       const originalRequest = error.config;
+      
+      // セッション終了エラーをチェック
+      if (error.response?.data?.error?.code === 'SESSION_TERMINATED') {
+        console.log('simpleAuth: セッション終了エラーを検出');
+        
+        // ローカルストレージをクリア
+        localStorage.removeItem('simpleUser');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        
+        // セッション終了イベントを発行
+        window.dispatchEvent(new CustomEvent('session:terminated', {
+          detail: { 
+            reason: 'session_terminated',
+            message: error.response.data.error.message || '別の場所からログインされたため、セッションが終了しました'
+          }
+        }));
+        
+        return Promise.reject(error);
+      }
       
       // 全APIリクエストに対応するように変更
       if (

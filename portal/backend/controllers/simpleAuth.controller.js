@@ -10,6 +10,8 @@ const simpleAuthConfig = require('../config/simple-auth.config');
 const authHelper = require('../utils/simpleAuth.helper');
 // AnthropicApiKeyモデルを事前に読み込み
 const AnthropicApiKey = require('../models/anthropicApiKey.model');
+// セッション管理サービスを追加
+const SessionService = require('../services/session.service');
 
 /**
  * ユーザーログイン
@@ -77,7 +79,34 @@ exports.login = async (req, res) => {
     
     console.log("シンプル認証コントローラー: パスワード検証に成功");
     
-    // Simple認証専用のアクセストークンを生成
+    // アクティブセッションの確認
+    console.log("シンプル認証コントローラー: アクティブセッション確認");
+    const hasActiveSession = await SessionService.hasActiveSession(user._id);
+    
+    if (hasActiveSession) {
+      // 既存セッションがある場合は、通常のログインをブロック
+      console.log("シンプル認証コントローラー: 既存のアクティブセッションを検出");
+      const sessionInfo = await SessionService.getUserSession(user._id);
+      
+      return res.status(409).json({
+        success: false,
+        code: 'ACTIVE_SESSION_EXISTS',
+        message: 'このアカウントは別の場所で使用中です',
+        sessionInfo: {
+          loginTime: sessionInfo.loginTime,
+          lastActivity: sessionInfo.lastActivity,
+          ipAddress: sessionInfo.ipAddress
+        }
+      });
+    }
+    
+    // セッション作成
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    const sessionId = await SessionService.createSession(user._id, ipAddress, userAgent);
+    console.log("シンプル認証コントローラー: 新規セッション作成", sessionId);
+    
+    // Simple認証専用のアクセストークンを生成（セッションIDを含む）
     console.log("シンプル認証コントローラー: トークン生成開始");
     console.log("シンプル認証コントローラー: シークレットキー", {
       secret: simpleAuthConfig.jwtSecret.substring(0, 5) + '...',
@@ -85,8 +114,8 @@ exports.login = async (req, res) => {
       audience: simpleAuthConfig.jwtOptions.audience
     });
     
-    // ヘルパー関数を使用してトークンを生成
-    const accessToken = authHelper.generateAccessToken(user._id, user.role);
+    // ヘルパー関数を使用してトークンを生成（セッションIDを含む）
+    const accessToken = authHelper.generateAccessToken(user._id, user.role, user.accountStatus, sessionId);
     
     // ヘルパー関数を使用してリフレッシュトークンを生成
     const refreshToken = authHelper.generateRefreshToken(user._id);
@@ -214,7 +243,7 @@ exports.refreshToken = async (req, res) => {
       
       // ヘルパーを使用して新しいアクセストークンを生成
       console.log('refreshToken: 新しいアクセストークン生成');
-      const newAccessToken = authHelper.generateAccessToken(user._id, user.role);
+      const newAccessToken = authHelper.generateAccessToken(user._id, user.role, user.accountStatus);
       
       // ヘルパーを使用して新しいリフレッシュトークンを生成
       console.log('refreshToken: 新しいリフレッシュトークン生成');
@@ -292,6 +321,10 @@ exports.logout = async (req, res) => {
     if (user) {
       user.refreshToken = null;
       await user.save();
+      
+      // セッションもクリア
+      await SessionService.clearSession(user._id);
+      console.log("シンプル認証コントローラー: セッションをクリアしました", user._id);
     }
     
     // CORS対応ヘッダー設定
@@ -364,7 +397,7 @@ exports.register = async (req, res) => {
     await newUser.save();
     
     // ヘルパーを使用してアクセストークンを生成
-    const accessToken = authHelper.generateAccessToken(newUser._id, newUser.role);
+    const accessToken = authHelper.generateAccessToken(newUser._id, newUser.role, newUser.accountStatus);
     
     // ヘルパーを使用してリフレッシュトークンを生成
     const refreshToken = authHelper.generateRefreshToken(newUser._id);
@@ -596,6 +629,165 @@ exports.getUserAnthropicApiKey = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'APIキーの取得中にエラーが発生しました',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * 強制ログイン（既存セッションを終了して新規ログイン）
+ * @route POST /api/simple/auth/force-login
+ */
+exports.forceLogin = async (req, res) => {
+  try {
+    console.log("=============================================================");
+    console.log("シンプル認証コントローラー: 強制ログインリクエスト受信");
+    console.log("リクエストボディ:", req.body);
+    console.log(`強制ログイン試行: ユーザー=${req.body.email || '未指定'}`);
+    console.log("=============================================================");
+    
+    const { email, password, forceLogin } = req.body;
+    
+    // 必須パラメータの検証
+    if (!email || !password) {
+      console.log("シンプル認証コントローラー: 必須パラメータ欠如");
+      return res.status(400).json({
+        success: false,
+        message: 'メールアドレスとパスワードは必須です'
+      });
+    }
+    
+    // forceLoginフラグの確認
+    if (!forceLogin) {
+      console.log("シンプル認証コントローラー: 強制ログインフラグが無効");
+      return res.status(400).json({
+        success: false,
+        message: '強制ログインフラグが設定されていません'
+      });
+    }
+    
+    // ユーザーを検索
+    console.log("シンプル認証コントローラー: ユーザー検索", email);
+    const user = await SimpleUser.findByEmail(email);
+    
+    if (!user) {
+      console.log("シンプル認証コントローラー: ユーザーが見つかりません");
+      return res.status(401).json({
+        success: false,
+        message: 'メールアドレスまたはパスワードが正しくありません'
+      });
+    }
+    
+    console.log("シンプル認証コントローラー: ユーザー見つかりました", user.name);
+    
+    // アカウントが無効化されていないか確認
+    if (user.status !== 'active') {
+      console.log("シンプル認証コントローラー: アカウント無効", user.status);
+      return res.status(401).json({
+        success: false,
+        message: 'アカウントが無効化されています'
+      });
+    }
+    
+    // パスワードを検証
+    console.log("シンプル認証コントローラー: パスワード検証開始");
+    const isPasswordValid = await user.validatePassword(password);
+    
+    if (!isPasswordValid) {
+      console.log("シンプル認証コントローラー: パスワード不一致");
+      return res.status(401).json({
+        success: false,
+        message: 'メールアドレスまたはパスワードが正しくありません'
+      });
+    }
+    
+    console.log("シンプル認証コントローラー: パスワード検証に成功");
+    
+    // 既存セッションを強制終了して新しいセッションを作成
+    const ipAddress = req.ip || req.connection.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+    const { newSessionId, previousSession } = await SessionService.forceCreateSession(user._id, ipAddress, userAgent);
+    console.log("シンプル認証コントローラー: 強制的に新規セッション作成", newSessionId);
+    
+    // Simple認証専用のアクセストークンを生成（セッションIDを含む）
+    const accessToken = authHelper.generateAccessToken(user._id, user.role, user.accountStatus, newSessionId);
+    
+    // ヘルパー関数を使用してリフレッシュトークンを生成
+    const refreshToken = authHelper.generateRefreshToken(user._id);
+    
+    // リフレッシュトークンをユーザーに保存
+    user.refreshToken = refreshToken;
+    await user.save();
+    
+    // CORS対応ヘッダー設定
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+    
+    // APIキー情報を取得（通常のログインと同じロジック）
+    let apiKeyInfo = null;
+    
+    // 新方式：ユーザーに直接保存されているAPIキー値を優先
+    if (user.apiKeyValue) {
+      apiKeyInfo = {
+        id: user.apiKeyId || 'direct_key',
+        keyValue: user.apiKeyValue,
+        status: 'active'
+      };
+    } 
+    // 旧方式：AnthropicApiKeyテーブルから取得
+    else if (user.apiKeyId) {
+      try {
+        const apiKey = await AnthropicApiKey.findOne({ apiKeyId: user.apiKeyId });
+        
+        if (apiKey && apiKey.apiKeyFull) {
+          apiKeyInfo = {
+            id: apiKey.apiKeyId,
+            keyValue: apiKey.apiKeyFull,
+            status: apiKey.status
+          };
+          
+          // 移行処理：APIキー値をユーザーモデルにも保存
+          user.apiKeyValue = apiKey.apiKeyFull;
+          await user.save();
+          console.log(`強制ログイン時にユーザー ${user.name} (${user._id}) のAPIキー値をAnthropicApiKeyモデルからユーザーモデルに保存しました`);
+        }
+      } catch (err) {
+        console.error('AnthropicApiKeyモデルの読み込みエラー:', err);
+      }
+    }
+    
+    console.log("============ シンプル認証コントローラー: 強制ログイン成功 ============");
+    console.log(`強制ログイン成功: ユーザー=${user.name}, メール=${user.email}, ロール=${user.role}, ID=${user._id}`);
+    console.log("前のセッション情報:", previousSession ? `セッションID=${previousSession.sessionId}` : "なし");
+    console.log("==================================================================");
+    
+    // レスポンス
+    return res.status(200).json({
+      success: true,
+      message: '強制ログインに成功しました',
+      previousSessionTerminated: !!previousSession,
+      data: {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          organizationId: user.organizationId,
+          apiKeyId: user.apiKeyId,
+          apiKeyValue: user.apiKeyValue
+        },
+        apiKey: apiKeyInfo
+      }
+    });
+  } catch (error) {
+    console.error('強制ログインエラー:', error);
+    return res.status(500).json({
+      success: false,
+      message: '強制ログイン処理中にエラーが発生しました',
       error: error.message
     });
   }

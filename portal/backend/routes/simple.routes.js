@@ -17,6 +17,7 @@ const simpleAuthDebug = require('../controllers/simpleAuth.debug');
 // ===== 認証系エンドポイント =====
 router.post('/auth/register', rateLimitMiddleware.authRateLimit, simpleAuthController.register);
 router.post('/auth/login', rateLimitMiddleware.authRateLimit, simpleAuthController.login);
+router.post('/auth/force-login', rateLimitMiddleware.authRateLimit, simpleAuthController.forceLogin);
 router.post('/auth/refresh-token', rateLimitMiddleware.authRateLimit, simpleAuthController.refreshToken);
 router.post('/auth/logout', rateLimitMiddleware.authRateLimit, simpleAuthController.logout);
 

@@ -110,6 +110,23 @@ const UserList = () => {
     }
   };
   
+  // ユーザー一時停止処理
+  const handleSuspendUser = async (userId, currentStatus) => {
+    setSuspendLoading(prev => ({ ...prev, [userId]: true }));
+    
+    try {
+      await userService.suspendUser(userId, currentStatus !== 'suspended');
+      // 成功メッセージ表示
+      setError(null);
+      fetchUsers();
+    } catch (error) {
+      console.error('ユーザー一時停止エラー:', error);
+      setError('ユーザーの一時停止に失敗しました');
+    } finally {
+      setSuspendLoading(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+  
   // APIアクセス切り替え処理
   const handleToggleApiAccess = async (userId, currentState) => {
     setApiToggleLoading(prev => ({...prev, [userId]: true}));

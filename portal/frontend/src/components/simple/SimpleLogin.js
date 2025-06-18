@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { login } from '../../services/simple/simpleAuth.service';
+import { login, forceLogin } from '../../services/simple/simpleAuth.service';
 import './SimpleLogin.css';
 
 /**
@@ -14,6 +14,8 @@ const SimpleLogin = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [showSessionDialog, setShowSessionDialog] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState(null);
   
   // React Router
   const navigate = useNavigate();
@@ -134,6 +136,14 @@ const SimpleLogin = () => {
     } catch (err) {
       console.error('SimpleLogin: ログインエラー', err);
       
+      // アクティブセッションエラーの場合
+      if (err.code === 'ACTIVE_SESSION_EXISTS') {
+        setSessionInfo(err.sessionInfo);
+        setShowSessionDialog(true);
+        setLoading(false);
+        return;
+      }
+      
       // エラーメッセージを設定
       setError(
         err.message || 
@@ -142,6 +152,47 @@ const SimpleLogin = () => {
     } finally {
       setLoading(false);
     }
+  };
+  
+  // 強制ログイン処理
+  const handleForceLogin = async () => {
+    setShowSessionDialog(false);
+    setError('');
+    setLoading(true);
+    
+    try {
+      console.log('SimpleLogin: 強制ログイン処理開始');
+      
+      // 強制ログイン実行
+      const response = await forceLogin(email, password);
+      
+      if (!response.success) {
+        throw new Error(response.message || '強制ログインに失敗しました');
+      }
+      
+      console.log('SimpleLogin: 強制ログイン成功');
+      
+      // ダッシュボードへリダイレクト
+      setTimeout(() => {
+        navigate('/simple/dashboard', { replace: true });
+      }, 100);
+    } catch (err) {
+      console.error('SimpleLogin: 強制ログインエラー', err);
+      
+      // エラーメッセージを設定
+      setError(
+        err.message || 
+        '強制ログイン中にエラーが発生しました。後でもう一度お試しください。'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // ダイアログキャンセル処理
+  const handleCancelDialog = () => {
+    setShowSessionDialog(false);
+    setSessionInfo(null);
   };
   
   return (
@@ -225,6 +276,51 @@ const SimpleLogin = () => {
       <div className="simple-login-copyright">
         AppGenius © {new Date().getFullYear()}
       </div>
+      
+      {/* セッション確認ダイアログ */}
+      {showSessionDialog && (
+        <div className="simple-modal-overlay">
+          <div className="simple-modal">
+            <div className="simple-modal-header">
+              <h3>別の場所からログインされています</h3>
+            </div>
+            <div className="simple-modal-body">
+              <p>このアカウントは別の場所で使用中です。</p>
+              {sessionInfo && (
+                <div className="session-info">
+                  <p>
+                    <strong>ログイン時刻:</strong> {new Date(sessionInfo.loginTime).toLocaleString('ja-JP')}
+                  </p>
+                  {sessionInfo.ipAddress && (
+                    <p>
+                      <strong>IPアドレス:</strong> {sessionInfo.ipAddress}
+                    </p>
+                  )}
+                </div>
+              )}
+              <p className="warning-text">
+                こちらにログインすると、以前のセッションは自動的にログアウトされます。続けますか？
+              </p>
+            </div>
+            <div className="simple-modal-footer">
+              <button
+                className="simple-button secondary"
+                onClick={handleCancelDialog}
+                disabled={loading}
+              >
+                キャンセル
+              </button>
+              <button
+                className="simple-button primary"
+                onClick={handleForceLogin}
+                disabled={loading}
+              >
+                {loading ? 'ログイン中...' : '続ける'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

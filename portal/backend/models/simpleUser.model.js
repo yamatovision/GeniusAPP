@@ -83,6 +83,30 @@ const SimpleUserSchema = new mongoose.Schema({
     default: null
   },
   
+  // アクティブセッション情報
+  activeSession: {
+    sessionId: {
+      type: String,
+      default: null
+    },
+    loginTime: {
+      type: Date,
+      default: null
+    },
+    lastActivity: {
+      type: Date,
+      default: null
+    },
+    ipAddress: {
+      type: String,
+      default: null
+    },
+    userAgent: {
+      type: String,
+      default: null
+    }
+  },
+  
   // アカウントステータス
   status: {
     type: String,
@@ -174,6 +198,41 @@ SimpleUserSchema.methods.setOrganization = function(organizationId) {
 SimpleUserSchema.methods.setApiKey = function(apiKeyId) {
   this.apiKeyId = apiKeyId;
   return this.save();
+};
+
+// セッション管理メソッド
+SimpleUserSchema.methods.hasActiveSession = function() {
+  return !!(this.activeSession && this.activeSession.sessionId);
+};
+
+SimpleUserSchema.methods.setActiveSession = function(sessionId, ipAddress, userAgent) {
+  this.activeSession = {
+    sessionId: sessionId,
+    loginTime: new Date(),
+    lastActivity: new Date(),
+    ipAddress: ipAddress || null,
+    userAgent: userAgent || null
+  };
+  return this.save();
+};
+
+SimpleUserSchema.methods.clearActiveSession = function() {
+  this.activeSession = {
+    sessionId: null,
+    loginTime: null,
+    lastActivity: null,
+    ipAddress: null,
+    userAgent: null
+  };
+  return this.save();
+};
+
+SimpleUserSchema.methods.updateSessionActivity = function() {
+  if (this.activeSession && this.activeSession.sessionId) {
+    this.activeSession.lastActivity = new Date();
+    return this.save();
+  }
+  return Promise.resolve(this);
 };
 
 const SimpleUser = mongoose.model('SimpleUser', SimpleUserSchema);

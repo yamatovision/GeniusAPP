@@ -10,6 +10,8 @@ const simpleAuthConfig = require('../config/simple-auth.config');
 const SimpleUser = require('../models/simpleUser.model');
 // 認証ヘルパーを追加
 const authHelper = require('../utils/simpleAuth.helper');
+// セッション管理サービスを追加
+const SessionService = require('../services/session.service');
 
 /**
  * JWTトークンを検証するミドルウェア
@@ -20,7 +22,7 @@ const tokenVerificationCache = new Map();
 // キャッシュの有効期間（5秒）
 const CACHE_TTL = 5000;
 
-exports.verifySimpleToken = (req, res, next) => {
+exports.verifySimpleToken = async (req, res, next) => {
   // Authorizationヘッダーからトークンを取得
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -63,6 +65,49 @@ exports.verifySimpleToken = (req, res, next) => {
     // デコードされたユーザーIDをリクエストオブジェクトに追加
     req.userId = decoded.id;
     req.userRole = decoded.role || 'User';
+    req.sessionId = decoded.sessionId || null;
+    
+    // ユーザーのアカウントステータスを確認（必要に応じて）
+    if (decoded.accountStatus === 'suspended') {
+      return res.status(401).json({
+        success: false,
+        message: 'アカウントが一時停止されています。管理者にお問い合わせください。',
+        error: {
+          code: 'ACCOUNT_SUSPENDED',
+          details: { accountStatus: 'suspended' }
+        }
+      });
+    }
+    
+    // セッションが含まれている場合は、セッションの有効性を確認
+    if (decoded.sessionId) {
+      const isValidSession = await SessionService.validateSession(decoded.id, decoded.sessionId);
+      
+      if (!isValidSession) {
+        // キャッシュから削除
+        tokenVerificationCache.delete(token);
+        
+        // CORS対応ヘッダー設定
+        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Origin,X-Requested-With,Content-Type,Accept,Authorization');
+        
+        return res.status(401).json({
+          success: false,
+          message: '別の場所からログインされたため、セッションが終了しました',
+          error: {
+            code: 'SESSION_TERMINATED',
+            details: { sessionInvalid: true }
+          }
+        });
+      }
+      
+      // セッションアクティビティを更新（非同期で実行）
+      SessionService.updateSessionActivity(decoded.id).catch(err => {
+        console.error('セッションアクティビティ更新エラー:', err);
+      });
+    }
     
     // 検証結果をキャッシュに保存
     tokenVerificationCache.set(token, {
@@ -159,6 +204,18 @@ exports.verifySimpleRefreshToken = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'アカウントが無効化されています'
+      });
+    }
+    
+    // アカウントが一時停止されているか確認
+    if (user.accountStatus === 'suspended') {
+      return res.status(401).json({
+        success: false,
+        message: 'アカウントが一時停止されています。管理者にお問い合わせください。',
+        error: {
+          code: 'ACCOUNT_SUSPENDED',
+          details: { accountStatus: 'suspended' }
+        }
       });
     }
     

@@ -82,6 +82,13 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
         // プロジェクトが1件も存在しないか、アクティブプロジェクトがない場合はNoProjectViewを表示
         if (allProjects.length === 0 || !activeProject) {
+          // NoProjectView表示前にログインチェックを実施
+          const { AuthGuard } = require('../auth/AuthGuard');
+          if (!AuthGuard.checkLoggedIn()) {
+            Logger.info('ScopeManagerPanel: NoProjectView表示前に未認証のためログインを促します');
+            return undefined;
+          }
+          
           // プロジェクトが選択されていない場合はNoProjectViewを表示
           const { NoProjectViewPanel } = require('../../ui/noProjectView/NoProjectViewPanel');
           Logger.info('ScopeManagerPanel: プロジェクトが存在しないか選択されていないため、プロジェクト選択画面を表示します');

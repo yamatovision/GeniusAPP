@@ -579,3 +579,58 @@ exports.toggleApiAccess = async (req, res) => {
     });
   }
 };
+
+// ユーザーの一時停止/復旧（管理者向け）
+exports.suspendUser = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { suspend } = req.body; // true: 一時停止, false: 復旧
+    
+    // 管理者権限チェック
+    if (req.userRole !== authConfig.roles.ADMIN) {
+      return res.status(403).json({ message: 'ユーザーを一時停止する権限がありません' });
+    }
+    
+    // ユーザーを取得
+    const user = await User.findById(userId);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'ユーザーが見つかりません' });
+    }
+    
+    // 自分自身を一時停止しようとしていないか確認
+    if (userId === req.userId) {
+      return res.status(400).json({ message: '自分自身を一時停止することはできません' });
+    }
+    
+    // アカウントステータスを更新
+    user.accountStatus = suspend ? 'suspended' : 'active';
+    
+    // 一時停止の場合、リフレッシュトークンを無効化（強制ログアウト）
+    if (suspend) {
+      user.refreshToken = undefined;
+    }
+    
+    await user.save();
+    
+    return res.status(200).json({
+      message: `ユーザーが${suspend ? '一時停止' : '復旧'}されました`,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        accountStatus: user.accountStatus
+      }
+    });
+  } catch (error) {
+    console.error('ユーザー一時停止エラー:', error);
+    return res.status(500).json({
+      error: {
+        code: 'SERVER_ERROR',
+        message: 'ユーザーの一時停止/復旧中にエラーが発生しました',
+        details: error.message
+      }
+    });
+  }
+};
