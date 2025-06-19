@@ -1,8 +1,8 @@
 # BlueLamp CLI 要件定義書 v2.0
 
-**バージョン**: 2.3.0  
+**バージョン**: 2.4.0  
 **最終更新日**: 2025-06-19  
-**ステータス**: 実装完了・複数行入力対応済み  
+**ステータス**: Claude Code技術分析完了・自律的エージェント化計画策定  
 
 ## 1. プロジェクト概要
 
@@ -291,3 +291,126 @@ bluelamp
 ---
 
 **実装完了**: BlueLamp CLIは複数行入力に対応し、より実用的なツールに進化しました。今後はUI/UXの改善により、さらに使いやすいツールを目指します。
+
+## 10. Claude Codeの技術的分析と今後の実装方針（v2.4.0）
+
+### 🔍 2025-06-19 Claude Codeの徹底的な技術調査
+
+#### 10.1 Claude Codeのツール一覧
+
+Claude Codeが使用している**11種類のコアツール**：
+
+| ツール名 | 機能 | BlueLamp対応 |
+|---------|------|-------------|
+| dispatch_agent | サブエージェントを生成して並列タスク実行 | ❌ 未実装 |
+| Bash | シェルコマンドの実行 | ✅ 実装済み |
+| BatchTool | 複数ツールの並列実行 | ❌ 未実装 |
+| GlobTool | ファイルパターンマッチング（**/*.js など） | ❌ 未実装 |
+| GrepTool | 正規表現による高速コンテンツ検索 | ❌ 未実装 |
+| LS | ファイル・ディレクトリ一覧表示 | ❌ 未実装 |
+| View | ファイル読み込み（最大2000行） | ✅ 実装済み（Read） |
+| Edit | ファイル編集 | ✅ 実装済み |
+| WebFetchTool | Webコンテンツ取得 | ❌ 未実装 |
+| WebSearchTool | Web検索 | ❌ 未実装 |
+| ComputerUseTool | GUI操作ツール | ❌ 未実装 |
+
+#### 10.2 Claude Codeのアーキテクチャ特性
+
+##### 1. **Constitutional AI（二段階処理）**
+- **Stage 1**: プライマリモデルがコード生成・理解を実行
+- **Stage 2**: セカンダリモデルが応答を評価・洗練
+- これによりセキュリティと品質の両立を実現
+
+##### 2. **CLAUDE.mdメモリシステム**
+```
+./CLAUDE.md          # プロジェクト固有の指示
+~/.claude/CLAUDE.md  # ユーザー個人の設定
+@imports             # 再帰的インポート（最大5ホップ）
+```
+
+##### 3. **マルチモデル使い分け**
+- `claude-3-7-sonnet`: 複雑な推論タスク
+- `claude-3-5-haiku`: シンプルなタスク
+- タスクに応じて最適なモデルを自動選択
+
+##### 4. **セキュリティ層**
+- NetworkRequestApproval: ネットワークリクエストの承認
+- CommandBlocklist: 危険コマンドのブロック
+- IsolatedContextWindows: 隔離実行環境
+- FailClosedMatching: デフォルト拒否ポリシー
+
+#### 10.3 BlueLamp CLIとの技術的ギャップ分析
+
+| 機能カテゴリ | Claude Code | BlueLamp CLI | 実装優先度 |
+|------------|------------|--------------|-----------|
+| **ツール数** | 11種類以上 | 4種類 | 高 |
+| **並列実行** | BatchTool/dispatch_agent | なし | 高 |
+| **コンテキスト管理** | CLAUDE.md + 階層メモリ | HTTPプロンプトのみ | 高 |
+| **セキュリティ** | 多層防御システム | 基本的な実装 | 中 |
+| **モデル切り替え** | 複数モデル使い分け | 単一モデル | 低 |
+| **サブエージェント** | dispatch_agentで実現 | なし | 中 |
+| **MCP対応** | サーバー/クライアント両対応 | なし | 低 |
+
+#### 10.4 実装ロードマップ（優先順位順）
+
+##### Phase 1: 基本ツール拡充（2週間）
+1. **GlobTool**: ファイルパターンマッチング
+2. **GrepTool**: 高速コンテンツ検索
+3. **LS Tool**: ディレクトリ一覧表示
+4. **BatchTool**: 並列実行基盤
+
+##### Phase 2: 自律的エージェント化（3週間）
+1. **BLUELAMP.mdメモリシステム**
+   - プロジェクト/ユーザー階層メモリ
+   - インポート機能（@path/to/import）
+2. **コンテキスト認識エンジン**
+   - プロジェクト構造の自動分析
+   - 意図推論と計画立案
+3. **dispatch_agent実装**
+   - サブタスクの並列実行
+
+##### Phase 3: 高度な機能（4週間）
+1. **WebFetchTool/WebSearchTool**
+2. **二段階AI処理の実装**
+3. **セキュリティ強化**
+4. **MCP対応**
+
+#### 10.5 技術的な実装指針
+
+##### 自律的エージェントの実現方法
+
+```typescript
+// autonomous-agent.tsとして実装開始
+class AutonomousAgent {
+  // 1. プロジェクト分析
+  async analyzeProject(): Promise<ProjectContext>
+  
+  // 2. 動的プロンプト構築
+  async buildDynamicPrompt(context: ProjectContext): Promise<string>
+  
+  // 3. 意図推論と計画立案
+  async createExecutionPlan(userInput: string): Promise<ExecutionPlan>
+  
+  // 4. 自律的実行
+  async executeAutonomously(plan: ExecutionPlan): Promise<void>
+}
+```
+
+##### AIのAI呼び出し（二重実装）の実現
+
+技術的に可能であり、Claude Code自体がこのアプローチを採用。実装方法：
+
+1. **レイヤー1**: ユーザー対話・意図理解AI
+2. **レイヤー2**: タスク実行・ツール選択AI
+3. **レイヤー3**: 結果評価・最適化AI
+
+### 🎯 v2.4.0の目標
+
+1. **Claude Code互換ツールセットの実装**
+2. **自律的エージェント機能の追加**
+3. **BLUELAMP.mdメモリシステムの構築**
+4. **並列実行とサブエージェント対応**
+
+---
+
+**次期バージョン方針**: BlueLamp CLIをClaude Codeのような自律的エージェントへ進化させ、開発者の真のパートナーとなるツールを目指します。

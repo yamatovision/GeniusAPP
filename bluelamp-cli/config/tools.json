@@ -1,0 +1,173 @@
+{
+  "tools": [
+    {
+      "name": "read",
+      "description": "ファイルの内容を読み取る。大きなファイルの部分読み込みにも対応。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "読み込むファイルのパス（絶対パスまたは相対パス）"
+          },
+          "limit": {
+            "type": "number",
+            "description": "読み込む行数の上限（オプション）"
+          },
+          "offset": {
+            "type": "number",
+            "description": "読み込み開始行（オプション）"
+          }
+        },
+        "required": ["file_path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "write",
+      "description": "ファイルに内容を書き込む。ディレクトリが存在しない場合は自動作成。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "書き込むファイルのパス"
+          },
+          "content": {
+            "type": "string",
+            "description": "ファイルに書き込む内容"
+          }
+        },
+        "required": ["file_path", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "edit",
+      "description": "ファイルの一部を編集する。文字列の置換を行う。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "編集するファイルのパス"
+          },
+          "old_text": {
+            "type": "string",
+            "description": "置換元のテキスト"
+          },
+          "new_text": {
+            "type": "string",
+            "description": "置換後のテキスト"
+          },
+          "replace_all": {
+            "type": "boolean",
+            "description": "全ての該当箇所を置換するか（デフォルト: false）",
+            "default": false
+          }
+        },
+        "required": ["file_path", "old_text", "new_text"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bash",
+      "description": "bashコマンドを実行する。セキュリティフィルターにより危険なコマンドはブロック。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "実行するbashコマンド"
+          },
+          "timeout": {
+            "type": "number",
+            "description": "タイムアウト時間（ミリ秒）",
+            "default": 30000
+          },
+          "description": {
+            "type": "string",
+            "description": "コマンドの説明（オプション）"
+          }
+        },
+        "required": ["command"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "glob",
+      "description": "ファイルパターンマッチング。glob形式のパターンでファイルを検索。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "glob パターン (例: **/*.ts, src/**/*.js)"
+          },
+          "path": {
+            "type": "string",
+            "description": "検索開始ディレクトリ（デフォルト: カレントディレクトリ）",
+            "default": "."
+          }
+        },
+        "required": ["pattern"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "grep",
+      "description": "ファイル内容を正規表現で検索。大規模コードベースでも高速動作。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "検索する正規表現パターン"
+          },
+          "include": {
+            "type": "string",
+            "description": "検索対象ファイルパターン（例: *.js, *.{ts,tsx}）"
+          },
+          "path": {
+            "type": "string",
+            "description": "検索パス（デフォルト: カレントディレクトリ）",
+            "default": "."
+          }
+        },
+        "required": ["pattern"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "ls",
+      "description": "ディレクトリの内容を一覧表示。ファイル情報も含む。",
+      "parameters": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "一覧表示するディレクトリの絶対パス"
+          },
+          "ignore": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "無視するパターンのリスト（オプション）"
+          }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "version": "1.0.0",
+  "description": "BlueLamp CLI ツール定義ファイル"
+}

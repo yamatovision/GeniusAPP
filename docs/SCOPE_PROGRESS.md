@@ -623,6 +623,14 @@ project/
   - 参照: [/docs/plans/planning/ext-template-update-20250520.md](/docs/plans/planning/ext-template-update-20250520.md)
   - 内容: プロジェクト新規作成・読み込み時に最新のSCOPE_PROGRESS_TEMPLATEとCLAUDETEMPLATEに基づいてファイルを更新する機能を実装
     
+- [ ] **CLI-001**: BlueLamp CLI Claude Code化移行計画の実装
+  - 目標: 2025-08-01
+  - 参照: [/docs/plans/planning/ext-bluelamp-cli-claude-code-migration-2025-06-18.md](/docs/plans/planning/ext-bluelamp-cli-claude-code-migration-2025-06-18.md)
+  - 内容: BlueLamp CLIをClaude Codeと同等の自律的開発支援CLIツールへ段階的に移行
+    - Phase 1（基礎機能拡充）: 基本ツール7種類の実装、初期コンテキスト収集、メモリシステム構築
+    - Phase 2（高度な機能）: 並列実行機能、セキュリティ強化、Webツール実装
+    - Phase 3（最適化と独自機能）: パフォーマンス最適化、プロジェクトテンプレート生成、開発メトリクス機能
+    
 - [ ] **UI-1**: ファイルビューワー自動更新機能の実装
   - 目標: 2025-05-17
   - 参照: [/docs/plans/planning/ext-docs-auto-refresh-20250514.md](/docs/plans/planning/ext-docs-auto-refresh-20250514.md)
