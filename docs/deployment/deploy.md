@@ -1,8 +1,8 @@
-# ブルーランプ デプロイ情報（2025/06/17更新）
+# ブルーランプ デプロイ情報（2025/06/19更新）
 
-## ✅ サービス復旧完了（2025/06/17）
+## ✅ サービス稼働状況（2025/06/19更新）
 
-2025/06/17 16:10頃に一時的に停止していたサービスを復旧しました：
+現在のサービス稼働状況：
 
 1. **bluelamp** - ✅ 稼働中（https://bluelamp-235426778039.asia-northeast1.run.app）
 2. **appgenius-portal-test** - ✅ 稼働中（https://appgenius-portal-test-235426778039.asia-northeast1.run.app）  
@@ -48,7 +48,7 @@ gcloud run services update bluelamp --platform managed --region asia-northeast1 
 **本番環境**
 - バックエンド:
   - **最新環境（推奨・標準）**: https://bluelamp-235426778039.asia-northeast1.run.app
-  - 旧テスト環境（2025-05-21まで並行稼働）: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
+  - 旧テスト環境（2025-06-21まで並行稼働）: https://appgenius-portal-test-235426778039.asia-northeast1.run.app
   - 旧環境（非推奨）: https://appgenius-portal-backend-235426778039.asia-northeast1.run.app
 - フロントエンド: https://geniemon.vercel.app
 - データベース: MongoDB Atlas
@@ -548,7 +548,7 @@ npm start
 
 3. **CHANGELOGの更新**:
    ```markdown
-   ## [1.0.1] - 2025-05-14
+   ## [1.0.1] - 2025-06-14
 
    ### 追加
    - ブルーランプロゴの追加
@@ -910,7 +910,7 @@ https://bluelamp-235426778039.asia-northeast1.run.app
 - テストスクリプト（`test_counter_fixed_url.js`など）
 
 ### 旧URLの廃止スケジュール
-以下の旧URLは2025-05-21をもって廃止されます：
+以下の旧URLは2025-06-21をもって廃止されます：
 
 1. **appgenius-portal-test** (テスト環境)
    ```
@@ -927,7 +927,7 @@ https://bluelamp-235426778039.asia-northeast1.run.app
    https://appgenius-portal-test-6clpzmy5pa-an.a.run.app
    ```
 
-2025-05-14～2025-05-21の移行期間中は新旧両方のURLが利用可能ですが、新規開発および更新では必ず新URLを使用してください。移行期間後は旧URLへのリクエストは失敗するようになります。
+2025-06-14～2025-06-21の移行期間中は新旧両方のURLが利用可能ですが、新規開発および更新では必ず新URLを使用してください。移行期間後は旧URLへのリクエストは失敗するようになります。
 
 ### 注意事項
 - 新しいURLが生成されても、https://bluelamp-235426778039.asia-northeast1.run.app を標準として使用します
