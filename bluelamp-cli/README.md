@@ -28,16 +28,56 @@ npm run dev
 
 ## Usage
 
+### Basic Commands
+
 ```bash
-# After installation
-npm start
-
-# Or directly
-node dist/index.js
-
-# Or if installed globally
+# デフォルトエージェント（汎用開発支援）を起動
 bluelamp
+
+# 特定のエージェントを起動
+bluelamp agent mockup    # モックアップアナライザー
+bluelamp agent test      # テストエンジニア
+bluelamp agent api       # API設計
+
+# エイリアスで起動（短縮形）
+bluelamp mock           # mockup エージェント
+bluelamp req            # requirements エージェント
+bluelamp doc            # documentation エージェント
+
+# エージェント一覧を表示
+bluelamp list           # すべてのエージェント
+bluelamp list -c design # デザイン系のみ表示
 ```
+
+### Available Agents (16 agents)
+
+#### Development (開発)
+- `default` - 汎用的な開発支援
+- `datamodel` (data, db) - データベース設計
+- `api` (rest, graphql) - API設計
+- `deployment` (deploy, cicd) - CI/CD
+- `refactor` (clean, improve) - リファクタリング
+
+#### Design (デザイン)
+- `mockup` (mock, design) - モックアップ分析
+- `uiux` (ui, ux) - UI/UX設計
+
+#### Planning (計画)
+- `requirements` (req, spec) - 要件定義
+- `architecture` (arch, system) - アーキテクチャ設計
+- `project` (pm, manage) - プロジェクト管理
+
+#### Testing (テスト)
+- `testing` (test, qa) - テスト支援
+
+#### Analysis (分析)
+- `security` (sec, audit) - セキュリティ分析
+- `performance` (perf, optimize) - パフォーマンス最適化
+- `review` (cr, codereview) - コードレビュー
+- `analytics` (data-analysis, bi) - データ分析
+
+#### Documentation (ドキュメント)
+- `documentation` (doc, docs) - 技術文書作成
 
 ## Available Tools
 

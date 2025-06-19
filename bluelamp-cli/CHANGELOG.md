@@ -2,6 +2,27 @@
 
 All notable changes to BlueLamp CLI will be documented in this file.
 
+## [1.2.0] - 2025-06-19
+
+### Added
+- **統合アーキテクチャ**: すべてのエージェントを`bluelamp`コマンドで統一
+- **16個のエージェント定義**: 開発、デザイン、計画、分析、テスト、ドキュメントの各カテゴリ
+- **コマンドライン引数サポート**: 
+  - `bluelamp agent <name>` - 特定のエージェントを起動
+  - `bluelamp list` - エージェント一覧表示
+  - `bluelamp list --category <category>` - カテゴリでフィルタ
+- **エイリアスサポート**: `bluelamp mock`のような短縮形で起動可能
+- **Commander.js統合**: より高度なCLI機能
+
+### Changed
+- アーキテクチャを統合型に変更（UnifiedCLIクラス）
+- mockup-analyzer.tsを統合し、単一のエントリポイントに
+- エージェント定義を`config/agents.ts`に一元化
+
+### Removed
+- `bluelamp-mockup`コマンド（`bluelamp agent mockup`に統合）
+- 不要な個別ファイル（mockup-analyzer.ts、autonomous-agent.tsなど）
+
 ## [1.1.0] - 2025-06-19
 
 ### Added

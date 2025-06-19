@@ -1,11 +1,10 @@
 {
   "name": "bluelamp-cli",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "BlueLamp CLI - AI-powered development assistant with Claude Code features",
   "main": "dist/index.js",
   "bin": {
-    "bluelamp": "dist/index.js",
-    "bluelamp-mockup": "dist/mockup-analyzer.js"
+    "bluelamp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -27,6 +26,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
     "chalk": "^5.4.1",
+    "commander": "^12.0.0",
     "dotenv": "^16.4.5",
     "inquirer": "^12.6.3",
     "fast-glob": "^3.3.2"
