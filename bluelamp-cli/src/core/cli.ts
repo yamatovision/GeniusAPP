@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import * as fs from 'fs/promises';
 import { ToolManager } from '../tool-manager';
 import { AgentConfig, findAgent, AGENTS } from '../config/agents';
+import { FinalUIV2 } from './final-ui-v2';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -57,19 +58,8 @@ export class UnifiedCLI {
         this.toolManager.printToolInfo();
       }
       
-      console.log(chalk.yellow(`Claude API セッション開始 (20万コンテクスト対応)`));
-      console.log(chalk.gray('終了するには "exit" と入力してください\n'));
-      
-      // エージェント情報を表示
-      console.log(chalk.blue(`エージェント: ${this.agent.name}`));
-      console.log(chalk.gray(`説明: ${this.agent.description}\n`));
-      
-      // 初期メッセージを送信（カスタムまたはデフォルト）
-      const initialMessage = this.agent.initialMessage || '開始してください。';
-      await this.sendMessage(initialMessage);
-      
-      // REPLループ開始
-      await this.startREPL();
+      // Final UI V2 を使用
+      await this.startFinalUIREPL();
       
     } catch (error: any) {
       console.error(chalk.red('エラー:'), error.message);
@@ -90,7 +80,64 @@ export class UnifiedCLI {
     }
   }
 
-  private async startREPL() {
+  private async startFinalUIREPL() {
+    const ui = new FinalUIV2({
+      title: `${this.agent.icon} ${this.agent.name} - BlueLamp CLI`
+    });
+
+    // 過去の出力を表示
+    ui.appendOutput(chalk.cyan(`${this.agent.icon} ${this.agent.name} を起動しました`));
+    ui.appendOutput(chalk.yellow(`Claude API セッション (20万コンテキスト対応)`));
+    ui.appendOutput(chalk.blue(`エージェント: ${this.agent.name}`));
+    ui.appendOutput(chalk.gray(`説明: ${this.agent.description}`));
+    ui.newLine();
+    
+    // 初期メッセージを送信
+    const initialMessage = this.agent.initialMessage || '開始してください。';
+    ui.appendOutput(chalk.cyan('あなた:'));
+    ui.appendOutput(initialMessage);
+    ui.appendOutput(chalk.green('✔ 送信完了'));
+    ui.appendOutput(chalk.cyan('🤔 ただいま思考中...'));
+    ui.newLine();
+    
+    // 初期メッセージに対する応答を処理
+    await this.sendMessageWithUI(initialMessage, ui);
+
+    // 入力イベントハンドラー
+    ui.on('input', async (userInput: string) => {
+      if (userInput.toLowerCase() === 'exit' || userInput.toLowerCase() === '終了') {
+        ui.appendOutput(chalk.yellow(`${this.agent.name} を終了します。`));
+        await this.cleanupTempFiles();
+        ui.destroy();
+        process.exit(0);
+      }
+
+      // ユーザー入力を表示
+      ui.appendOutput(chalk.cyan('あなた:'));
+      ui.appendOutput(userInput);
+      
+      const lines = userInput.split('\n');
+      if (lines.length > 3) {
+        ui.appendOutput(chalk.gray(`[${lines.length}行を受信]`));
+      }
+      ui.appendOutput(chalk.green('✔ 送信完了'));
+      ui.appendOutput(chalk.cyan('🤔 ただいま思考中...'));
+      ui.newLine();
+
+      // メッセージ送信（UIに出力を渡す）
+      await this.sendMessageWithUI(userInput, ui);
+    });
+
+    // 終了イベントハンドラー
+    ui.on('exit', async () => {
+      await this.cleanupTempFiles();
+      process.exit(0);
+    });
+  }
+
+  /*
+  // 将来の参考のため残しておく
+  private async startReadlineREPL() {
     const readline = require('readline');
     
     while (true) {
@@ -135,6 +182,7 @@ export class UnifiedCLI {
       await this.sendMessage(userInput);
     }
   }
+  */
 
   private async cleanupTempFiles(): Promise<void> {
     for (const filePath of this.tempFiles) {
@@ -147,6 +195,7 @@ export class UnifiedCLI {
     this.tempFiles = [];
   }
 
+  /*
   private async sendMessage(content: string) {
     this.messages.push({ role: 'user', content });
 
@@ -200,6 +249,7 @@ export class UnifiedCLI {
       }
     }
   }
+  */
 
   private async executeTool(toolName: string, input: any): Promise<string> {
     console.log(chalk.blue(`🔧 ツール実行: ${toolName}`));
@@ -212,6 +262,70 @@ export class UnifiedCLI {
     } catch (error: any) {
       console.error(chalk.red(`ツール実行エラー:`, error.message));
       return `❌ エラー: ${error.message}`;
+    }
+  }
+
+  private async sendMessageWithUI(content: string, ui: FinalUIV2) {
+    this.messages.push({ role: 'user', content });
+
+    for (let iteration = 0; iteration < 10; iteration++) {
+      try {
+        ui.appendOutput(chalk.gray(`--- ステップ ${iteration + 1} ---`));
+        
+        const response = await this.client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 64000,
+          temperature: 0.7,
+          system: this.getEnhancedSystemPrompt(),
+          messages: this.messages,
+          tools: this.toolManager.getToolsForClaude()
+        });
+
+        this.messages.push({ role: 'assistant', content: response.content });
+
+        let hasToolUse = false;
+        const toolResults: any[] = [];
+
+        for (const contentBlock of response.content) {
+          if (contentBlock.type === 'text') {
+            ui.appendOutput(chalk.green('Claude:'));
+            ui.appendOutput(contentBlock.text);
+          } else if (contentBlock.type === 'tool_use') {
+            hasToolUse = true;
+            ui.appendOutput(chalk.blue(`🔧 ツール実行: ${contentBlock.name}`));
+            ui.appendOutput(chalk.gray(`入力パラメータ: ${JSON.stringify(contentBlock.input)}`));
+            
+            const result = await this.executeTool(contentBlock.name, contentBlock.input);
+            
+            ui.appendOutput(chalk.gray(`結果: ${result.substring(0, 200)}${result.length > 200 ? '...' : ''}`));
+            ui.newLine();
+            
+            toolResults.push({
+              type: 'tool_result',
+              tool_use_id: contentBlock.id,
+              content: result
+            });
+          }
+        }
+
+        if (hasToolUse && toolResults.length > 0) {
+          this.messages.push({ role: 'user', content: toolResults });
+          ui.appendOutput(chalk.yellow('↻ ツール結果を基に処理を継続...'));
+          ui.newLine();
+          continue;
+        }
+
+        ui.appendOutput(chalk.green('✅ タスク完了'));
+        ui.newLine();
+        break;
+
+      } catch (error: any) {
+        ui.appendOutput(chalk.red('エラーが発生しました:'));
+        ui.appendOutput(error.message);
+        ui.appendOutput(chalk.yellow('もう一度お試しください。'));
+        ui.newLine();
+        break;
+      }
     }
   }
 
