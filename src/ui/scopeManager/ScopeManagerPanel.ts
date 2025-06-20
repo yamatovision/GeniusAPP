@@ -3,6 +3,8 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
+import * as http from 'http';
+import * as url from 'url';
 import { Logger } from '../../utils/logger';
 import { FileOperationManager } from '../../utils/fileOperationManager';
 import { ScopeItemStatus, IImplementationItem, IImplementationScope } from '../../types';
@@ -151,9 +153,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         vscode.Uri.joinPath(extensionUri, 'media'),
         vscode.Uri.joinPath(extensionUri, 'dist'),
         vscode.Uri.joinPath(extensionUri, 'node_modules', '@vscode', 'codicons')
-      ],
-      // @ts-ignore - VSCodeの内部プロパティにアクセス（DebugRepl対策）
-      treeInput: {} // DebugReplのツリー入力を初期化（TreeErrorを防止）
+      ]
     };
     
     // WebViewパネル作成
@@ -1584,8 +1584,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
    * ローカルサーバーを起動
    */
   private async startLocalServer(htmlPath: string, port: number): Promise<string> {
-    const http = require('http');
-    const url = require('url');
     
     // グローバルな既存サーバーがあれば停止
     if (ScopeManagerPanel._globalReplicaServer) {
@@ -1703,7 +1701,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
         Logger.info(`レプリカサーバーが起動しました: ${serverUrl}`);
         
         // サーバーが正常に起動したことを確認するテストリクエスト
-        const http = require('http');
         http.get(serverUrl, (res: any) => {
           Logger.info(`レプリカサーバーの動作確認OK: ステータス=${res.statusCode}`);
           resolve(serverUrl);
@@ -1840,7 +1837,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       Logger.info(`レプリカ作成開始: プロジェクトパス=${currentProjectPath}, URL=${url}`);
 
       // ReplicaServiceのインスタンスを取得
-      const { ReplicaService } = require('../../services/ReplicaService');
+      const { ReplicaService } = await import('../../services/ReplicaService');
       const replicaService = ReplicaService.getInstance(this._extensionPath);
 
       // 進行状況を送信
@@ -1899,7 +1896,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
 
-      const { ReplicaService } = require('../../services/ReplicaService');
+      const { ReplicaService } = await import('../../services/ReplicaService');
       const replicaService = ReplicaService.getInstance(this._extensionPath);
       
       const exists = await replicaService.checkReplicaExists(currentProjectPath);
@@ -1938,7 +1935,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
         return;
       }
 
-      const { ReplicaService } = require('../../services/ReplicaService');
+      const { ReplicaService } = await import('../../services/ReplicaService');
       const replicaService = ReplicaService.getInstance(this._extensionPath);
       
       const replicaPath = replicaService.getReplicaPath(currentProjectPath);

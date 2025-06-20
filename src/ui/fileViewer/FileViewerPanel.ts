@@ -48,7 +48,7 @@ export class FileViewerPanel {
       // ProjectServiceImplを更新（利用可能な場合）
       try {
         // ProjectServiceImplのインスタンスを取得
-        const { ProjectServiceImpl } = require('../scopeManager/services/implementations/ProjectServiceImpl');
+        const { ProjectServiceImpl } = await import('../scopeManager/services/implementations/ProjectServiceImpl');
         const projectService = ProjectServiceImpl.getInstance();
 
         // プロジェクト名を取得
@@ -531,15 +531,14 @@ export class FileViewerPanel {
    * プロジェクト全体の監視を設定
    * ファイルビューワーが開いている時にプロジェクト全体の変更を監視する
    */
-  private _setupProjectFileWatcher(): void {
+  private async _setupProjectFileWatcher(): Promise<void> {
     try {
       if (!this._currentProjectPath) {
         return;
       }
       
       // FileWatcherServiceImplのインスタンスを取得
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { FileWatcherServiceImpl } = require('../scopeManager/services/implementations/FileWatcherServiceImpl');
+      const { FileWatcherServiceImpl } = await import('../scopeManager/services/implementations/FileWatcherServiceImpl');
       const fileWatcherService = FileWatcherServiceImpl.getInstance();
       
       // プロジェクト全体を監視

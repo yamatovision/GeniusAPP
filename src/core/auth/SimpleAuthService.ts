@@ -15,6 +15,12 @@ import { API_CONFIG } from '../../config/apiConfig';
 export class SimpleAuthService {
   private static instance: SimpleAuthService;
   private _currentState: AuthState & {userData?: any};
+  
+  // グローバル変数の型定義
+  declare global {
+    // eslint-disable-next-line no-var
+    var _appgenius_auth_token: string | undefined;
+  }
   private _accessToken: string | undefined;
   private _refreshToken: string | undefined;
   private _tokenExpiry: number | undefined;
@@ -243,7 +249,6 @@ export class SimpleAuthService {
       this._tokenExpiry = Date.now() + (expiryInSeconds * 1000);
       
       // グローバル変数にも保存（インスタンス間での共有）
-      // @ts-ignore - グローバル変数への代入
       global._appgenius_auth_token = accessToken;
       Logger.debug('SimpleAuthService: アクセストークンをグローバル変数に保存しました');
       
@@ -275,8 +280,7 @@ export class SimpleAuthService {
       
       // グローバル変数からも削除
       if ('_appgenius_auth_token' in global) {
-        // @ts-ignore - グローバル変数の削除
-        delete global._appgenius_auth_token;
+        global._appgenius_auth_token = undefined;
       }
       
       Logger.info('SimpleAuthService: トークンクリア完了');

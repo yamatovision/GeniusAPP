@@ -137,8 +137,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
     
     // ProjectServiceImplのインスタンスを取得
     try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { ProjectServiceImpl } = require('../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+      const { ProjectServiceImpl } = await import('../../ui/scopeManager/services/implementations/ProjectServiceImpl');
       this._projectServiceImpl = ProjectServiceImpl.getInstance();
       Logger.info('ProjectServiceImplのインスタンスを取得しました');
     } catch (error) {

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 import { Logger } from '../../../utils/logger';
 import { FileOperationManager } from '../../../utils/fileOperationManager';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../../services/AppGeniusEventBus';
@@ -228,7 +229,6 @@ export class FileSystemService implements IFileSystemService {
     
     try {
       // ディレクトリツールを利用してプロジェクト構造を取得
-      const { execSync } = require('child_process');
       
       // コマンドを実行
       const command = process.platform === 'win32'

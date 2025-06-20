@@ -2,6 +2,7 @@ import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as vscode from 'vscode';
 import axios from 'axios';
+import * as fs from 'fs';
 import { AuthenticationService, AuthEventType } from '../../../src/core/auth/AuthenticationService';
 import { TokenManager } from '../../../src/core/auth/TokenManager';
 import { ClaudeCodeAuthSync } from '../../../src/services/ClaudeCodeAuthSync';
@@ -82,7 +83,6 @@ async function setupTestEnvironment() {
   claudeCodeSync = ClaudeCodeAuthSync.getInstance();
   
   // fs操作のモック
-  const fs = require('fs');
   sinon.stub(fs, 'existsSync').returns(true);
   sinon.stub(fs, 'readFileSync').returns('{}');
   sinon.stub(fs, 'writeFileSync').returns(undefined);
@@ -245,7 +245,6 @@ suite('認証フロー統合テスト', () => {
     await setupTestEnvironment();
     
     // FS操作の成功をモック
-    const fs = require('fs');
     sinon.stub(fs, 'existsSync').returns(true);
     sinon.stub(fs, 'writeFileSync').returns(undefined);
     sinon.stub(fs, 'readFileSync').returns(JSON.stringify({ some: 'data' }));

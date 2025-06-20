@@ -165,13 +165,13 @@ export class AuthenticationHandler implements IAuthenticationHandler {
    * ログイン画面を表示
    * @param extensionUri 拡張機能のURI
    */
-  public showLoginScreen(extensionUri: vscode.Uri): void {
+  public async showLoginScreen(extensionUri: vscode.Uri): Promise<void> {
     try {
       // extensionUriを保存
       this._extensionUri = extensionUri;
       
       // ログイン画面を表示（LoginWebviewPanelを使用）
-      const { LoginWebviewPanel } = require('../../auth/LoginWebviewPanel');
+      const { LoginWebviewPanel } = await import('../../auth/LoginWebviewPanel');
       LoginWebviewPanel.createOrShow(extensionUri);
       
       Logger.info('AuthenticationHandler: ログイン画面を表示しました');

@@ -62,13 +62,11 @@ export class SpecializedLaunchHandlers {
         } catch (importError) {
           Logger.warn(`【認証情報確認】SimpleAuthServiceインポートエラー: ${(importError as Error).message}`);
 
-          // 方法3: requireを使用したバックアップ方法
-          try {
-            const SimpleAuthServiceClass = require('../../core/auth/SimpleAuthService').SimpleAuthService;
-            authService = SimpleAuthServiceClass.getInstance();
-            Logger.debug('【認証情報確認】require()を使用してSimpleAuthServiceインスタンスを取得しました');
-          } catch (requireError) {
-            Logger.warn(`【認証情報確認】require()を使用したSimpleAuthService取得エラー: ${(requireError as Error).message}`);
+          // バックアップ方法: グローバル変数からトークンを確認
+          if (typeof global !== 'undefined' && '_appgenius_auth_token' in global) {
+            Logger.debug('【認証情報確認】グローバル変数からトークンを検出しました');
+          } else {
+            Logger.warn('【認証情報確認】認証サービスへのアクセスができませんでした');
           }
         }
       }

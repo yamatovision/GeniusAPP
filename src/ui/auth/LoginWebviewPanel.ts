@@ -460,8 +460,7 @@ export class LoginWebviewPanel {
           
           // メール形式チェック
           function isValidEmail(email) {
-            // eslint-disable-next-line no-useless-escape
-            const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+[.][a-zA-Z]{2,}$/;
             return re.test(email);
           }
           
