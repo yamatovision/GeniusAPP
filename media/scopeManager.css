@@ -291,81 +291,7 @@ h1, h2, h3, h4 {
   border-bottom: 1px solid var(--app-border-color);
 }
 
-.tabs {
-  display: flex;
-  border-bottom: 1px solid var(--app-border-color);
-  margin-bottom: var(--app-spacing-md);
-  justify-content: space-between; /* 左右に分ける */
-  padding: 0 var(--app-spacing-md);
-  align-items: flex-end;
-  flex-wrap: wrap; /* タブが多い場合は折り返し */
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.tabs-container {
-  display: flex;
-  flex-wrap: wrap; /* タブが多い場合は折り返す */
-  gap: 2px;
-  max-height: 80px; /* 2行分の高さを確保 */
-  overflow-y: auto; /* 必要に応じてスクロール */
-}
-
-.tab {
-  padding: var(--app-spacing-sm) var(--app-spacing-md); /* タブの幅を少し小さく */
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  color: var(--app-text-secondary);
-  transition: all var(--app-transition);
-  margin: 0 2px; /* タブ間に少しスペースを追加 */
-  white-space: nowrap; /* タブテキストが切れないように */
-  min-width: 60px; /* 最小幅を設定 */
-  text-align: center; /* テキストを中央揃え */
-}
-
-.tab.active {
-  border-bottom-color: var(--app-primary);
-  color: var(--app-text);
-  font-weight: var(--app-font-weight-medium);
-  background-color: var(--app-primary-light);
-  border-radius: 6px 6px 0 0;
-}
-
-.tab:hover:not(.active) {
-  border-bottom-color: var(--app-gray-300);
-  color: var(--app-text);
-  background-color: var(--app-gray-100);
-  border-radius: 6px 6px 0 0;
-}
-
-/* プロジェクト名エリア（タブバーの左側に表示） */
-.project-display {
-  display: flex;
-  flex-direction: column;
-  padding: var(--app-spacing-sm) var(--app-spacing-md);
-  background-color: var(--app-primary-light);
-  border-radius: 6px 6px 0 0;
-  border-bottom: 3px solid var(--app-primary);
-  margin-bottom: -1px; /* ボーダーの重なりを調整 */
-  max-width: 250px; /* プロジェクト表示エリアの幅を制限 */
-  flex-shrink: 1; /* スペースが足りない場合は縮小できるように */
-}
-
-.project-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--app-primary-dark);
-  margin: 0;
-  padding: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* プロジェクトパスは非表示に */
-.project-path-display {
-  display: none;
-}
+/* タブ関連のスタイルは削除されました */
 
 .tab-content {
   display: none;
@@ -1683,16 +1609,33 @@ pre.code-block.directory-structure br {
 .viewer-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 10px 15px;
   background-color: var(--app-bg-secondary);
   border-bottom: 1px solid var(--app-border);
 }
 
-.viewer-header h4 {
-  margin: 0;
+.viewer-title-section {
+  flex: 1;
+}
+
+.viewer-title-section h4 {
+  margin: 0 0 4px 0;
   font-size: 16px;
   font-weight: 500;
+}
+
+.viewer-instruction {
+  margin: 0;
+  font-size: 12px;
+  color: var(--app-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.viewer-instruction .material-icons {
+  font-size: 14px;
 }
 
 .viewer-actions {

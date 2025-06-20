@@ -6,6 +6,12 @@ import { AuthState, AuthStateBuilder } from './AuthState';
 import { AuthStorageManager } from '../../utils/AuthStorageManager';
 import { API_CONFIG } from '../../config/apiConfig';
 
+// グローバル変数の型定義
+declare global {
+  // eslint-disable-next-line no-var
+  var _appgenius_auth_token: string | undefined;
+}
+
 /**
  * SimpleAuthService - シンプルな認証サービス
  * 
@@ -16,11 +22,6 @@ export class SimpleAuthService {
   private static instance: SimpleAuthService;
   private _currentState: AuthState & {userData?: any};
   
-  // グローバル変数の型定義
-  declare global {
-    // eslint-disable-next-line no-var
-    var _appgenius_auth_token: string | undefined;
-  }
   private _accessToken: string | undefined;
   private _refreshToken: string | undefined;
   private _tokenExpiry: number | undefined;
@@ -1203,4 +1204,5 @@ export class SimpleAuthService {
 
       return false;
     }
-  }}
+  }
+}

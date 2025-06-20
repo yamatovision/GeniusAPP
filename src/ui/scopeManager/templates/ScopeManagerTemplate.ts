@@ -191,16 +191,7 @@ export class ScopeManagerTemplate {
           
           <!-- 右側: コンテンツエリア -->
           <div class="content-area">
-            <!-- タブ付きカード -->
             <div class="card">
-              <div class="tabs">
-                <div class="project-display">
-                  <span class="project-name">${projectName}</span>
-                  <span class="project-path-display">${projectPath}</span>
-                </div>
-                <!-- タブバーは削除されました - LPレプリカ専用 -->
-              </div>
-              
               <!-- LPレプリカコンテンツ（直接表示） -->
               ${this._generateLPReplicaContent()}
             </div>
@@ -264,8 +255,6 @@ export class ScopeManagerTemplate {
     return `
       <div id="lp-replica-content" class="lp-replica-container">
         <div class="section">
-          <h3>LPレプリカ作成</h3>
-          
           <!-- レプリカ作成フォーム -->
           <div class="replica-create-form" id="replica-create-form">
             <div class="input-group">
@@ -290,7 +279,13 @@ export class ScopeManagerTemplate {
           <!-- レプリカビューア -->
           <div class="replica-viewer" id="replica-viewer" style="display: none;">
             <div class="viewer-header">
-              <h4>レプリカビューア</h4>
+              <div class="viewer-title-section">
+                <h4>レプリカビューア</h4>
+                <p class="viewer-instruction">
+                  <span class="material-icons">info</span>
+                  要素をAlt+クリック（Mac: Option+クリック）すると、要素情報を取得できます。
+                </p>
+              </div>
               <div class="viewer-actions">
                 <button id="refresh-replica-btn" class="button button-icon" title="更新">
                   <span class="material-icons">refresh</span>
@@ -299,13 +294,6 @@ export class ScopeManagerTemplate {
                   <span class="material-icons">open_in_new</span>
                 </button>
               </div>
-            </div>
-            
-            <div class="viewer-info">
-              <p class="info-text">
-                <span class="material-icons">info</span>
-                要素をAlt+クリック（Mac: Option+クリック）すると、要素情報を取得できます。
-              </p>
             </div>
             
             <iframe 

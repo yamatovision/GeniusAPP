@@ -36,7 +36,7 @@ export class FileViewerPanel {
    * プロジェクトパスを設定してファイルリストとタイトルを更新
    * @param projectPath 新しいプロジェクトパス
    */
-  public setCurrentProjectPath(projectPath: string): void {
+  public async setCurrentProjectPath(projectPath: string): Promise<void> {
     if (!projectPath) {
       Logger.warn('FileViewerPanel: 無効なプロジェクトパスが設定されました');
       return;

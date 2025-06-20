@@ -9,8 +9,9 @@ class ProjectNavigation {
     this.newProjectBtn = document.getElementById('new-project-btn');
     this.loadProjectBtn = document.getElementById('load-project-btn');
     this.searchInput = document.querySelector('.search-input');
-    this.projectDisplayName = document.querySelector('.project-display .project-name');
-    this.projectPathElement = document.querySelector('.project-path-display');
+    // プロジェクト表示要素への参照は削除（UIから削除されたため）
+    this.projectDisplayName = null;
+    this.projectPathElement = null;
     
     // VSCode APIを取得
     this.vscode = window.vsCodeApi;
@@ -45,7 +46,7 @@ class ProjectNavigation {
       this.collapseNavigation();
     }
     
-    // プロジェクト名更新イベントリスナーを設定
+    // プロジェクト名更新イベントリスナーを設定（将来の拡張性のため維持）
     document.addEventListener('project-name-updated', (event) => {
       this.updateProjectName(event.detail.name);
     });
@@ -616,17 +617,10 @@ class ProjectNavigation {
       return;
     }
     
-    // プロジェクト名をヘッダーに更新
-    if (this.projectDisplayName) {
-      console.log(`projectNavigation: プロジェクト名要素を更新: ${projectName}`);
-      this.projectDisplayName.textContent = projectName;
-      
-      // 現在表示中のプロジェクト名を記録
-      state.currentDisplayedProject = projectName;
-      stateManager.setState(state);
-    } else {
-      console.warn('projectNavigation: プロジェクト名表示要素が見つかりません: .project-display .project-name');
-    }
+    // 現在表示中のプロジェクト名を記録（UI要素は削除されたが、状態管理は維持）
+    state.currentDisplayedProject = projectName;
+    stateManager.setState(state);
+    console.log(`projectNavigation: プロジェクト名を状態に記録: ${projectName}`);
   }
   
   /**
@@ -642,14 +636,9 @@ class ProjectNavigation {
       const pathParts = data.projectPath.split(/[/\\]/);
       const projectName = pathParts[pathParts.length - 1];
       
-      // プロジェクト表示部分を更新
-      if (this.projectDisplayName && (!data.projectName || data.autoSetName)) {
+      // プロジェクト名の更新（UI要素は削除されたが、状態管理のため処理は維持）
+      if (!data.projectName || data.autoSetName) {
         this.updateProjectName(projectName || 'プロジェクト');
-      }
-      
-      // パス表示を更新
-      if (this.projectPathElement) {
-        this.projectPathElement.textContent = data.projectPath || '/path/to/project';
       }
     }
     

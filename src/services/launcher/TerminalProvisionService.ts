@@ -5,6 +5,7 @@ import { Logger } from '../../utils/logger';
 import { PlatformManager } from '../../utils/PlatformManager';
 import { TerminalOptions } from './LauncherTypes';
 import { AppGeniusEventBus, AppGeniusEventType } from '../../services/AppGeniusEventBus';
+import { SimpleAuthService } from '../../core/auth/SimpleAuthService';
 
 /**
  * ターミナル作成と環境変数設定を担当するサービス
@@ -107,7 +108,6 @@ export class TerminalProvisionService {
       // SimpleAuthServiceから現在のユーザーIDを取得
       let userId = null;
       try {
-        const SimpleAuthService = require('../../core/auth/SimpleAuthService').SimpleAuthService;
         const authService = SimpleAuthService.getInstance();
         // 現在のユーザー情報を取得
         const currentUser = authService.getCurrentUser();

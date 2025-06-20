@@ -135,14 +135,11 @@ export class MockupGalleryPanel extends ProtectedPanel {
     // ClaudeCodeランチャーの初期化
     this._claudeCodeLauncher = ClaudeCodeLauncherService.getInstance();
     
-    // ProjectServiceImplのインスタンスを取得
-    try {
-      const { ProjectServiceImpl } = await import('../../ui/scopeManager/services/implementations/ProjectServiceImpl');
-      this._projectServiceImpl = ProjectServiceImpl.getInstance();
-      Logger.info('ProjectServiceImplのインスタンスを取得しました');
-    } catch (error) {
-      Logger.warn('ProjectServiceImplのインスタンス取得に失敗しました', error as Error);
-    }
+    // ProjectServiceImplは後で初期化
+    this._projectServiceImpl = null;
+    
+    // 非同期初期化を実行
+    this._initializeProjectService();
     
     // プロジェクトパスの設定
     const initialProjectPath = projectPath || this._getDefaultProjectPath();
@@ -195,6 +192,20 @@ export class MockupGalleryPanel extends ProtectedPanel {
     );
 
     Logger.info('モックアップギャラリーパネルを作成しました');
+  }
+  
+  /**
+   * ProjectServiceImplの非同期初期化
+   */
+  private async _initializeProjectService(): Promise<void> {
+    try {
+      const { ProjectServiceImpl } = await import('../../ui/scopeManager/services/implementations/ProjectServiceImpl');
+      this._projectServiceImpl = ProjectServiceImpl.getInstance();
+      Logger.info('ProjectServiceImplのインスタンスを取得しました');
+    } catch (error) {
+      Logger.warn('ProjectServiceImplのインスタンス取得に失敗しました', error as Error);
+      this._projectServiceImpl = null;
+    }
   }
   
   /**

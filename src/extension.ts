@@ -30,6 +30,7 @@ import { Feature } from './core/auth/roles';
 import { AuthStorageManager } from './utils/AuthStorageManager';
 import { FileViewerPanel } from './ui/fileViewer/FileViewerPanel';
 import { NoProjectViewPanel } from './ui/noProjectView/NoProjectViewPanel';
+import { LoginWebviewPanel } from './ui/auth/LoginWebviewPanel';
 
 // グローバル変数としてExtensionContextを保持（安全対策）
 declare global {
@@ -80,6 +81,91 @@ function initializeLogger(): void {
       Logger.info('=== デバッグモード: 詳細ログを表示しています ===');
     }, 1000); // 1秒後に表示（起動処理完了後）
   }
+}
+
+/**
+ * 認証状態変更時のハンドラーを設定
+ */
+function setupAuthStateChangeListener(context: vscode.ExtensionContext, authService: SimpleAuthService): void {
+	// 認証状態変更イベントのリスナーを登録して、ダッシュボード自動表示のトリガーにする
+	authService.onStateChanged(state => {
+		try {
+			Logger.info(`認証状態が変更されました: ${state.isAuthenticated ? '認証済み' : '未認証'}`);
+			
+			// この時点でコマンドが登録されていることを検証
+			if (state.isAuthenticated) {
+				// 認証状態変更を通知
+				try {
+					Logger.info('【デバッグ】認証状態変更を通知します - コマンド実行前');
+					vscode.commands.executeCommand('appgenius.onAuthStateChanged', true);
+					Logger.info('【デバッグ】認証状態変更コマンドを実行しました');
+				} catch (cmdError) {
+					Logger.error('【デバッグ】認証状態変更コマンド実行中にエラーが発生しました', cmdError as Error);
+					
+					// エラー発生時はスコープマネージャーを直接表示
+					try {
+						Logger.info('【デバッグ】代替手段: スコープマネージャーを直接表示します');
+						if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
+							// プロジェクトパスを取得
+							let projectPath: string | undefined;
+							if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+								projectPath = vscode.workspace.workspaceFolders[0].uri.fsPath;
+							}
+							
+							// スコープマネージャーを開く
+							ScopeManagerPanel.createOrShow(context.extensionUri, context, projectPath);
+							Logger.info('【デバッグ】代替手段で成功: スコープマネージャーを表示しました');
+						}
+					} catch (directError) {
+						Logger.error('【デバッグ】スコープマネージャーの直接表示に失敗しました', directError as Error);
+					}
+				}
+			}
+		} catch (error) {
+			Logger.error('認証状態変更リスナーでエラーが発生しました', error as Error);
+		}
+	});
+}
+
+/**
+ * PermissionManagerを初期化する
+ */
+function initializePermissionManager(authService: SimpleAuthService): PermissionManager {
+	// PermissionManagerの初期化（シンプル認証サービスを使用）
+	const permissionManager = PermissionManager.getInstance(authService);
+	Logger.info('PermissionManager initialized with SimpleAuthService');
+	
+	return permissionManager;
+}
+
+/**
+ * 拡張機能のコマンド類を登録する
+ */
+function registerExtensionCommands(context: vscode.ExtensionContext): void {
+	// 認証コマンドの登録
+	registerAuthCommands(context);
+	Logger.info('Auth commands registered successfully');
+	
+	// プロンプトライブラリコマンドは削除済み
+	Logger.info('Prompt library commands have been removed');
+	
+	// ファイルビューワーコマンドの登録
+	registerFileViewerCommands(context);
+	Logger.info('File viewer commands registered successfully');
+	
+	// 環境変数アシスタントは不要なため、チェックと登録部分を削除
+	
+	Logger.info('Environment commands registered successfully');
+}
+
+/**
+ * ClaudeCode連携機能を初期化する
+ */
+function initializeClaudeCodeIntegration(context: vscode.ExtensionContext): void {
+	// ClaudeCode連携機能の初期化
+	const claudeCodeApiClient = ClaudeCodeApiClient.getInstance();
+	// Note: ClaudeCodeApiClientはsingleton patternを使用しているため、
+	// context.subscriptionsへの追加は不要
 }
 
 /**
@@ -151,7 +237,6 @@ export function activate(context: vscode.ExtensionContext) {
 					vscode.window.showInformationMessage('認証サーバーへの接続をチェック中...');
 					
 					// LoginWebviewPanelを使用してログインフォームを表示
-					const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
 					LoginWebviewPanel.createOrShow(context.extensionUri);
 				} catch (error) {
 					Logger.error('ログイン処理中にエラーが発生しました', error as Error);
@@ -205,7 +290,6 @@ export function activate(context: vscode.ExtensionContext) {
 					// 未認証の場合はログイン画面を表示
 					Logger.info('AppGenius AI起動時: 未認証のためログイン画面を表示します');
 					// ログイン画面を表示（LoginWebviewPanelを使用）
-					const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
 					LoginWebviewPanel.createOrShow(context.extensionUri);
 				} else if (AuthGuard.checkAccess(Feature.SCOPE_MANAGER)) {
 					// 認証済みかつ権限がある場合のみスコープマネージャーを開く
@@ -313,7 +397,6 @@ export function activate(context: vscode.ExtensionContext) {
 					if (!AuthGuard.checkLoggedIn()) {
 						Logger.info('スコープマネージャー: 未認証のためログイン画面に誘導します');
 						// ログイン画面を表示（LoginWebviewPanelを使用）
-						const { LoginWebviewPanel } = require('./ui/auth/LoginWebviewPanel');
 						LoginWebviewPanel.createOrShow(context.extensionUri);
 						return;
 					}
@@ -438,11 +521,7 @@ export function activate(context: vscode.ExtensionContext) {
 		
 		Logger.info('SimpleAuthService accessed and stored in global variable successfully');
 		
-		/**
-			 * 認証状態変更時のハンドラーを設定
-			 */
-			function setupAuthStateChangeListener(context: vscode.ExtensionContext, authService: SimpleAuthService): any {
-				// 認証状態変更イベントのリスナーを登録して、ダッシュボード自動表示のトリガーにする
+		// 認証状態変更時のハンドラーを設定
 		simpleAuthService.onStateChanged(state => {
 			try {
 				Logger.info(`認証状態が変更されました: ${state.isAuthenticated ? '認証済み' : '未認証'}`);
@@ -481,57 +560,13 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		});
 		
-						
-				return authService.onStateChanged;
-			}
-			
-			// 認証状態変更リスナーの設定
-			const authStateChangeListener = setupAuthStateChangeListener(context, simpleAuthService);
-			
-			// 従来の認証サービスは不要になったため削除
-
-		/**
-			 * PermissionManagerを初期化する
-			 */
-			function initializePermissionManager(authService: SimpleAuthService): PermissionManager {
-				// PermissionManagerの初期化（シンプル認証サービスを使用）
-		const permissionManager = PermissionManager.getInstance(simpleAuthService);
-		Logger.info('PermissionManager initialized with SimpleAuthService');
-				
-				return permissionManager;
-			}
-			
-			// PermissionManagerの初期化
-			const permissionManager = initializePermissionManager(simpleAuthService);
+		// PermissionManagerの初期化
+		const permissionManager = initializePermissionManager(simpleAuthService);
 		
-		/**
-			 * 拡張機能のコマンド類を登録する
-			 */
-			function registerExtensionCommands(context: vscode.ExtensionContext): void {
-				// 認証コマンドの登録
-		registerAuthCommands(context);
-		Logger.info('Auth commands registered successfully');
+		// 拡張機能コマンドの登録
+		registerExtensionCommands(context);
 		
-		// プロンプトライブラリコマンドは削除済み
-		Logger.info('Prompt library commands have been removed');
-		
-		// ファイルビューワーコマンドの登録
-		registerFileViewerCommands(context);
-		Logger.info('File viewer commands registered successfully');
-		
-		// 環境変数アシスタントは不要なため、チェックと登録部分を削除
-		
-		Logger.info('Environment commands registered successfully');
-			}
-			
-			// 拡張機能コマンドの登録
-			registerExtensionCommands(context);
-		
-		/**
-			 * ClaudeCode連携機能を初期化する
-			 */
-			function initializeClaudeCodeIntegration(context: vscode.ExtensionContext): void {
-				// ClaudeCode連携コマンドの登録
+		// ClaudeCode連携機能の初期化を開始
 		import('./commands/claudeCodeCommands').then(({ registerClaudeCodeCommands }) => {
 			registerClaudeCodeCommands(context);
 			Logger.info('ClaudeCode commands registered successfully');
@@ -620,12 +655,8 @@ export function activate(context: vscode.ExtensionContext) {
 			context.subscriptions.push(claudeCodeLaunchCountListener);
 			Logger.info('ClaudeCode起動カウントイベントリスナーが登録されました');
 		}).catch(error => {
-					Logger.error(`ClaudeCode commands registration failed: ${(error as Error).message}`);
-				});
-			}
-			
-			// ClaudeCode連携機能の初期化
-			initializeClaudeCodeIntegration(context);
+			Logger.error(`ClaudeCode commands registration failed: ${(error as Error).message}`);
+		});
 		
 	} catch (error) {
 		Logger.error('Authentication services initialization failed', error as Error);
