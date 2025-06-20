@@ -5,12 +5,21 @@
  * 特有のスタイルを定義します。
  */
 
+/* ベースリセット - VSCodeとの境界の余白を削除 */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
 /* ベースレイアウト */
 .scope-manager-container {
   padding: 0;
+  margin: 0;
   background-color: #f8f9fa;
   color: #333333;
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
@@ -202,7 +211,7 @@ h1, h2, h3, h4 {
   flex-direction: column;
   gap: 8px;
   margin-top: 15px;
-  max-height: calc(100vh - 220px); /* 下部の「開発プロンプト」領域も考慮して高さを調整 */
+  max-height: calc(100% - 180px); /* 相対値を使用して高さを調整 */
   overflow-y: auto;
   padding-bottom: 15px; /* 下部にパディングを追加して見切れないようにする */
 }
@@ -249,15 +258,17 @@ h1, h2, h3, h4 {
 .content-area {
   display: flex;
   flex-direction: column;
-  gap: var(--app-spacing-md);
+  gap: 0; /* ギャップを削除して余白を最小化 */
   overflow-y: visible;
   overflow-x: hidden;
   padding-right: var(--app-spacing-sm);
   padding-left: 12px; /* 左側にパディングを追加してボタンとの重なりを防ぐ */
+  padding-bottom: 0; /* 下部パディングを削除 */
   max-height: none;
   flex: 1;
   width: 100%;
   box-sizing: border-box;
+  height: 100%; /* VSCodeの利用可能な高さを使用 */
 }
 
 /* パネルが閉じられたときのコンテンツエリア */
@@ -269,15 +280,15 @@ h1, h2, h3, h4 {
   background-color: var(--app-card-background);
   border-radius: var(--app-border-radius);
   border: 1px solid var(--app-border-color);
-  padding: var(--app-spacing-md);
+  padding: 8px var(--app-spacing-md) var(--app-spacing-md) var(--app-spacing-md); /* 上部パディングを縮小 */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  margin-bottom: var(--app-spacing-md);
+  margin-bottom: 0; /* 下部マージンを削除 */
   overflow: hidden;
   flex: 1;
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 40px);
-  max-height: calc(100vh - 40px);
+  height: 100%; /* 利用可能な高さを全て使用 */
+  max-height: 100%;
   width: 100%;
   box-sizing: border-box;
 }
@@ -297,8 +308,8 @@ h1, h2, h3, h4 {
   display: none;
   overflow-y: auto;
   overflow-x: hidden;
-  height: calc(100vh - 130px);
-  max-height: calc(100vh - 130px);
+  height: calc(100% - 80px); /* 固定値ではなく相対値を使用 */
+  max-height: calc(100% - 80px);
   width: 100%;
   box-sizing: border-box;
 }
@@ -315,9 +326,9 @@ h1, h2, h3, h4 {
   overflow-x: hidden;
   padding: var(--app-spacing-md);
   padding-right: 10px;
-  min-height: calc(100vh - 160px);
-  height: calc(100vh - 120px);
-  max-height: calc(100vh - 120px);
+  min-height: 100%; /* 利用可能な高さを最大活用 */
+  height: 100%;
+  max-height: 100%;
   width: 100%;
   box-sizing: border-box;
 }
@@ -666,7 +677,7 @@ pre.code-block.directory-structure br {
   flex-direction: column;
   gap: var(--app-spacing-sm);
   overflow-y: auto;
-  max-height: calc(100vh - 200px);
+  max-height: calc(100% - 150px);
   padding-right: var(--app-spacing-xs);
 }
 
@@ -780,7 +791,7 @@ pre.code-block.directory-structure br {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--app-spacing-md);
   overflow-y: auto;
-  max-height: calc(100vh - 250px);
+  max-height: calc(100% - 200px);
   padding-right: 10px;
 }
 
@@ -834,8 +845,8 @@ pre.code-block.directory-structure br {
   display: none;
   overflow-y: auto;
   overflow-x: hidden;
-  height: calc(100vh - 130px);
-  max-height: calc(100vh - 130px);
+  height: calc(100% - 80px); /* 固定値ではなく相対値を使用 */
+  max-height: calc(100% - 80px);
   width: 100%;
   box-sizing: border-box;
 }
@@ -873,7 +884,7 @@ pre.code-block.directory-structure br {
   gap: 15px;
   height: 100%;
   overflow-y: auto;
-  max-height: calc(100vh - 130px);
+  max-height: calc(100% - 80px);
   flex-wrap: wrap; /* 画面が小さいときは折り返し */
 }
 
@@ -1393,7 +1404,7 @@ pre.code-block.directory-structure br {
 .toggle-share-btn {
   position: fixed;
   bottom: 0;
-  right: 20px;
+  left: 10px; /* 一番左端に配置 */
   background-color: var(--app-primary);
   color: white;
   border: 1px solid var(--app-primary);
@@ -1433,8 +1444,7 @@ pre.code-block.directory-structure br {
 }
 
 .claude-code-share-area.collapsed {
-  max-height: 40px;
-  overflow: hidden;
+  display: none; /* 完全に非表示にする */
 }
 
 .claude-code-share-header {
@@ -1541,8 +1551,8 @@ pre.code-block.directory-structure br {
 
 /* LPレプリカ関連のスタイル */
 .replica-create-form {
-  margin-bottom: 20px;
-  padding: 20px;
+  margin-bottom: 10px; /* 下部マージンを縮小 */
+  padding: 15px; /* パディングも少し縮小 */
   background-color: var(--app-bg-secondary);
   border-radius: 8px;
 }
@@ -1600,10 +1610,15 @@ pre.code-block.directory-structure br {
 }
 
 .replica-viewer {
-  margin-top: 20px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
+  margin-top: 0; /* 上部マージンを削除 */
+  border: none; /* ボーダーを削除してフルサイズ表示 */
+  border-radius: 0; /* 角丸を削除 */
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: 1; /* 残りの空間を全て使用 */
+  height: calc(100% - 100px); /* フォーム部分を除いた高さを確保 */
+  position: relative; /* オーバーレイのための相対位置 */
 }
 
 .viewer-header {
@@ -1643,6 +1658,59 @@ pre.code-block.directory-structure br {
   gap: 8px;
 }
 
+/* 上部ホバーエリア（トリガー用） */
+.viewer-hover-trigger {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px; /* 上部60pxのエリアのみでホバー検出 */
+  z-index: 99;
+  pointer-events: auto;
+}
+
+/* スライド表示のアクションオーバーレイ */
+.viewer-actions-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(255, 255, 255, 0.95);
+  padding: 12px 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+  pointer-events: none; /* デフォルトでは操作不可 */
+}
+
+.viewer-hover-trigger:hover + .viewer-actions-overlay,
+.viewer-actions-overlay:hover {
+  transform: translateY(0);
+  pointer-events: auto; /* 表示時は操作可能 */
+}
+
+.viewer-actions-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.viewer-instruction-text {
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
+  flex: 1;
+}
+
+.viewer-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 .button.button-icon {
   padding: 6px;
   min-width: auto;
@@ -1675,7 +1743,9 @@ pre.code-block.directory-structure br {
 
 .replica-iframe {
   width: 100%;
-  height: 600px;
+  flex: 1; /* 残りの空間を全て使用 */
+  min-height: 500px; /* 最小高さを増加 */
+  height: 100%; /* 利用可能な高さを全て使用 */
   border: none;
   background-color: white;
 }

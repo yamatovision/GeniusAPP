@@ -278,21 +278,23 @@ export class ScopeManagerTemplate {
           
           <!-- レプリカビューア -->
           <div class="replica-viewer" id="replica-viewer" style="display: none;">
-            <div class="viewer-header">
-              <div class="viewer-title-section">
-                <h4>レプリカビューア</h4>
-                <p class="viewer-instruction">
-                  <span class="material-icons">info</span>
-                  要素をAlt+クリック（Mac: Option+クリック）すると、要素情報を取得できます。
-                </p>
-              </div>
-              <div class="viewer-actions">
-                <button id="refresh-replica-btn" class="button button-icon" title="更新">
-                  <span class="material-icons">refresh</span>
-                </button>
-                <button id="open-external-btn" class="button button-icon" title="ブラウザで開く">
-                  <span class="material-icons">open_in_new</span>
-                </button>
+            <!-- 上部ホバーエリア（トリガー用） -->
+            <div class="viewer-hover-trigger"></div>
+            
+            <!-- 上部スライド表示ボタンエリア -->
+            <div class="viewer-actions-overlay" id="viewer-actions-overlay">
+              <div class="viewer-actions-content">
+                <span class="viewer-instruction-text">
+                  要素をOption+クリックで要素情報を取得
+                </span>
+                <div class="viewer-buttons">
+                  <button id="refresh-replica-btn" class="button button-icon" title="更新">
+                    <span class="material-icons">refresh</span>
+                  </button>
+                  <button id="open-external-btn" class="button button-icon" title="ブラウザで開く">
+                    <span class="material-icons">open_in_new</span>
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -300,7 +302,7 @@ export class ScopeManagerTemplate {
               id="replica-iframe" 
               class="replica-iframe"
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-downloads"
-              style="width: 100%; height: 600px; border: 1px solid var(--app-border);"
+              style="border: none;"
             ></iframe>
           </div>
           
