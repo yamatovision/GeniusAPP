@@ -187,10 +187,6 @@ window.lpReplica.Manager = class {
                     this.updateStatus(message.error || '処理中にエラーが発生しました', 'error');
                     break;
                     
-                case 'elementClicked':
-                    this.handleElementClicked(message);
-                    break;
-                    
                 case 'replicaWebviewUri':
                     this.handleWebviewUri(message);
                     break;
@@ -205,6 +201,10 @@ window.lpReplica.Manager = class {
                     
                 case 'resetReplicaState':
                     this.resetReplicaState();
+                    break;
+                    
+                case 'copyElementInfo':
+                    this.handleCopyElementInfo(message);
                     break;
             }
         });
@@ -378,21 +378,6 @@ window.lpReplica.Manager = class {
         });
     }
 
-    /**
-     * 要素がクリックされた時の処理
-     */
-    handleElementClicked(message) {
-        if (!message.elementInfo) return;
-        
-        // 要素情報を表示
-        if (this.elements.elementInfo) {
-            this.elements.elementInfo.style.display = 'block';
-        }
-        
-        if (this.elements.elementInfoContent) {
-            this.elements.elementInfoContent.textContent = message.elementInfo;
-        }
-    }
 
     /**
      * 要素情報をコピー
@@ -416,6 +401,19 @@ window.lpReplica.Manager = class {
                 button.innerHTML = originalText;
             }, 2000);
         }
+    }
+
+    /**
+     * iframe内からのコピー要求を処理
+     */
+    handleCopyElementInfo(message) {
+        if (!message.text) return;
+        
+        // VSCodeのAPIを使用してクリップボードにコピー
+        this.vscode.postMessage({
+            command: 'replicaCopyElementInfo',
+            text: message.text
+        });
     }
 
     /**
@@ -447,17 +445,26 @@ window.lpReplica.Manager = class {
             this.elements.iframe.src = message.webviewUri;
             console.log('[DEBUG] iframeのsrcを設定しました');
             
-            // 5秒後にロード状況をチェック
+            // 5秒後にロード状況をチェック（エラーハンドリング強化）
             setTimeout(() => {
                 try {
                     const iframeDoc = this.elements.iframe.contentDocument || this.elements.iframe.contentWindow?.document;
                     if (iframeDoc) {
                         console.log('[DEBUG] iframe内のドキュメント:', iframeDoc.title || 'タイトルなし', iframeDoc.body?.innerHTML?.substring(0, 200));
+                        
+                        // jQueryライブラリの存在確認と警告
+                        this.checkjQueryDependencies(iframeDoc);
                     } else {
                         console.warn('[WARN] iframe内のドキュメントにアクセスできません（CORS制限の可能性）');
+                        this.showCorsWarning();
                     }
                 } catch (error) {
                     console.warn('[WARN] iframe内ドキュメントアクセスエラー:', error.message);
+                    
+                    // クロスオリジンエラーの場合の特別な処理
+                    if (error.message.includes('cross-origin') || error.message.includes('Blocked a frame')) {
+                        this.showCorsWarning();
+                    }
                 }
             }, 5000);
         } else {
@@ -625,6 +632,57 @@ window.lpReplica.Manager = class {
     }
 
     /**
+     * jQueryライブラリ依存関係をチェック
+     */
+    checkjQueryDependencies(iframeDoc) {
+        try {
+            const scripts = iframeDoc.querySelectorAll('script[src]');
+            const jqueryRequiredLibraries = ['search-filter', 'chosen.jquery', 'slick', 'stande'];
+            let hasJquery = false;
+            let requiresJquery = false;
+            
+            scripts.forEach(script => {
+                const src = script.src;
+                
+                // jQueryライブラリの存在確認
+                if (src.includes('jquery') && !src.includes('chosen.jquery')) {
+                    hasJquery = true;
+                }
+                
+                // jQuery依存ライブラリの存在確認
+                jqueryRequiredLibraries.forEach(lib => {
+                    if (src.includes(lib)) {
+                        requiresJquery = true;
+                    }
+                });
+            });
+            
+            // jQuery依存ライブラリがあるのにjQueryがない場合に警告
+            if (requiresJquery && !hasJquery) {
+                console.warn('[WARN] jQuery依存ライブラリが検出されましたが、jQueryが読み込まれていません');
+                this.showjQueryWarning();
+            }
+            
+        } catch (error) {
+            console.warn('[WARN] jQueryチェック中にエラー:', error.message);
+        }
+    }
+
+    /**
+     * CORSエラー警告を表示
+     */
+    showCorsWarning() {
+        this.updateStatus('クロスオリジン制限により、サイトの詳細分析ができません', 'warning');
+    }
+
+    /**
+     * jQuery警告を表示
+     */
+    showjQueryWarning() {
+        this.updateStatus('サイトにjQuery関連のエラーが検出されています', 'warning');
+    }
+
+    /**
      * ステータスメッセージを更新
      */
     updateStatus(message, type = 'info') {
@@ -634,13 +692,19 @@ window.lpReplica.Manager = class {
         this.elements.statusDiv.className = `status-message status-${type}`;
         this.elements.statusDiv.style.display = 'block';
         
-        // 成功メッセージは3秒後に非表示
+        // 成功メッセージは3秒後に非表示、警告メッセージは10秒後に非表示
         if (type === 'success') {
             setTimeout(() => {
                 if (this.elements.statusDiv) {
                     this.elements.statusDiv.style.display = 'none';
                 }
             }, 3000);
+        } else if (type === 'warning') {
+            setTimeout(() => {
+                if (this.elements.statusDiv) {
+                    this.elements.statusDiv.style.display = 'none';
+                }
+            }, 10000);
         }
     }
 };

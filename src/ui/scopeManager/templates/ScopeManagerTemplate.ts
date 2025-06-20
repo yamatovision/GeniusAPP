@@ -285,7 +285,7 @@ export class ScopeManagerTemplate {
             <div class="viewer-actions-overlay" id="viewer-actions-overlay">
               <div class="viewer-actions-content">
                 <span class="viewer-instruction-text">
-                  要素をOption+クリックで要素情報を取得
+                  要素をクリックで要素情報を取得
                 </span>
                 <div class="viewer-buttons">
                   <button id="refresh-replica-btn" class="button button-icon" title="更新">

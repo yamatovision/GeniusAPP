@@ -199,10 +199,41 @@ export class ReplicaService {
     private async injectClickDetectionScript(outputDir: string): Promise<void> {
         const clickDetectionScript = `
 <script>
-// LP要素クリック検出スクリプト
+// シンプル要素検査スクリプト
 (function() {
     let selectedElement = null;
     let overlay = null;
+    let hoveredElement = null;
+
+    // モーダル要素かどうかをチェック（z-indexベース）
+    function isModalElement(element) {
+        let current = element;
+        while (current && current !== document.body) {
+            const zIndex = parseInt(window.getComputedStyle(current).zIndex);
+            if (zIndex >= 999999) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
+    // ハイライト表示
+    function addHighlight(element) {
+        removeHighlight();
+        if (element && !isModalElement(element)) {
+            element.style.outline = '2px solid #007acc';
+            element.style.outlineOffset = '1px';
+            hoveredElement = element;
+        }
+    }
+
+    // ハイライト削除
+    function removeHighlight() {
+        if (hoveredElement) {
+            hoveredElement.style.outline = '';
+            hoveredElement.style.outlineOffset = '';
+            hoveredElement = null;
+        }
+    }
 
     // 要素情報を取得
     function getElementInfo(element) {
@@ -347,47 +378,71 @@ export class ReplicaService {
     // 初期化
     const { content: infoContent, copyButton, closeButton } = createOverlay();
 
-    // クリックイベント
-    document.addEventListener('click', function(e) {
-        if (e.altKey || e.metaKey) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            selectedElement = e.target;
-            const info = getElementInfo(selectedElement);
-            const formatted = formatElementInfo(info);
-            
-            infoContent.textContent = formatted;
-            overlay.style.display = 'block';
-            
-            // ハイライト
-            selectedElement.style.outline = '3px solid #007acc';
+    // マウスオーバーイベント
+    document.addEventListener('mouseover', function(e) {
+        if (!isModalElement(e.target) && overlay.style.display === 'none') {
+            addHighlight(e.target);
         }
     }, true);
 
+    // マウスアウトイベント
+    document.addEventListener('mouseout', function(e) {
+        if (!isModalElement(e.relatedTarget)) {
+            removeHighlight();
+        }
+    }, true);
+
+    // クリックイベント
+    document.addEventListener('click', function(e) {
+        if (isModalElement(e.target)) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        
+        selectedElement = e.target;
+        const info = getElementInfo(selectedElement);
+        const formatted = formatElementInfo(info);
+        
+        infoContent.textContent = formatted;
+        overlay.style.display = 'block';
+        
+        removeHighlight();
+        selectedElement.style.outline = '3px solid #007acc';
+    }, true);
+
     // コピーボタン
-    copyButton.addEventListener('click', function() {
+    copyButton.addEventListener('click', function(e) {
+        e.stopPropagation();
         const text = infoContent.textContent;
         
-        // VSCode Webview APIを使用してメッセージを送信
         if (window.vscode) {
             window.vscode.postMessage({
                 command: 'copyElementInfo',
                 text: text
             });
+            copyButton.textContent = 'コピー完了！';
+            setTimeout(() => {
+                copyButton.textContent = 'コピー';
+            }, 2000);
         } else {
-            // 通常のクリップボードコピー
-            navigator.clipboard.writeText(text).then(() => {
-                copyButton.textContent = 'コピー完了！';
-                setTimeout(() => {
-                    copyButton.textContent = 'コピー';
-                }, 2000);
-            });
+            // fallback: try clipboard API, but catch errors
+            try {
+                navigator.clipboard.writeText(text).then(() => {
+                    copyButton.textContent = 'コピー完了！';
+                    setTimeout(() => {
+                        copyButton.textContent = 'コピー';
+                    }, 2000);
+                });
+            } catch (err) {
+                // show alternative for manual copy
+                alert('コピー機能が制限されています。要素情報:\\n\\n' + text);
+            }
         }
     });
 
     // 閉じるボタン
-    closeButton.addEventListener('click', function() {
+    closeButton.addEventListener('click', function(e) {
+        e.stopPropagation();
         overlay.style.display = 'none';
         if (selectedElement) {
             selectedElement.style.outline = '';
@@ -397,11 +452,15 @@ export class ReplicaService {
 
     // ESCキーで閉じる
     document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape' && overlay.style.display !== 'none') {
-            overlay.style.display = 'none';
-            if (selectedElement) {
-                selectedElement.style.outline = '';
-                selectedElement = null;
+        if (e.key === 'Escape') {
+            if (overlay.style.display !== 'none') {
+                overlay.style.display = 'none';
+                if (selectedElement) {
+                    selectedElement.style.outline = '';
+                    selectedElement = null;
+                }
+            } else {
+                removeHighlight();
             }
         }
     });
