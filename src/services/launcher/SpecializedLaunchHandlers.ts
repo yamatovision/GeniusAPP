@@ -182,7 +182,7 @@ export class SpecializedLaunchHandlers {
       });
       
       // コマンド設定
-      let baseCommand = 'claude';
+      const baseCommand = 'claude';
       
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedClaudeMdPath = this.terminalService.escapeFilePath(claudeMdPath);
@@ -458,7 +458,7 @@ export class SpecializedLaunchHandlers {
       
       
       // コマンド設定
-      let baseCommand = 'claude';
+      const baseCommand = 'claude';
       
       // ファイルパスをエスケープ（スペースを含む場合）
       const escapedPromptFilePath = this.terminalService.escapeFilePath(promptFilePath);

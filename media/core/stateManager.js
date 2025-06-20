@@ -38,7 +38,7 @@ class StateManager {
 
   _getDefaultState() {
     return {
-      activeTab: 'scope-progress',
+      activeTab: 'lp-replica',
       projects: [],
       activeProject: null,
       directoryStructure: '',

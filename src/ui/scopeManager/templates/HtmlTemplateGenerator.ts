@@ -28,7 +28,7 @@ export class HtmlTemplateGenerator {
       font-src ${webview.cspSource} https: data:;
       script-src 'nonce-${nonce}' 'unsafe-inline' https:;
       img-src ${webview.cspSource} data: https: http:;
-      connect-src ${webview.cspSource} https:;
+      connect-src ${webview.cspSource} https: http://localhost:*;
       frame-src ${webview.cspSource} vscode-resource: https: http://localhost:* data:;
     `;
   }

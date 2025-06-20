@@ -46,6 +46,7 @@ window.lpReplica.Manager = class {
         }
         this.currentProjectPath = null;
         this.isCreating = false;
+        this.isCheckingReplica = false;
         
         // DOM要素をキャッシュ
         this.elements = {
@@ -89,22 +90,39 @@ window.lpReplica.Manager = class {
     cacheElements() {
         console.log('[DEBUG] DOM要素のキャッシュを開始');
         
-        this.elements.urlInput = document.getElementById('replica-url');
-        this.elements.createButton = document.getElementById('create-replica-btn');
-        this.elements.statusDiv = document.getElementById('replica-status');
-        this.elements.createForm = document.getElementById('replica-create-form');
-        this.elements.viewer = document.getElementById('replica-viewer');
-        this.elements.iframe = document.getElementById('replica-iframe');
-        this.elements.refreshButton = document.getElementById('refresh-replica-btn');
-        this.elements.openExternalButton = document.getElementById('open-external-btn');
-        this.elements.elementInfo = document.getElementById('element-info');
-        this.elements.elementInfoContent = document.getElementById('element-info-content');
-        this.elements.copyElementInfoButton = document.getElementById('copy-element-info-btn');
+        // 要素の取得を少し待ってから実行
+        const tryGetElements = () => {
+            this.elements.urlInput = document.getElementById('replica-url');
+            this.elements.createButton = document.getElementById('create-replica-btn');
+            this.elements.statusDiv = document.getElementById('replica-status');
+            this.elements.createForm = document.getElementById('replica-create-form');
+            this.elements.viewer = document.getElementById('replica-viewer');
+            this.elements.iframe = document.getElementById('replica-iframe');
+            this.elements.refreshButton = document.getElementById('refresh-replica-btn');
+            this.elements.openExternalButton = document.getElementById('open-external-btn');
+            this.elements.elementInfo = document.getElementById('element-info');
+            this.elements.elementInfoContent = document.getElementById('element-info-content');
+            this.elements.copyElementInfoButton = document.getElementById('copy-element-info-btn');
+            
+            console.log('[DEBUG] キャッシュされた要素:');
+            console.log('[DEBUG] - viewer:', !!this.elements.viewer);
+            console.log('[DEBUG] - iframe:', !!this.elements.iframe);
+            console.log('[DEBUG] - createForm:', !!this.elements.createForm);
+            
+            // 重要な要素が見つからない場合は少し待ってリトライ
+            if (!this.elements.iframe && this.retryCount < 5) {
+                this.retryCount = (this.retryCount || 0) + 1;
+                console.log(`[DEBUG] iframe要素が見つかりません。リトライ ${this.retryCount}/5`);
+                setTimeout(tryGetElements, 100);
+                return;
+            }
+            
+            if (!this.elements.iframe) {
+                console.error('[ERROR] iframe要素が見つかりません。DOM構造を確認してください');
+            }
+        };
         
-        console.log('[DEBUG] キャッシュされた要素:');
-        console.log('[DEBUG] - viewer:', !!this.elements.viewer);
-        console.log('[DEBUG] - iframe:', !!this.elements.iframe);
-        console.log('[DEBUG] - createForm:', !!this.elements.createForm);
+        tryGetElements();
     }
 
     /**
@@ -184,6 +202,10 @@ window.lpReplica.Manager = class {
                 case 'replicaInfo':
                     this.handleReplicaInfo(message);
                     break;
+                    
+                case 'resetReplicaState':
+                    this.resetReplicaState();
+                    break;
             }
         });
     }
@@ -192,6 +214,15 @@ window.lpReplica.Manager = class {
      * レプリカの存在をチェック
      */
     checkReplicaExists() {
+        // 既にチェック中の場合はスキップ
+        if (this.isCheckingReplica) {
+            console.log('[DEBUG] レプリカ存在チェックは既に実行中です');
+            return;
+        }
+        
+        this.isCheckingReplica = true;
+        console.log('[DEBUG] レプリカ存在チェックを開始します');
+        
         this.vscode.postMessage({
             command: 'replicaCheck'
         });
@@ -256,6 +287,9 @@ window.lpReplica.Manager = class {
      * レプリカ存在チェック結果を処理
      */
     handleCheckResult(message) {
+        this.isCheckingReplica = false;
+        console.log('[DEBUG] レプリカ存在チェック結果:', message);
+        
         if (message.exists && message.path) {
             this.showReplica(message.path);
         }
@@ -324,12 +358,14 @@ window.lpReplica.Manager = class {
      * レプリカを更新
      */
     refreshReplica() {
-        if (this.elements.iframe && this.elements.iframe.srcdoc) {
-            const currentSrcdoc = this.elements.iframe.srcdoc;
-            this.elements.iframe.srcdoc = '';
+        if (this.elements.iframe && this.elements.iframe.src) {
+            // srcdoc使用を停止し、srcベースのリロードに変更
+            const currentSrc = this.elements.iframe.src;
+            this.elements.iframe.src = '';
             setTimeout(() => {
-                this.elements.iframe.srcdoc = currentSrcdoc;
+                this.elements.iframe.src = currentSrc;
             }, 100);
+            console.log('[DEBUG] srcベースでレプリカを更新しました');
         }
     }
 
@@ -386,12 +422,58 @@ window.lpReplica.Manager = class {
      * WebviewURI応答を処理
      */
     handleWebviewUri(message) {
+        console.log('[DEBUG] WebviewURI処理開始:', message.webviewUri);
+        
+        // iframe要素を再取得（念のため）
+        if (!this.elements.iframe) {
+            this.elements.iframe = document.getElementById('replica-iframe');
+            console.log('[DEBUG] iframe要素を再取得:', !!this.elements.iframe);
+        }
+        
         if (message.webviewUri && this.elements.iframe) {
             console.log('[DEBUG] WebviewURIを受信:', message.webviewUri);
+            
+            // iframeのロードイベントを監視
+            this.elements.iframe.onload = () => {
+                console.log('[DEBUG] iframeのロードが完了しました');
+                console.log('[DEBUG] iframe URL:', this.elements.iframe.src);
+            };
+            
+            this.elements.iframe.onerror = (error) => {
+                console.error('[ERROR] iframeのロードに失敗しました:', error);
+            };
+            
+            // srcを設定
             this.elements.iframe.src = message.webviewUri;
             console.log('[DEBUG] iframeのsrcを設定しました');
+            
+            // 5秒後にロード状況をチェック
+            setTimeout(() => {
+                try {
+                    const iframeDoc = this.elements.iframe.contentDocument || this.elements.iframe.contentWindow?.document;
+                    if (iframeDoc) {
+                        console.log('[DEBUG] iframe内のドキュメント:', iframeDoc.title || 'タイトルなし', iframeDoc.body?.innerHTML?.substring(0, 200));
+                    } else {
+                        console.warn('[WARN] iframe内のドキュメントにアクセスできません（CORS制限の可能性）');
+                    }
+                } catch (error) {
+                    console.warn('[WARN] iframe内ドキュメントアクセスエラー:', error.message);
+                }
+            }, 5000);
         } else {
-            console.error('[ERROR] WebviewURIの設定に失敗:', message);
+            console.error('[ERROR] WebviewURIの設定に失敗:', {
+                hasWebviewUri: !!message.webviewUri,
+                hasIframe: !!this.elements.iframe,
+                message: message
+            });
+            
+            // iframe要素が見つからない場合のデバッグ情報
+            if (!this.elements.iframe) {
+                console.error('[ERROR] 利用可能なDOM要素:');
+                console.error('- replica-iframe:', document.getElementById('replica-iframe'));
+                console.error('- lp-replica-tab:', document.getElementById('lp-replica-tab'));
+                console.error('- replica-viewer:', document.getElementById('replica-viewer'));
+            }
         }
     }
 
@@ -400,10 +482,11 @@ window.lpReplica.Manager = class {
      */
     handleHtmlContent(message) {
         if (message.htmlContent && this.elements.iframe) {
-            console.log('[DEBUG] HTMLコンテンツを受信（srcdoc用）');
-            // srcdoc属性を使用してHTMLを直接設定
-            this.elements.iframe.srcdoc = message.htmlContent;
-            console.log('[DEBUG] iframeのsrcdocを設定しました');
+            console.log('[DEBUG] HTMLコンテンツを受信（srcdoc使用を回避）');
+            // FIXME: srcdoc属性はVSCode WebviewのCSP制約を引き起こすため使用を停止
+            // 代わりにsrcのURL使用を強制し、HTMLコンテンツ処理をスキップ
+            console.log('[DEBUG] srcdoc使用をスキップし、srcのURL表示を継続します');
+            console.warn('[WARN] HTMLコンテンツの直接設定はスキップされました（CSP制約回避のため）');
         } else {
             console.error('[ERROR] HTMLコンテンツの設定に失敗:', message);
         }
@@ -472,6 +555,73 @@ window.lpReplica.Manager = class {
                 });
             }
         }
+    }
+
+    /**
+     * レプリカ状態をリセット（プロジェクト切り替え時）
+     */
+    resetReplicaState() {
+        console.log('[DEBUG] レプリカ状態をリセットしています');
+        
+        // フォームを表示状態に戻す
+        if (this.elements.createForm) {
+            this.elements.createForm.style.display = 'block';
+            console.log('[DEBUG] 作成フォームを表示状態にリセット');
+        }
+        
+        // ビューアを非表示にする
+        if (this.elements.viewer) {
+            this.elements.viewer.style.display = 'none';
+            console.log('[DEBUG] ビューアを非表示にリセット');
+        }
+        
+        // iframeをクリア
+        if (this.elements.iframe) {
+            this.elements.iframe.src = '';
+            // srcdoc属性の使用を停止（CSP制約回避のため）
+            // this.elements.iframe.srcdoc = '';
+            console.log('[DEBUG] iframeをクリア');
+        }
+        
+        // 要素情報エリアを非表示
+        if (this.elements.elementInfo) {
+            this.elements.elementInfo.style.display = 'none';
+        }
+        
+        // ステータスメッセージをクリア
+        if (this.elements.statusDiv) {
+            this.elements.statusDiv.style.display = 'none';
+            this.elements.statusDiv.textContent = '';
+        }
+        
+        // URLフィールドをクリア
+        if (this.elements.urlInput) {
+            this.elements.urlInput.value = '';
+        }
+        
+        // 作成ボタンを有効化
+        if (this.elements.createButton) {
+            this.elements.createButton.disabled = false;
+        }
+        
+        // 作成中フラグをリセット
+        this.isCreating = false;
+        
+        // チェック中フラグもリセット
+        this.isCheckingReplica = false;
+        
+        // メッセージエリアがあれば削除
+        const messageArea = document.getElementById('replica-message-area');
+        if (messageArea) {
+            messageArea.remove();
+        }
+        
+        console.log('[DEBUG] レプリカ状態のリセットが完了しました');
+        
+        // リセット後、新しいプロジェクトでレプリカ存在チェックを実行
+        setTimeout(() => {
+            this.checkReplicaExists();
+        }, 100);
     }
 
     /**

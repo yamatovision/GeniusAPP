@@ -33,8 +33,8 @@ export class ProjectServiceImpl implements IProjectService {
   public readonly onProjectUIStateUpdated = this._onProjectUIStateUpdated.event;
   
   private _disposables: vscode.Disposable[] = [];
-  private _projectPath: string = '';
-  private _progressFilePath: string = '';
+  private _projectPath = '';
+  private _progressFilePath = '';
   private _currentProjects: IProjectInfo[] = [];
   private _activeProject: IProjectInfo | null = null;
   private _extensionPath: string;
@@ -151,7 +151,7 @@ export class ProjectServiceImpl implements IProjectService {
     // 削除予定のため、必要なものだけを残す
     this._disposables.push(
       eventBus.onEventType(AppGeniusEventType.PROJECT_CREATED, async (event) => {
-        if (event.source === 'ProjectService') return;
+        if (event.source === 'ProjectService') {return;}
         
         Logger.info(`ProjectService: (レガシー) プロジェクト作成イベントを受信: ${event.data?.name}`);
         this._initializeProjects();
@@ -162,7 +162,7 @@ export class ProjectServiceImpl implements IProjectService {
     
     this._disposables.push(
       eventBus.onEventType(AppGeniusEventType.PROJECT_REMOVED, async (event) => {
-        if (event.source === 'ProjectService') return;
+        if (event.source === 'ProjectService') {return;}
         
         Logger.info(`ProjectService: (レガシー) プロジェクト削除イベントを受信: ${event.data?.name}`);
         this._initializeProjects();
@@ -284,7 +284,7 @@ export class ProjectServiceImpl implements IProjectService {
               path: projectDir, 
               name: name,
               type: 'created',
-              metadata: { activeTab: 'scope-progress' },
+              metadata: { activeTab: 'lp-replica' },
               timestamp: Date.now()
             },
             'ProjectService',
@@ -396,7 +396,7 @@ export class ProjectServiceImpl implements IProjectService {
         // 既存のプロジェクトを検索
         const projects = this._projectManagementService.getAllProjects();
         let projectId: string | undefined;
-        let existingProject = projects.find((p: any) => p.path === projectPath);
+        const existingProject = projects.find((p: any) => p.path === projectPath);
         
         if (existingProject) {
           // 既存のプロジェクトが見つかった場合は、アクティブに設定
@@ -435,7 +435,7 @@ export class ProjectServiceImpl implements IProjectService {
               path: projectPath, 
               name: projectName,
               type: 'selected',
-              metadata: { activeTab: 'scope-progress' },
+              metadata: { activeTab: 'lp-replica' },
               timestamp: Date.now()
             },
             'ProjectService',
@@ -555,7 +555,7 @@ export class ProjectServiceImpl implements IProjectService {
           await this._projectManagementService.updateProject(projectId, {
             metadata: {
               ...metadata,
-              activeTab: activeTab || metadata.activeTab || 'scope-progress'
+              activeTab: activeTab || metadata.activeTab || 'lp-replica'
             }
           });
         }
@@ -575,7 +575,7 @@ export class ProjectServiceImpl implements IProjectService {
               updatedAt: Date.now(),
               metadata: {
                 ...existingProjectWithPath.metadata,
-                activeTab: activeTab || existingProjectWithPath.metadata?.activeTab || 'scope-progress'
+                activeTab: activeTab || existingProjectWithPath.metadata?.activeTab || 'lp-replica'
               }
             });
             Logger.info(`ProjectService: 既存プロジェクトを更新: ID=${projectId}, 名前=${name}, アクティブタブ=${activeTab || existingProjectWithPath.metadata?.activeTab || 'scope-progress'}`);
@@ -586,7 +586,7 @@ export class ProjectServiceImpl implements IProjectService {
               description: "",
               path: path,
               metadata: {
-                activeTab: activeTab || 'scope-progress'
+                activeTab: activeTab || 'lp-replica'
               }
             });
             Logger.info(`ProjectService: 新規プロジェクトを作成: ID=${projectId}, 名前=${name}, パス=${path}, アクティブタブ=${activeTab || 'scope-progress'}`);
@@ -620,7 +620,7 @@ export class ProjectServiceImpl implements IProjectService {
             path: path, 
             name: name,
             type: 'selected',
-            metadata: updatedProject?.metadata || { activeTab: activeTab || 'scope-progress' },
+            metadata: updatedProject?.metadata || { activeTab: activeTab || 'lp-replica' },
             timestamp: Date.now()
           },
           'ProjectService',

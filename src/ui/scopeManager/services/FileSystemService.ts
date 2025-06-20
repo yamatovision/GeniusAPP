@@ -172,7 +172,7 @@ export class FileSystemService implements IFileSystemService {
       
       // テンプレートの読み込み
       const templateName = 'SCOPE_PROGRESS_TEMPLATE.md';
-      let templatePath = path.join(this._extensionPath, 'docs', templateName);
+      const templatePath = path.join(this._extensionPath, 'docs', templateName);
       
       // プロジェクト名が未指定の場合はディレクトリ名を使用
       const actualProjectName = projectName || path.basename(projectPath);
@@ -1065,7 +1065,7 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
    * @param recursive 再帰的に取得するかどうか（デフォルトはfalse）
    * @returns ファイルとフォルダの情報のリスト
    */
-  public async listDirectory(directoryPath: string, recursive: boolean = false): Promise<IProjectDocument[]> {
+  public async listDirectory(directoryPath: string, recursive = false): Promise<IProjectDocument[]> {
     try {
       if (!directoryPath) {
         throw new Error('ディレクトリパスが指定されていません');
@@ -1116,8 +1116,8 @@ AppGeniusでの開発は以下のフローに沿って進行します。現在�
       // ディレクトリが先頭、その後にファイルを名前順にソート
       result.sort((a, b) => {
         // ディレクトリを先にソート
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
+        if (a.isDirectory && !b.isDirectory) {return -1;}
+        if (!a.isDirectory && b.isDirectory) {return 1;}
         
         // 同じタイプであれば名前でソート
         return a.name.localeCompare(b.name);

@@ -14,8 +14,8 @@ class TabManager {
   initialize() {
     // 保存されたタブ状態を復元
     const state = stateManager.getState();
-    // タブが未選択の場合、必ず進捗状況タブをデフォルトにする
-    const savedTab = state.activeTab || 'scope-progress';
+    // タブが未選択の場合、必ずLPレプリカタブをデフォルトにする
+    const savedTab = state.activeTab || 'lp-replica';
     
     // タブクリックイベントをセットアップ
     this.tabs.forEach(tab => {
@@ -40,10 +40,10 @@ class TabManager {
     });
     
     // VSCode再起動時にタブが選択されていない状態を修正 
-    // デフォルトで進捗状況タブを選択（初期状態を明示的に設定）
+    // デフォルトでLPレプリカタブを選択（初期状態を明示的に設定）
     this.selectTab(savedTab, true); // サーバーにも保存
     
-    // 進捗状況タブの場合は、コンテンツも読み込み
+    // 進捗状況タブの場合は、コンテンツも読み込み（レガシー処理）
     if (savedTab === 'scope-progress') {
       const projectPath = state.activeProjectPath;
       if (projectPath) {
@@ -115,9 +115,11 @@ class TabManager {
         }
       } else if (window.lpReplicaManager) {
         console.log('[DEBUG] 既存のLPレプリカマネージャーを使用します');
-        // 既存マネージャーでもレプリカ存在チェックを実行
+        // 既存マネージャーでもレプリカ存在チェックを実行（重複チェックは内部で制御される）
         console.log('[DEBUG] 既存マネージャーでレプリカ存在チェックを実行');
-        window.lpReplicaManager.checkReplicaExists();
+        setTimeout(() => {
+          window.lpReplicaManager.checkReplicaExists();
+        }, 100);
       } else {
         console.error('[ERROR] window.lpReplicaクラスが見つかりません');
         alert('LPレプリカ機能が利用できません。ページを再読み込みしてください。');
@@ -365,9 +367,11 @@ class TabManager {
           }
         } else if (window.lpReplicaManager) {
           console.log('[DEBUG] selectTab: 既存のLPレプリカマネージャーを使用します');
-          // 既存マネージャーでもレプリカ存在チェックを実行
+          // 既存マネージャーでもレプリカ存在チェックを実行（重複チェックは内部で制御される）
           console.log('[DEBUG] selectTab: 既存マネージャーでレプリカ存在チェックを実行');
-          window.lpReplicaManager.checkReplicaExists();
+          setTimeout(() => {
+            window.lpReplicaManager.checkReplicaExists();
+          }, 100);
         }
       }, 50); // DOM更新後に実行
     }

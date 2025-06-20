@@ -101,7 +101,7 @@ export class AuthStorageManager {
    * アクセストークンの保存
    * 有効期限のデフォルトは24時間（86400秒）
    */
-  public async setAccessToken(token: string, expiryInSeconds: number = 86400): Promise<void> {
+  public async setAccessToken(token: string, expiryInSeconds = 86400): Promise<void> {
     try {
       // トークンを保存
       await this.set(this.ACCESS_TOKEN_KEY, token);

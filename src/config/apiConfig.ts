@@ -6,7 +6,7 @@ export const API_CONFIG = {
   API_URL: process.env.BLUELAMP_API_URL || 'https://bluelamp-235426778039.asia-northeast1.run.app/api',
   
   // ヘルパー関数: APIエンドポイントを取得
-  getApiUrl: function(endpoint: string = ''): string {
+  getApiUrl: function(endpoint = ''): string {
     return this.API_URL + (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
   }
 };

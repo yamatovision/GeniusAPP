@@ -21,15 +21,15 @@ export class FileViewerPanel {
   private _disposables: vscode.Disposable[] = [];
   private _fileSystemService: FileSystemServiceImpl;
   private _projectService: ProjectServiceImpl;
-  private _currentProjectPath: string = '';
-  private _currentFilePath: string = '';
+  private _currentProjectPath = '';
+  private _currentFilePath = '';
   private _fileWatcher: vscode.Disposable | null = null;
   private _messageDispatchService: IMessageDispatchService | null = null;
   
   // 分割ビュー用の状態
-  private _isSplitView: boolean = false;
-  private _leftPaneFilePath: string = '';
-  private _rightPaneFilePath: string = '';
+  private _isSplitView = false;
+  private _leftPaneFilePath = '';
+  private _rightPaneFilePath = '';
 
   // 公開メソッドを追加
   /**

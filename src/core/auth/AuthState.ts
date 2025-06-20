@@ -17,7 +17,7 @@ export interface AuthState {
  * 認証状態のビルダー
  */
 export class AuthStateBuilder {
-  private _isAuthenticated: boolean = false;
+  private _isAuthenticated = false;
   private _userId?: string;
   private _username?: string;
   private _role: Role = Role.GUEST;

@@ -42,6 +42,4 @@ export interface IProjectInfo {
 /**
  * すべてのサービスのベースとなるインターフェース
  */
-export interface IService extends IDisposableService {
-  // イベント関連のプロパティやメソッドは各サービスで定義
-}
+export type IService = IDisposableService;

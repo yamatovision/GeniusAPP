@@ -153,9 +153,9 @@ export class ClaudeCodeApiClient {
    */
   private async _retryWithExponentialBackoff<T>(
     operation: () => Promise<T>,
-    maxRetries: number = 3,
+    maxRetries = 3,
     retryableStatusCodes: number[] = [429, 500, 502, 503, 504],
-    operationName: string = '操作'
+    operationName = '操作'
   ): Promise<T> {
     let retries = 0;
     const baseDelay = 1000; // 1秒

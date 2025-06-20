@@ -134,7 +134,7 @@ export class AppGeniusEventBus {
   public emitProjectEvent(
     projectData: ProjectEventPayload, 
     source: string,
-    legacyEvents: boolean = false
+    legacyEvents = false
   ): void {
     // タイムスタンプが指定されていない場合は現在時刻を設定
     if (!projectData.timestamp) {

@@ -182,7 +182,7 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
   ): Promise<void> {
     try {
       // activeTabがオプションで直接指定されていればそれを優先使用
-      let activeTab = options?.activeTab || 'scope-progress';
+      let activeTab = options?.activeTab || 'lp-replica';
 
       // オプションで指定されていない場合のみプロジェクト情報から取得を試みる
       if (!options?.activeTab) {
@@ -204,7 +204,7 @@ export class FileWatcherServiceImpl implements IFileWatcherService {
       if (activeTab === 'requirements') {
         // 要件定義タブが選択されている場合は要件定義ファイルを読み込む
         await this.loadRequirementsFileNow(projectPath, onRequirementsFileChanged, { fileSystemService });
-      } else if (activeTab === 'scope-progress') {
+      } else if (activeTab === 'lp-replica') {
         // 進捗ファイルが選択されている場合は進捗ファイルを読み込む
         // (通常は自動的に行われるが、念のため明示的に実行)
         const progressFilePath = fileSystemService.getProgressFilePath(projectPath);

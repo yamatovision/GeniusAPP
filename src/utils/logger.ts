@@ -15,7 +15,7 @@ export class Logger {
   private static logLevel: LogLevel = LogLevel.DEBUG; // DEBUGレベルを含めすべてのログを出力
   private static logFilePath: string | undefined;
 
-  public static initialize(extensionName: string, level: LogLevel = LogLevel.INFO, autoShow: boolean = false): void {
+  public static initialize(extensionName: string, level: LogLevel = LogLevel.INFO, autoShow = false): void {
     this.outputChannel = vscode.window.createOutputChannel(extensionName);
     
     // 本番環境では警告とエラーのみログ出力する
@@ -85,7 +85,7 @@ export class Logger {
     }
   }
 
-  public static error(message: string, error?: Error, data?: any, autoShow: boolean = false): void {
+  public static error(message: string, error?: Error, data?: any, autoShow = false): void {
     if (this.logLevel <= LogLevel.ERROR) {
       this.log('ERROR', message);
       

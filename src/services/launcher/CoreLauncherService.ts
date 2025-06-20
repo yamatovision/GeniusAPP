@@ -27,9 +27,9 @@ export class CoreLauncherService {
   
   // ClaudeCode実行状態
   private status: ClaudeCodeExecutionStatus = ClaudeCodeExecutionStatus.IDLE;
-  private projectPath: string = '';
-  private scopeFilePath: string = '';
-  private progressFilePath: string = '';
+  private projectPath = '';
+  private scopeFilePath = '';
+  private progressFilePath = '';
   
   // 並列処理用の設定
   private readonly maxConcurrentProcesses: number = 3; // 最大同時実行数

@@ -293,7 +293,7 @@ export class FileOperationManager {
           
           // 各階層のディレクトリを順番に作成
           for (const part of pathParts) {
-            if (!part) continue; // 空の部分をスキップ
+            if (!part) {continue;} // 空の部分をスキップ
             
             currentPath = path.join(currentPath, part);
             

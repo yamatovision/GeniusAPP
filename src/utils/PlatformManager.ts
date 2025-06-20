@@ -157,7 +157,7 @@ export class PlatformManager {
   /**
    * 一時ディレクトリのパスを取得
    */
-  public getTempDirectory(subdirectory: string = ''): string {
+  public getTempDirectory(subdirectory = ''): string {
     // アプリケーション共通の一時ディレクトリを構築
     const tempBasePath = path.join(os.tmpdir(), 'appgenius');
     

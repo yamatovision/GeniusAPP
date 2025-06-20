@@ -49,7 +49,7 @@ export interface AppError {
 export class ErrorHandler {
   private static instance: ErrorHandler;
   private _errorHistory: AppError[] = [];
-  private _maxHistoryLength: number = 50;
+  private _maxHistoryLength = 50;
   private _lastError: AppError | null = null;
   private _onError = new vscode.EventEmitter<AppError>();
   
@@ -78,7 +78,7 @@ export class ErrorHandler {
    * @param source エラー発生元
    * @returns 標準化されたAppErrorオブジェクト
    */
-  public handleError(error: any, source: string = 'unknown'): AppError {
+  public handleError(error: any, source = 'unknown'): AppError {
     // エラーの種類によって適切な処理を行う
     const appError = this._normalizeError(error, source);
     
@@ -366,7 +366,7 @@ export class ErrorHandler {
    * @param severity 元の重大度
    */
   private _mapSeverity(severity: any): ErrorSeverity {
-    if (!severity) return ErrorSeverity.ERROR;
+    if (!severity) {return ErrorSeverity.ERROR;}
     
     if (typeof severity === 'string') {
       switch (severity.toLowerCase()) {
@@ -385,7 +385,7 @@ export class ErrorHandler {
    * @param category 元のカテゴリ
    */
   private _mapCategory(category: any): ErrorCategory {
-    if (!category) return ErrorCategory.UNKNOWN;
+    if (!category) {return ErrorCategory.UNKNOWN;}
     
     if (typeof category === 'string') {
       switch (category.toLowerCase()) {

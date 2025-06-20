@@ -47,7 +47,7 @@ export abstract class ProtectedPanel {
    * @param className 呈示用のクラス名（ログ出力用）
    * @returns 権限がある場合はtrue、ない場合はfalse
    */
-  protected static checkPermissionForFeature(feature: Feature, className: string = 'ProtectedPanel'): boolean {
+  protected static checkPermissionForFeature(feature: Feature, className = 'ProtectedPanel'): boolean {
     Logger.debug(`${className}: 権限チェックを実行します (${feature})`);
     
     try {

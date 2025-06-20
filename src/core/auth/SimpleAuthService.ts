@@ -524,7 +524,7 @@ export class SimpleAuthService {
    * 一時的なネットワークエラーに対応するためのヘルパーメソッド
    * ETIMEDOUTエラーを含む一時的な接続障害に対する堅牢性を向上
    */
-  private async _retryApiCall<T>(apiCall: () => Promise<T>, retries: number = 3, delay: number = 1000): Promise<T | null> {
+  private async _retryApiCall<T>(apiCall: () => Promise<T>, retries = 3, delay = 1000): Promise<T | null> {
     let lastError: Error | null = null;
     
     for (let attempt = 1; attempt <= retries; attempt++) {

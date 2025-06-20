@@ -177,8 +177,8 @@ export class ClaudeCodeIntegrationService {
       
       // マークダウン形式でプロンプト内容を生成
       let content = `# ${prompt.title}\n\n`;
-      if (prompt.description) content += `${prompt.description}\n\n`;
-      if (prompt.tags && prompt.tags.length > 0) content += `タグ: ${prompt.tags.join(', ')}\n`;
+      if (prompt.description) {content += `${prompt.description}\n\n`;}
+      if (prompt.tags && prompt.tags.length > 0) {content += `タグ: ${prompt.tags.join(', ')}\n`;}
       content += `\n---\n\n${prompt.content}`;
       
       // ファイルに書き込み
@@ -302,8 +302,8 @@ export class ClaudeCodeIntegrationService {
 
       // マークダウン形式でプロンプト内容を生成
       let content = `# ${prompt.title}\n\n`;
-      if (prompt.description) content += `${prompt.description}\n\n`;
-      if (prompt.tags && prompt.tags.length > 0) content += `タグ: ${prompt.tags.join(', ')}\n`;
+      if (prompt.description) {content += `${prompt.description}\n\n`;}
+      if (prompt.tags && prompt.tags.length > 0) {content += `タグ: ${prompt.tags.join(', ')}\n`;}
       content += `\n---\n\n${prompt.content}`;
       
       // 追加コンテンツがあれば追加（デバッグ探偵からのエラー情報など）

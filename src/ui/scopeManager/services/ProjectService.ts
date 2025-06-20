@@ -86,8 +86,8 @@ export class ProjectService implements IProjectService {
   public readonly onProjectUIStateUpdated = this._onProjectUIStateUpdated.event;
   
   private _disposables: vscode.Disposable[] = [];
-  private _projectPath: string = '';
-  private _progressFilePath: string = '';
+  private _projectPath = '';
+  private _progressFilePath = '';
   private _currentProjects: IProjectInfo[] = [];
   private _activeProject: IProjectInfo | null = null;
   private _extensionPath: string;
@@ -414,7 +414,7 @@ export class ProjectService implements IProjectService {
         // 既存のプロジェクトを検索
         const projects = this._projectManagementService.getAllProjects();
         let projectId: string | undefined;
-        let existingProject = projects.find((p: any) => p.path === projectPath);
+        const existingProject = projects.find((p: any) => p.path === projectPath);
         
         if (existingProject) {
           // 既存のプロジェクトが見つかった場合は、アクティブに設定

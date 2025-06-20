@@ -57,7 +57,7 @@ export class ClaudeCodeSharingService {
    * @param projectPath プロジェクトパス
    */
   public setProjectBasePath(projectPath: string): void {
-    if (!projectPath) return;
+    if (!projectPath) {return;}
     
     // プロジェクト直下の隠しディレクトリに一時ファイルを保存するよう設定
     const tempDir = path.join(projectPath, '.appgenius_temp');
@@ -169,7 +169,7 @@ export class ClaudeCodeSharingService {
     text = textString;
     
     let fileOptions: FileSaveOptions = {
-      type: 'text' as 'text',
+      type: 'text' as const,
       expirationHours: this.settings.defaultExpirationHours
     };
     
@@ -338,7 +338,7 @@ export class ClaudeCodeSharingService {
    * 履歴をクリア
    * @param deleteFiles ファイルも削除するかどうか
    */
-  public clearHistory(deleteFiles: boolean = true): void {
+  public clearHistory(deleteFiles = true): void {
     if (deleteFiles) {
       // 全ファイルの削除
       this.history.items.forEach(file => {

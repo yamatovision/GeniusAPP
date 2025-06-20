@@ -37,6 +37,8 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private static readonly viewType = 'scopeManager';
   // 必要な権限を指定
   protected static readonly _feature: Feature = Feature.SCOPE_MANAGER;
+  // グローバルなレプリカサーバー管理
+  private static _globalReplicaServer: any = null;
 
 
   private readonly _panel: vscode.WebviewPanel;
@@ -44,11 +46,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
   private readonly _extensionPath: string; // 拡張機能のファイルシステムパス（テンプレート読み込みに使用）
   private _disposables: vscode.Disposable[] = [];
 
-  private _projectPath: string = '';
+  private _projectPath = '';
   private _fileManager: FileOperationManager;
-  private _progressFilePath: string = '';
+  private _progressFilePath = '';
   private _fileWatcher: vscode.Disposable | null = null;
-  private _tempShareDir: string = '';
+  private _tempShareDir = '';
   private _promptServiceClient: PromptServiceClient;
   private _sharingService: ISharingService; // 共有サービス
   private _activeProject: IProjectInfo | null = null; // 現在選択中のプロジェクト
@@ -510,7 +512,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
           // 進捗状況タブを選択状態にする
           this._panel.webview.postMessage({
             command: 'selectTab',
-            tabId: 'scope-progress'
+            tabId: 'lp-replica'
           });
           
           Logger.info('プロジェクト読み込み後に進捗状況タブを選択状態にしました');
@@ -575,6 +577,23 @@ export class ScopeManagerPanel extends ProtectedPanel {
         progressFileExists: fs.existsSync(this._progressFilePath)
       });
       
+      // レプリカサーバーを停止（プロジェクト切り替え時）
+      if (ScopeManagerPanel._globalReplicaServer) {
+        try {
+          ScopeManagerPanel._globalReplicaServer.close();
+          ScopeManagerPanel._globalReplicaServer = null;
+          (this as any)._replicaServer = null;
+          Logger.info('プロジェクト切り替えに伴いレプリカサーバーを停止しました');
+        } catch (error) {
+          Logger.warn('レプリカサーバーの停止に失敗しました', error as Error);
+        }
+      }
+      
+      // レプリカ状態をリセット（プロジェクト切り替え時）
+      this._panel.webview.postMessage({
+        command: 'resetReplicaState'
+      });
+      
       // プロジェクト一覧を更新
       const allProjects = this._projectService.getAllProjects();
       const activeProject = this._projectService.getActiveProject();
@@ -602,12 +621,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
 
       // ActiveProject情報を最新化
       const activeProject = this._projectService.getActiveProject();
-      const activeTab = activeProject?.metadata?.activeTab || 'scope-progress';
+      const activeTab = activeProject?.metadata?.activeTab || 'lp-replica';
 
       Logger.info(`ScopeManagerPanel: 初期化時のアクティブタブ=${activeTab}`);
 
       // 選択されたタブに応じた初期化のみを実行（タブ固有の処理）
-      if (activeTab === 'scope-progress' && this._progressFilePath && fs.existsSync(this._progressFilePath)) {
+      if (activeTab === 'lp-replica' && this._progressFilePath && fs.existsSync(this._progressFilePath)) {
         // 進捗ファイルのみ読み込み（その他のタブは選択時に読み込む）
         await this._handleGetMarkdownContent(this._progressFilePath);
         Logger.info('進捗ファイルを初期読み込みしました');
@@ -769,12 +788,12 @@ export class ScopeManagerPanel extends ProtectedPanel {
       // (モックアップギャラリータブと同様の動作)
       const activeProject = this._projectService.getActiveProject();
       if (activeProject && activeProject.id) {
-        await this._tabStateService.saveTabState(activeProject.id, 'scope-progress');
+        await this._tabStateService.saveTabState(activeProject.id, 'lp-replica');
 
         // WebViewにもタブ選択を通知
         this._panel.webview.postMessage({
           command: 'selectTab',
-          tabId: 'scope-progress'
+          tabId: 'lp-replica'
         });
 
         Logger.info('マークダウンビューワーを開く前に、進捗状況タブに切り替えました');
@@ -1312,7 +1331,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
       this._activeProject = activeProject;
       
       // アクティブタブ情報を取得（重要な部分）
-      let activeTabId = 'scope-progress'; // デフォルト値
+      let activeTabId = 'lp-replica'; // デフォルト値
       
       if (activeProject && activeProject.metadata) {
         // 1. メタデータからタブ情報を正確に抽出
@@ -1320,10 +1339,10 @@ export class ScopeManagerPanel extends ProtectedPanel {
           activeTabId = activeProject.metadata.activeTab;
           Logger.info(`ScopeManagerPanel: メタデータからアクティブタブを復元: ${activeTabId}`);
         } else {
-          Logger.info('ScopeManagerPanel: メタデータにアクティブタブ情報がないためデフォルト(scope-progress)を使用');
+          Logger.info('ScopeManagerPanel: メタデータにアクティブタブ情報がないためデフォルト(lp-replica)を使用');
         }
       } else {
-        Logger.info('ScopeManagerPanel: プロジェクトメタデータがないためデフォルトタブ(scope-progress)を使用');
+        Logger.info('ScopeManagerPanel: プロジェクトメタデータがないためデフォルトタブ(lp-replica)を使用');
       }
       
       // 2. プロジェクトパスの更新（HTMLレンダリング前）
@@ -1400,9 +1419,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
   /**
    * WebViewのHTMLを生成
    * @param webview VSCodeのWebviewインスタンス
-   * @param activeTabId アクティブなタブID（デフォルトは'scope-progress'）
+   * @param activeTabId アクティブなタブID（デフォルトは'lp-replica'）
    */
-  private _getHtmlForWebview(webview: vscode.Webview, activeTabId: string = 'scope-progress'): string {
+  private _getHtmlForWebview(webview: vscode.Webview, activeTabId = 'lp-replica'): string {
     // テンプレートジェネレータに処理を委譲
     return ScopeManagerTemplate.generateHtml({
       webview,
@@ -1441,7 +1460,7 @@ export class ScopeManagerPanel extends ProtectedPanel {
     try {
       // アクティブタブ情報を取得
       const activeProject = this._projectService.getActiveProject();
-      const activeTab = activeProject?.metadata?.activeTab || 'scope-progress';
+      const activeTab = activeProject?.metadata?.activeTab || 'lp-replica';
 
       Logger.info(`ScopeManagerPanel: ファイル監視設定時のアクティブタブ=${activeTab}`);
 
@@ -1591,11 +1610,36 @@ export class ScopeManagerPanel extends ProtectedPanel {
     const http = require('http');
     const url = require('url');
     
+    // グローバルな既存サーバーがあれば停止
+    if (ScopeManagerPanel._globalReplicaServer) {
+      try {
+        ScopeManagerPanel._globalReplicaServer.close();
+        ScopeManagerPanel._globalReplicaServer = null;
+        Logger.info(`既存のグローバルレプリカサーバーを停止しました`);
+      } catch (error) {
+        Logger.warn('既存のグローバルレプリカサーバーの停止に失敗しました', error as Error);
+      }
+    }
+    
+    // インスタンス固有のサーバーがあれば停止
+    if ((this as any)._replicaServer) {
+      try {
+        (this as any)._replicaServer.close();
+        (this as any)._replicaServer = null;
+        Logger.info(`既存のインスタンスレプリカサーバーを停止しました`);
+      } catch (error) {
+        Logger.warn('既存のインスタンスレプリカサーバーの停止に失敗しました', error as Error);
+      }
+    }
+    
     const baseDir = path.dirname(htmlPath);
+    Logger.info(`レプリカサーバーを起動します: ポート=${port}, ベースディレクトリ=${baseDir}`);
     
     const server = http.createServer((req: any, res: any) => {
       const parsedUrl = url.parse(req.url);
       let pathname = parsedUrl.pathname;
+      
+      Logger.debug(`レプリカサーバー: リクエスト受信: ${req.method} ${req.url}`);
       
       // index.htmlをデフォルトに
       if (pathname === '/') {
@@ -1604,38 +1648,94 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       const filePath = path.join(baseDir, pathname);
       
+      // セキュリティチェック：ベースディレクトリ外へのアクセスを防ぐ
+      const resolvedPath = path.resolve(filePath);
+      const resolvedBaseDir = path.resolve(baseDir);
+      
+      if (!resolvedPath.startsWith(resolvedBaseDir)) {
+        Logger.warn(`レプリカサーバー: セキュリティエラー - 不正なパス: ${filePath}`);
+        res.writeHead(403);
+        res.end('Forbidden');
+        return;
+      }
+      
+      Logger.debug(`レプリカサーバー: ファイル読み込み試行: ${filePath}`);
+      
       fs.readFile(filePath, (err: any, data: any) => {
         if (err) {
+          Logger.warn(`レプリカサーバー: ファイルが見つかりません: ${filePath}`);
           res.writeHead(404);
           res.end('Not Found');
           return;
         }
         
         // Content-Typeを設定
-        const ext = path.extname(filePath);
+        const ext = path.extname(filePath).toLowerCase();
         const contentType = {
-          '.html': 'text/html',
-          '.css': 'text/css',
-          '.js': 'text/javascript',
+          '.html': 'text/html; charset=utf-8',
+          '.htm': 'text/html; charset=utf-8',
+          '.css': 'text/css; charset=utf-8',
+          '.js': 'application/javascript; charset=utf-8',
+          '.json': 'application/json; charset=utf-8',
           '.png': 'image/png',
           '.jpg': 'image/jpeg',
           '.jpeg': 'image/jpeg',
           '.gif': 'image/gif',
           '.svg': 'image/svg+xml',
-          '.webp': 'image/webp'
+          '.webp': 'image/webp',
+          '.ico': 'image/x-icon',
+          '.woff': 'font/woff',
+          '.woff2': 'font/woff2',
+          '.ttf': 'font/ttf',
+          '.eot': 'application/vnd.ms-fontobject'
         }[ext] || 'text/plain';
         
-        res.writeHead(200, { 'Content-Type': contentType });
+        Logger.debug(`レプリカサーバー: ファイル送信成功: ${filePath} (${data.length}バイト, ${contentType})`);
+        
+        res.writeHead(200, { 
+          'Content-Type': contentType,
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        });
         res.end(data);
       });
     });
     
-    server.listen(port);
-    
-    // サーバー情報を保存（後でクリーンアップ用）
-    (this as any)._replicaServer = server;
-    
-    return `http://localhost:${port}/`;
+    return new Promise((resolve, reject) => {
+      server.on('error', (err: any) => {
+        Logger.error(`レプリカサーバーの起動エラー: ポート=${port}`, err);
+        
+        // ポートが使用中の場合は別のポートを試す
+        if (err.code === 'EADDRINUSE') {
+          const newPort = port + 1;
+          Logger.info(`ポート${port}は使用中です。ポート${newPort}を試します`);
+          this.startLocalServer(htmlPath, newPort).then(resolve).catch(reject);
+          return;
+        }
+        
+        reject(err);
+      });
+      
+      server.listen(port, '127.0.0.1', () => {
+        // サーバー情報をグローバルとインスタンスの両方に保存
+        ScopeManagerPanel._globalReplicaServer = server;
+        (this as any)._replicaServer = server;
+        const serverUrl = `http://localhost:${port}/`;
+        Logger.info(`レプリカサーバーが起動しました: ${serverUrl}`);
+        
+        // サーバーが正常に起動したことを確認するテストリクエスト
+        const http = require('http');
+        http.get(serverUrl, (res: any) => {
+          Logger.info(`レプリカサーバーの動作確認OK: ステータス=${res.statusCode}`);
+          resolve(serverUrl);
+        }).on('error', (err: any) => {
+          Logger.error(`レプリカサーバーの動作確認NG`, err);
+          resolve(serverUrl); // エラーでも一旦URLを返す
+        });
+      });
+    });
   }
 
   public dispose(): void {
@@ -1644,8 +1744,18 @@ export class ScopeManagerPanel extends ProtectedPanel {
     }
     
     // レプリカサーバーを停止
+    if (ScopeManagerPanel._globalReplicaServer) {
+      try {
+        ScopeManagerPanel._globalReplicaServer.close();
+        ScopeManagerPanel._globalReplicaServer = null;
+        Logger.info('パネル破棄時にレプリカサーバーを停止しました');
+      } catch (error) {
+        Logger.warn('パネル破棄時のレプリカサーバー停止に失敗しました', error as Error);
+      }
+    }
+    
     if ((this as any)._replicaServer) {
-      (this as any)._replicaServer.close();
+      (this as any)._replicaServer = null;
     }
 
     // パネル自体を破棄
@@ -1741,10 +1851,16 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleReplicaCreate(url: string): Promise<void> {
     try {
-      if (!this._projectPath) {
+      // 最新のアクティブプロジェクトパスを取得
+      const activeProject = this._projectService.getActiveProject();
+      const currentProjectPath = activeProject?.path || this._projectPath;
+      
+      if (!currentProjectPath) {
         this._showError('プロジェクトが選択されていません');
         return;
       }
+
+      Logger.info(`レプリカ作成開始: プロジェクトパス=${currentProjectPath}, URL=${url}`);
 
       // ReplicaServiceのインスタンスを取得
       const { ReplicaService } = require('../../services/ReplicaService');
@@ -1757,9 +1873,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
       });
 
       // レプリカを作成
-      const result = await replicaService.createReplica(url, this._projectPath);
+      const result = await replicaService.createReplica(url, currentProjectPath);
 
       if (result.success) {
+        Logger.info(`レプリカ作成成功: ${result.outputDir}`);
+        
         // 成功を通知
         await this._panel.webview.postMessage({
           command: 'replicaCreateSuccess',
@@ -1789,10 +1907,17 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleReplicaCheck(): Promise<void> {
     try {
-      if (!this._projectPath) {
+      // 最新のアクティブプロジェクトパスを取得
+      const activeProject = this._projectService.getActiveProject();
+      const currentProjectPath = activeProject?.path || this._projectPath;
+      
+      Logger.info(`レプリカ存在チェック: プロジェクトパス=${currentProjectPath}`);
+      
+      if (!currentProjectPath) {
         await this._panel.webview.postMessage({
-          command: 'replicaExists',
-          exists: false
+          command: 'replicaCheckResult',
+          exists: false,
+          path: null
         });
         return;
       }
@@ -1800,15 +1925,25 @@ export class ScopeManagerPanel extends ProtectedPanel {
       const { ReplicaService } = require('../../services/ReplicaService');
       const replicaService = ReplicaService.getInstance(this._extensionPath);
       
-      const exists = await replicaService.checkReplicaExists(this._projectPath);
+      const exists = await replicaService.checkReplicaExists(currentProjectPath);
+      const replicaPath = exists ? replicaService.getReplicaPath(currentProjectPath) : null;
+      
+      Logger.info(`レプリカ存在チェック結果: exists=${exists}, path=${replicaPath}`);
       
       await this._panel.webview.postMessage({
         command: 'replicaCheckResult',
         exists,
-        path: exists ? replicaService.getReplicaPath(this._projectPath) : null
+        path: replicaPath
       });
     } catch (error) {
       Logger.error('レプリカチェックエラー', error as Error);
+      
+      // エラー時は存在しないとして返す
+      await this._panel.webview.postMessage({
+        command: 'replicaCheckResult',
+        exists: false,
+        path: null
+      });
     }
   }
 
@@ -1817,7 +1952,11 @@ export class ScopeManagerPanel extends ProtectedPanel {
    */
   private async _handleReplicaOpen(): Promise<void> {
     try {
-      if (!this._projectPath) {
+      // 最新のアクティブプロジェクトパスを取得
+      const activeProject = this._projectService.getActiveProject();
+      const currentProjectPath = activeProject?.path || this._projectPath;
+      
+      if (!currentProjectPath) {
         this._showError('プロジェクトが選択されていません');
         return;
       }
@@ -1825,7 +1964,9 @@ export class ScopeManagerPanel extends ProtectedPanel {
       const { ReplicaService } = require('../../services/ReplicaService');
       const replicaService = ReplicaService.getInstance(this._extensionPath);
       
-      const replicaPath = replicaService.getReplicaPath(this._projectPath);
+      const replicaPath = replicaService.getReplicaPath(currentProjectPath);
+      
+      Logger.info(`レプリカを開く: プロジェクトパス=${currentProjectPath}, レプリカパス=${replicaPath}`);
       
       // ファイルが存在するかチェック
       try {
@@ -1956,15 +2097,30 @@ export class ScopeManagerPanel extends ProtectedPanel {
       
       console.log('[DEBUG] HTMLコンテンツを変換しました（最初の500文字）:', modifiedHtml.substring(0, 500));
       
-      // ローカルサーバーを起動してHTTP URLを返す
-      const port = 8080 + Math.floor(Math.random() * 1000); // ランダムポート
-      const serverUrl = await this.startLocalServer(filePath, port);
-      
-      // HTTP URLを送信
-      await this._panel.webview.postMessage({
-        command: 'replicaWebviewUri',
-        webviewUri: serverUrl
-      });
+      try {
+        // ローカルサーバーを起動してHTTP URLを返す
+        const port = 8080 + Math.floor(Math.random() * 1000); // ランダムポート
+        Logger.info(`レプリカサーバー起動を試行: ポート=${port}, ファイル=${filePath}`);
+        
+        const serverUrl = await this.startLocalServer(filePath, port);
+        Logger.info(`レプリカサーバー起動成功: ${serverUrl}`);
+        
+        // HTTP URLを送信
+        await this._panel.webview.postMessage({
+          command: 'replicaWebviewUri',
+          webviewUri: serverUrl
+        });
+        
+        Logger.info(`WebviewURIを送信しました: ${serverUrl}`);
+      } catch (serverError) {
+        Logger.error('レプリカサーバーの起動に失敗しました', serverError as Error);
+        
+        // サーバー起動に失敗した場合はエラーを送信
+        await this._panel.webview.postMessage({
+          command: 'replicaError',
+          error: 'レプリカサーバーの起動に失敗しました: ' + (serverError as Error).message
+        });
+      }
     } catch (error) {
       console.error('[ERROR] WebviewURI変換エラー:', error);
       await this._panel.webview.postMessage({

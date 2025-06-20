@@ -118,10 +118,10 @@ export class ProjectMessageHandler implements IMessageHandler {
       });
 
       // アクティブタブ情報
-      const activeTab = activeProject?.metadata?.activeTab || 'scope-progress';
+      const activeTab = activeProject?.metadata?.activeTab || 'lp-replica';
 
       // 選択されたタブに応じた初期化実行
-      if (activeTab === 'scope-progress' && context.progressFilePath && fs.existsSync(context.progressFilePath)) {
+      if (activeTab === 'lp-replica' && context.progressFilePath && fs.existsSync(context.progressFilePath)) {
         // Scopeプログレスタブの初期化（実際の実装はScopeManagerPanelから移行する）
         // ここではMarkdownコンテンツの取得などの処理を行う
       }

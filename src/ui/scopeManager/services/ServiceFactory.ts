@@ -30,7 +30,7 @@ interface IPanelService {
   setTabStateService?: (tabStateService: any) => void;
   initializePanel?: (projectPath?: string) => Promise<void>;
   syncActiveProject?: (project: any) => Promise<void>;
-};
+}
 
 // 既存の実装クラス
 import { FileSystemService } from './FileSystemService';
@@ -56,9 +56,9 @@ export class ServiceFactory {
   private static _context: vscode.ExtensionContext;
   
   // 新実装への切り替えフラグ
-  private static _useNewFileSystemService: boolean = true;
-  private static _useNewProjectService: boolean = true;
-  private static _useNewMessageService: boolean = true;
+  private static _useNewFileSystemService = true;
+  private static _useNewProjectService = true;
+  private static _useNewMessageService = true;
   
   // サービスインスタンス（キャッシュ）
   private static _fileSystemService: IFileSystemService;

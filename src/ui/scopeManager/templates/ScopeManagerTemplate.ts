@@ -443,7 +443,7 @@ export class ScopeManagerTemplate {
             <iframe 
               id="replica-iframe" 
               class="replica-iframe"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-top-navigation allow-downloads"
               style="width: 100%; height: 600px; border: 1px solid var(--app-border);"
             ></iframe>
           </div>

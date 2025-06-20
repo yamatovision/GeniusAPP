@@ -561,7 +561,7 @@ export class MockupGalleryPanel extends ProtectedPanel {
    * @param html HTMLコンテンツ
    * @param title 表示タイトル
    */
-  public displayHtmlContent(html: string, title: string = 'プレビュー'): void {
+  public displayHtmlContent(html: string, title = 'プレビュー'): void {
     // WebViewにメッセージを送信
     this._panel.webview.postMessage({
       command: 'displayDirectHtml',

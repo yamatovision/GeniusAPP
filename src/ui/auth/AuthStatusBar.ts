@@ -14,7 +14,7 @@ export class AuthStatusBar {
   private _statusBarItem: vscode.StatusBarItem;
   private _simpleAuthService: SimpleAuthService | undefined;
   private _disposables: vscode.Disposable[] = [];
-  private _isUpdating: boolean = false;
+  private _isUpdating = false;
   
   // アイコン設定
   private readonly ICON_LOGGED_IN = '$(account)'; // ユーザーアイコンに変更

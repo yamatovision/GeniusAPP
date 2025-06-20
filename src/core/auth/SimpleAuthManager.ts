@@ -16,7 +16,7 @@ export class SimpleAuthManager {
   private _disposables: vscode.Disposable[] = [];
   
   // トークン検証のスロットリング用
-  private _lastVerificationTime: number = 0;
+  private _lastVerificationTime = 0;
   private readonly _VERIFICATION_THROTTLE_MS = 5000; // 5秒以内の再検証を防止
   
   /**

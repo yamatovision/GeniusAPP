@@ -42,7 +42,7 @@ export class SharingService implements ISharingService {
   public readonly onHistoryUpdated = this._onHistoryUpdated.event;
   
   private _disposables: vscode.Disposable[] = [];
-  private _projectBasePath: string = '';
+  private _projectBasePath = '';
   private _history: SharedFile[] = [];
   private _claudeCodeSharingService: ClaudeCodeSharingService;
   

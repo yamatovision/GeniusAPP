@@ -64,7 +64,7 @@ export class MarkdownManager {
       
       for (const line of lines) {
         const trimmedLine = line.trim();
-        if (!trimmedLine) continue;
+        if (!trimmedLine) {continue;}
 
         // インデントレベルを計算（文字列の開始位置まで）
         const indentLevel = line.search(/[^\s│├─┬┼└┤┐┘┌┴┬]/);
@@ -100,7 +100,7 @@ export class MarkdownManager {
   public async scanProjectFiles(projectPath: string): Promise<string[]> {
     try {
       // fs.readdirを使ってディレクトリをスキャン
-      const walkDir = async (dir: string, fileList: string[] = [], basePath: string = ''): Promise<string[]> => {
+      const walkDir = async (dir: string, fileList: string[] = [], basePath = ''): Promise<string[]> => {
         const files = await fs.promises.readdir(dir);
         
         for (const file of files) {
@@ -242,13 +242,13 @@ export class MarkdownManager {
    * @param scopeSection セクションテキスト
    * @returns スコープデータの配列
    */
-  private extractScopes(scopeSection: string, projectPath: string = ""): IImplementationScope[] {
+  private extractScopes(scopeSection: string, projectPath = ""): IImplementationScope[] {
     const scopes: IImplementationScope[] = [];
     const scopeBlocks = scopeSection.split(/(?=###\s+スコープ:)/g);
 
     for (const block of scopeBlocks) {
       const scopeMatch = block.match(/###\s+スコープ:\s+(.*?)(?:\n|$)/);
-      if (!scopeMatch) continue;
+      if (!scopeMatch) {continue;}
 
       const scopeName = scopeMatch[1].trim();
       const idMatch = block.match(/- ID:\s+([a-zA-Z0-9-_]+)/);
@@ -283,52 +283,52 @@ export class MarkdownManager {
         
         for (const itemBlock of itemBlocks) {
           const isSelectedMatch = itemBlock.match(/- \[([ x])\]/);
-          if (!isSelectedMatch) continue;
+          if (!isSelectedMatch) {continue;}
           
           const isSelected = isSelectedMatch[1] === 'x';
           
           const titleMatch = itemBlock.match(/- \[[ x]\]\s+(.+?)(?=\n|$)/);
           const title = titleMatch ? titleMatch[1].trim() : '';
           
-          const idMatch = itemBlock.match(/  - ID:\s+([a-zA-Z0-9-_]+)/);
+          const idMatch = itemBlock.match(/ {2}- ID:\s+([a-zA-Z0-9-_]+)/);
           const id = idMatch ? idMatch[1] : `item-${Date.now()}-${uuidv4().substring(0, 6)}`;
           
-          const descriptionMatch = itemBlock.match(/  - 説明:\s+(.*?)(?=\n  -|\n-|\n$)/s);
+          const descriptionMatch = itemBlock.match(/ {2}- 説明:\s+(.*?)(?=\n {2}-|\n-|\n$)/s);
           const description = descriptionMatch ? descriptionMatch[1].trim() : '';
           
-          const priorityMatch = itemBlock.match(/  - 優先度:\s+(high|medium|low)/);
+          const priorityMatch = itemBlock.match(/ {2}- 優先度:\s+(high|medium|low)/);
           const priority = (priorityMatch ? priorityMatch[1] : 'medium') as 'high' | 'medium' | 'low';
           
-          const complexityMatch = itemBlock.match(/  - 複雑度:\s+(high|medium|low)/);
+          const complexityMatch = itemBlock.match(/ {2}- 複雑度:\s+(high|medium|low)/);
           const complexity = (complexityMatch ? complexityMatch[1] : 'medium') as 'high' | 'medium' | 'low';
           
-          const dependenciesMatch = itemBlock.match(/  - 依存関係:\s+(.*?)(?=\n  -|\n-|\n$)/);
+          const dependenciesMatch = itemBlock.match(/ {2}- 依存関係:\s+(.*?)(?=\n {2}-|\n-|\n$)/);
           const dependenciesText = dependenciesMatch ? dependenciesMatch[1].trim() : '';
           const dependencies = dependenciesText ? dependenciesText.split(',').map(d => d.trim()) : [];
           
-          const statusMatch = itemBlock.match(/  - 状態:\s+(pending|in-progress|completed|blocked)/);
+          const statusMatch = itemBlock.match(/ {2}- 状態:\s+(pending|in-progress|completed|blocked)/);
           const status = statusMatch 
             ? statusMatch[1] as ScopeItemStatus 
             : (isSelected ? ScopeItemStatus.PENDING : undefined);
           
-          const progressMatch = itemBlock.match(/  - 進捗:\s+(\d+)%/);
+          const progressMatch = itemBlock.match(/ {2}- 進捗:\s+(\d+)%/);
           const progress = progressMatch ? parseInt(progressMatch[1]) : (isSelected ? 0 : undefined);
           
-          const notesMatch = itemBlock.match(/  - メモ:\s+(.*?)(?=\n  -|\n-|\n$)/s);
+          const notesMatch = itemBlock.match(/ {2}- メモ:\s+(.*?)(?=\n {2}-|\n-|\n$)/s);
           const notes = notesMatch ? notesMatch[1].trim() : undefined;
           
           // 関連ファイル
-          const filesMatch = itemBlock.match(/  - 関連ファイル:\s+(.*?)(?=\n  -|\n-|\n$)/s);
+          const filesMatch = itemBlock.match(/ {2}- 関連ファイル:\s+(.*?)(?=\n {2}-|\n-|\n$)/s);
           const filesText = filesMatch ? filesMatch[1].trim() : '';
           const relatedFiles = filesText ? filesText.split('\n').map(f => f.trim().replace(/^- /, '')) : undefined;
           
           // 関連モックアップ
-          const mockupsMatch = itemBlock.match(/  - 関連モックアップ:\s+(.*?)(?=\n  -|\n-|\n$)/s);
+          const mockupsMatch = itemBlock.match(/ {2}- 関連モックアップ:\s+(.*?)(?=\n {2}-|\n-|\n$)/s);
           const mockupsText = mockupsMatch ? mockupsMatch[1].trim() : '';
           const relatedMockups = mockupsText ? mockupsText.split('\n').map(m => m.trim().replace(/^- /, '')) : undefined;
           
           // 関連要件
-          const requirementsMatch = itemBlock.match(/  - 関連要件:\s+(.*?)(?=\n  -|\n-|\n$)/s);
+          const requirementsMatch = itemBlock.match(/ {2}- 関連要件:\s+(.*?)(?=\n {2}-|\n-|\n$)/s);
           const requirementsText = requirementsMatch ? requirementsMatch[1].trim() : '';
           const relatedRequirements = requirementsText ? requirementsText.split('\n').map(r => r.trim().replace(/^- /, '')) : undefined;
           

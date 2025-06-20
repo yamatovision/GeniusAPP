@@ -172,23 +172,23 @@ export class ReplicaService {
 
         // HTML files
         const htmlMatch = output.match(/html_files: (\d+) files/);
-        if (htmlMatch) stats.htmlFiles = parseInt(htmlMatch[1]);
+        if (htmlMatch) {stats.htmlFiles = parseInt(htmlMatch[1]);}
 
         // CSS files
         const cssMatch = output.match(/css: (\d+) files/);
-        if (cssMatch) stats.cssFiles = parseInt(cssMatch[1]);
+        if (cssMatch) {stats.cssFiles = parseInt(cssMatch[1]);}
 
         // JS files
         const jsMatch = output.match(/js: (\d+) files/);
-        if (jsMatch) stats.jsFiles = parseInt(jsMatch[1]);
+        if (jsMatch) {stats.jsFiles = parseInt(jsMatch[1]);}
 
         // Images
         const imagesMatch = output.match(/images: (\d+) files/);
-        if (imagesMatch) stats.images = parseInt(imagesMatch[1]);
+        if (imagesMatch) {stats.images = parseInt(imagesMatch[1]);}
 
         // Total size
         const sizeMatch = output.match(/Total size: ([\d.]+) MB/);
-        if (sizeMatch) stats.totalSize = parseFloat(sizeMatch[1]);
+        if (sizeMatch) {stats.totalSize = parseFloat(sizeMatch[1]);}
 
         return stats;
     }

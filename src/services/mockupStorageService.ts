@@ -28,10 +28,10 @@ export interface Mockup {
 export class MockupStorageService {
   private static instance: MockupStorageService;
   private mockups: Map<string, Mockup> = new Map();
-  private storageDir: string = '';
-  private _initialized: boolean = false;
+  private storageDir = '';
+  private _initialized = false;
   // 最後に初期化されたパスを追跡
-  private _lastInitializedPath: string = '';
+  private _lastInitializedPath = '';
   
   /**
    * モックアップを名前で検索

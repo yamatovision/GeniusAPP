@@ -16,7 +16,7 @@ export class TempFileManager {
    * コンストラクタ
    * @param basePath 一時ファイルの基本ディレクトリ（デフォルトは/tmp/claude-share）
    */
-  constructor(basePath: string = '') {
+  constructor(basePath = '') {
     // 基本パスを設定（プラットフォームに応じて調整）
     if (basePath) {
       this.basePath = basePath;
@@ -64,7 +64,7 @@ export class TempFileManager {
    * @param extension ファイル拡張子
    * @param customName カスタムファイル名（オプション）
    */
-  private generateTempFilePath(type: 'text' | 'image', extension: string = '', customName?: string): string {
+  private generateTempFilePath(type: 'text' | 'image', extension = '', customName?: string): string {
     // 人間が読みやすい日付形式
     const now = new Date();
     const dateStr = `${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}`;
@@ -96,7 +96,7 @@ export class TempFileManager {
    * @returns 安全なファイル名
    */
   private sanitizeFileName(name: string): string {
-    if (!name) return 'untitled';
+    if (!name) {return 'untitled';}
     
     // 日本語を含むかチェック
     const hasJapanese = /[\u3000-\u303f\u3040-\u309f\u30a0-\u30ff\uff00-\uff9f\u4e00-\u9faf\u3400-\u4dbf]/.test(name);
@@ -368,7 +368,7 @@ export class TempFileManager {
    * クリーンアップジョブをスケジュール
    * @param intervalHours クリーンアップの間隔（時間単位、デフォルト3時間）
    */
-  public scheduleCleanupJob(intervalHours: number = 3): void {
+  public scheduleCleanupJob(intervalHours = 3): void {
     // 最初のクリーンアップ実行
     this.cleanupExpiredFiles();
     

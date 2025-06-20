@@ -627,7 +627,7 @@ export class FileSystemServiceImpl implements IFileSystemService, IWebViewCommun
    * @param recursive 再帰的に取得するかどうか（デフォルトはfalse）
    * @returns ファイルとフォルダの情報のリスト
    */
-  public async listDirectory(directoryPath: string, recursive: boolean = false): Promise<IProjectDocument[]> {
+  public async listDirectory(directoryPath: string, recursive = false): Promise<IProjectDocument[]> {
     try {
       if (!directoryPath) {
         throw new Error('ディレクトリパスが指定されていません');
@@ -688,8 +688,8 @@ export class FileSystemServiceImpl implements IFileSystemService, IWebViewCommun
       // ディレクトリが先頭、その後にファイルを名前順にソート
       result.sort((a, b) => {
         // ディレクトリを先にソート
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
+        if (a.isDirectory && !b.isDirectory) {return -1;}
+        if (!a.isDirectory && b.isDirectory) {return 1;}
         
         // 同じタイプであれば名前でソート
         return a.name.localeCompare(b.name);
