@@ -22,7 +22,9 @@ try {
       console.log('ダミーvscode.postMessage (stateManager):', msg); 
     },
     getState: function() { return {}; },
-    setState: function() {}
+    setState: function() {
+      // No-op: This is a placeholder implementation
+    }
   };
 }
 
@@ -42,7 +44,6 @@ class StateManager {
       projects: [],
       activeProject: null,
       directoryStructure: '',
-      scopeProgressContent: ''
     };
   }
 
@@ -102,26 +103,7 @@ class StateManager {
     const prevState = this.state;
     this.setState(data);
     
-    // マークダウンコンテンツの更新があれば通知
-    if (data.scopeProgressMarkdown && 
-        data.scopeProgressMarkdown !== prevState.scopeProgressMarkdown) {
-      document.dispatchEvent(new CustomEvent('markdown-updated', {
-        detail: { content: data.scopeProgressMarkdown }
-      }));
-    }
     
-    // 進捗ファイルパスが更新され、マークダウンデータがない場合はファイル取得メッセージを送信
-    if (data.progressFilePath && 
-        !data.scopeProgressMarkdown && 
-        data.progressFilePath !== prevState.lastRequestedProgressFile) {
-      // リクエスト状態を保存
-      this.setState({ lastRequestedProgressFile: data.progressFilePath });
-      
-      // ファイル内容をリクエスト
-      this.sendMessage('getMarkdownContent', {
-        filePath: data.progressFilePath
-      });
-    }
   }
 
   /**
@@ -140,7 +122,7 @@ class StateManager {
       lastSyncedProjectId: project.id,
       activeProjectName: project.name,
       activeProjectPath: project.path,
-      activeTab: project.metadata?.activeTab || state.activeTab || 'scope-progress'
+      activeTab: project.metadata?.activeTab || state.activeTab || 'lp-replica'
     });
     
     // 単一のプロジェクト更新イベントを発行
@@ -148,22 +130,9 @@ class StateManager {
       detail: { project }
     }));
     
-    // プロジェクトパスが変更された場合、必要な初期コンテンツを読み込む
-    const activeTab = project.metadata?.activeTab || 'scope-progress';
-    const progressFilePath = `${project.path}/docs/SCOPE_PROGRESS.md`;
-    
-    // 進捗ファイルを読み込み
-    this.sendMessage('getMarkdownContent', {
-      filePath: progressFilePath,
-      forScopeProgress: true,
-      timestamp: Date.now(),
-      forceRefresh: true
-    });
-    
     // アクティブタブに応じて適切なコンテンツを読み込む
-    if (activeTab === 'requirements') {
-      this.sendMessage('loadRequirementsFile');
-    } else if (activeTab === 'file-browser') {
+    const activeTab = project.metadata?.activeTab || 'lp-replica';
+    if (activeTab === 'file-browser') {
       this.sendMessage('refreshFileBrowser', {
         projectPath: project.path
       });

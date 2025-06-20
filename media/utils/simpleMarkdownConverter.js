@@ -252,4 +252,6 @@ export default markdownConverter;
 export const convertMarkdownToHtml = markdown => markdownConverter.convertMarkdownToHtml(markdown);
 export const setupCheckboxes = () => markdownConverter.setupCheckboxes();
 // 互換性のために空関数を提供
-export const enhanceSpecialElements = () => {};
+export const enhanceSpecialElements = () => {
+  // No-op: This is a placeholder for compatibility
+};

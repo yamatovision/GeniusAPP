@@ -198,32 +198,11 @@ export class ScopeManagerTemplate {
                   <span class="project-name">${projectName}</span>
                   <span class="project-path-display">${projectPath}</span>
                 </div>
-                <div class="tabs-container">
-                  <div class="tab ${activeTabId === 'scope-progress' ? 'active' : ''}" data-tab="scope-progress">進捗状況</div>
-                  <div class="tab ${activeTabId === 'files' ? 'active' : ''}" data-tab="files">ファイル</div>
-                  <div class="tab ${activeTabId === 'claude-code' ? 'active' : ''}" data-tab="claude-code">ClaudeCode連携</div>
-                  <div class="tab ${activeTabId === 'tools' ? 'active' : ''}" data-tab="tools">モックアップギャラリー</div>
-                  <div class="tab ${activeTabId === 'lp-replica' ? 'active' : ''}" data-tab="lp-replica">LPレプリカ</div>
-                </div>
+                <!-- タブバーは削除されました - LPレプリカ専用 -->
               </div>
               
-              <!-- 進捗状況タブコンテンツ -->
-              ${this._generateProgressTabContent(activeTabId)}
-
-              <!-- ファイルブラウザタブコンテンツ -->
-              <!-- ファイルブラウザタブコンテンツは削除されました -->
-
-              <!-- ClaudeCode連携タブコンテンツ -->
-              ${this._generateClaudeCodeTabContent(activeTabId)}
-              
-              <!-- 開発ツールタブコンテンツ (モックアップギャラリー表示用のプレースホルダ) -->
-              ${this._generateToolsTabContent(activeTabId)}
-
-              <!-- ファイルタブコンテンツ -->
-              ${this._generateFilesTabContent(activeTabId)}
-
-              <!-- LPレプリカタブコンテンツ -->
-              ${this._generateLPReplicaTabContent(activeTabId)}
+              <!-- LPレプリカコンテンツ（直接表示） -->
+              ${this._generateLPReplicaContent()}
             </div>
           </div>
         </div>
@@ -249,115 +228,6 @@ export class ScopeManagerTemplate {
     </html>`;
   }
 
-  /**
-   * 進捗状況タブのコンテンツを生成
-   */
-  private static _generateProgressTabContent(activeTabId: string): string {
-    return `
-      <div id="scope-progress-tab" class="tab-content ${activeTabId === 'scope-progress' ? 'active' : ''}">
-        <div class="card-body">
-          <div class="markdown-content">
-            <!-- ここにSCOPE_PROGRESS.mdの内容がマークダウン表示される -->
-            <p>読み込み中...</p>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * 要件定義タブのコンテンツを生成
-   */
-  private static _generateRequirementsTabContent(activeTabId: string): string {
-    return `
-      <div id="requirements-tab" class="tab-content ${activeTabId === 'requirements' ? 'active' : ''}">
-        <div class="card-body">
-          <div class="markdown-content">
-            <!-- ここにrequirements.mdの内容がマークダウン表示される -->
-            <p>読み込み中...</p>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * ClaudeCode連携タブのコンテンツを生成
-   */
-  private static _generateClaudeCodeTabContent(activeTabId: string): string {
-    return `
-      <div id="claude-code-tab" class="tab-content ${activeTabId === 'claude-code' ? 'active' : ''}">
-        <div class="claude-share-container">
-          <!-- 左側：テキスト入力エリア -->
-          <div class="text-input-area">
-            <textarea class="share-textarea" placeholder="ここにClaudeCodeと共有したいテキストを入力..."></textarea>
-            <!-- ボタンエリア -->
-            <div class="action-buttons">
-              <button class="button button-secondary" id="clear-button">クリア</button>
-              <button class="button" id="share-to-claude">保存</button>
-            </div>
-            
-            <!-- 保存結果通知（成功時のみ表示） -->
-            <div class="save-notification" id="save-notification" style="display: none;">
-              <span class="material-icons success-icon">check_circle</span>
-              <span class="notification-text">保存完了</span>
-            </div>
-          </div>
-          
-          <!-- 右側：画像アップロードエリアと履歴 -->
-          <div class="image-upload-area">
-            <!-- ドロップゾーン -->
-            <div class="drop-zone" id="drop-zone">
-              <span class="material-icons">add_photo_alternate</span>
-              <p>画像をアップロード<br><span style="font-size: 12px; color: var(--app-text-secondary);">（ファイルをドラッグ＆ドロップ）</span></p>
-              <button class="button-secondary" id="file-select-btn">ブラウズ...</button>
-              <input type="file" id="file-input" accept="image/*" style="display: none;">
-            </div>
-            
-            <!-- 履歴表示エリア -->
-            <div class="history-container">
-              <h4>共有履歴</h4>
-              <div class="shared-history-list">
-                <!-- 履歴アイテムはJSで動的に生成 -->
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  /**
-   * ツールタブのコンテンツを生成
-   */
-  private static _generateToolsTabContent(activeTabId: string): string {
-    return `
-      <div id="tools-tab" class="tab-content ${activeTabId === 'tools' ? 'active' : ''}">
-        <!-- モックアップギャラリーを表示するための空のコンテナ -->
-      </div>
-    `;
-  }
-
-  /**
-   * ファイルタブのコンテンツを生成
-   */
-  private static _generateFilesTabContent(activeTabId: string): string {
-    return `
-      <div id="files-tab" class="tab-content ${activeTabId === 'files' ? 'active' : ''}">
-        <!-- マークダウンビューワーを表示するための空のコンテナ -->
-        <div class="files-container">
-          <div class="files-placeholder">
-            <span class="material-icons">description</span>
-            <h3>マークダウンビューワーを開いています...</h3>
-            <p>マークダウンビューワーが別ウィンドウで開かれます</p>
-            <div class="loading-indicator">
-              <div class="spinner"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
   /**
    * プロンプトモーダルのコンテンツを生成
@@ -388,13 +258,11 @@ export class ScopeManagerTemplate {
   }
 
   /**
-   * LPレプリカタブのコンテンツを生成
+   * LPレプリカコンテンツを生成（タブなしで直接表示）
    */
-  private static _generateLPReplicaTabContent(activeTabId: string): string {
-    const isActive = activeTabId === 'lp-replica';
-    
+  private static _generateLPReplicaContent(): string {
     return `
-      <div id="lp-replica-tab" class="tab-content ${isActive ? 'active' : ''}">
+      <div id="lp-replica-content" class="lp-replica-container">
         <div class="section">
           <h3>LPレプリカ作成</h3>
           

@@ -155,7 +155,9 @@ export class AuthenticationHandler implements IAuthenticationHandler {
     } catch (error) {
       Logger.error('AuthenticationHandler: 認証状態監視の設定中にエラーが発生しました', error as Error);
       // 空のdisposableを返す
-      return { dispose: () => {} };
+      return { dispose: () => {
+        // No-op: Error occurred during setup, nothing to dispose
+      } };
     }
   }
   

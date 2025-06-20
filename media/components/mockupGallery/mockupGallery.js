@@ -590,7 +590,8 @@
         // モックアップが生成された
         if (message.mockupId) {
           // キュー情報を更新
-          updateQueueInfo();
+          // TODO: updateQueueInfo関数の実装が必要
+          // updateQueueInfo();
           
           // モックアップリストを再読み込み
           vscode.postMessage({ command: 'loadMockups' });

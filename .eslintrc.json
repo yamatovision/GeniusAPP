@@ -18,5 +18,46 @@
     "no-throw-literal": "warn",
     "semi": "off"
   },
-  "ignorePatterns": ["dist", "**/*.d.ts"]
+  "ignorePatterns": ["dist", "**/*.d.ts", "build", "**/build/**", "portal/frontend/build/**"],
+  "overrides": [
+    {
+      "files": ["media/**/*.js"],
+      "env": {
+        "browser": true,
+        "es2020": true
+      },
+      "globals": {
+        "acquireVsCodeApi": "readonly",
+        "vscode": "readonly"
+      }
+    },
+    {
+      "files": ["portal/backend/**/*.js", "portal/scripts/**/*.js", "scripts/**/*.js"],
+      "env": {
+        "node": true,
+        "es2020": true
+      },
+      "rules": {
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    },
+    {
+      "files": ["portal/frontend/**/*.js"],
+      "env": {
+        "browser": true,
+        "es2020": true
+      }
+    },
+    {
+      "files": ["test/**/*.js", "**/*.test.js", "**/*.spec.js"],
+      "env": {
+        "node": true,
+        "jest": true,
+        "es2020": true
+      },
+      "rules": {
+        "@typescript-eslint/no-var-requires": "off"
+      }
+    }
+  ]
 }

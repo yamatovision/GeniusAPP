@@ -214,7 +214,7 @@
     // 空白をアンダースコアに置換
     const prefix = firstLine.replace(/\s+/g, '_');
     // ファイル名に使用できない文字を取り除く
-    const validPrefix = prefix.replace(/[^a-zA-Z0-9_\-]/g, '');
+    const validPrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, '');
     
     // 有効な文字が残らなかった場合はデフォルト名
     if (!validPrefix) {

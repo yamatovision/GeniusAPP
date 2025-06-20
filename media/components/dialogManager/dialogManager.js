@@ -1,4 +1,5 @@
 // @ts-check
+/* global console, document, window */
 import stateManager from '../../core/stateManager.js';
 
 class DialogManager {

@@ -124,7 +124,7 @@ export class TempFileManager {
       let safeName = name.replace(/\s+/g, '_');
       
       // 使用不可文字を除去
-      safeName = safeName.replace(/[^a-zA-Z0-9_\-]/g, '');
+      safeName = safeName.replace(/[^a-zA-Z0-9_-]/g, '');
       
       // 長すぎる場合は省略
       if (safeName.length > 30) {

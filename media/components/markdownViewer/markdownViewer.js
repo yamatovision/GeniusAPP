@@ -93,24 +93,11 @@ class MarkdownViewer {
     // 表示対象のコンテナを決定（指定がある場合はそれを使用、ない場合はデフォルトコンテナ）
     let container = targetContainer;
 
-    // コンテナが未指定の場合はアクティブなタブに基づいて自動選択
+    // コンテナが未指定の場合はデフォルトコンテナを使用
     if (!container) {
-      console.log('コンテナ未指定 - アクティブタブで自動選択');
-
-      if (activeTab === 'requirements') {
-        container = document.querySelector('#requirements-tab .markdown-content');
-        console.log('要件定義タブのコンテナを自動選択:', container ? '成功' : '失敗');
-      } else if (activeTab === 'scope-progress') {
-        container = document.querySelector('#scope-progress-tab .markdown-content');
-        console.log('進捗状況タブのコンテナを自動選択:', container ? '成功' : '失敗');
-      }
-
-      // 自動選択に失敗した場合はデフォルトコンテナにフォールバック
-      if (!container) {
-        container = this.container;
-        console.log('コンテナ自動選択失敗 - デフォルトコンテナを使用:',
-          container ? (container.id || 'ID未設定') : 'コンテナなし');
-      }
+      container = this.container;
+      console.log('コンテナ未指定 - デフォルトコンテナを使用:',
+        container ? (container.id || 'ID未設定') : 'コンテナなし');
     }
 
     if (!container) {

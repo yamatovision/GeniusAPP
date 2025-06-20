@@ -650,29 +650,6 @@ export class ScopeManagerPanel extends ProtectedPanel {
   }
   
   /**
-   * 要件定義ファイルの読み込み
-   * docsディレクトリ内のrequirements.mdファイルを読み込んで表示
-   */
-  /**
-   * @deprecated TabStateServiceに移行済み
-   */
-  private async _handleLoadRequirementsFile(): Promise<void> {
-    // TabStateServiceに移行済み
-    await this._tabStateService.loadRequirementsFile(this._panel);
-  }
-  
-  // _initializeFileBrowserメソッドはFileSystemServiceに完全移行されました
-  
-  
-  // _handleListDirectoryメソッドはFileSystemServiceに完全移行されました
-  
-  // _handleOpenFileInEditorメソッドはFileSystemServiceに完全移行されました
-  
-  // _handleNavigateDirectoryメソッドはFileSystemServiceに完全移行されました
-  
-  // _handleOpenFileメソッドはFileSystemServiceに完全移行されました
-  
-  /**
    * プロジェクト一覧を更新
    * ProjectServiceを使用して実装
    */

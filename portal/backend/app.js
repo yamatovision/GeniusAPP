@@ -1,3 +1,4 @@
+/* eslint-env node */
 /**
  * AppGenius Portal Express App設定ファイル
  * 

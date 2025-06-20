@@ -31,7 +31,9 @@ try {
       console.log('ダミーvscode.postMessage:', msg); 
     },
     getState: function() { return {}; },
-    setState: function() {}
+    setState: function() {
+      // No-op: This is a placeholder implementation
+    }
   };
 }
 

@@ -159,8 +159,9 @@ export class ClaudeCodeApiClient {
   ): Promise<T> {
     let retries = 0;
     const baseDelay = 1000; // 1秒
+    const isRetrying = true;
 
-    while (true) {
+    while (isRetrying) {
       try {
         return await operation();
       } catch (error) {

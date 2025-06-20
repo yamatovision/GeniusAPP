@@ -1,3 +1,4 @@
+/* global acquireVsCodeApi, document, window */
 (function() {
   // vscode APIの取得
   const vscode = acquireVsCodeApi();

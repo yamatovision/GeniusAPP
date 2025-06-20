@@ -4,7 +4,7 @@
  * ===== 型定義同期ガイドライン =====
  * 型ファイルは下記2つの同期された型ファイルが存在します。  
  *  - **フロントエンド**: `frontend/src/types/index.ts`
- *　 - **バックエンド**: `backend/src/types/index.ts`
+ *  - **バックエンド**: `backend/src/types/index.ts`
  * 【基本原則】この/types/index.tsを更新したら、もう一方の/types/index.tsも必ず同じ内容に更新する
  * 
  * 【変更の責任】
