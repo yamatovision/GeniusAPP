@@ -229,6 +229,8 @@ export class UIStateService implements IUIStateService {
     const dialogManagerPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'dialogManager', 'dialogManager.js'));
     const promptCardsPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'promptCards', 'promptCards.js'));
     const fileBrowserPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'fileBrowser', 'fileBrowser.js'));
+    const lpReplicaPath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'lpReplica', 'lpReplica.js'));
+    const lpReplicaStylePath = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'components', 'lpReplica', 'lpReplica.css'));
     
     // 実際のHTMLコンテンツを返す
     // Note: この内容はWebViewパネルの作成時に一度だけ設定され、その後はJS側で内容が更新される
@@ -242,6 +244,8 @@ export class UIStateService implements IUIStateService {
         <link href="${designSystemPath}" rel="stylesheet">
         <link href="${componentsStylePath}" rel="stylesheet">
         <link href="${stylesPath}" rel="stylesheet">
+        <link href="${lpReplicaStylePath}" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
         <script type="module" src="${stateManagerPath}"></script>
         <script type="module" src="${tabManagerPath}"></script>
         <script type="module" src="${markdownViewerPath}"></script>
@@ -249,6 +253,7 @@ export class UIStateService implements IUIStateService {
         <script type="module" src="${dialogManagerPath}"></script>
         <script type="module" src="${promptCardsPath}"></script>
         <script type="module" src="${fileBrowserPath}"></script>
+        <script type="module" src="${lpReplicaPath}"></script>
         <script type="module" src="${scriptPath}"></script>
     </head>
     <body>
@@ -286,6 +291,9 @@ export class UIStateService implements IUIStateService {
                         </button>
                         <button class="tab" data-tab-id="directory">
                             <span class="tab-icon">🌲</span>構造
+                        </button>
+                        <button class="tab" data-tab-id="lp-replica">
+                            <span class="tab-icon">🔍</span>LPレプリカ
                         </button>
                     </div>
 
@@ -337,6 +345,42 @@ export class UIStateService implements IUIStateService {
                                     </button>
                                 </div>
                                 <pre id="directory-structure" class="directory-structure">ディレクトリ構造を読み込み中...</pre>
+                            </div>
+                        </div>
+                        
+                        <!-- LPレプリカタブ -->
+                        <div class="tab-content" id="lp-replica-content">
+                            <div class="lp-replica-container">
+                                <!-- レプリカ作成フォーム -->
+                                <div id="replica-create-form" class="replica-create-form">
+                                    <h3>LPレプリカ作成</h3>
+                                    <div class="form-group">
+                                        <label for="replica-url">ウェブサイトURL:</label>
+                                        <input type="url" id="replica-url" class="form-control" placeholder="https://example.com">
+                                        <button id="create-replica-btn" class="button button-primary">レプリカを作成</button>
+                                    </div>
+                                    <div id="replica-status" class="status-message"></div>
+                                </div>
+                                
+                                <!-- レプリカビューア -->
+                                <div id="replica-viewer" class="replica-viewer" style="display: none;">
+                                    <div class="replica-controls">
+                                        <button id="refresh-replica-btn" class="icon-button" title="更新">
+                                            <span class="material-icons">refresh</span>
+                                        </button>
+                                        <button id="open-external-btn" class="icon-button" title="ブラウザで開く">
+                                            <span class="material-icons">open_in_new</span>
+                                        </button>
+                                    </div>
+                                    <iframe id="replica-iframe" class="replica-iframe"></iframe>
+                                    <div id="element-info" class="element-info" style="display: none;">
+                                        <h4>要素情報</h4>
+                                        <pre id="element-info-content"></pre>
+                                        <button id="copy-element-info-btn" class="button button-sm">
+                                            <span class="material-icons">content_copy</span> コピー
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

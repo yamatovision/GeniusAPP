@@ -415,7 +415,18 @@ export class ReplicaService {
         e.stopPropagation();
         const text = infoContent.textContent;
         
-        if (window.vscode) {
+        // iframe内から親フレームへメッセージを送信
+        if (window.parent !== window) {
+            window.parent.postMessage({
+                command: 'copyElementInfo',
+                text: text
+            }, '*');
+            copyButton.textContent = 'コピー完了！';
+            setTimeout(() => {
+                copyButton.textContent = 'コピー';
+            }, 2000);
+        } else if (window.vscode) {
+            // 直接VSCode APIを使用（通常のWebview環境）
             window.vscode.postMessage({
                 command: 'copyElementInfo',
                 text: text
@@ -425,17 +436,30 @@ export class ReplicaService {
                 copyButton.textContent = 'コピー';
             }, 2000);
         } else {
-            // fallback: try clipboard API, but catch errors
+            // フォールバック: document.execCommandを使用
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            textarea.setSelectionRange(0, textarea.value.length);
+            
             try {
-                navigator.clipboard.writeText(text).then(() => {
+                const successful = document.execCommand('copy');
+                if (successful) {
                     copyButton.textContent = 'コピー完了！';
                     setTimeout(() => {
                         copyButton.textContent = 'コピー';
                     }, 2000);
-                });
+                } else {
+                    alert('コピー機能が制限されています。要素情報:\\n\\n' + text);
+                }
             } catch (err) {
-                // show alternative for manual copy
                 alert('コピー機能が制限されています。要素情報:\\n\\n' + text);
+            } finally {
+                document.body.removeChild(textarea);
             }
         }
     });

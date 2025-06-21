@@ -166,6 +166,13 @@ window.lpReplica.Manager = class {
         window.addEventListener('message', event => {
             const message = event.data;
             
+            // iframeからのメッセージを処理
+            if (event.source !== window && message.command === 'copyElementInfo') {
+                console.log('[DEBUG] iframeからのコピー要求を受信:', message.text);
+                this.handleCopyElementInfo(message);
+                return;
+            }
+            
             switch (message.command) {
                 case 'replicaCreateProgress':
                     this.updateStatus(message.message, 'info');
@@ -478,7 +485,7 @@ window.lpReplica.Manager = class {
             if (!this.elements.iframe) {
                 console.error('[ERROR] 利用可能なDOM要素:');
                 console.error('- replica-iframe:', document.getElementById('replica-iframe'));
-                console.error('- lp-replica-tab:', document.getElementById('lp-replica-tab'));
+                console.error('- lp-replica-content:', document.getElementById('lp-replica-content'));
                 console.error('- replica-viewer:', document.getElementById('replica-viewer'));
             }
         }
@@ -717,7 +724,7 @@ function initLPReplicaManager() {
     }
     
     // タブが表示されているかチェック
-    const lpReplicaTab = document.querySelector('#lp-replica-tab');
+    const lpReplicaTab = document.querySelector('#lp-replica-content');
     if (lpReplicaTab) {
         window.lpReplicaManager = new window.lpReplica.Manager();
     }

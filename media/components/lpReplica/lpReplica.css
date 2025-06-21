@@ -1,0 +1,190 @@
+/* LPレプリカビューアのスタイル */
+.lp-replica-viewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* マークダウンコンテンツエリア */
+#lp-replica-markdown-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  background-color: var(--vscode-editor-background);
+}
+
+/* レプリカフォーム */
+#replica-create-form {
+  padding: 24px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.replica-input-group {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+#replica-url {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--vscode-input-border);
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border-radius: 4px;
+}
+
+#create-replica-btn {
+  padding: 8px 16px;
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+#create-replica-btn:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+/* レプリカビューア */
+#replica-viewer {
+  display: none;
+  height: 100%;
+  padding: 0;
+}
+
+.replica-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  background-color: var(--vscode-editorWidget-background);
+  border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.replica-toolbar button {
+  padding: 6px 12px;
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.replica-toolbar button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* iframe */
+#replica-iframe {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background-color: white;
+}
+
+/* ステータスメッセージ */
+.status-message {
+  padding: 12px;
+  margin-bottom: 16px;
+  border-radius: 4px;
+  display: none;
+}
+
+.status-info {
+  background-color: var(--vscode-editorInfo-background);
+  color: var(--vscode-editorInfo-foreground);
+}
+
+.status-success {
+  background-color: var(--vscode-editorInfo-background);
+  color: var(--vscode-editorInfo-foreground);
+}
+
+.status-error {
+  background-color: var(--vscode-editorError-background);
+  color: var(--vscode-editorError-foreground);
+}
+
+.status-warning {
+  background-color: var(--vscode-editorWarning-background);
+  color: var(--vscode-editorWarning-foreground);
+}
+
+/* 要素情報表示エリア */
+#element-info {
+  display: none;
+  padding: 16px;
+  background-color: var(--vscode-editorWidget-background);
+  border-top: 1px solid var(--vscode-editorWidget-border);
+}
+
+#element-info-content {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+}
+
+/* メッセージエリア */
+#replica-message-area {
+  padding: 40px;
+  text-align: center;
+}
+
+#replica-message-area h3 {
+  color: var(--vscode-foreground);
+  margin-bottom: 20px;
+}
+
+#replica-message-area .material-icons {
+  font-size: 48px;
+  color: var(--vscode-button-background);
+}
+
+#replica-message-area p {
+  color: var(--vscode-foreground);
+  margin-bottom: 20px;
+}
+
+#replica-message-area .button {
+  padding: 12px 24px;
+  margin: 0 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#replica-message-area .button-primary {
+  background-color: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+#replica-message-area .button-primary:hover {
+  background-color: var(--vscode-button-hoverBackground);
+}
+
+#replica-message-area .button-secondary {
+  background-color: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+#replica-message-area .button-secondary:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
